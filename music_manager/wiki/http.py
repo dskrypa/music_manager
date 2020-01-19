@@ -1,5 +1,6 @@
 """
-
+Library for retrieving data from `MediaWiki sites via REST API <https://www.mediawiki.org/wiki/API>`_ or normal
+requests.
 
 :author: Doug Skrypa
 """
@@ -14,6 +15,12 @@ log = logging.getLogger(__name__)
 
 class WikiClient(RequestsClient):
     def _query(self, **params):
+        """
+        Note: Limit of 50 titles per query, though API docs say the limit for bots is 500
+
+        :param params:
+        :return:
+        """
         params['action'] = 'query'
         params['format'] = 'json'
         for key, val in params.items():
@@ -34,10 +41,25 @@ class WikiClient(RequestsClient):
         return parsed
 
     def query_content(self, titles):
-        return self._query(titles=titles, rvprop='content', prop='revisions', rvslots='*')
+        """Get the contents of the latest revision of one or more pages as wikitext."""
+        resp = self._query(titles=titles, rvprop='content', prop='revisions', rvslots='*')
+        return {title: data['revisions'][0] for title, data in resp.items()}
 
     def query_categories(self, titles):
-        return self._query(titles=titles, prop='categories')
+        """Get the categories of one or more pages."""
+        resp = self._query(titles=titles, prop='categories')
+        return {title: data['categories'] for title, data in resp.items()}
 
     def query_pages(self, titles):
-        return self._query(titles=titles, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
+        """
+        Get the full page content and the following additional data about each of the provided page titles:\n
+          - categories
+
+        :param str|list titles: One or more page titles (as it appears in the URL for the page)
+        :return dict: Mapping of {title: dict(page data)}
+        """
+        resp = self._query(titles=titles, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
+        processed = {}
+        for title, data in resp.items():
+            processed[title] = {'content': data['revisions'][0], 'categories': data['categories']}
+        return processed

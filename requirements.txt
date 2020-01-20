@@ -1,0 +1,8 @@
+requests_client @ git+git://github.com/dskrypa/requests_client
+cachetools
+beautifulsoup4
+requests
+mutagen
+fuzzywuzzy
+plexapi
+urllib3

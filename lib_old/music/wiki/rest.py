@@ -10,8 +10,10 @@ from urllib.parse import urlparse
 import bs4
 
 from ds_tools.caching import cached, DBCache
-from ds_tools.http import CodeBasedRestException, RestClient
-from ds_tools.utils import soupify, ParentheticalParser
+from ds_tools.http import CodeBasedRestException
+from ds_tools.utils import ParentheticalParser
+from ds_tools.utils.soup import soupify
+from requests_client import RequestsClient
 from .exceptions import *
 from .parsing import parse_aside, parse_infobox, parse_album_page, parse_wikipedia_album_page
 from .utils import get_page_category
@@ -39,7 +41,7 @@ def http_req_cache_key(self, endpoint, *args, **kwargs):
     return url
 
 
-class WikiClient(RestClient):
+class WikiClient(RequestsClient):
     _site = None
     _sites = {}
     __instances = {}
@@ -55,13 +57,16 @@ class WikiClient(RestClient):
 
     def __init__(self, host=None, prefix='wiki', proto='https', **kwargs):
         if not getattr(self, '_WikiClient__initialized', False):
-            super().__init__(host or self._site, rate_limit=0.5, prefix=prefix, proto=proto, log_params=True, **kwargs)
+            super().__init__(
+                host or self._site, rate_limit=0.5, prefix=prefix, scheme=proto, log_params=True,
+                exc=CodeBasedRestException, **kwargs
+            )
             self._resp_cache = DBCache('responses', cache_subdir='kpop_wiki')
             self._name_cache = DBCache('names', cache_subdir='kpop_wiki')
             self._bad_name_cache = DBCache('invalid_names', cache_subdir='kpop_wiki')
             self.__initialized = True
 
-    def url_for(self, endpoint, allow_alt_sites=False):
+    def get_url_for(self, endpoint, allow_alt_sites=False):
         if allow_alt_sites and endpoint.startswith(('http://', 'https://', '//')):
             _url = urlparse(endpoint)
             uri_path = _url.path[6:] if _url.path.startswith('/wiki/') else _url.path

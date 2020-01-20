@@ -8,7 +8,8 @@ from collections import OrderedDict
 from itertools import chain, combinations
 from urllib.parse import urlparse
 
-from ds_tools.utils import QMARKS, soupify, regexcape
+from ds_tools.utils import QMARKS, regexcape
+from ds_tools.utils.soup import soupify
 
 __all__ = [
     'comparison_type_check', 'edition_combinations', 'get_page_category', 'multi_lang_name', 'normalize_href',

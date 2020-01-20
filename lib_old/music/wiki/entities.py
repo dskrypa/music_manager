@@ -20,7 +20,8 @@ from ds_tools.caching import cached, DictAttrProperty, DictAttrPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.http import CodeBasedRestException
 from ds_tools.unicode import LangCat, romanized_permutations, matches_permutation
-from ds_tools.utils import soupify, normalize_roman_numerals, ParentheticalParser
+from ds_tools.utils import normalize_roman_numerals, ParentheticalParser
+from ds_tools.utils.soup import soupify
 from ..name_processing import eng_cjk_sort, fuzz_process, parse_name, revised_weighted_ratio, split_name
 from .exceptions import *
 from .utils import (
@@ -1495,7 +1496,7 @@ class WikiArtist(WikiPersonCollection):
                             discography.append(ost)
                             # raise http_e
                     else:
-                        url = client.url_for(uri_path, allow_alt_sites=True)
+                        url = client.get_url_for(uri_path, allow_alt_sites=True)
                         if urlparse(url).hostname != self._client.host:
                             log.debug('{}: {} has a bad link for {} to {}'.format(self, self.url, entry['title'], url))
                         else:

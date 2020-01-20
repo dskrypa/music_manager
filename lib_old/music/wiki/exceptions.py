@@ -9,7 +9,7 @@ from urllib.parse import urlparse, unquote
 import bs4
 
 from ds_tools.compat import cached_property
-from ds_tools.utils import soupify
+from ds_tools.utils.soup import soupify
 from ..exceptions import MusicException
 
 __all__ = [

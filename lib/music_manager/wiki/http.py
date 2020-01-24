@@ -8,6 +8,7 @@ requests.
 import logging
 from collections import defaultdict
 
+from ds_tools.core import partitioned
 from requests_client import RequestsClient
 
 __all__ = ['MediaWikiClient']
@@ -53,8 +54,18 @@ class MediaWikiClient(RequestsClient):
         properties = {properties} if isinstance(properties, str) else set(properties)
         if 'iwlinks' in properties:
             params['iwurl'] = 1
-        params = self._update_params(params)
 
+        titles = params.pop('titles', None)
+        if titles:
+            full_resp = {}
+            for group in partitioned(titles, 50):
+                full_resp.update(self._query(titles=group, **params))
+            return full_resp
+        else:
+            return self._query(**params)
+
+    def _query(self, **params):
+        params = self._update_params(params)
         resp = self.get('api.php', params=params)
         parsed, more = self._parse_query(resp)
         skip_merge = {'pageid', 'ns', 'title'}

@@ -57,13 +57,14 @@ class MediaWikiClient(RequestsClient):
 
         resp = self.get('api.php', params=params)
         parsed, more = self._parse_query(resp)
+        skip_merge = {'pageid', 'ns', 'title'}
         while more:
             continue_params = params.copy()
             continue_params['prop'] = '|'.join(more.keys())
             for continue_cmd in more.values():
                 continue_params.update(continue_cmd)
 
-            resp = self.get('api.php', params=params)
+            resp = self.get('api.php', params=continue_params)
             _parsed, more = self._parse_query(resp)
             for title, data in _parsed.items():
                 full = parsed[title]
@@ -77,13 +78,11 @@ class MediaWikiClient(RequestsClient):
                             full_val.extend(val)
                         elif isinstance(full_val, dict):
                             full_val.update(val)
+                        elif key in skip_merge:
+                            pass
                         else:
-                            msg = f'Unexpected value to merge for title={title!r} key={key!r} '     # space intentional
-                            msg += f'type={type(full_val).__name__} full_val={full_val!r} new val={val!r}'
-                            log.error(msg)
-
-
-
+                            base = f'Unexpected value to merge for title={title!r} key={key!r}'
+                            log.error(f'{base} type={type(full_val).__name__} full_val={full_val!r} new val={val!r}')
 
         return parsed
 

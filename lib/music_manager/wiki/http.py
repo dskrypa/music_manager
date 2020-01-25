@@ -128,28 +128,33 @@ class MediaWikiClient(RequestsClient):
             raise WikiResponseError(json.dumps(response['error']))
 
         results = response['query']
-        if 'pages' in results:
+        try:
+            pages = results['pages']
+        except KeyError:
+            return response, None
+        else:
+            if isinstance(pages, dict):
+                pages = pages.values()
+
             parsed = {}
-            for page_id, page in results['pages'].items():
+            for page in pages:
                 title = page['title']
                 content = parsed[title] = {}
                 for key, val in page.items():
                     if key == 'revisions':
-                        content[key] = [rev['*'] for rev in val]
+                        content[key] = [rev['*'] if '*' in rev else rev['content'] for rev in val]
                     elif key == 'categories':
                         content[key] = [cat['title'].split(':', maxsplit=1)[1] for cat in val]
                     elif key == 'iwlinks':
                         iwlinks = content[key] = defaultdict(dict)  # Mapping of {wiki name: {title: full url}}
                         for iwlink in val:
-                            iwlinks[iwlink['prefix']][iwlink['*']] = iwlink['url']
+                            iwlinks[iwlink['prefix']][iwlink['*' if '*' in iwlink else 'title']] = iwlink['url']
                     elif key == 'links':
                         content[key] = [link['title'] for link in val]
                     else:
                         content[key] = val
             more = response.get('query-continue')
             return parsed, more
-        else:
-            return response, None
 
     def parse(self, **params):
         """
@@ -192,7 +197,8 @@ class MediaWikiClient(RequestsClient):
     def query_content(self, titles):
         """Get the contents of the latest revision of one or more pages as wikitext."""
         pages = {}
-        resp = self.query(titles=titles, rvprop='content', prop='revisions', rvslots='*')
+        # resp = self.query(titles=titles, rvprop='content', prop='revisions', rvslots='*')
+        resp = self.query(titles=titles, rvprop='content', prop='revisions')
         for title, data in resp.items():
             revisions = data.get('revisions')
             pages[title] = revisions[0] if revisions else None
@@ -234,7 +240,8 @@ class MediaWikiClient(RequestsClient):
                     pages[title] = page
 
         if need:
-            resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
+            # resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
+            resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'])
             for title, data in resp.items():
                 if data.get('pageid') is None:                      # The page does not exist
                     self._page_cache[title] = None

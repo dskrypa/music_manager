@@ -65,8 +65,8 @@ class WikiPage:
         last_by_level = {0: root}
         for sec in sections:
             parent_lvl = sec.level - 1
-            if parent_lvl not in last_by_level:
-                parent_lvl = 0
+            while parent_lvl > 0 and parent_lvl not in last_by_level:
+                parent_lvl -= 1
             parent = last_by_level[parent_lvl]
             section = parent.add(sec)
             last_by_level[section.level] = section

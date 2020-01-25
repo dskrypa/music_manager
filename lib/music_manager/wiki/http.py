@@ -9,10 +9,12 @@ import json
 import logging
 import re
 from collections import defaultdict
+from distutils.version import LooseVersion
 from urllib.parse import urlparse
 
 from ds_tools.caching import TTLDBCache
 from ds_tools.core import partitioned
+from ds_tools.compat import cached_property
 from requests_client import RequestsClient
 
 from .exceptions import WikiResponseError, PageMissingError
@@ -23,6 +25,7 @@ log = logging.getLogger(__name__)
 
 
 class MediaWikiClient(RequestsClient):
+    _siteinfo_cache = None
     _instances = {}
     def __new__(cls, host_or_url, *args, **kwargs):
         host = urlparse(host_or_url).hostname if re.match('^[a-zA-Z]+://', host_or_url) else host_or_url
@@ -40,13 +43,29 @@ class MediaWikiClient(RequestsClient):
             headers.setdefault('Accept-Language', 'en-US,en;q=0.5')
             # headers.setdefault('Upgrade-Insecure-Requests', '1')
             super().__init__(*args, **kwargs)
+            if MediaWikiClient._siteinfo_cache is None:
+                MediaWikiClient._siteinfo_cache = TTLDBCache('siteinfo', cache_subdir='music_manager', ttl=3600 * 24)
             self._page_cache = TTLDBCache(f'{self.host}_pages', cache_subdir='music_manager', ttl=ttl)
             self.__initialized = True
 
-    @classmethod
-    def _update_params(cls, params):
+    @cached_property
+    def siteinfo(self):
+        try:
+            return self._siteinfo_cache[self.host]
+        except KeyError:
+            params = {'action': 'query', 'format': 'json', 'meta': 'siteinfo', 'siprop': 'general'}
+            resp = self.get('api.php', params=params)
+            self._siteinfo_cache[self.host] = siteinfo = resp.json()['query']['general']
+            return siteinfo
+
+    @cached_property
+    def mw_version(self):
+        return LooseVersion(self.siteinfo['generator'].split()[-1])
+
+    def _update_params(self, params):
         params['format'] = 'json'
-        params['formatversion'] = 2
+        if self.mw_version >= LooseVersion('1.25'):
+            params['formatversion'] = 2
         params['utf8'] = 1
         for key, val in params.items():
             # TODO: Figure out U+001F usage when a value containing | is found
@@ -73,7 +92,10 @@ class MediaWikiClient(RequestsClient):
         properties = params.get('prop', [])
         properties = {properties} if isinstance(properties, str) else set(properties)
         if 'iwlinks' in properties:
-            params['iwurl'] = 1
+            if self.mw_version >= LooseVersion('1.24'):
+                params['iwprop'] = 'url'
+            else:
+                params['iwurl'] = 1
 
         titles = params.pop('titles', None)
         if titles:
@@ -121,8 +143,7 @@ class MediaWikiClient(RequestsClient):
 
         return parsed
 
-    @classmethod
-    def _parse_query(cls, resp):
+    def _parse_query(self, resp):
         response = resp.json()
         if 'query' not in response and 'error' in response:
             raise WikiResponseError(json.dumps(response['error']))
@@ -136,19 +157,25 @@ class MediaWikiClient(RequestsClient):
             if isinstance(pages, dict):
                 pages = pages.values()
 
+            if self.mw_version >= LooseVersion('1.25'):
+                iw_key = 'title'
+                rev_key = 'content'
+            else:
+                iw_key, rev_key = '*', '*'
+
             parsed = {}
             for page in pages:
                 title = page['title']
                 content = parsed[title] = {}
                 for key, val in page.items():
                     if key == 'revisions':
-                        content[key] = [rev['*'] if '*' in rev else rev['content'] for rev in val]
+                        content[key] = [rev[rev_key] for rev in val]
                     elif key == 'categories':
                         content[key] = [cat['title'].split(':', maxsplit=1)[1] for cat in val]
                     elif key == 'iwlinks':
                         iwlinks = content[key] = defaultdict(dict)  # Mapping of {wiki name: {title: full url}}
                         for iwlink in val:
-                            iwlinks[iwlink['prefix']][iwlink['*' if '*' in iwlink else 'title']] = iwlink['url']
+                            iwlinks[iwlink['prefix']][iwlink[iw_key]] = iwlink['url']
                     elif key == 'links':
                         content[key] = [link['title'] for link in val]
                     else:
@@ -197,7 +224,6 @@ class MediaWikiClient(RequestsClient):
     def query_content(self, titles):
         """Get the contents of the latest revision of one or more pages as wikitext."""
         pages = {}
-        # resp = self.query(titles=titles, rvprop='content', prop='revisions', rvslots='*')
         resp = self.query(titles=titles, rvprop='content', prop='revisions')
         for title, data in resp.items():
             revisions = data.get('revisions')
@@ -240,7 +266,6 @@ class MediaWikiClient(RequestsClient):
                     pages[title] = page
 
         if need:
-            # resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
             resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'])
             for title, data in resp.items():
                 if data.get('pageid') is None:                      # The page does not exist

@@ -50,6 +50,7 @@ class MediaWikiClient(RequestsClient):
 
     @cached_property
     def siteinfo(self):
+        """Site metadata, including MediaWiki version.  Cached to disk with TTL = 24 hours."""
         try:
             return self._siteinfo_cache[self.host]
         except KeyError:
@@ -60,17 +61,22 @@ class MediaWikiClient(RequestsClient):
 
     @cached_property
     def mw_version(self):
+        """
+        The version of MediaWiki that this site is running.  Used to adjust query parameters due to API changes between
+        versions.
+        """
         return LooseVersion(self.siteinfo['generator'].split()[-1])
 
     def _update_params(self, params):
+        """Include useful default parameters, and handle conversion of lists/tuples/sets to pipe-delimited strings."""
         params['format'] = 'json'
-        if self.mw_version >= LooseVersion('1.25'):
+        if self.mw_version >= LooseVersion('1.25'):     # https://www.mediawiki.org/wiki/API:JSON_version_2
             params['formatversion'] = 2
         params['utf8'] = 1
         for key, val in params.items():
             # TODO: Figure out U+001F usage when a value containing | is found
             # Docs: If | in value, use U+001F as the separator & prefix value with it, e.g. param=%1Fvalue1%1Fvalue2
-            if isinstance(val, list):
+            if isinstance(val, (list, tuple, set)):
                 params[key] = '|'.join(map(str, val))
                 # params[key] = ''.join(map('\u001f{}'.format, val))    # doesn't work for vals without |
         return params
@@ -91,7 +97,7 @@ class MediaWikiClient(RequestsClient):
         params['redirects'] = 1
         properties = params.get('prop', [])
         properties = {properties} if isinstance(properties, str) else set(properties)
-        if 'iwlinks' in properties:
+        if 'iwlinks' in properties:                     # https://www.mediawiki.org/wiki/Special:MyLanguage/API:Iwlinks
             if self.mw_version >= LooseVersion('1.24'):
                 params['iwprop'] = 'url'
             else:
@@ -293,6 +299,14 @@ class MediaWikiClient(RequestsClient):
                 if key.upper() == uc_title:
                     return page
             raise PageMissingError(title, self.host, f'but results were found for: {", ".join(sorted(results))}')
+
+    def get_pages(self, titles):
+        raw_pages = self.query_pages(titles)
+        pages = {
+            title: WikiPage(title, self.host, page['wikitext'], page['categories'])
+            for title, page in raw_pages.items()
+        }
+        return pages
 
     def get_page(self, title):
         page = self.query_page(title)

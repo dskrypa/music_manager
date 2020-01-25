@@ -5,31 +5,49 @@ requests.
 :author: Doug Skrypa
 """
 
+import json
 import logging
+import re
 from collections import defaultdict
+from urllib.parse import urlparse
 
 from ds_tools.caching import TTLDBCache
 from ds_tools.core import partitioned
 from requests_client import RequestsClient
+
+from .exceptions import WikiResponseError, PageMissingError
+from .page import WikiPage
 
 __all__ = ['MediaWikiClient']
 log = logging.getLogger(__name__)
 
 
 class MediaWikiClient(RequestsClient):
+    _instances = {}
+    def __new__(cls, host_or_url, *args, **kwargs):
+        host = urlparse(host_or_url).hostname if re.match('^[a-zA-Z]+://', host_or_url) else host_or_url
+        try:
+            return cls._instances[host]
+        except KeyError:
+            cls._instances[host] = instance = super().__new__(cls)
+            return instance
+
     def __init__(self, *args, ttl=3600, **kwargs):
-        headers = kwargs.get('headers') or {}
-        headers.setdefault('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
-        headers.setdefault('Accept-Encoding', 'gzip, deflate')
-        headers.setdefault('Accept-Language', 'en-US,en;q=0.5')
-        headers.setdefault('Upgrade-Insecure-Requests', '1')
-        super().__init__(*args, **kwargs)
-        self._page_cache = TTLDBCache(f'{self.host}_pages', cache_subdir='music_manager', ttl=ttl)
+        if not getattr(self, '_MediaWikiClient__initialized', False):
+            headers = kwargs.get('headers') or {}
+            headers.setdefault('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
+            headers.setdefault('Accept-Encoding', 'gzip, deflate')
+            headers.setdefault('Accept-Language', 'en-US,en;q=0.5')
+            # headers.setdefault('Upgrade-Insecure-Requests', '1')
+            super().__init__(*args, **kwargs)
+            self._page_cache = TTLDBCache(f'{self.host}_pages', cache_subdir='music_manager', ttl=ttl)
+            self.__initialized = True
 
     @classmethod
     def _update_params(cls, params):
         params['format'] = 'json'
         params['formatversion'] = 2
+        params['utf8'] = 1
         for key, val in params.items():
             # TODO: Figure out U+001F usage when a value containing | is found
             # Docs: If | in value, use U+001F as the separator & prefix value with it, e.g. param=%1Fvalue1%1Fvalue2
@@ -59,10 +77,14 @@ class MediaWikiClient(RequestsClient):
 
         titles = params.pop('titles', None)
         if titles:
-            full_resp = {}
-            for group in partitioned(titles, 50):
-                full_resp.update(self._query(titles=group, **params))
-            return full_resp
+            # noinspection PyTypeChecker
+            if isinstance(titles, str) or len(titles) <= 50:
+                return self._query(titles=titles, **params)
+            else:
+                full_resp = {}
+                for group in partitioned(titles, 50):
+                    full_resp.update(self._query(titles=group, **params))
+                return full_resp
         else:
             return self._query(**params)
 
@@ -102,25 +124,32 @@ class MediaWikiClient(RequestsClient):
     @classmethod
     def _parse_query(cls, resp):
         response = resp.json()
-        parsed = {}
-        for page_id, page in response['query']['pages'].items():
-            title = page['title']
-            content = parsed[title] = {}
-            for key, val in page.items():
-                if key == 'revisions':
-                    content[key] = [rev['*'] for rev in val]
-                elif key == 'categories':
-                    content[key] = [cat['title'].split(':', maxsplit=1)[1] for cat in val]
-                elif key == 'iwlinks':
-                    iwlinks = content[key] = defaultdict(dict)  # Mapping of {wiki name: {title: full url}}
-                    for iwlink in val:
-                        iwlinks[iwlink['prefix']][iwlink['*']] = iwlink['url']
-                elif key == 'links':
-                    content[key] = [link['title'] for link in val]
-                else:
-                    content[key] = val
-        more = response.get('query-continue')
-        return parsed, more
+        if 'query' not in response and 'error' in response:
+            raise WikiResponseError(json.dumps(response['error']))
+
+        results = response['query']
+        if 'pages' in results:
+            parsed = {}
+            for page_id, page in results['pages'].items():
+                title = page['title']
+                content = parsed[title] = {}
+                for key, val in page.items():
+                    if key == 'revisions':
+                        content[key] = [rev['*'] for rev in val]
+                    elif key == 'categories':
+                        content[key] = [cat['title'].split(':', maxsplit=1)[1] for cat in val]
+                    elif key == 'iwlinks':
+                        iwlinks = content[key] = defaultdict(dict)  # Mapping of {wiki name: {title: full url}}
+                        for iwlink in val:
+                            iwlinks[iwlink['prefix']][iwlink['*']] = iwlink['url']
+                    elif key == 'links':
+                        content[key] = [link['title'] for link in val]
+                    else:
+                        content[key] = val
+            more = response.get('query-continue')
+            return parsed, more
+        else:
+            return response, None
 
     def parse(self, **params):
         """
@@ -181,7 +210,14 @@ class MediaWikiClient(RequestsClient):
 
         Data retrieved by this method is cached in a TTL=1h persistent disk cache.
 
-        :param str|list titles: One or more page titles (as it appears in the URL for the page)
+        If any of the provided titles did not exist, they will not be included in the returned dict.
+
+        Notes:\n
+          - The keys in the result may be different than the titles requested
+            - Punctuation may be stripped, if it did not belong in the title
+            - The case of the title may be different
+
+        :param str|list|set|tuple titles: One or more page titles (as it appears in the URL for the page)
         :return dict: Mapping of {title: dict(page data)}
         """
         if isinstance(titles, str):
@@ -190,20 +226,68 @@ class MediaWikiClient(RequestsClient):
         pages = {}
         for title in titles:
             try:
-                pages[title] = self._page_cache[title]
+                page = self._page_cache[title]
             except KeyError:
                 need.append(title)
+            else:
+                if page:
+                    pages[title] = page
 
         if need:
             resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
             for title, data in resp.items():
-                revisions = data.get('revisions')
-                self._page_cache[title] = pages[title] = {
-                    'categories': data.get('categories', []),
-                    'wikitext': revisions[0] if revisions else None
-                }
+                if data.get('pageid') is None:                      # The page does not exist
+                    self._page_cache[title] = None
+                else:
+                    revisions = data.get('revisions')
+                    self._page_cache[title] = pages[title] = {
+                        'title': title,
+                        'categories': data.get('categories', []),
+                        'wikitext': revisions[0] if revisions else None
+                    }
         return pages
+
+    def query_page(self, title):
+        results = self.query_pages(title)
+        if not results:
+            raise PageMissingError(title, self.host)
+        elif len(results) == 1:
+            return next(iter(results.values()))
+        try:
+            return results[title]
+        except KeyError:
+            uc_title = title.upper()
+            for key, page in results.items():
+                if key.upper() == uc_title:
+                    return page
+            raise PageMissingError(title, self.host, f'but results were found for: {", ".join(sorted(results))}')
+
+    def get_page(self, title):
+        page = self.query_page(title)
+        return WikiPage(page['title'], self.host, page['wikitext'], page['categories'])
 
     def parse_page(self, page):
         resp = self.parse(page=page, prop=['wikitext', 'text', 'categories', 'links', 'iwlinks', 'displaytitle'])
         return resp
+
+    def search(self, query, search_type='nearmatch', limit=10, offset=None):
+        """
+        Search for pages that match the given query.
+
+        `API documentation <https://www.mediawiki.org/wiki/Special:MyLanguage/API:Search>`_
+
+        :param str query: The query
+        :param str search_type: The type of search to perform (title, text, nearmatch); some types may be disabled in
+          some wikis.
+        :param int limit: Number of results to return (max: 500)
+        :param int offset: The number of results to skip when requesting additional results for the given query
+        :return dict: The parsed response
+        """
+        params = {
+            # 'srprop': ['timestamp', 'snippet', 'redirecttitle', 'categorysnippet']
+        }
+        if search_type is not None:
+            params['srwhat'] = search_type
+        if offset is not None:
+            params['sroffset'] = offset
+        return self.query(list='search', srsearch=query, srlimit=limit, **params)

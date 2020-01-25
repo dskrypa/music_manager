@@ -7,3 +7,5 @@ mutagen
 fuzzywuzzy
 plexapi
 urllib3
+mwparserfromhell
+wikitextparser

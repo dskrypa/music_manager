@@ -8,6 +8,7 @@ requests.
 import logging
 from collections import defaultdict
 
+from ds_tools.caching import TTLDBCache
 from ds_tools.core import partitioned
 from requests_client import RequestsClient
 
@@ -16,13 +17,14 @@ log = logging.getLogger(__name__)
 
 
 class MediaWikiClient(RequestsClient):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ttl=3600, **kwargs):
         headers = kwargs.get('headers') or {}
         headers.setdefault('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
         headers.setdefault('Accept-Encoding', 'gzip, deflate')
         headers.setdefault('Accept-Language', 'en-US,en;q=0.5')
         headers.setdefault('Upgrade-Insecure-Requests', '1')
         super().__init__(*args, **kwargs)
+        self._page_cache = TTLDBCache(f'{self.host}_pages', cache_subdir='music_manager', ttl=ttl)
 
     @classmethod
     def _update_params(cls, params):
@@ -160,12 +162,12 @@ class MediaWikiClient(RequestsClient):
 
     def query_content(self, titles):
         """Get the contents of the latest revision of one or more pages as wikitext."""
+        pages = {}
         resp = self.query(titles=titles, rvprop='content', prop='revisions', rvslots='*')
-        processed = {}
         for title, data in resp.items():
             revisions = data.get('revisions')
-            processed[title] = revisions[0] if revisions else None
-        return processed
+            pages[title] = revisions[0] if revisions else None
+        return pages
 
     def query_categories(self, titles):
         """Get the categories of one or more pages."""
@@ -177,18 +179,30 @@ class MediaWikiClient(RequestsClient):
         Get the full page content and the following additional data about each of the provided page titles:\n
           - categories
 
+        Data retrieved by this method is cached in a TTL=1h persistent disk cache.
+
         :param str|list titles: One or more page titles (as it appears in the URL for the page)
         :return dict: Mapping of {title: dict(page data)}
         """
-        resp = self.query(titles=titles, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
-        processed = {}
-        for title, data in resp.items():
-            revisions = data.get('revisions')
-            processed[title] = {
-                'categories': data.get('categories', []),
-                'wikitext': revisions[0] if revisions else None
-            }
-        return processed
+        if isinstance(titles, str):
+            titles = [titles]
+        need = []
+        pages = {}
+        for title in titles:
+            try:
+                pages[title] = self._page_cache[title]
+            except KeyError:
+                need.append(title)
+
+        if need:
+            resp = self.query(titles=need, rvprop='content', prop=['revisions', 'categories'], rvslots='*')
+            for title, data in resp.items():
+                revisions = data.get('revisions')
+                self._page_cache[title] = pages[title] = {
+                    'categories': data.get('categories', []),
+                    'wikitext': revisions[0] if revisions else None
+                }
+        return pages
 
     def parse_page(self, page):
         resp = self.parse(page=page, prop=['wikitext', 'text', 'categories', 'links', 'iwlinks', 'displaytitle'])

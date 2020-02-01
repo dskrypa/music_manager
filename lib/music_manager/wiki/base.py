@@ -5,6 +5,7 @@
 import logging
 
 from ds_tools.wiki.http import MediaWikiClient
+from ds_tools.wiki.page import WikiPage
 from .exceptions import EntityTypeError
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
@@ -21,19 +22,34 @@ class WikiEntity:
             WikiEntity._category_classes[cat] = cls
 
     def __init__(self, name, pages=None):
+        """
+        :param str name: The name of this entity
+        :param WikiPage|dict|iterable pages: One or more WikiPage objects
+        """
         self.name = name
         self.alt_names = None
-        self.pages = pages or []
+        if isinstance(pages, dict):
+            self._pages = pages
+        else:
+            self._pages = {}
+            if pages:
+                if isinstance(pages, str):
+                    raise TypeError(f'pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
+                elif isinstance(pages, WikiPage):
+                    self._pages[pages.site] = pages
+                else:
+                    for page in pages:
+                        self._pages[page.site] = page
 
     def __repr__(self):
-        return f'<{type(self).__name__}({self.name!r})[pages: {len(self.pages)}]>'
+        return f'<{type(self).__name__}({self.name!r})[pages: {len(self._pages)}]>'
 
     @classmethod
     def from_page(cls, page):
         name = page.title
         if page.infobox:
             try:
-                name = page.infobox['name']
+                name = page.infobox['name'].value
             except KeyError:
                 pass
 

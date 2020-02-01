@@ -10,14 +10,16 @@ from ds_tools.logging import init_logging
 from ds_tools.wiki.page import WikiPage
 from music_manager.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
 from music_manager.wiki.artist import Artist, Singer, Group
-from music_manager.wiki.album import Discography, SongCollection, SongCollectionPart, Album, Single, Soundtrack
+from music_manager.wiki.album import (
+    Discography, SongCollection, SongCollectionPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack
+)
 from music_manager.wiki.track import Track
 from music_manager.wiki.exceptions import EntityTypeError
 
 log = logging.getLogger(__name__)
 ENTITY_TYPES = {
     WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries, Artist, Singer, Group, Discography, SongCollection,
-    SongCollectionPart, Album, Single, Soundtrack, Track
+    SongCollectionPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack, Track
 }
 CATEGORY_COMPATIBLE_TYPE_MAP = {
     'singer': (Singer, {WikiEntity, PersonOrGroup, Artist, Singer}),

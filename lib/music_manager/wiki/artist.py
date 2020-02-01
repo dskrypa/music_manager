@@ -19,6 +19,7 @@ class Artist(PersonOrGroup):
 
     @cached_property
     def discography(self):
+        # TODO: Build this from all pages, not just the first one that works.  Some sites have items that others missed
         for site, page in self._pages.items():
             try:
                 section = page.sections.find('Discography')

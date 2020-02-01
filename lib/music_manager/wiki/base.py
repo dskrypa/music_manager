@@ -49,7 +49,7 @@ class WikiEntity:
         yield from self._pages.values()
 
     @classmethod
-    def from_page(cls, page):
+    def from_page(cls, page, *args, **kwargs):
         name = page.title
         if page.infobox:
             try:
@@ -60,10 +60,10 @@ class WikiEntity:
         for category, cat_cls in cls._category_classes.items():
             if any(category in cat for cat in page.categories):
                 if issubclass(cat_cls, cls):
-                    return cat_cls(name, [page])
+                    return cat_cls(name, [page], *args, **kwargs)
                 raise EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={category!r}')
 
-        return cls(name, [page])
+        return cls(name, [page], *args, **kwargs)
 
     @classmethod
     def from_url(cls, url):

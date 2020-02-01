@@ -11,23 +11,23 @@ from ds_tools.wiki.page import WikiPage
 from music_manager.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
 from music_manager.wiki.artist import Artist, Singer, Group
 from music_manager.wiki.album import (
-    Discography, SongCollection, SongCollectionPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack
+    Discography, DiscographyEntry, AlbumPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack
 )
 from music_manager.wiki.track import Track
 from music_manager.wiki.exceptions import EntityTypeError
 
 log = logging.getLogger(__name__)
 ENTITY_TYPES = {
-    WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries, Artist, Singer, Group, Discography, SongCollection,
-    SongCollectionPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack, Track
+    WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries, Artist, Singer, Group, Discography, DiscographyEntry,
+    AlbumPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack, Track
 }
 CATEGORY_COMPATIBLE_TYPE_MAP = {
     'singer': (Singer, {WikiEntity, PersonOrGroup, Artist, Singer}),
     'group': (Group, {WikiEntity, PersonOrGroup, Artist, Group}),
     'discography': (Discography, {WikiEntity, Discography}),
-    'album': (Album, {WikiEntity, SongCollection, Album}),
-    'single': (Single, {WikiEntity, SongCollection, Single}),
-    'soundtrack': (Soundtrack, {WikiEntity, SongCollection, Soundtrack}),
+    'album': (Album, {WikiEntity, DiscographyEntry, Album}),
+    'single': (Single, {WikiEntity, DiscographyEntry, Single}),
+    'soundtrack': (Soundtrack, {WikiEntity, DiscographyEntry, Soundtrack}),
     'agency': (Agency, {WikiEntity, PersonOrGroup, Agency}),
     'competition': (SpecialEvent, {WikiEntity, SpecialEvent}),
     'television program': (TVSeries, {WikiEntity, TVSeries})

@@ -1,5 +1,5 @@
 requests_client @ git+git://github.com/dskrypa/requests_client
-ds_tools @ git+git://github.com/dskrypa/ds_tools
+ds_tools[wiki] @ git+git://github.com/dskrypa/ds_tools
 cachetools
 beautifulsoup4
 requests
@@ -7,5 +7,3 @@ mutagen
 fuzzywuzzy
 plexapi
 urllib3
-mwparserfromhell
-wikitextparser

@@ -6,7 +6,7 @@ import logging
 
 from ds_tools.compat import cached_property
 from ds_tools.wiki.http import MediaWikiClient
-from ds_tools.wiki.nodes import Table, List, ListEntry, Link, String, MixedNode
+from ds_tools.wiki.nodes import Table, List, ListEntry, Link, String, MixedNode, CompoundNode
 from .base import PersonOrGroup
 from .album import SongCollection
 
@@ -25,8 +25,21 @@ class Artist(PersonOrGroup):
                 section = page.sections.find('Discography')
             except (KeyError, AttributeError):
                 continue
-            else:
-                return section
+
+            if site == 'kpop.fandom.com':
+                entries = []
+                if section.depth == 2:                                          # key = language, value = sub-section
+                    for lang, lang_section in section.children.items():
+                        for alb_type, alb_type_section in lang_section.children.items():
+                            # log.debug(f'{at_section}: {at_section.content}')
+                            content = alb_type_section.content
+                            if type(content) is CompoundNode:   # A template for splitting the discography into columns
+                                content = content[0]            # follows the list of albums in this section
+                            for entry in content.iter_flat():
+                                entries.append((entry.value, alb_type, lang))
+                else:
+                    log.warning(f'Unexpected section depth: {section.depth}')
+                return entries
         return None
 
 

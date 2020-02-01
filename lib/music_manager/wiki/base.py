@@ -44,6 +44,10 @@ class WikiEntity:
     def __repr__(self):
         return f'<{type(self).__name__}({self.name!r})[pages: {len(self._pages)}]>'
 
+    @property
+    def pages(self):
+        yield from self._pages.values()
+
     @classmethod
     def from_page(cls, page):
         name = page.title

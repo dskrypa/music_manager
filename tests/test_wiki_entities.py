@@ -62,6 +62,12 @@ class WikiEntityCompatibilityTest(unittest.TestCase):
                 self.assertIsInstance(cls.from_page(page), expected_cls)
                 self.n += 1
 
+    def test_tricky_types(self):
+        self.expected += 1
+        page = WikiPage('test', None, '', ['test artists', 'test group members'])
+        self.assertIsInstance(Artist.from_page(page), Singer)
+        self.n += 1
+
 
 if __name__ == '__main__':
     init_logging(0, log_path=None)

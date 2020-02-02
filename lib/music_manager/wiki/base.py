@@ -6,10 +6,12 @@ import logging
 
 from ds_tools.wiki.http import MediaWikiClient
 from ds_tools.wiki.page import WikiPage
-from .exceptions import EntityTypeError
+from .exceptions import EntityTypeError, NoPagesFoundError
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
 log = logging.getLogger(__name__)
+DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
+WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
 
 class WikiEntity:
@@ -44,6 +46,13 @@ class WikiEntity:
     def __repr__(self):
         return f'<{type(self).__name__}({self.name!r})[pages: {len(self._pages)}]>'
 
+    def _add_page(self, page):
+        self._pages[page.site] = page
+
+    def _add_pages(self, pages):
+        for page in pages:
+            self._pages[page.site] = page
+
     @property
     def pages(self):
         yield from self._pages.values()
@@ -57,13 +66,28 @@ class WikiEntity:
             except KeyError:
                 pass
 
+        type_error = None
         for category, cat_cls in cls._category_classes.items():
             if any(category in cat for cat in page.categories):
                 if issubclass(cat_cls, cls):
                     return cat_cls(name, [page], *args, **kwargs)
-                raise EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={category!r}')
+                type_error = EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={category!r}')
+
+        if type_error:
+            raise type_error
 
         return cls(name, [page], *args, **kwargs)
+
+    @classmethod
+    def from_title(cls, title, sites=None):
+        sites = sites or DEFAULT_WIKIS
+        pages, errors = MediaWikiClient.get_multi_site_page(title, sites)
+        if pages:
+            ipages = iter(pages.values())
+            obj = cls.from_page(next(ipages))
+            obj._add_pages(ipages)
+            return obj
+        raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
 
     @classmethod
     def from_url(cls, url):

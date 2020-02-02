@@ -11,4 +11,4 @@ log = logging.getLogger(__name__)
 
 
 class Discography(WikiEntity):
-    _categories = ('discography',)
+    _categories = ('discography', 'discographies')

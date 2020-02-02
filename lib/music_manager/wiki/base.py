@@ -16,6 +16,7 @@ WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography art
 
 class WikiEntity:
     _categories = ()
+    _not_categories = ()
     _category_classes = {}
 
     def __init_subclass__(cls, **kwargs):
@@ -66,15 +67,20 @@ class WikiEntity:
             except KeyError:
                 pass
 
-        type_error = None
+        error = None
         for category, cat_cls in cls._category_classes.items():
-            if any(category in cat for cat in page.categories):
-                if issubclass(cat_cls, cls):
-                    return cat_cls(name, [page], *args, **kwargs)
-                type_error = EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={category!r}')
+            bad_cat = next((nc for cat in page.categories for nc in cat_cls._not_categories if nc in cat), None)
+            if bad_cat:
+                if cat_cls is cls:  # Ignore subclasses
+                    error = EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={bad_cat!r}')
+            else:
+                if any(category in cat for cat in page.categories):
+                    if issubclass(cat_cls, cls):
+                        return cat_cls(name, [page], *args, **kwargs)
+                    error = EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={category!r}')
 
-        if type_error:
-            raise type_error
+        if error:
+            raise error
 
         return cls(name, [page], *args, **kwargs)
 

@@ -3,13 +3,15 @@
 """
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, Counter
+from datetime import datetime
 
 from ds_tools.compat import cached_property
 from ds_tools.wiki.http import MediaWikiClient
 from ds_tools.wiki.nodes import Table, List, ListEntry, Link, String, MixedNode, CompoundNode
-from .base import PersonOrGroup
 from .album import DiscographyEntry
+from .base import PersonOrGroup
+from .exceptions import EntityTypeError
 from .shared import DiscoEntry
 
 __all__ = ['Artist', 'Singer', 'Group']
@@ -20,54 +22,87 @@ class Artist(PersonOrGroup):
     _categories = ()
 
     @cached_property
-    def discography(self):
+    def discography_entries(self):
+        found_page = defaultdict(lambda: False)
+        remaining_links = Counter()
         entries_by_site = defaultdict(dict)
+
+        # noinspection PyShadowingNames
+        def _add_entry_link(client, link, disco_entry):
+            remaining_links[disco_entry] += 1
+            if link.interwiki:
+                iw_key, iw_title = link.iw_key_title
+                iw_client = client.interwiki_client(iw_key)
+                entries_by_site[iw_client or client][iw_title if iw_client else link.title] = (disco_entry, link)
+            else:
+                entries_by_site[client][link.title] = (disco_entry, link)
+
         no_link_entries = []
         for site, artist_page in self._pages.items():
-            try:
-                section = artist_page.sections.find('Discography')
-            except KeyError:
-                continue
-
             client = MediaWikiClient(site)
-            entries = {}
-            if site == 'kpop.fandom.com':
-                if section.depth == 2:                                          # key = language, value = sub-section
-                    for lang, lang_section in section.children.items():
-                        for alb_type, alb_type_section in lang_section.children.items():
-                            # log.debug(f'{at_section}: {at_section.content}')
-                            content = alb_type_section.content
-                            if type(content) is CompoundNode:   # A template for splitting the discography into columns
-                                content = content[0]            # follows the list of albums in this section
-                            for entry in content.iter_flat():
-                                disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang)
-                                if isinstance(entry, Link):
-                                    entries[entry] = disco_entry
-                                elif type(entry) is CompoundNode:
+            if site == 'www.generasia.com':
+                for section_title in ('Discography', 'Korean Discography', 'Japanese Discography'):
+                    try:
+                        section = artist_page.sections.find(section_title)
+                    except KeyError:
+                        continue
+
+                    lang = section_title.split()[0] if ' ' in section_title else None
+                    for alb_type, alb_type_section in section.children.items():
+                        if 'video' in alb_type.lower():
+                            continue
+                        content = alb_type_section.content
+                        for entry in content.iter_flat():
+                            date = datetime.strptime(entry[0].value, '[%Y.%m.%d]')
+                            disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, date=date)
+                            links = list(disco_entry.node.find_all(Link, True))
+                            if links:
+                                for link in links:
+                                    _add_entry_link(client, link, disco_entry)
+                            else:
+                                no_link_entries.append(disco_entry)
+                                log.warning(f'Unexpected entry content: {entry!r}')
+            else:
+                try:
+                    section = artist_page.sections.find('Discography')
+                except KeyError:
+                    continue
+
+                if site == 'kpop.fandom.com':
+                    if section.depth == 2:                                  # key = language, value = sub-section
+                        for lang, lang_section in section.children.items():
+                            for alb_type, alb_type_section in lang_section.children.items():
+                                # log.debug(f'{at_section}: {at_section.content}')
+                                content = alb_type_section.content
+                                if type(content) is CompoundNode:   # A template for splitting the discography into
+                                    content = content[0]            # columns follows the list of albums in this section
+                                for entry in content.iter_flat():
+                                    year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
+                                    disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
                                     link = next(entry.find_all(Link, True), None)
                                     if link:
-                                        entries[link] = disco_entry
-                                else:
-                                    no_link_entries.append(disco_entry)
-                                    log.warning(f'Unexpected entry content: {entry!r}')
-                else:
-                    log.warning(f'Unexpected section depth: {section.depth}')
-
-            # Regardless of site being processed, sort entries by site
-            for link, disco_entry in entries.items():
-                if link.interwiki:
-                    iw_key, iw_title = link.iw_key_title
-                    iw_client = client.interwiki_client(iw_key)
-                    entries_by_site[iw_client or client][iw_title if iw_client else link.title] = (disco_entry, link)
-                else:
-                    entries_by_site[client][link.title] = (disco_entry, link)
+                                        _add_entry_link(client, link, disco_entry)
+                                    else:
+                                        no_link_entries.append(disco_entry)
+                                        log.warning(f'Unexpected entry content: {entry!r}')
+                    else:
+                        log.warning(f'Unexpected section depth: {section.depth}')
 
         discography = []
+        pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(entries_by_site)
         for site_client, title_entry_map in entries_by_site.items():
-            pages = site_client.get_pages(title_entry_map.keys())
-            for title, page in pages.items():
-                disco_entry = title_entry_map.pop(title)[0]
-                discography.append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
+            for title, page in pages_by_site.get(site_client.host, {}).items():
+                disco_entry, link = title_entry_map.pop(title)
+                try:
+                    discography.append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
+                except EntityTypeError as e:
+                    remaining_links[disco_entry] -= 1
+                    if found_page[disco_entry]:
+                        log.log(9, f'Type mismatch for additional link={link} associated with {disco_entry}: {e}')
+                    elif remaining_links[disco_entry]:
+                        log.debug(f'{e}, but {remaining_links[disco_entry]} associated links are pending processing')
+                    else:
+                        log.warning(f'{e}, and no other links are available')
 
             for title, (disco_entry, link) in title_entry_map.items():
                 log.debug(f'No page found for {link}')
@@ -76,7 +111,6 @@ class Artist(PersonOrGroup):
         for disco_entry in no_link_entries:
             discography.append(DiscographyEntry(disco_entry=disco_entry))
 
-        # TODO: Combine entries from multiple sites that refer to the same album
         return discography
 
 
@@ -89,6 +123,7 @@ class Group(Artist):
 
     @cached_property
     def members(self):
+        # TODO: Handle no links / incomplete links
         for site, page in self._pages.items():
             try:
                 content = page.sections.find('Members').content

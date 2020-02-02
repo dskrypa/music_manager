@@ -18,20 +18,22 @@ class DiscoEntry:
 
     May provide useful information when a full page does not exist for a given entry.
     """
-    def __init__(self, source, node, *, type_=None, lang=None, date=None):
+    def __init__(self, source, node, *, type_=None, lang=None, date=None, year=None):
         """
 
-        :param source: The page where this entry was found
-        :param node: The node on that page that represents this entry
+        :param source: The page object where this entry was found
+        :param node: The specific node on that page that represents this entry
         :param str|AlbumType type_: The type of album that this entry represents, i.e., mini album, single, etc.
         :param str|LangCat lang: The primary language for the entry
         :param str|datetime date: The date that the entry was released
+        :param int year: The year that the entry was released, if the exact date is unavailable
         """
         self.source = source
         self.node = node
         self.type = type_ if type_ is None or isinstance(type_, AlbumType) else AlbumType.for_name(type_)
         self.language = lang if lang is None or isinstance(lang, LangCat) else LangCat.for_name(lang)
         self.date = parse_date(date)
+        self.year = year if year is not None else self.date.year if self.date else None
 
 
 class AlbumType(Enum):
@@ -54,7 +56,7 @@ class AlbumType(Enum):
 
     @classmethod
     def for_name(cls, name):
-        name = name.lower().strip()
+        name = name.lower().strip().replace('-', ' ').replace('_', ' ')
         name = name[:-1] if name.endswith('s') else name
         for album_type in cls:
             if name in album_type.value[1]:

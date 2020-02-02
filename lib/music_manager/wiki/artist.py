@@ -3,7 +3,6 @@
 """
 
 import logging
-from collections import defaultdict, Counter
 from datetime import datetime
 
 from ds_tools.compat import cached_property
@@ -12,7 +11,6 @@ from ds_tools.wiki.nodes import Table, List, ListEntry, Link, String, MixedNode,
 from .album import DiscographyEntry
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder
-from .exceptions import EntityTypeError
 from .shared import DiscoEntry
 
 __all__ = ['Artist', 'Singer', 'Group']
@@ -48,6 +46,8 @@ class Artist(PersonOrGroup):
                                 for link in links:
                                     finder.add_entry_link(client, link, disco_entry)
                             else:
+                                if isinstance(entry[1], String):
+                                    disco_entry.title = entry[1].value
                                 finder.add_entry(disco_entry, entry)
             else:
                 try:
@@ -66,10 +66,13 @@ class Artist(PersonOrGroup):
                                 for entry in content.iter_flat():
                                     year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
                                     disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
-                                    link = next(entry.find_all(Link, True), None)
-                                    if link:
-                                        finder.add_entry_link(client, link, disco_entry)
+                                    links = list(entry.find_all(Link, True))
+                                    if links:
+                                        for link in links:
+                                            finder.add_entry_link(client, link, disco_entry)
                                     else:
+                                        if isinstance(entry[0], String):
+                                            disco_entry.title = entry[0].value
                                         finder.add_entry(disco_entry, entry)
                     else:
                         log.warning(f'Unexpected section depth: {section.depth}')

@@ -31,9 +31,12 @@ class DiscographyEntry(WikiEntity):
         if disco_entry:
             self.disco_entries.append(disco_entry)
 
-    def from_disco_entry(self, disco_entry):
-        # TODO: Pick class based on album type; set name
-        pass
+    @classmethod
+    def from_disco_entry(cls, disco_entry):
+        link = disco_entry.link
+        name = disco_entry.title if disco_entry.title else (link.text or link.title) if link else None
+        categories = disco_entry.type.value[1] if disco_entry.type else []
+        return cls._by_category(name, disco_entry, categories, disco_entry=disco_entry)
 
 
 class AlbumPart(WikiEntity):

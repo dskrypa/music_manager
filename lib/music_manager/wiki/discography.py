@@ -61,6 +61,7 @@ class Discography(WikiEntity):
                             if isinstance(title, Link):
                                 finder.add_entry_link(client, title, disco_entry)
                             elif isinstance(title, String):
+                                disco_entry.title = title.value             # TODO: cleanup templates, etc
                                 finder.add_entry(disco_entry, row, False)
                             else:
                                 links = list(title.find_all(Link, True))
@@ -69,6 +70,8 @@ class Discography(WikiEntity):
                                         finder.add_entry_link(client, link, disco_entry)
                                 else:
                                     expected = type(title) is CompoundNode and isinstance(title[0], String)
+                                    if expected:
+                                        disco_entry.title = title[0].value
                                     finder.add_entry(disco_entry, row, not expected)
 
         return finder.process_entries()
@@ -112,11 +115,14 @@ class DiscographyEntryFinder:
                         log.debug(f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
                     else:
                         log.warning(f'{e}, and no other links are available')
+                else:
+                    disco_entry.link = link
 
             for title, (disco_entry, link) in title_entry_map.items():
+                disco_entry.link = link
                 log.debug(f'No page found for {link}')
-                discography.append(DiscographyEntry(link.text or link.title, disco_entry=disco_entry))
+                discography.append(DiscographyEntry.from_disco_entry(disco_entry))
 
         for disco_entry in self.no_link_entries:
-            discography.append(DiscographyEntry(disco_entry=disco_entry))
+            discography.append(DiscographyEntry.from_disco_entry(disco_entry))
         return discography

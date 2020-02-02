@@ -67,22 +67,25 @@ class WikiEntity:
             except KeyError:
                 pass
 
+        return cls._by_category(name, page, page.categories, [page], *args, **kwargs)
+
+    @classmethod
+    def _by_category(cls, name, obj, categories, *args, **kwargs):
         error = None
         for category, cat_cls in cls._category_classes.items():
-            bad_cat = next((nc for cat in page.categories for nc in cat_cls._not_categories if nc in cat), None)
+            bad_cat = next((nc for cat in categories for nc in cat_cls._not_categories if nc in cat), None)
             if bad_cat:
                 if cat_cls is cls:  # Ignore subclasses
-                    error = EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={bad_cat!r}')
+                    error = EntityTypeError(f'{obj} is incompatible with {cls.__name__} due to category={bad_cat!r}')
             else:
-                if any(category in cat for cat in page.categories):
+                if any(category in cat for cat in categories):
                     if issubclass(cat_cls, cls):
-                        return cat_cls(name, [page], *args, **kwargs)
-                    error = EntityTypeError(f'{page} is incompatible with {cls.__name__} due to category={category!r}')
+                        return cat_cls(name, *args, **kwargs)
+                    error = EntityTypeError(f'{obj} is incompatible with {cls.__name__} due to category={category!r}')
 
         if error:
             raise error
-
-        return cls(name, [page], *args, **kwargs)
+        return cls(name, *args, **kwargs)
 
     @classmethod
     def from_title(cls, title, sites=None):

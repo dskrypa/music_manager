@@ -40,16 +40,16 @@ class Artist(PersonOrGroup):
                             if type(content) is CompoundNode:   # A template for splitting the discography into columns
                                 content = content[0]            # follows the list of albums in this section
                             for entry in content.iter_flat():
-                                disco_entry = DiscoEntry(artist_page, entry.value, type_=alb_type, lang=lang)
-                                if isinstance(entry.value, Link):
-                                    entries[entry.value] = disco_entry
-                                elif type(entry.value) is CompoundNode:
-                                    link = next(entry.value.find_all(Link), None)
+                                disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang)
+                                if isinstance(entry, Link):
+                                    entries[entry] = disco_entry
+                                elif type(entry) is CompoundNode:
+                                    link = next(entry.find_all(Link, True), None)
                                     if link:
                                         entries[link] = disco_entry
                                 else:
                                     no_link_entries.append(disco_entry)
-                                    log.warning(f'Unexpected entry content: {entry.value!r}')
+                                    log.warning(f'Unexpected entry content: {entry!r}')
                 else:
                     log.warning(f'Unexpected section depth: {section.depth}')
 
@@ -81,7 +81,7 @@ class Artist(PersonOrGroup):
 
 
 class Singer(Artist):
-    _categories = ('singer', 'actor', 'actress')
+    _categories = ('singer', 'actor', 'actress', 'member')
 
 
 class Group(Artist):
@@ -95,6 +95,12 @@ class Group(Artist):
             except (KeyError, AttributeError):
                 continue
 
+            if type(content) is CompoundNode:
+                for node in content:
+                    if isinstance(node, (Table, List)):
+                        content = node
+                        break
+
             titles = []
             if isinstance(content, Table):
                 for row in content:
@@ -106,6 +112,18 @@ class Group(Artist):
                             titles.append(name.value)
                         else:
                             log.warning(f'Unexpected name type: {name!r}')
+            elif isinstance(content, List):
+                for entry in content.iter_flat():
+                    if isinstance(entry, Link):
+                        titles.append(entry.title)
+                    elif isinstance(entry, MixedNode) or type(entry) is CompoundNode:
+                        link = next(entry.find_all(Link, True), None)
+                        if link:
+                            titles.append(link.title)
+                    elif isinstance(entry, String):
+                        titles.append(entry.value)
+                    else:
+                        log.warning(f'Unexpected name type: {entry!r}')
 
             if titles:
                 client = MediaWikiClient(site)

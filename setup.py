@@ -13,7 +13,7 @@ with project_root.joinpath('readme.rst').open('r', encoding='utf-8') as f:
 
 setup(
     name='music_manager',
-    version='2020.02.01',
+    version='2020.02.02',
     author='Doug Skrypa',
     author_email='dskrypa@gmail.com',
     description='Music Manager',
@@ -22,8 +22,7 @@ setup(
     packages=['lib/music_manager'],
     classifiers=[
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.6',    # Minimum due to use of f-strings
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8'
     ],

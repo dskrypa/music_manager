@@ -11,8 +11,9 @@ from ds_tools.wiki.page import WikiPage
 from music_manager.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
 from music_manager.wiki.artist import Artist, Singer, Group
 from music_manager.wiki.album import (
-    Discography, DiscographyEntry, AlbumPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack
+    DiscographyEntry, AlbumPart, Album, AlbumVersion, Single, SoundtrackPart, Soundtrack
 )
+from music_manager.wiki.discography import Discography
 from music_manager.wiki.track import Track
 from music_manager.wiki.exceptions import EntityTypeError
 

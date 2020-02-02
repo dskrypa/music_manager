@@ -23,7 +23,7 @@ class WikiEntity:
 
     def __init__(self, name, pages=None):
         """
-        :param str name: The name of this entity
+        :param str|None name: The name of this entity
         :param WikiPage|dict|iterable pages: One or more WikiPage objects
         """
         self.name = name

@@ -9,7 +9,7 @@ from collections import OrderedDict
 from cachetools import LRUCache
 
 from ds_tools.caching import cached
-from ds_tools.core import datetime_with_tz
+from tz_aware_dt import datetime_with_tz
 from ds_tools.http import CodeBasedRestException
 from ds_tools.unicode import LangCat, matches_permutation
 from ds_tools.utils import (

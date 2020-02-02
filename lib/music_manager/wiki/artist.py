@@ -11,6 +11,7 @@ from ds_tools.wiki.http import MediaWikiClient
 from ds_tools.wiki.nodes import Table, List, ListEntry, Link, String, MixedNode, CompoundNode
 from .album import DiscographyEntry
 from .base import PersonOrGroup
+from .discography import DiscographyEntryFinder
 from .exceptions import EntityTypeError
 from .shared import DiscoEntry
 
@@ -23,21 +24,8 @@ class Artist(PersonOrGroup):
 
     @cached_property
     def discography_entries(self):
-        found_page = defaultdict(lambda: False)
-        remaining_links = Counter()
-        entries_by_site = defaultdict(dict)
+        finder = DiscographyEntryFinder()
 
-        # noinspection PyShadowingNames
-        def _add_entry_link(client, link, disco_entry):
-            remaining_links[disco_entry] += 1
-            if link.interwiki:
-                iw_key, iw_title = link.iw_key_title
-                iw_client = client.interwiki_client(iw_key)
-                entries_by_site[iw_client or client][iw_title if iw_client else link.title] = (disco_entry, link)
-            else:
-                entries_by_site[client][link.title] = (disco_entry, link)
-
-        no_link_entries = []
         for site, artist_page in self._pages.items():
             client = MediaWikiClient(site)
             if site == 'www.generasia.com':
@@ -55,13 +43,12 @@ class Artist(PersonOrGroup):
                         for entry in content.iter_flat():
                             date = datetime.strptime(entry[0].value, '[%Y.%m.%d]')
                             disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, date=date)
-                            links = list(disco_entry.node.find_all(Link, True))
+                            links = list(entry.find_all(Link, True))
                             if links:
                                 for link in links:
-                                    _add_entry_link(client, link, disco_entry)
+                                    finder.add_entry_link(client, link, disco_entry)
                             else:
-                                no_link_entries.append(disco_entry)
-                                log.warning(f'Unexpected entry content: {entry!r}')
+                                finder.add_entry(disco_entry, entry)
             else:
                 try:
                     section = artist_page.sections.find('Discography')
@@ -81,37 +68,13 @@ class Artist(PersonOrGroup):
                                     disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
                                     link = next(entry.find_all(Link, True), None)
                                     if link:
-                                        _add_entry_link(client, link, disco_entry)
+                                        finder.add_entry_link(client, link, disco_entry)
                                     else:
-                                        no_link_entries.append(disco_entry)
-                                        log.warning(f'Unexpected entry content: {entry!r}')
+                                        finder.add_entry(disco_entry, entry)
                     else:
                         log.warning(f'Unexpected section depth: {section.depth}')
 
-        discography = []
-        pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(entries_by_site)
-        for site_client, title_entry_map in entries_by_site.items():
-            for title, page in pages_by_site.get(site_client.host, {}).items():
-                disco_entry, link = title_entry_map.pop(title)
-                try:
-                    discography.append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
-                except EntityTypeError as e:
-                    remaining_links[disco_entry] -= 1
-                    if found_page[disco_entry]:
-                        log.log(9, f'Type mismatch for additional link={link} associated with {disco_entry}: {e}')
-                    elif remaining_links[disco_entry]:
-                        log.debug(f'{e}, but {remaining_links[disco_entry]} associated links are pending processing')
-                    else:
-                        log.warning(f'{e}, and no other links are available')
-
-            for title, (disco_entry, link) in title_entry_map.items():
-                log.debug(f'No page found for {link}')
-                discography.append(DiscographyEntry(link.text or link.title, disco_entry=disco_entry))
-
-        for disco_entry in no_link_entries:
-            discography.append(DiscographyEntry(disco_entry=disco_entry))
-
-        return discography
+        return finder.process_entries()
 
 
 class Singer(Artist):

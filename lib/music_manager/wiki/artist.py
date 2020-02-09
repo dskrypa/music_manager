@@ -10,14 +10,14 @@ from ds_tools.wiki.http import MediaWikiClient
 from ds_tools.wiki.nodes import Table, List, Link, String, MixedNode, CompoundNode, Template
 from .album import DiscographyEntry
 from .base import PersonOrGroup
-from .discography import DiscographyEntryFinder, Discography
+from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .shared import DiscoEntry, DiscoEntryType
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)
 
 
-class Artist(PersonOrGroup):
+class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
 
     @cached_property

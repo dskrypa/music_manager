@@ -3,6 +3,7 @@
 """
 
 import logging
+from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
 from traceback import format_exc
 
@@ -14,11 +15,37 @@ from .base import WikiEntity
 from .exceptions import EntityTypeError
 from .shared import DiscoEntry
 
-__all__ = ['Discography', 'DiscographyEntryFinder']
+__all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
 log = logging.getLogger(__name__)
 
 
-class Discography(WikiEntity):
+class DiscographyMixin(ABC):
+    @property
+    @abstractmethod
+    def discography_entries(self):
+        return {}
+
+    @cached_property
+    def discography(self):
+        merged = []
+        temp = defaultdict(list)
+        for site, entries in self.discography_entries.items():
+            for entry in entries:
+                if not entry.name:
+                    merged.append(entry)
+                else:
+                    temp[entry._merge_key].append(entry)
+
+        for key, entries in temp.items():
+            entries = iter(entries)
+            entry = next(entries)
+            for other in entries:
+                entry._merge(other)
+            merged.append(entry)
+        return merged
+
+
+class Discography(WikiEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
 
@@ -71,9 +98,16 @@ class Discography(WikiEntity):
 
     # noinspection PyMethodMayBeStatic
     def _process_wikipedia_row(self, client, disco_page, finder, row, alb_types, lang):
-        # TODO: Extract track listing if it exists, example: https://en.wikipedia.org/wiki/Mamamoo_discography
+        # TODO: Extract (sometimes hidden) track listing if it exists, example: https://en.wikipedia.org/wiki/Mamamoo_discography
         title = row['Title']
-        details = row['Details'].as_dict() if 'Details' in row else None
+        details = None
+        for key in ('Details', 'Album details'):
+            if key in row:
+                details = row[key]
+                if type(details) is CompoundNode:
+                    details = details[0]
+                details = details.as_dict()
+                break
         if details:
             date = details.get('Released', details.get('To be released'))
             if date is not None:

@@ -3,8 +3,10 @@
 """
 
 import logging
+from traceback import format_exc, format_stack
 
 from .base import WikiEntity
+from .exceptions import EntityTypeError
 
 __all__ = ['DiscographyEntry', 'AlbumPart', 'Album', 'AlbumVersion', 'Single', 'SoundtrackPart', 'Soundtrack']
 log = logging.getLogger(__name__)
@@ -33,10 +35,12 @@ class DiscographyEntry(WikiEntity):
 
     @classmethod
     def from_disco_entry(cls, disco_entry):
-        link = disco_entry.link
-        name = disco_entry.title if disco_entry.title else (link.text or link.title) if link else None
-        categories = disco_entry.type.value[1] if disco_entry.type else []
-        return cls._by_category(name, disco_entry, categories, disco_entry=disco_entry)
+        categories = disco_entry.categories
+        # log.debug(f'Creating {cls.__name__} from {disco_entry} with categories={categories}')
+        try:
+            return cls._by_category(disco_entry.title, disco_entry, categories, disco_entry=disco_entry)
+        except EntityTypeError:
+            log.error(f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}', extra={'color': 'red'})
 
 
 class AlbumPart(WikiEntity):

@@ -11,6 +11,10 @@ DATE_FORMATS = ('%Y-%b-%d', '%Y-%m-%d', '%Y.%m.%d', '%B %d, %Y', '%d %B %Y')
 
 
 def parse_date(value):
+    """
+    :param str|datetime|None value: The value from which a date should be parsed
+    :return: The parsed date
+    """
     if value is None or isinstance(value, datetime):
         return value
     elif isinstance(value, date):

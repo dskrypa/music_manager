@@ -40,6 +40,7 @@ class Artist(PersonOrGroup):
                         content = alb_type_section.content
                         for entry in content.iter_flat():
                             date = datetime.strptime(entry[0].value, '[%Y.%m.%d]')
+                            # noinspection PyTypeChecker
                             disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, date=date)
                             links = list(entry.find_all(Link, True))
                             if links:
@@ -49,6 +50,23 @@ class Artist(PersonOrGroup):
                                 if isinstance(entry[1], String):
                                     disco_entry.title = entry[1].value
                                 finder.add_entry(disco_entry, entry)
+            elif site == 'wiki.d-addicts.com':
+                try:
+                    section = artist_page.sections.find('TV Show Theme Songs')
+                except KeyError:
+                    continue
+                # Typical format: {song title} [by {member}] - {soundtrack title} ({year})
+                for entry in section.content.iter_flat():
+                    year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
+                    disco_entry = DiscoEntry(artist_page, entry, type_='Soundtrack', year=year)
+                    links = list(entry.find_all(Link, True))
+                    if links:
+                        for link in links:
+                            finder.add_entry_link(client, link, disco_entry)
+                    else:
+                        if isinstance(entry[-2], String):
+                            disco_entry.title = entry[-2].value
+                        finder.add_entry(disco_entry, entry)
             else:
                 try:
                     section = artist_page.sections.find('Discography')

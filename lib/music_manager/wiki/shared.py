@@ -38,6 +38,10 @@ class DiscoEntry:
         self.year = year if year is not None else self.date.year if self.date else None
         self.link = None
 
+    def __repr__(self):
+        title = self.title if self.title else (self.link.text or self.link.title) if self.link else None
+        return f'<{type(self).__name__}[{title!r}, {self.date or self.year}] from {self.source}>'
+
 
 class AlbumType(Enum):
     UNKNOWN = 'UNKNOWN', ()

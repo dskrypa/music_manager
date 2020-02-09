@@ -83,7 +83,7 @@ class WikiEntity:
                         return cat_cls(name, *args, **kwargs)
                     error = EntityTypeError(f'{obj} is incompatible with {cls.__name__} due to category={category!r}')
 
-        if error:
+        if error:           # I can't help but feel like this may bite me eventually...
             raise error
         return cls(name, *args, **kwargs)
 

@@ -9,11 +9,12 @@ from traceback import format_exc
 
 from ds_tools.compat import cached_property
 from ds_tools.wiki.http import MediaWikiClient
-from ds_tools.wiki.nodes import Link, String, CompoundNode, TableSeparator, Template, List
+from ds_tools.wiki.nodes import Link, String, CompoundNode, TableSeparator, Template, MixedNode
 from .album import DiscographyEntry
 from .base import WikiEntity
-from .exceptions import EntityTypeError
 from .disco_entry import DiscoEntry
+from .exceptions import EntityTypeError
+from .utils import node_to_link_dict
 
 __all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
 log = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ class Discography(WikiEntity, DiscographyMixin):
         year = int(row.get('Year').value) if 'Year' in row else None
         disco_entry = DiscoEntry(
             disco_page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data,
-            from_album=row.get('Album')
+            from_albums=row.get('Album')
         )
         if isinstance(title, Link):
             finder.add_entry_link(client, title, disco_entry)

@@ -7,7 +7,7 @@ from enum import Enum
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode import LangCat
-from .utils import parse_date
+from .utils import parse_date, node_to_link_dict
 
 __all__ = ['DiscoEntryType', 'DiscoEntry']
 log = logging.getLogger(__name__)
@@ -21,13 +21,13 @@ class DiscoEntry:
     """
     def __init__(
             self, source, node, *, title=None, type_=None, lang=None, date=None, year=None, link=None, song=None,
-            track_data=None, from_album=None
+            track_data=None, from_albums=None
     ):
         """
         A basic discography entry from an artist or artist discography page.
 
-        :param source: The page object where this entry was found
-        :param node: The specific node on that page that represents this entry
+        :param WikiPage source: The :class:`WikiPage` object where this entry was found
+        :param Node node: The specific :class:`Node` on that page that represents this entry
         :param str title: The entry title
         :param type_: The type of album that this entry represents, i.e., mini album, single, etc.
         :param str|LangCat lang: The primary language for the entry
@@ -36,8 +36,9 @@ class DiscoEntry:
         :param link: The link to the full discography entry for this album, if known
         :param str song: A single song that the artist contributed to on in this album
         :param track_data: Data about tracks in the album that this entry represents
-        :param from_album: If this entry is for a single that was also released in an album, or it is a song in a
-          soundtrack, etc, the name of that album
+        :param Node from_albums: A node that can be parsed via :func:`node_to_link_dict<.wiki.utils.node_to_link_dict>`
+          to produce a mapping of {name: :class:`Link` or None} for any albums that this single / OST track / etc was
+          in, if any.
         """
         self.source = source
         self.node = node
@@ -50,13 +51,13 @@ class DiscoEntry:
         self.links = []
         self.song = song
         self.track_data = track_data
-        self.from_album = from_album
+        self.from_albums = node_to_link_dict(from_albums)
 
     def __repr__(self):
         date = self.date.strftime('%Y-%m-%d') if self.date else self.year
         tracks = f'tracks={len(self.track_data)}' if self.track_data else None
         lang = self.language.full_name if self.language else None
-        from_album = f'from {self.from_album!r}' if self.from_album else None
+        from_album = f'from {self.from_albums!r}' if self.from_albums else None
         additional = ', '.join(filter(None, [self.type.real_name, lang, tracks, from_album]))
         return f'<{type(self).__name__}[{self.title!r}, {date}] from {self.source}[{additional}]>'
 

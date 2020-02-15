@@ -4,11 +4,11 @@
 
 import logging
 from datetime import datetime
+from traceback import format_exc
 
 from ds_tools.compat import cached_property
 from ds_tools.wiki.http import MediaWikiClient
 from ds_tools.wiki.nodes import Table, List, Link, String, MixedNode, CompoundNode, Template
-from .album import DiscographyEntry
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
@@ -20,8 +20,7 @@ log = logging.getLogger(__name__)
 class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
 
-    @cached_property
-    def discography_entries(self):
+    def _finder_with_entries(self):
         finder = DiscographyEntryFinder()
         collab_type = DiscoEntryType.Collaboration
 
@@ -93,24 +92,22 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 except KeyError:
                     continue
 
-                if section.depth == 2:                                  # key = language, value = sub-section
+                if section.depth == 1:
+                    for alb_type, alb_type_section in section.children.items():
+                        try:
+                            self._process_kpop_fandom_section(client, artist_page, finder, alb_type_section, alb_type)
+                        except Exception as e:
+                            log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
+                elif section.depth == 2:                                  # key = language, value = sub-section
                     for lang, lang_section in section.children.items():
                         for alb_type, alb_type_section in lang_section.children.items():
                             # log.debug(f'{at_section}: {at_section.content}')
-                            content = alb_type_section.content
-                            if type(content) is CompoundNode:   # A template for splitting the discography into
-                                content = content[0]            # columns follows the list of albums in this section
-                            for entry in content.iter_flat():
-                                year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
-                                disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
-                                links = list(entry.find_all(Link, True))
-                                if links:
-                                    for link in links:
-                                        finder.add_entry_link(client, link, disco_entry)
-                                else:
-                                    if isinstance(entry[0], String):
-                                        disco_entry.title = entry[0].value
-                                    finder.add_entry(disco_entry, entry)
+                            try:
+                                self._process_kpop_fandom_section(
+                                    client, artist_page, finder, alb_type_section, alb_type, lang
+                                )
+                            except Exception as e:
+                                log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
                 else:
                     log.warning(f'Unexpected section depth: {section.depth}')
             elif site == 'en.wikipedia.org':
@@ -138,11 +135,39 @@ class Artist(PersonOrGroup, DiscographyMixin):
             else:
                 log.debug(f'No discography entry extraction is configured for {artist_page}')
 
-        return finder.process_entries()
+        return finder
+
+    # noinspection PyMethodMayBeStatic
+    def _process_kpop_fandom_section(self, client, artist_page, finder, section, alb_type, lang=None):
+        content = section.content
+        if type(content) is CompoundNode:  # A template for splitting the discography into
+            content = content[0]  # columns follows the list of albums in this section
+        for entry in content.iter_flat():
+            if isinstance(entry, String):
+                year_str = entry.value.rsplit(maxsplit=1)[1]
+            else:
+                year_str = entry[-1].value.split()[-1]
+
+            year = datetime.strptime(year_str, '(%Y)').year
+            disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
+            if isinstance(entry, CompoundNode):
+                links = list(entry.find_all(Link, True))
+                if links:
+                    for link in links:
+                        finder.add_entry_link(client, link, disco_entry)
+                else:
+                    if isinstance(entry[0], String):
+                        disco_entry.title = entry[0].value
+                    finder.add_entry(disco_entry, entry)
+            elif isinstance(entry, String):
+                disco_entry.title = entry.value.split('(')[0].strip().strip('"')
+                finder.add_entry(disco_entry, entry)
+            else:
+                log.warning(f'On page={artist_page}, unexpected type for entry={entry!r}')
 
 
 class Singer(Artist):
-    _categories = ('singer', 'actor', 'actress', 'member')
+    _categories = ('singer', 'actor', 'actress', 'member', 'rapper')
 
 
 class Group(Artist):

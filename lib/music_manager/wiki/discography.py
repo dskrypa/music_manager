@@ -21,10 +21,16 @@ log = logging.getLogger(__name__)
 
 
 class DiscographyMixin(ABC):
-    @property
     @abstractmethod
+    def _finder_with_entries(self):
+        """
+        Return a DiscographyEntryFinder instance that has DiscoEntry entries added, but has not yet processed links
+        """
+        raise NotImplementedError
+
+    @cached_property
     def discography_entries(self):
-        return {}
+        return self._finder_with_entries().process_entries()
 
     @cached_property
     def discography(self):
@@ -58,11 +64,10 @@ class Discography(WikiEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
 
-    @cached_property
-    def discography_entries(self):
+    def _finder_with_entries(self):
         finder = DiscographyEntryFinder()
         self._process_entries(finder)
-        return finder.process_entries()
+        return finder
 
     def _process_entries(self, finder):
         """

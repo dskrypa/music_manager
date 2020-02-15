@@ -91,8 +91,8 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
         # log.debug(f'Creating {cls.__name__} from {disco_entry} with categories={categories}')
         try:
             return cls._by_category(disco_entry.title, disco_entry, categories, disco_entry=disco_entry)
-        except EntityTypeError:
-            log.error(f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}', extra={'color': 'red'})
+        except EntityTypeError as e:
+            log.error(f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}', extra={'color': 'red'})
 
 
 class AlbumPart(WikiEntity):

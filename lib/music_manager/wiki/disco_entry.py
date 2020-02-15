@@ -78,8 +78,11 @@ class DiscoEntry:
 
     @property
     def type(self):
-        if self.title and (' OST ' in self.title or self.title.endswith(' OST')):
+        title = self.title
+        if title and (' OST ' in title or title.endswith(' OST')):
             return DiscoEntryType.Soundtrack            # Some sites put OSTs under 'Compilations / Other'
+        elif self.from_albums and any(' OST ' in a or a.endswith(' OST') for a in self.from_albums):
+            return DiscoEntryType.Soundtrack
         elif isinstance(self._type, DiscoEntryType):
             return self._type
         return DiscoEntryType.for_name(self._type)
@@ -117,6 +120,7 @@ class DiscoEntryType(Enum):
                 _name = _name.lower().strip().replace('-', ' ').replace('_', ' ')
                 for album_type in cls:
                     if any(cat in _name for cat in album_type.categories):
+                        # log.debug(f'{name!r} => {album_type}')
                         return album_type
             log.debug(f'No DiscoEntryType exists for name={name!r}')
         return cls.UNKNOWN

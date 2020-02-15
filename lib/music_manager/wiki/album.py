@@ -101,7 +101,7 @@ class AlbumPart(WikiEntity):
 
 class Album(DiscographyEntry):
     """An album or mini album or EP"""
-    _categories = ('album', 'extended play')
+    _categories = ('album', 'extended play', '(band) eps', '-language eps')
 
 
 class AlbumVersion(DiscographyEntry):

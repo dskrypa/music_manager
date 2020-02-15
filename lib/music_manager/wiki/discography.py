@@ -46,6 +46,14 @@ class DiscographyMixin(ABC):
         return merged
 
 
+def short_repr(obj, max_len=100):
+    obj_repr = repr(obj)
+    if len(obj_repr) <= max_len:
+        return obj_repr
+    pos = max_len // 2
+    return f'{obj_repr[:pos]}...{obj_repr[-pos:]}'
+
+
 class Discography(WikiEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
@@ -64,9 +72,12 @@ class Discography(WikiEntity, DiscographyMixin):
         for site, disco_page in self._pages.items():
             client = MediaWikiClient(site)
             if site == 'en.wikipedia.org':
+                blacklist = {
+                    'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums'
+                }
                 sections = []
                 for section in disco_page.sections:
-                    if section.title.lower() in ('footnotes', 'references', 'music videos', 'see also', 'notes'):
+                    if section.title.lower() in blacklist:
                         break
                     elif section.depth == 1:
                         sections.extend(section)
@@ -76,7 +87,7 @@ class Discography(WikiEntity, DiscographyMixin):
                 alb_types = []
                 last_depth = -1
                 for section in sections:
-                    if section.depth < last_depth:
+                    if section.depth <= last_depth:
                         alb_types.pop()
                     last_depth = section.depth
                     alb_types.append(section.title)
@@ -93,7 +104,8 @@ class Discography(WikiEntity, DiscographyMixin):
                                 else:
                                     self._process_wikipedia_row(client, disco_page, finder, row, alb_types, lang)
                             except Exception as e:
-                                log.error(f'Unexpected error processing section={section} row={row}: {e}')
+                                # log.error(f'Unexpected error processing section={section} row={short_repr(row)}: {e}')
+                                log.error(f'Unexpected error processing section={section} row={short_repr(row)}:\n{format_exc()}', extra={'color': 'red'})
                     except Exception as e:
                         log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
 
@@ -116,7 +128,11 @@ class Discography(WikiEntity, DiscographyMixin):
             details = details.as_dict()
             date = details.get('Released', details.get('To be released'))
             if date is not None:
-                date = date.value
+                if isinstance(date, String):
+                    date = date.value
+                elif type(date) is CompoundNode and isinstance(date[0], String):
+                    date = date[0].value
+
                 if '(' in date:
                     date = date.split('(', maxsplit=1)[0].strip()
         else:

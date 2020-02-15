@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime, date
 
-from ds_tools.wiki.nodes import Node, Link, String, MixedNode
+from ds_tools.wiki.nodes import Node, Link, String, MixedNode, Template
 
 __all__ = ['parse_date']
 log = logging.getLogger(__name__)
@@ -36,6 +36,8 @@ def node_to_link_dict(node):
         return None
     elif not isinstance(node, Node):
         raise TypeError(f'Unexpected node type={type(node).__name__}')
+    elif isinstance(node, Template) and node.name == 'n/a':
+        return None
 
     as_dict = {}
     if isinstance(node, String):
@@ -72,9 +74,19 @@ def node_to_link_dict(node):
                     as_dict[c.text or c.title] = c
                 else:
                     raise ValueError(f'Unexpected content for node={node}')
+            elif isinstance(a, String) and isinstance(b, Link) and isinstance(c, String):
+                a, c = map(lambda n: n.value.strip("'"), (a, c))
+                if not a and c == 'OST':
+                    as_dict[f'{b.text or b.title} OST'] = b
+                else:
+                    raise ValueError(f'Unexpected content for node={node}')
             else:
                 raise ValueError(f'Unexpected content for node={node}')
     else:
         raise ValueError(f'Unexpected content for node={node}')
+
+    for to_rm in ('Non-album single', 'Non-album singles'):
+        if to_rm in as_dict:
+            del as_dict[to_rm]
 
     return as_dict

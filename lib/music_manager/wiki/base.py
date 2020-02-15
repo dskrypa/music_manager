@@ -80,25 +80,21 @@ class WikiEntity:
 
     @classmethod
     def _by_category(cls, name, obj, page_cats, *args, **kwargs):
+        err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
-        for category, cat_cls in cls._category_classes.items():
-            bad_cat = next((nc for cat in page_cats for nc in cat_cls._not_categories if nc in cat), None)
-            if bad_cat:
-                if cat_cls is cls:  # Ignore subclasses
-                    error = EntityTypeError(f'{obj} is incompatible with {cls.__name__} due to category={bad_cat!r}')
-            else:
-                if any(category in cat for cat in page_cats):
-                    if issubclass(cat_cls, cls):
-                        return cat_cls(name, *args, **kwargs)
-                    error = EntityTypeError(f'{obj} is incompatible with {cls.__name__} due to category={category!r}')
+        for cls_cat, cat_cls in cls._category_classes.items():
+            bad_cats = cat_cls._not_categories
+            cat_match = next((pc for pc in page_cats if cls_cat in pc and not any(bci in pc for bci in bad_cats)), None)
+            if cat_match:
+                if issubclass(cat_cls, cls):
+                    return cat_cls(name, *args, **kwargs)
+                error = EntityTypeError(err_fmt.format(cls_cat, cat_match))
 
-        if error:           # I can't help but feel like this may bite me eventually...
+        if error:       # A match was found, but for a class that is not a subclass of this one
             raise error
-
-        if cls is not WikiEntity and not cls._categories:
-            # for sub_cls in cls._subclasses[cls]:
-            raise EntityTypeError(f'{obj} has no categories that make it a {cls.__name__} or subclass thereof')
-
+        elif cls is not WikiEntity and not cls._categories:
+            fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
+            raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
         return cls(name, *args, **kwargs)
 
     @classmethod

@@ -208,6 +208,7 @@ class DiscographyEntryFinder:
             site = site_client.host
             discography[site] = []
             for title, page in pages_by_site.get(site, {}).items():
+                # log.debug(f'Found page with title={title!r} from site={site}')
                 try:
                     disco_entry, link = title_entry_map.pop(title)
                 except KeyError:
@@ -216,6 +217,7 @@ class DiscographyEntryFinder:
                     continue
 
                 try:
+                    # log.debug(f'Creating DiscographyEntry for page={page} with entry={disco_entry}')
                     discography[site].append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
                 except EntityTypeError as e:
                     self.remaining[disco_entry] -= 1
@@ -224,19 +226,25 @@ class DiscographyEntryFinder:
                     elif self.remaining[disco_entry]:
                         log.log(9, f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
                     else:
-                        log.warning(f'{e}, and no other links are available')
+                        log.debug(f'{e}, and no other links are available')
                 except Exception as e:
+                    self.remaining[disco_entry] -= 1
                     msg = f'Unexpected error processing page={title!r} for disco_entry={disco_entry}: {format_exc()}'
                     log.error(msg, extra={'color': 'red'})
                 else:
+                    self.remaining[disco_entry] -= 1
+                    self.found_page[disco_entry] = True
                     disco_entry._link = link
 
             for title, (disco_entry, link) in title_entry_map.items():
-                log.log(9, f'No page found for {link}')
-                discography[site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                if not self.found_page[disco_entry]:
+                    log.log(9, f'No page found for title={title!r} / link={link} / entry={disco_entry}')
+                    # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
+                    discography[site].append(DiscographyEntry.from_disco_entry(disco_entry))
 
         for site, disco_entries in self.no_link_entries.items():
             site_discography = discography.setdefault(site, [])
             for disco_entry in disco_entries:
+                # log.debug(f'Creating DiscographyEntry for page=[no links] entry={disco_entry}')
                 site_discography.append(DiscographyEntry.from_disco_entry(disco_entry))
         return discography

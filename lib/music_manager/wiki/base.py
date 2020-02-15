@@ -52,10 +52,6 @@ class WikiEntity:
     def __repr__(self):
         return f'<{type(self).__name__}({self.name!r})[pages: {len(self._pages)}]>'
 
-    def __to_json__(self):
-        """Not possible to build from json, so just provide the repr for easy printing"""
-        return repr(self)
-
     def _add_page(self, page):
         self._pages[page.site] = page
 

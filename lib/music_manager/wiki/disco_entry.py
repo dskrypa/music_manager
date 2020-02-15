@@ -19,8 +19,12 @@ class DiscoEntry:
 
     May provide useful information when a full page does not exist for a given entry.
     """
-    def __init__(self, source, node, *, title=None, type_=None, lang=None, date=None, year=None, link=None, song=None):
+    def __init__(
+            self, source, node, *, title=None, type_=None, lang=None, date=None, year=None, link=None, song=None,
+            track_data=None, from_album=None
+    ):
         """
+        A basic discography entry from an artist or artist discography page.
 
         :param source: The page object where this entry was found
         :param node: The specific node on that page that represents this entry
@@ -29,6 +33,11 @@ class DiscoEntry:
         :param str|LangCat lang: The primary language for the entry
         :param str|datetime date: The date that the entry was released
         :param int year: The year that the entry was released, if the exact date is unavailable
+        :param link: The link to the full discography entry for this album, if known
+        :param str song: A single song that the artist contributed to on in this album
+        :param track_data: Data about tracks in the album that this entry represents
+        :param from_album: If this entry is for a single that was also released in an album, or it is a song in a
+          soundtrack, etc, the name of that album
         """
         self.source = source
         self.node = node
@@ -40,10 +49,15 @@ class DiscoEntry:
         self._link = link
         self.links = []
         self.song = song
+        self.track_data = track_data
+        self.from_album = from_album
 
     def __repr__(self):
         date = self.date.strftime('%Y-%m-%d') if self.date else self.year
-        additional = ', '.join(filter(None, [self.type.real_name, self.language.full_name if self.language else None]))
+        tracks = f'tracks={len(self.track_data)}' if self.track_data else None
+        lang = self.language.full_name if self.language else None
+        from_album = f'from {self.from_album!r}' if self.from_album else None
+        additional = ', '.join(filter(None, [self.type.real_name, lang, tracks, from_album]))
         return f'<{type(self).__name__}[{self.title!r}, {date}] from {self.source}[{additional}]>'
 
     @property

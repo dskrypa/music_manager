@@ -9,11 +9,11 @@ from traceback import format_exc
 
 from ds_tools.compat import cached_property
 from ds_tools.wiki.http import MediaWikiClient
-from ds_tools.wiki.nodes import Link, String, CompoundNode, TableSeparator
+from ds_tools.wiki.nodes import Link, String, CompoundNode, TableSeparator, Template, List
 from .album import DiscographyEntry
 from .base import WikiEntity
 from .exceptions import EntityTypeError
-from .shared import DiscoEntry
+from .disco_entry import DiscoEntry
 
 __all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
 log = logging.getLogger(__name__)
@@ -98,17 +98,21 @@ class Discography(WikiEntity, DiscographyMixin):
 
     # noinspection PyMethodMayBeStatic
     def _process_wikipedia_row(self, client, disco_page, finder, row, alb_types, lang):
-        # TODO: Extract (sometimes hidden) track listing if it exists, example: https://en.wikipedia.org/wiki/Mamamoo_discography
         title = row['Title']
-        details = None
-        for key in ('Details', 'Album details'):
-            if key in row:
-                details = row[key]
-                if type(details) is CompoundNode:
-                    details = details[0]
-                details = details.as_dict()
-                break
-        if details:
+        track_data = None
+        details = next((row[key] for key in ('Details', 'Album details') if key in row), None)
+        if details is not None:
+            track_list = details.find_one(Template, name='hidden')
+            if track_list is not None:
+                try:
+                    if track_list[0].value.lower() == 'track listing':
+                        track_data = track_list[1]
+                except Exception as e:
+                    log.debug(f'Unexpected error extracting track list from disco row={row}: {e}')
+
+            if type(details) is CompoundNode:
+                details = details[0]
+            details = details.as_dict()
             date = details.get('Released', details.get('To be released'))
             if date is not None:
                 date = date.value
@@ -116,8 +120,12 @@ class Discography(WikiEntity, DiscographyMixin):
                     date = date.split('(', maxsplit=1)[0].strip()
         else:
             date = None
+
         year = int(row.get('Year').value) if 'Year' in row else None
-        disco_entry = DiscoEntry(disco_page, row, type_=alb_types, lang=lang, date=date, year=year)
+        disco_entry = DiscoEntry(
+            disco_page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data,
+            from_album=row.get('Album')
+        )
         if isinstance(title, Link):
             finder.add_entry_link(client, title, disco_entry)
         elif isinstance(title, String):

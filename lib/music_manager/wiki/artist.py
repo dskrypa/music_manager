@@ -11,7 +11,7 @@ from ds_tools.wiki.nodes import Table, List, Link, String, MixedNode, CompoundNo
 from .album import DiscographyEntry
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
-from .shared import DiscoEntry, DiscoEntryType
+from .disco_entry import DiscoEntry, DiscoEntryType
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)

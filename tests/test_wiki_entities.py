@@ -68,6 +68,18 @@ class WikiEntityCompatibilityTest(unittest.TestCase):
         self.assertIsInstance(Artist.from_page(page), Singer)
         self.n += 1
 
+    def test_no_category_match(self):
+        self.expected += 1
+        page = WikiPage('test', None, '', ['test test test'])
+        self.assertIs(type(WikiEntity.from_page(page)), WikiEntity)
+        self.n += 1
+        types = ENTITY_TYPES.difference({WikiEntity})
+        self.expected += len(types)
+        for cls in types:
+            with self.assertRaises(EntityTypeError):
+                cls.from_page(page)
+            self.n += 1
+
 
 if __name__ == '__main__':
     init_logging(0, log_path=None)

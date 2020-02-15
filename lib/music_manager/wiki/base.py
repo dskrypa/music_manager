@@ -86,13 +86,14 @@ class WikiEntity:
             bad_cats = cat_cls._not_categories
             cat_match = next((pc for pc in page_cats if cls_cat in pc and not any(bci in pc for bci in bad_cats)), None)
             if cat_match:
-                if issubclass(cat_cls, cls):
+                if issubclass(cat_cls, cls):                # True for this class and its subclasses
                     return cat_cls(name, *args, **kwargs)
                 error = EntityTypeError(err_fmt.format(cls_cat, cat_match))
 
         if error:       # A match was found, but for a class that is not a subclass of this one
             raise error
-        elif cls is not WikiEntity and not cls._categories:
+        elif cls is not WikiEntity:
+            # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
             raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
         return cls(name, *args, **kwargs)

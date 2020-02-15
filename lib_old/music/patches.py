@@ -171,7 +171,9 @@ def apply_plex_patches(deinit_colorama=True):
                     func = type(query)
                 elif op == 'in' and isinstance(query, Iterable) and not isinstance(query, str):
                     types = {type(v) for v in query}
-                    if len(types) == 1:
+                    if not types:                       # the set was empty
+                        func = lambda x: x
+                    elif len(types) == 1:
                         func = next(iter(types))
                     elif all(isinstance(v, Number) for v in query):
                         func = float
@@ -250,9 +252,21 @@ def apply_plex_patches(deinit_colorama=True):
                         if not all(operator(_cast(cast, value, attr, elem), query) for value in values):
                             return False
                     else:
+                        # if op == 'in':
+                        #     log.debug(f'query: {query}')
                         for value in values:
-                            if operator(_cast(cast, value, attr, elem), query):
-                                break
+                            try:
+                                if operator(_cast(cast, value, attr, elem), query):
+                                    break
+                            except ValueError:
+                                cast = lambda x: x
+                                if operator(_cast(cast, value, attr, elem), query):
+                                    break
+
+                            #     log.error(f'Problem processing operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
+                            #     raise
+                            # else:
+                            #     log.debug(f'Successfully processed operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
                         else:
                             return False
         return True

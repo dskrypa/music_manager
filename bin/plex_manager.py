@@ -64,7 +64,7 @@ def parser():
 @wrap_main
 def main():
     args, dynamic = parser().parse_with_dynamic_args('query')
-    init_logging(args.verbose, log_path=None)
+    init_logging(args.verbose, log_path=None, names=None)
 
     plex = LocalPlexServer(args.server_url, args.username, args.server_path_root, args.cache_dir, args.music_library)
 
@@ -162,5 +162,5 @@ def parse_filters(obj_type, title, filters, escape, allow_inst):
     return obj_type, filters
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -151,16 +151,27 @@ class Artist(PersonOrGroup, DiscographyMixin):
             year = datetime.strptime(year_str, '(%Y)').year
             disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
             if isinstance(entry, CompoundNode):
+                if alb_type == 'Features':
+                    if isinstance(entry[1], String):
+                        disco_entry.title = entry[1].value[1:].partition('<small>')[0].strip(' "')
+                    elif isinstance(entry[0], MixedNode):
+                        try:
+                            disco_entry.title = entry[1][1].value[1:].strip(' "')
+                        except AttributeError:
+                            log.error(f'Error processing entry={entry}')
+                            raise
+                else:
+                    if isinstance(entry[0], String):
+                        disco_entry.title = entry[0].value.partition('<small>')[0].strip(' "')
+
                 links = list(entry.find_all(Link, True))
                 if links:
                     for link in links:
                         finder.add_entry_link(client, link, disco_entry)
                 else:
-                    if isinstance(entry[0], String):
-                        disco_entry.title = entry[0].value
                     finder.add_entry(disco_entry, entry)
             elif isinstance(entry, String):
-                disco_entry.title = entry.value.split('(')[0].strip().strip('"')
+                disco_entry.title = entry.value.split('(')[0].strip(' "')
                 finder.add_entry(disco_entry, entry)
             else:
                 log.warning(f'On page={artist_page}, unexpected type for entry={entry!r}')

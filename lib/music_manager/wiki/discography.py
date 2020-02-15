@@ -165,7 +165,7 @@ class Discography(WikiEntity, DiscographyMixin):
 class DiscographyEntryFinder:
     """Internal-use class that handles common discography entry page discovery; used by Discography and Artist"""
     def __init__(self):
-        self.found_page = defaultdict(lambda: False)
+        self.created_entry = defaultdict(lambda: False)
         self.remaining = Counter()
         self.entries_by_site = defaultdict(dict)
         self.no_link_entries = defaultdict(list)
@@ -221,30 +221,36 @@ class DiscographyEntryFinder:
                     discography[site].append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
                 except EntityTypeError as e:
                     self.remaining[disco_entry] -= 1
-                    if self.found_page[disco_entry]:
+                    if self.created_entry[disco_entry]:
                         log.log(9, f'Type mismatch for additional link={link} associated with {disco_entry}: {e}')
                     elif self.remaining[disco_entry]:
                         log.log(9, f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
                     else:
                         log.debug(f'{e}, and no other links are available')
+                        # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
+                        discography[site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                        self.created_entry[disco_entry] = True
                 except Exception as e:
                     self.remaining[disco_entry] -= 1
                     msg = f'Unexpected error processing page={title!r} for disco_entry={disco_entry}: {format_exc()}'
                     log.error(msg, extra={'color': 'red'})
                 else:
                     self.remaining[disco_entry] -= 1
-                    self.found_page[disco_entry] = True
+                    self.created_entry[disco_entry] = True
                     disco_entry._link = link
 
             for title, (disco_entry, link) in title_entry_map.items():
-                if not self.found_page[disco_entry]:
+                if not self.created_entry[disco_entry]:
                     log.log(9, f'No page found for title={title!r} / link={link} / entry={disco_entry}')
                     # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
                     discography[site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                    self.created_entry[disco_entry] = True
 
         for site, disco_entries in self.no_link_entries.items():
             site_discography = discography.setdefault(site, [])
             for disco_entry in disco_entries:
-                # log.debug(f'Creating DiscographyEntry for page=[no links] entry={disco_entry}')
-                site_discography.append(DiscographyEntry.from_disco_entry(disco_entry))
+                if not self.created_entry[disco_entry]:
+                    # log.debug(f'Creating DiscographyEntry for page=[no links] entry={disco_entry}')
+                    site_discography.append(DiscographyEntry.from_disco_entry(disco_entry))
+                    self.created_entry[disco_entry] = True
         return discography

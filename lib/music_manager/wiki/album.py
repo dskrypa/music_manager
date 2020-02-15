@@ -110,7 +110,7 @@ class AlbumVersion(DiscographyEntry):
 
 
 class Single(DiscographyEntry):
-    _categories = ('single', 'song', 'collaboration')
+    _categories = ('single', 'song', 'collaboration', 'feature')
     _not_categories = ('songwriter',)
 
 

@@ -155,11 +155,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
                     if isinstance(entry[1], String):
                         disco_entry.title = entry[1].value[1:].partition('<small>')[0].strip(' "')
                     elif isinstance(entry[0], MixedNode):
-                        try:
-                            disco_entry.title = entry[1][1].value[1:].strip(' "')
-                        except AttributeError:
-                            log.error(f'Error processing entry={entry}')
-                            raise
+                        disco_entry.title = entry[0][1].value[1:].strip(' "')
                 else:
                     if isinstance(entry[0], String):
                         disco_entry.title = entry[0].value.partition('<small>')[0].strip(' "')

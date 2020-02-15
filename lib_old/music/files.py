@@ -23,7 +23,7 @@ from mutagen.mp4 import MP4Tags
 
 from ds_tools.caching import ClearableCachedPropertyMixin, cached
 from ds_tools.compat import cached_property
-from ds_tools.core import format_duration, datetime_with_tz
+from tz_aware_dt import format_duration, datetime_with_tz
 from ds_tools.http import CodeBasedRestException
 from ds_tools.output import colored
 from ds_tools.unicode import contains_hangul, LangCat

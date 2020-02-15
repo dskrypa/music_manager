@@ -12,8 +12,9 @@ from bs4.element import NavigableString, Tag
 
 from ds_tools.unicode import LangCat
 from ds_tools.utils import (
-    ParentheticalParser, DASH_CHARS, num_suffix, QMARKS, soupify, unsurround, normalize_roman_numerals, has_nested
+    ParentheticalParser, DASH_CHARS, num_suffix, QMARKS, unsurround, normalize_roman_numerals, has_nested
 )
+from ds_tools.utils.soup import soupify
 from ...name_processing import has_parens, parse_name, split_name, str2list, categorize_langs
 from ..utils import synonym_pattern, get_page_category, normalize_href
 from .common import (

@@ -9,7 +9,8 @@ from itertools import chain
 from bs4.element import NavigableString
 
 from ds_tools.unicode import LangCat
-from ds_tools.utils import DASH_CHARS, num_suffix, soupify, unsurround
+from ds_tools.utils import DASH_CHARS, num_suffix, unsurround
+from ds_tools.utils.soup import soupify
 from ...name_processing import parse_name, str2list, split_name
 from .exceptions import *
 from .common import *

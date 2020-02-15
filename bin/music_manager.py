@@ -31,12 +31,11 @@ import mutagen.id3._frames
 from mutagen.id3 import ID3, TDRC
 from mutagen.mp4 import MP4Tags
 
-sys.path.append(Path(__file__).resolve().parents[2].joinpath('ds_tools').as_posix())    # Remove after cleanup
 from ds_tools.argparsing import ArgParser
-from ds_tools.core import localize
 from ds_tools.logging import init_logging
 from ds_tools.output import colored, uprint, Table, SimpleColumn, TableBar
 from ds_tools.utils import num_suffix
+from tz_aware_dt import localize
 
 sys.path.append(Path(__file__).resolve().parents[1].joinpath('lib_old').as_posix())
 from music import (

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from plexapi.base import OPERATORS
 
-sys.path.append(Path(__file__).resolve().parents[2].joinpath('ds_tools').as_posix())    # Remove after cleanup
 from ds_tools.argparsing import ArgParser
 from ds_tools.core import wrap_main
 from ds_tools.logging import init_logging

@@ -1,11 +1,13 @@
 """
+A WikiEntity represents an entity that is represented by a page in one or more MediaWiki sites.
+
 :author: Doug Skrypa
 """
 
 import logging
 
-from ds_tools.wiki.http import MediaWikiClient
-from ds_tools.wiki.page import WikiPage
+from wiki_nodes.http import MediaWikiClient
+from wiki_nodes.page import WikiPage
 from .exceptions import EntityTypeError, NoPagesFoundError
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']

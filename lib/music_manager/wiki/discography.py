@@ -8,8 +8,8 @@ from collections import defaultdict, Counter
 from traceback import format_exc
 
 from ds_tools.compat import cached_property
-from ds_tools.wiki.http import MediaWikiClient
-from ds_tools.wiki.nodes import Link, String, CompoundNode, TableSeparator, Template, MixedNode
+from wiki_nodes.http import MediaWikiClient
+from wiki_nodes.nodes import Link, String, CompoundNode, TableSeparator, Template
 from .album import DiscographyEntry
 from .base import WikiEntity
 from .disco_entry import DiscoEntry
@@ -114,7 +114,6 @@ class Discography(WikiEntity, DiscographyMixin):
                     except Exception as e:
                         log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
 
-    # noinspection PyMethodMayBeStatic
     def _process_wikipedia_row(self, client, disco_page, finder, row, alb_types, lang):
         title = row['Title']
         track_data = None
@@ -215,10 +214,10 @@ class DiscographyEntryFinder:
                     msg = f'No disco entry was found for title={title!r} from site={site}'
                     log.error(msg, extra={'color': 'red'})
                     continue
-
+                src_site = disco_entry.source.site
                 try:
                     # log.debug(f'Creating DiscographyEntry for page={page} with entry={disco_entry}')
-                    discography[site].append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
+                    discography[src_site].append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
                 except EntityTypeError as e:
                     self.remaining[disco_entry] -= 1
                     if self.created_entry[disco_entry]:
@@ -228,7 +227,7 @@ class DiscographyEntryFinder:
                     else:
                         log.debug(f'{e}, and no other links are available')
                         # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
-                        discography[site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                        discography[src_site].append(DiscographyEntry.from_disco_entry(disco_entry))
                         self.created_entry[disco_entry] = True
                 except Exception as e:
                     self.remaining[disco_entry] -= 1
@@ -243,7 +242,7 @@ class DiscographyEntryFinder:
                 if not self.created_entry[disco_entry]:
                     log.log(9, f'No page found for title={title!r} / link={link} / entry={disco_entry}')
                     # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
-                    discography[site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                    discography[disco_entry.source.site].append(DiscographyEntry.from_disco_entry(disco_entry))
                     self.created_entry[disco_entry] = True
 
         for site, disco_entries in self.no_link_entries.items():

@@ -1,4 +1,6 @@
 """
+Artist wiki pages.
+
 :author: Doug Skrypa
 """
 
@@ -7,8 +9,8 @@ from datetime import datetime
 from traceback import format_exc
 
 from ds_tools.compat import cached_property
-from ds_tools.wiki.http import MediaWikiClient
-from ds_tools.wiki.nodes import Table, List, Link, String, MixedNode, CompoundNode, Template
+from wiki_nodes.http import MediaWikiClient
+from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
@@ -22,56 +24,27 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
     def _finder_with_entries(self):
         finder = DiscographyEntryFinder()
-        collab_type = DiscoEntryType.Collaboration
 
         for site, artist_page in self._pages.items():
             client = MediaWikiClient(site)
             if site == 'www.generasia.com':
-                for section_title in ('Discography', 'Korean Discography', 'Japanese Discography'):
+                for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
                     try:
-                        section = artist_page.sections.find(section_title)
+                        section = artist_page.sections.find(f'{section_prefix}Discography')
                     except KeyError:
                         continue
-
-                    lang = section_title.split()[0] if ' ' in section_title else None
+                    lang = section_prefix.strip() if section_prefix in ('Korean ', 'Japanese ') else None
                     for alb_type, alb_type_section in section.children.items():
                         if 'video' in alb_type.lower():
                             continue
                         de_type = DiscoEntryType.for_name(alb_type)
                         content = alb_type_section.content
                         for entry in content.iter_flat():
-                            entry_type = de_type
-                            entry_link = None
-                            song_title = None
-                            if de_type == collab_type and isinstance(entry, MixedNode) and len(entry) >= 5:
-                                if isinstance(entry[2], String) and entry[2].value == '-' and isinstance(entry[3], Link):
-                                    entry_type = DiscoEntryType.Feature
-                                    entry_link = entry[3]
-                                    if isinstance(entry[4], String) and not entry[4].value.lower().startswith('(feat'):
-                                        song_title = entry[4].value[1:].partition('(')[0]
-                                    else:
-                                        song_title = entry_link.text or entry_link.title
-                                # elif isinstance(entry[2], Link) and isinstance(entry[1], String) and entry[1].value.endswith(' -'):
-                                #     entry_type = DiscoEntryType.Feature
-                                #     entry_link = entry[2]
-                                #     if isinstance(entry[3], String) and not entry[3].value.lower().startswith('(feat'):
-                                #         song_title = entry[3].value[1:].partition('(')[0]
-                                #     else:
-                                #         song_title = entry_link.text or entry_link.title
-                            if not entry_link:
-                                entry_link = next(entry.find_all(Link, True), None)
-
-                            date = datetime.strptime(entry[0].value, '[%Y.%m.%d]')
-                            disco_entry = DiscoEntry(
-                                artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link,
-                                song=song_title
-                            )
-                            if entry_link:
-                                finder.add_entry_link(client, entry_link, disco_entry)
-                            else:
-                                if isinstance(entry[1], String):
-                                    disco_entry.title = entry[1].value
-                                finder.add_entry(disco_entry, entry)
+                            try:
+                                self._process_generasia_entry(client, artist_page, finder, de_type, entry, lang)
+                            except Exception as e:
+                                msg = f'Unexpected error processing section={section} entry={entry}: {format_exc()}'
+                                log.error(msg, extra={'color': 'red'})
             elif site == 'wiki.d-addicts.com':
                 try:
                     section = artist_page.sections.find('TV Show Theme Songs')
@@ -97,7 +70,8 @@ class Artist(PersonOrGroup, DiscographyMixin):
                         try:
                             self._process_kpop_fandom_section(client, artist_page, finder, alb_type_section, alb_type)
                         except Exception as e:
-                            log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
+                            msg = f'Unexpected error processing section={section}: {format_exc()}'
+                            log.error(msg, extra={'color': 'red'})
                 elif section.depth == 2:                                  # key = language, value = sub-section
                     for lang, lang_section in section.children.items():
                         for alb_type, alb_type_section in lang_section.children.items():
@@ -107,7 +81,8 @@ class Artist(PersonOrGroup, DiscographyMixin):
                                     client, artist_page, finder, alb_type_section, alb_type, lang
                                 )
                             except Exception as e:
-                                log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
+                                msg = f'Unexpected error processing section={section}: {format_exc()}'
+                                log.error(msg, extra={'color': 'red'})
                 else:
                     log.warning(f'Unexpected section depth: {section.depth}')
             elif site == 'en.wikipedia.org':
@@ -137,12 +112,59 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
         return finder
 
-    # noinspection PyMethodMayBeStatic
+    def _process_generasia_entry(self, client, artist_page, finder, de_type, entry, lang=None):
+        entry_type = de_type                                    # Except for collabs with a different primary artist
+        entry_link = next(entry.find_all(Link, True), None)     # Almost always the 1st link
+        song_title = entry_link.show if entry_link else None
+
+        """
+        [YYYY.MM.DD] {Album title: romanized OR english} [(repackage)]
+        [YYYY.MM.DD] {Album title: romanized (english)} [(hangul)]
+        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])]
+        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])] (collaborators)
+        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])] (primary artist feat. collaborators)
+        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])] (feat. collaborators)
+        [YYYY.MM.DD] {primary artist} - {Album title: romanized OR english} (#track_num track title (feat. collaborators))
+        [YYYY.MM.DD] {primary artist} - {Album title: romanized OR english} (#track_num track title feat. collaborators)
+        """
+
+        parts = len(entry)
+        if parts == 2:
+            # [date] title
+            pass
+        elif parts >= 3:
+            if isinstance(entry[2], String):
+                entry_2 = entry[2].value
+                if check_type(entry, 3, Link) and de_type == DiscoEntryType.Collaboration:
+                    if entry_2 == '-':
+                        # 1st link = primary artist, 2nd link = disco entry
+                        entry_type = DiscoEntryType.Feature
+                        entry_link = entry[3]
+                        if check_type(entry, 4, String) and not entry[4].lower.startswith('(feat'):
+                            # [date] primary - album (song (feat artists))
+                            song_title = entry[4].value[1:].partition('(')[0]
+                    elif entry_2 == '(' and check_type(entry, 4, String) and entry[4].lower.startswith('feat'):
+                        # [date] single (primary feat collaborators)
+                        pass
+
+        date = datetime.strptime(entry[0].value, '[%Y.%m.%d]')
+        # noinspection PyTypeChecker
+        disco_entry = DiscoEntry(
+            artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title
+        )
+        if entry_link:
+            finder.add_entry_link(client, entry_link, disco_entry)
+        else:
+            if isinstance(entry[1], String):
+                disco_entry.title = entry[1].value
+            finder.add_entry(disco_entry, entry)
+
     def _process_kpop_fandom_section(self, client, artist_page, finder, section, alb_type, lang=None):
         content = section.content
         if type(content) is CompoundNode:  # A template for splitting the discography into
             content = content[0]  # columns follows the list of albums in this section
         for entry in content.iter_flat():
+            # {primary artist} - {album or single} [(with collabs)] (year)
             if isinstance(entry, String):
                 year_str = entry.value.rsplit(maxsplit=1)[1]
             else:
@@ -150,17 +172,27 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
             year = datetime.strptime(year_str, '(%Y)').year
             disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
-            if isinstance(entry, CompoundNode):
-                if alb_type == 'Features':
-                    if isinstance(entry[1], String):
-                        disco_entry.title = entry[1].value[1:].partition('<small>')[0].strip(' "')
-                    elif isinstance(entry[0], MixedNode):
-                        disco_entry.title = entry[0][1].value[1:].strip(' "')
-                else:
-                    if isinstance(entry[0], String):
-                        disco_entry.title = entry[0].value.partition('<small>')[0].strip(' "')
 
+            if isinstance(entry, CompoundNode):
                 links = list(entry.find_all(Link, True))
+                if alb_type == 'Features':
+                    # {primary artist} - {album or single} [(with collabs)] (year)
+                    if isinstance(entry[1], String):
+                        entry_1 = entry[1].value.strip()
+                        if entry_1 == '-' and check_type(entry, 2, Link):
+                            link = entry[2]
+                            links = [link]
+                            disco_entry.title = link.show
+                        elif entry_1.startswith('-'):
+                            disco_entry.title = entry_1[1:].strip(' "')
+                    elif isinstance(entry[1], Link):
+                        disco_entry.title = entry[1].show
+                else:
+                    if isinstance(entry[0], Link):
+                        disco_entry.title = entry[0].show
+                    elif isinstance(entry[0], String):
+                        disco_entry.title = entry[0].value.strip(' "')
+
                 if links:
                     for link in links:
                         finder.add_entry_link(client, link, disco_entry)
@@ -171,6 +203,13 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 finder.add_entry(disco_entry, entry)
             else:
                 log.warning(f'On page={artist_page}, unexpected type for entry={entry!r}')
+
+
+def check_type(node, index, cls):
+    try:
+        return isinstance(node[index], cls)
+    except (IndexError, KeyError, TypeError):
+        return False
 
 
 class Singer(Artist):
@@ -210,7 +249,7 @@ class Group(Artist):
                 for entry in content.iter_flat():
                     if isinstance(entry, Link):
                         titles.append(entry.title)
-                    elif isinstance(entry, MixedNode) or type(entry) is CompoundNode:
+                    elif isinstance(entry, CompoundNode):
                         link = next(entry.find_all(Link, True), None)
                         if link:
                             titles.append(link.title)

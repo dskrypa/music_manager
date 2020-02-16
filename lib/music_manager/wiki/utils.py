@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime, date
 
-from ds_tools.wiki.nodes import Node, Link, String, MixedNode, Template
+from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
 
 __all__ = ['parse_date']
 log = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def node_to_link_dict(node):
         as_dict[node.value] = None
     elif isinstance(node, Link):
         as_dict[node.text or node.title] = node
-    elif isinstance(node, MixedNode):
+    elif isinstance(node, CompoundNode):
         if len(node) == 2:
             a, b = node
             if isinstance(a, Link) and isinstance(b, String):

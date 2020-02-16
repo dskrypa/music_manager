@@ -7,7 +7,7 @@ import logging
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
-from .fuzz import fuzz_process
+from .fuzz import fuzz_process, revised_weighted_ratio
 
 __all__ = ['Name']
 log = logging.getLogger(__name__)
@@ -39,6 +39,26 @@ class Name:
             return f'{eng} ({non_eng})'
         return eng or non_eng
 
+    def _score(self, other, romanization_match=95):
+        if isinstance(other, str):
+            other = Name(other)
+        scores = []
+        if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
+            scores.append(revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace))
+        if self.eng_fuzzed_nospace and other.eng_fuzzed_nospace:
+            scores.append(revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace))
+        if self.non_eng_nospace and other.eng_fuzzed_nospace and self.is_romanized(other.eng_fuzzed_nospace, False):
+            scores.append(romanization_match)
+        if other.non_eng_nospace and self.eng_fuzzed_nospace and other.is_romanized(self.eng_fuzzed_nospace, False):
+            scores.append(romanization_match)
+        return scores
+
+    def matches(self, other, threshold=80, agg_func=max, romanization_match=95):
+        scores = self._score(other, romanization_match)
+        if scores:
+            return agg_func(scores) >= threshold
+        return False
+
     @cached_property
     def english(self):
         return self._ver(LangCat.ENG, 'english')
@@ -54,7 +74,8 @@ class Name:
 
     @cached_property
     def eng_fuzzed_nospace(self):
-        return ''.join(self.eng_fuzzed.split())
+        fuzzed = self.eng_fuzzed
+        return ''.join(fuzzed.split()) if fuzzed else None
 
     @cached_property
     def non_eng(self):
@@ -71,16 +92,34 @@ class Name:
             return None
 
     @cached_property
-    def eng_is_romanized(self):
-        if not self.eng_fuzzed_nospace:
+    def non_eng_nospace(self):
+        non_eng = self.non_eng
+        return ''.join(non_eng.split()) if non_eng else None
+
+    @cached_property
+    def non_eng_langs(self):
+        return LangCat.categorize(self.non_eng, True)
+
+    def is_romanized(self, text, fuzz=True):
+        """
+        :param str text: A string that may be a romanized version of this Name's non-english component
+        :param bool fuzz: Whether the given text needs to be fuzzed before attempting to compare it
+        :return bool: True if the given text is a romanized version of this Name's non-english component
+        """
+        fuzzed = fuzz_process(text, space=False) if fuzz else text
+        if not fuzzed:
             return False
         if self.korean:
-            if self._romanization_pattern.match(self.eng_fuzzed_nospace):
+            if self._romanization_pattern.match(fuzzed):
                 return True
         other = self.japanese or self.cjk
         if other:
-            return self.eng_fuzzed_nospace in self._romanizations
+            return fuzzed in self._romanizations
         return False
+
+    @cached_property
+    def eng_is_romanized(self):
+        return self.is_romanized(self.eng_fuzzed_nospace, False)
 
     @cached_property
     def korean(self):

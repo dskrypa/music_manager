@@ -9,6 +9,7 @@ from datetime import datetime, date
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
 from ..matching.name import Name
+from ..matching.spellcheck import is_english
 
 __all__ = ['parse_date', 'node_to_link_dict', 'parenthesized', 'parse_generasia_name']
 log = logging.getLogger(__name__)
@@ -120,9 +121,18 @@ def parse_generasia_name(node):
     else:
         raise TypeError(f'Unexpected node type following date: {node}')
 
-    non_eng, lit_translation, romanized, extra = None, None, None, None
+    non_eng, lit_translation, romanized, extra, name_parts = None, None, None, None, None
     node = next(nodes, None)
-    name_parts = None
+    if node and isinstance(node, String) and node.value == '-':
+        # [date] [[primary artist]] - [[{romanized} (eng)]] (han; lit)
+        # primary_artist = title
+        node = next(nodes, None)
+        if isinstance(node, Link):
+            title = node.show
+        else:
+            raise TypeError(f'Unexpected node type following date: {node}')
+        node = next(nodes, None)
+
     if node and isinstance(node, String):
         name_parts = parenthesized(node.value)
         if LangCat.contains_any(name_parts, LangCat.asian_cats):
@@ -171,6 +181,10 @@ def parse_generasia_name(node):
             # log.debug('It is not')
             eng_title = romanized
             romanized = None
+        elif is_english(romanized):
+            log.debug(f'Text={romanized!r} is a romanization of non_eng={non_eng!r}, but it is also valid English')
+            eng_title = romanized
+            romanized = None
         # else:
         #     log.debug('It is')
 
@@ -193,6 +207,6 @@ def parenthesized(text, chars='()'):
             if opened > closed:
                 closed += 1
             if opened and opened == closed:
-                return text[first:i]
+                return text[first:i].strip('\'" ')
 
     return text

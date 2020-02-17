@@ -14,27 +14,22 @@ log = logging.getLogger(__name__)
 
 
 class Name:
-    def __init__(self, main, alt=None, romanized=None, translated=None, versions=None):
-        self.main = main
-        self.alt = alt
-        self._romanized = romanized
-        self.translated = translated
+    def __init__(self, eng=None, non_eng=None, romanized=None, lit_translation=None, versions=None, extra=None):
+        self._english = eng
+        self.non_eng = non_eng
+        self.romanized = romanized
+        self.lit_translation = lit_translation
         self.versions = versions or []
+        self.extra = extra
 
-    @classmethod
-    def from_parts(cls, parts):
-        if isinstance(parts, str):
-            return cls(parts)
-        num_parts = len(parts)
-        if num_parts < 5:
-            return cls(*parts)      # Let lang properties figure it out
-        raise ValueError(f'Too many name parts: {parts}')
+    def __repr__(self):
+        parts = (self.english, self.non_eng, self.romanized, self.lit_translation, self.extra)
+        parts = ', '.join(map(repr, filter(None, parts)))
+        return f'<{type(self).__name__}({parts})>'
 
     def __str__(self):
         eng = self.english
         non_eng = self.non_eng
-        if self.eng_is_romanized and non_eng:
-            eng = None
         if eng and non_eng:
             return f'{eng} ({non_eng})'
         return eng or non_eng
@@ -47,9 +42,9 @@ class Name:
             scores.append(revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace))
         if self.eng_fuzzed_nospace and other.eng_fuzzed_nospace:
             scores.append(revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace))
-        if self.non_eng_nospace and other.eng_fuzzed_nospace and self.is_romanized(other.eng_fuzzed_nospace, False):
+        if self.non_eng_nospace and other.eng_fuzzed_nospace and self.has_romanization(other.eng_fuzzed_nospace, False):
             scores.append(romanization_match)
-        if other.non_eng_nospace and self.eng_fuzzed_nospace and other.is_romanized(self.eng_fuzzed_nospace, False):
+        if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
             scores.append(romanization_match)
         return scores
 
@@ -61,7 +56,7 @@ class Name:
 
     @cached_property
     def english(self):
-        return self._ver(LangCat.ENG, 'english')
+        return self._english or self.lit_translation
 
     @cached_property
     def eng_lower(self):
@@ -78,29 +73,19 @@ class Name:
         return ''.join(fuzzed.split()) if fuzzed else None
 
     @cached_property
-    def non_eng(self):
-        non_eng = self.korean or self.japanese or self.cjk
-        if non_eng:
-            return non_eng
-        elif self.main and self.main_lang != LangCat.ENG:
-            return self.main
-        elif self.alt and self.alt_lang != LangCat.ENG:
-            return self.alt
-        elif self.translated and self.translated_lang != LangCat.ENG:
-            return self.translated
-        else:
-            return None
-
-    @cached_property
     def non_eng_nospace(self):
         non_eng = self.non_eng
         return ''.join(non_eng.split()) if non_eng else None
 
     @cached_property
+    def non_eng_lang(self):
+        return LangCat.categorize(self.non_eng)
+
+    @cached_property
     def non_eng_langs(self):
         return LangCat.categorize(self.non_eng, True)
 
-    def is_romanized(self, text, fuzz=True):
+    def has_romanization(self, text, fuzz=True):
         """
         :param str text: A string that may be a romanized version of this Name's non-english component
         :param bool fuzz: Whether the given text needs to be fuzzed before attempting to compare it
@@ -118,87 +103,27 @@ class Name:
         return False
 
     @cached_property
-    def eng_is_romanized(self):
-        return self.is_romanized(self.eng_fuzzed_nospace, False)
-
-    @cached_property
     def korean(self):
-        return self._ver(LangCat.HAN, 'korean')
+        non_eng_lang = self.non_eng_lang
+        expected = LangCat.HAN
+        if non_eng_lang == expected or non_eng_lang == LangCat.MIX and expected in self.non_eng_langs:
+            return self.non_eng
+        return None
 
     @cached_property
     def japanese(self):
-        return self._ver(LangCat.JPN, 'japanese')
+        non_eng_lang = self.non_eng_lang
+        expected = LangCat.JPN
+        if non_eng_lang == expected or non_eng_lang == LangCat.MIX and expected in self.non_eng_langs:
+            return self.non_eng
+        return None
 
     @cached_property
     def cjk(self):
-        return self._ver(LangCat.CJK, 'cjk')
-
-    @cached_property
-    def main_lang(self):
-        return LangCat.categorize(self.main)
-
-    @cached_property
-    def main_langs(self):
-        lang = self.main_lang
-        if lang == LangCat.MIX:
-            return LangCat.categorize(self.main, True)
-        return {lang}
-
-    @cached_property
-    def alt_lang(self):
-        return LangCat.categorize(self.alt)
-
-    @cached_property
-    def alt_langs(self):
-        lang = self.alt_lang
-        if lang == LangCat.MIX:
-            return LangCat.categorize(self.alt, True)
-        return {lang}
-
-    @cached_property
-    def translated_lang(self):
-        return LangCat.categorize(self.translated)
-
-    @cached_property
-    def translated_langs(self):
-        lang = self.translated_lang
-        if lang == LangCat.MIX:
-            return LangCat.categorize(self.translated, True)
-        return {lang}
-
-    @cached_property
-    def romanized_lang(self):
-        return LangCat.categorize(self._romanized)
-
-    @cached_property
-    def romanized_langs(self):
-        lang = self.romanized_lang
-        if lang == LangCat.MIX:
-            return LangCat.categorize(self._romanized, True)
-        return {lang}
-
-    def _ver(self, lang_cat, attr):
-        if self.main_lang == lang_cat:
-            return self.main
-        elif self.alt_lang == lang_cat:
-            return self.alt
-        elif self.translated_lang == lang_cat:
-            return self.translated
-        elif self.romanized_lang == lang_cat:
-            return self.romanized
-        elif lang_cat != LangCat.ENG:
-            if lang_cat in self.main_langs:
-                return self.main
-            elif lang_cat in self.alt_langs:
-                return self.alt
-            elif lang_cat in self.translated_langs:
-                return self.translated
-        return self._from_version(attr)
-
-    def _from_version(self, attr):
-        versions = self.versions
-        if versions:
-            return next(filter(None, (getattr(v, attr) for v in versions)), None)
+        non_eng_lang = self.non_eng_lang
+        expected = LangCat.CJK
+        if non_eng_lang == expected or non_eng_lang == LangCat.MIX and expected in self.non_eng_langs:
+            return self.non_eng
         return None
 
     @cached_property

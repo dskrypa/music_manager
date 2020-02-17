@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from ds_tools.wiki.page import WikiPage
+from wiki_nodes.page import WikiPage
 from music_manager.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
 from music_manager.wiki.artist import Artist, Singer, Group
 from music_manager.wiki.album import (

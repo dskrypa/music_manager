@@ -3,11 +3,14 @@
 """
 
 import logging
+import re
 from datetime import datetime, date
 
+from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
+from ..matching.name import Name
 
-__all__ = ['parse_date']
+__all__ = ['parse_date', 'node_to_link_dict', 'parenthesized', 'parse_generasia_name']
 log = logging.getLogger(__name__)
 DATE_FORMATS = ('%Y-%b-%d', '%Y-%m-%d', '%Y.%m.%d', '%B %d, %Y', '%d %B %Y')
 
@@ -90,3 +93,96 @@ def node_to_link_dict(node):
             del as_dict[to_rm]
 
     return as_dict
+
+
+def parse_generasia_name(node):
+    try:
+        date_pat = parse_generasia_name._date_pat
+    except AttributeError:
+        date_pat = parse_generasia_name._date_pat = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$')
+
+    # if isinstance(node, String):
+    #     pass
+    if not isinstance(node, list) and type(node) is not CompoundNode:
+        raise TypeError(f'Unexpected type={type(node).__name__} for node={node}')
+
+    nodes = iter(node)
+    node = next(nodes)
+    # after_date = None
+    if isinstance(node, String):
+        m = date_pat.match(node.value)
+        if m:
+            # after_date = m.group(1).strip()
+            node = next(nodes)
+
+    if isinstance(node, Link):
+        title = node.show
+    else:
+        raise TypeError(f'Unexpected node type following date: {node}')
+
+    non_eng, lit_translation, romanized, extra = None, None, None, None
+    node = next(nodes, None)
+    name_parts = None
+    if node and isinstance(node, String):
+        name_parts = parenthesized(node.value)
+        if LangCat.contains_any(name_parts, LangCat.asian_cats):
+            name_parts = tuple(map(str.strip, name_parts.split(';')))
+        else:
+            name_parts = None
+
+    if name_parts:
+        if len(name_parts) == 1:
+            non_eng = name_parts[0]
+        elif len(name_parts) == 2:
+            non_eng, lit_translation = name_parts
+        else:
+            raise ValueError(f'Unexpected name parts in node={node}')
+
+    # [date] [[{romanized} (eng)]] (han; lit)
+    #        ^_______title_______^
+    # TODO: Handle OST(+Part) for checking romanization
+    if '(' not in title:
+        romanized = title
+        eng_title = None
+    else:
+        eng_title = parenthesized(title)
+        if eng_title != title:                          # returns the full string if it didn't extract anything
+            with_parens = f'({eng_title})'
+            romanized, with_parens, remainder = map(str.strip, title.partition(with_parens))
+            if remainder:                               # remix, etc
+                extra = parenthesized(remainder)        # Remove parens around it if they exist
+            elif eng_title.lower().endswith('ver.'):    # it wasn't an english part
+                extra = eng_title                       # TODO: more cases than 'ver.'
+                eng_title = None
+        else:                                           # It only contained an opening (
+            romanized = eng_title
+            eng_title = None
+
+    if romanized and non_eng:
+        # log.debug(f'Verifying that rom={romanized!r} is a romanization of non_eng={non_eng!r}')
+        if not Name(non_eng=non_eng).has_romanization(romanized):
+            eng_title = romanized
+            romanized = None
+
+    # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
+    return Name(eng_title, non_eng, romanized, lit_translation, extra=extra)
+
+
+def parenthesized(text, chars='()'):
+    opener, closer = chars
+    opened = 0
+    closed = 0
+    first = 0
+
+    for i, c in enumerate(text):
+        if c == opener:
+            if not opened:
+                first = i + 1
+            opened += 1
+        elif c == closer:
+            if opened > closed:
+                closed += 1
+            if opened and opened == closed:
+                return text[first:i]
+
+    return text

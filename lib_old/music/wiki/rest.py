@@ -9,7 +9,8 @@ from urllib.parse import urlparse
 
 import bs4
 
-from ds_tools.caching import cached, DBCache
+from db_cache import DBCache
+from ds_tools.caching import cached
 from ds_tools.http import CodeBasedRestException
 from ds_tools.utils import ParentheticalParser
 from ds_tools.utils.soup import soupify

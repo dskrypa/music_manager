@@ -115,6 +115,9 @@ CUSTOM_OPS = {
     '__like_exact': 'sregex',
     '__not_like': 'nsregex'
 }
+ALIASES = {
+    'rating': 'userRating'
+}
 
 
 class LocalPlexServer:
@@ -207,6 +210,21 @@ class LocalPlexServer:
         :param dict kwargs: The kwargs that were passed to :meth:`.get_tracks` or a similar method
         :return dict: Modified kwargs with custom search filters
         """
+        for key, val in list(kwargs.items()):
+            base = key
+            op = None
+            if '__' in key:
+                base, op = key.split('__', maxsplit=1)
+            try:
+                real_key = ALIASES[base]
+            except KeyError:
+                pass
+            else:
+                del kwargs[key]
+                if op:
+                    real_key = f'{real_key}__{op}'
+                kwargs[real_key] = val
+
         exclude_rated_dupes = kwargs.pop('exclude_rated_dupes', False)
         # Replace custom/shorthand ops with the real operators
         for filter_key, filter_val in sorted(kwargs.items()):

@@ -12,28 +12,6 @@ from music_manager.wiki.utils import parse_generasia_name
 
 log = logging.getLogger(__name__)
 
-"""
-self.assertEqual(name.english, '')
-self.assertEqual(name._english, '')
-self.assertEqual(name.non_eng, '')
-self.assertEqual(name.korean, '')
-self.assertIs(name.japanese, None)
-self.assertIs(name.cjk, None)
-self.assertEqual(name.romanized, '')
-self.assertEqual(name.lit_translation, '')
-self.assertIs(name.extra, None)
-
-self.assertEqual(name.english, '')
-self.assertEqual(name._english, '')
-self.assertIs(name.non_eng, None)
-self.assertIs(name.korean, None)
-self.assertIs(name.japanese, None)
-self.assertIs(name.cjk, None)
-self.assertIs(name.romanized, None)
-self.assertIs(name.lit_translation, None)
-self.assertIs(name.extra, None)
-"""
-
 
 class NameParsingTest(unittest.TestCase):
     # def setUp(self):
@@ -233,19 +211,6 @@ class NameParsingTest(unittest.TestCase):
         self.assertIs(name.lit_translation, None)
         self.assertIs(name.extra, None)
 
-    # def test_artists_dash_album(self):
-    #     entry = as_node("""[2010.05.20] [[2PM]] & '''Girls' Generation''' - [[Cabi Song]]""")
-    #     name = parse_generasia_name(entry)
-    #     self.assertEqual(name.english, 'Cabi Song')
-    #     self.assertEqual(name._english, 'Cabi Song')
-    #     self.assertIs(name.non_eng, None)
-    #     self.assertIs(name.korean, None)
-    #     self.assertIs(name.japanese, None)
-    #     self.assertIs(name.cjk, None)
-    #     self.assertIs(name.romanized, None)
-    #     self.assertIs(name.lit_translation, None)
-    #     self.assertIs(name.extra, None)
-
     def test_project_track_slash_collabs(self):
         # Note: the extras on this line have an extra trailing ''
         entry = as_node("""[2013.03.28] [[10 Corso Como Seoul Melody Collaboration Project|10 CORSO COMO SEOUL MELODY Collaboration Project]] (#1 ''Trick'' / '''Girls Generation''' x DJ Soul Scape'')""")
@@ -338,10 +303,6 @@ class NameParsingTest(unittest.TestCase):
         self.assertEqual(name.lit_translation, 'Rainy Season')
         self.assertIs(name.extra, None)
 
-    # def test_ost_part_rom_incomplete_han_lit(self):
-    #     entry = as_node('''[2020.01.28] [[Nangmandagteo Kimsabu 2 OST Part 6]] (낭만닥터 김사부; ''Romantic Doctor'')''')
-    #     name = parse_generasia_name(entry)
-    #
     def test_rom_han_eng_collabs(self):
         entry = as_node("""[2014.01.09] [[Haengbok Hajima]] (행복하지마; ''Don't Be Happy'') <small>('''mamamoo''' & [[Bumkey]])</small>""")
         name = parse_generasia_name(entry)
@@ -394,10 +355,6 @@ class NameParsingTest(unittest.TestCase):
         self.assertIs(name.lit_translation, None)
         self.assertIs(name.extra, None)
 
-    # def test_ost_part_rom_incomplete_han_collabs(self):
-    #     entry = as_node("""[2015.10.31] [[Naegen Neomu Sarangseureoun Geunyeo OST Part 1]] (내겐 너무 사랑스러운 그녀) <small>([[LOCO]] & '''MAMAMOO''', [[Park Mi Young]])</small>""")
-    #     name = parse_generasia_name(entry)
-    #
     def test_ost_rom_track(self):
         # Would prefer that this be captured as a romanization, but that would be tough
         entry = as_node('''[2014.08.29] [[Yeonaemalgo Gyeolhon OST]] (#2 ''Love Lane'')''')
@@ -481,22 +438,100 @@ class NameParsingTest(unittest.TestCase):
         self.assertIs(name.lit_translation, None)
         self.assertEqual(name.extra, '#6 Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)')
 
-    # def test_rom_han_eng_feat(self):
-    #     entry = as_node('''[2012.01.20] [[Michinyeonae]] (미친연애; ''Bad Girl'') (feat. [[E-Sens]] of [[Supreme Team]])''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_eng_x_collabs(self):
-    #     entry = as_node("""[2019.01.10] [[Carpet]] <small>([[Yesung]] x '''Bumkey''')</small>""")
-    #     name = parse_generasia_name(entry)
-    #
+    def test_rom_han_eng_feat(self):
+        entry = as_node('''[2012.01.20] [[Michinyeonae]] (미친연애; ''Bad Girl'') (feat. [[E-Sens]] of [[Supreme Team]])''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Bad Girl')
+        self.assertIs(name._english, None)
+        self.assertEqual(name.non_eng, '미친연애')
+        self.assertEqual(name.korean, '미친연애')
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertEqual(name.romanized, 'Michinyeonae')
+        self.assertEqual(name.lit_translation, 'Bad Girl')
+        self.assertIs(name.extra, None)
+
+    def test_eng_x_collabs(self):
+        entry = as_node("""[2019.01.10] [[Carpet]] <small>([[Yesung]] x '''Bumkey''')</small>""")
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Carpet')
+        self.assertEqual(name._english, 'Carpet')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertIs(name.extra, None)
+
     # def test_song_paren_ost(self):
+    #     # TODO: Handle this case...
     #     entry = as_node('''[2013.12.01] [[Find Your Soul (Blade & Soul 2013 OST)]]''')
     #     name = parse_generasia_name(entry)
+    #     self.assertEqual(name.english, 'Find Your Soul')
+    #     self.assertEqual(name._english, 'Find Your Soul')
+    #     self.assertIs(name.non_eng, None)
+    #     self.assertIs(name.korean, None)
+    #     self.assertIs(name.japanese, None)
+    #     self.assertIs(name.cjk, None)
+    #     self.assertIs(name.romanized, None)
+    #     self.assertIs(name.lit_translation, None)
+    #     self.assertIs(name.extra, 'Blade & Soul 2013 OST')
+
+    # def test_ost_part_rom_incomplete_han_collabs(self):
+    #     # TODO: Handle this
+    #     entry = as_node("""[2015.10.31] [[Naegen Neomu Sarangseureoun Geunyeo OST Part 1]] (내겐 너무 사랑스러운 그녀) <small>([[LOCO]] & '''MAMAMOO''', [[Park Mi Young]])</small>""")
+    #     name = parse_generasia_name(entry)
+    #     self.assertIs(name.english, None)
+    #     self.assertIs(name._english, None)
+    #     self.assertIs(name.non_eng, '내겐 너무 사랑스러운 그녀')
+    #     self.assertIs(name.korean, '내겐 너무 사랑스러운 그녀')
+    #     self.assertIs(name.japanese, None)
+    #     self.assertIs(name.cjk, None)
+    #     self.assertIs(name.romanized, 'Naegen Neomu Sarangseureoun Geunyeo OST Part 1')
+    #     self.assertIs(name.lit_translation, None)
+    #     self.assertIs(name.extra, None)
     #
+    # def test_ost_part_rom_incomplete_han_lit(self):
+    #     # TODO: Not 100% sure how this case should be handled
+    #     entry = as_node('''[2020.01.28] [[Nangmandagteo Kimsabu 2 OST Part 6]] (낭만닥터 김사부; ''Romantic Doctor'')''')
+    #     name = parse_generasia_name(entry)
+    #     self.assertEqual(name.english, 'Romantic Doctor')
+    #     self.assertIs(name._english, None)
+    #     self.assertEqual(name.non_eng, '낭만닥터 김사부')
+    #     self.assertIs(name.korean, None)
+    #     self.assertIs(name.japanese, None)
+    #     self.assertIs(name.cjk, None)
+    #     self.assertEqual(name.romanized, 'Nangmandagteo Kimsabu 2 OST Part 6')
+    #     self.assertEqual(name.lit_translation, 'Romantic Doctor')
+    #     self.assertIs(name.extra, None)
+
+    # def test_artists_dash_album(self):
+    #     # TODO: handle this
+    #     entry = as_node("""[2010.05.20] [[2PM]] & '''Girls' Generation''' - [[Cabi Song]]""")
+    #     name = parse_generasia_name(entry)
+    #     self.assertEqual(name.english, 'Cabi Song')
+    #     self.assertEqual(name._english, 'Cabi Song')
+    #     self.assertIs(name.non_eng, None)
+    #     self.assertIs(name.korean, None)
+    #     self.assertIs(name.japanese, None)
+    #     self.assertIs(name.cjk, None)
+    #     self.assertIs(name.romanized, None)
+    #     self.assertIs(name.lit_translation, None)
+    #     self.assertIs(name.extra, None)
 
     # def test_(self):
     #     entry = as_node('''''')
     #     name = parse_generasia_name(entry)
+    #     self.assertEqual(name.english, '')
+    #     self.assertEqual(name._english, '')
+    #     self.assertIs(name.non_eng, None)
+    #     self.assertIs(name.korean, None)
+    #     self.assertIs(name.japanese, None)
+    #     self.assertIs(name.cjk, None)
+    #     self.assertIs(name.romanized, None)
+    #     self.assertIs(name.lit_translation, None)
+    #     self.assertIs(name.extra, None)
 
 
 if __name__ == '__main__':

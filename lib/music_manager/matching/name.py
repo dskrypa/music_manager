@@ -23,7 +23,7 @@ class Name:
         self.extra = extra
 
     def __repr__(self):
-        parts = (self.english, self.non_eng, self.romanized, self.lit_translation, self.extra)
+        parts = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
         parts = ', '.join(map(repr, filter(None, parts)))
         return f'<{type(self).__name__}({parts})>'
 
@@ -128,11 +128,11 @@ class Name:
 
     @cached_property
     def _romanization_pattern(self):
-        return hangul_romanized_permutations_pattern(self.korean, False)
+        return hangul_romanized_permutations_pattern(self.non_eng_nospace, False)
 
     @cached_property
     def _romanizations(self):
-        text = self.japanese or self.cjk
+        text = self.non_eng_nospace if self.japanese or self.cjk else None
         if text:
             return [j2r.romanize(text) for j2r in J2R.romanizers(False)]
         return []

@@ -128,6 +128,7 @@ def parse_generasia_name(node):
         if LangCat.contains_any(name_parts, LangCat.asian_cats):
             name_parts = tuple(map(str.strip, name_parts.split(';')))
         else:
+            extra = name_parts
             name_parts = None
 
     if name_parts:
@@ -142,9 +143,12 @@ def parse_generasia_name(node):
     #        ^_______title_______^
     # TODO: Handle OST(+Part) for checking romanization
     if '(' not in title:
-        romanized = title
-        eng_title = None
-    else:
+        if non_eng:
+            romanized = title
+            eng_title = None
+        else:
+            eng_title = title
+    elif non_eng:
         eng_title = parenthesized(title)
         if eng_title != title:                          # returns the full string if it didn't extract anything
             with_parens = f'({eng_title})'
@@ -157,12 +161,18 @@ def parse_generasia_name(node):
         else:                                           # It only contained an opening (
             romanized = eng_title
             eng_title = None
+    else:
+        # TODO: handle [date] [[{track title} ({OST title})]]
+        eng_title = title
 
     if romanized and non_eng:
         # log.debug(f'Verifying that rom={romanized!r} is a romanization of non_eng={non_eng!r}')
         if not Name(non_eng=non_eng).has_romanization(romanized):
+            # log.debug('It is not')
             eng_title = romanized
             romanized = None
+        # else:
+        #     log.debug('It is')
 
     # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
     return Name(eng_title, non_eng, romanized, lit_translation, extra=extra)

@@ -12,8 +12,22 @@ from music_manager.wiki.utils import parse_generasia_name
 
 log = logging.getLogger(__name__)
 
+"""
+self.assertEqual(name.english, '')
+self.assertEqual(name._english, '')
+self.assertEqual(name.non_eng, '')
+self.assertEqual(name.korean, '')
+self.assertIs(name.japanese, None)
+self.assertIs(name.cjk, None)
+self.assertEqual(name.romanized, '')
+self.assertEqual(name.lit_translation, '')
+"""
+
 
 class NameParsingTest(unittest.TestCase):
+    # def setUp(self):
+    #     print()
+
     def test_rom_han_lit(self):
         entry = as_node('''[2007.11.01] [[So Nyeo Si Dae]] (소녀시대; ''Girls' Generation'')''')
         name = parse_generasia_name(entry)
@@ -21,41 +35,90 @@ class NameParsingTest(unittest.TestCase):
         self.assertEqual(name.non_eng, '소녀시대')
         self.assertEqual(name.lit_translation, 'Girls\' Generation')
         self.assertEqual(name.korean, '소녀시대')
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
         self.assertEqual(name.english, name.lit_translation)
 
-    # def test_eng_repackage(self):
-    #     entry = as_node('''[2008.03.17] [[So Nyeo Si Dae|Baby Baby]] ''(Repackage Album)''''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_eng_simple(self):
-    #     entry = as_node('''[2010.01.28] [[Oh!]]''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_rom_eng_han_lit(self):
-    #     entry = as_node('''[2009.06.29] [[Sowoneul Malhaebwa (Genie)]] (소원을 말해봐; ''Tell Me Your Wish'')''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_eng_alb_type(self):
-    #     entry = as_node('''[2008.02.18] [[Sweet Memories With Girls' Generation|Sweet Memories with Girls' Generation]] ''(Song Selection Album)''''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_rom_eng_han(self):
-    #     entry = as_node('''[2007.08.02] [[Dasi Mannan Segye (Into the New World)|Dasi Mannan Segye (Into the new world)]] (다시 만난 세계)''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_rom_eng_remix_han(self):
-    #     entry = as_node('''[2007.09.13] [[Dasi Mannan Segye (Into the New World)|Dasi Mannan Segye (Into the new world) Remix]] (다시 만난 세계)''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_eng_parens(self):
-    #     # "POP!POP!" should be part of the english name here...
-    #     entry = as_node('''[2011.01.17] [[Visual Dreams (Pop!Pop!)|Visual Dreams (POP!POP!)]]''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_song_paren_ost(self):
-    #     entry = as_node('''[2013.12.01] [[Find Your Soul (Blade & Soul 2013 OST)]]''')
-    #     name = parse_generasia_name(entry)
-    #
+    def test_eng_repackage(self):
+        entry = as_node('''[2008.03.17] [[So Nyeo Si Dae|Baby Baby]] ''(Repackage Album)''''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Baby Baby')
+        self.assertEqual(name._english, 'Baby Baby')
+        self.assertEqual(name.extra, 'Repackage Album')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+
+    def test_eng_simple(self):
+        entry = as_node('''[2010.01.28] [[Oh!]]''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Oh!')
+        self.assertEqual(name._english, 'Oh!')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+
+    def test_rom_eng_han_lit(self):
+        entry = as_node('''[2009.06.29] [[Sowoneul Malhaebwa (Genie)]] (소원을 말해봐; ''Tell Me Your Wish'')''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Genie')
+        self.assertEqual(name._english, 'Genie')
+        self.assertEqual(name.non_eng, '소원을 말해봐')
+        self.assertEqual(name.korean, '소원을 말해봐')
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertEqual(name.romanized, 'Sowoneul Malhaebwa')
+        self.assertEqual(name.lit_translation, 'Tell Me Your Wish')
+
+    def test_eng_alb_type(self):
+        entry = as_node('''[2008.02.18] [[Sweet Memories With Girls' Generation|Sweet Memories with Girls' Generation]] ''(Song Selection Album)''''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Sweet Memories with Girls\' Generation')
+        self.assertEqual(name._english, 'Sweet Memories with Girls\' Generation')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, 'Song Selection Album')
+
+    def test_rom_eng_han(self):
+        entry = as_node('''[2007.08.02] [[Dasi Mannan Segye (Into the New World)|Dasi Mannan Segye (Into the new world)]] (다시 만난 세계)''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Into the new world')
+        self.assertEqual(name._english, 'Into the new world')
+        self.assertEqual(name.non_eng, '다시 만난 세계')
+        self.assertEqual(name.korean, '다시 만난 세계')
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertEqual(name.romanized, 'Dasi Mannan Segye')
+        self.assertIs(name.lit_translation, None)
+
+    def test_rom_eng_remix_han(self):
+        entry = as_node('''[2007.09.13] [[Dasi Mannan Segye (Into the New World)|Dasi Mannan Segye (Into the new world) Remix]] (다시 만난 세계)''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Into the new world')
+        self.assertEqual(name._english, 'Into the new world')
+        self.assertEqual(name.non_eng, '다시 만난 세계')
+        self.assertEqual(name.korean, '다시 만난 세계')
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertEqual(name.romanized, 'Dasi Mannan Segye')
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, 'Remix')
+
+    def test_eng_parens(self):
+        # "POP!POP!" should be part of the english name here...
+        entry = as_node('''[2011.01.17] [[Visual Dreams (Pop!Pop!)|Visual Dreams (POP!POP!)]]''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Visual Dreams (POP!POP!)')
+        self.assertEqual(name._english, 'Visual Dreams (POP!POP!)')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertIs(name.extra, None)
+
     # def test_rom_han(self):
     #     entry = as_node('''[2016.08.05] [[Geu Yeoleum]] (그 여름)''')
     #     name = parse_generasia_name(entry)
@@ -175,6 +238,11 @@ class NameParsingTest(unittest.TestCase):
     # def test_eng_x_collabs(self):
     #     entry = as_node("""[2019.01.10] [[Carpet]] <small>([[Yesung]] x '''Bumkey''')</small>""")
     #     name = parse_generasia_name(entry)
+    #
+    # def test_song_paren_ost(self):
+    #     entry = as_node('''[2013.12.01] [[Find Your Soul (Blade & Soul 2013 OST)]]''')
+    #     name = parse_generasia_name(entry)
+    #
 
     # def test_(self):
     #     entry = as_node('''''')
@@ -182,7 +250,7 @@ class NameParsingTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    init_logging(0, log_path=None)
+    init_logging(0, log_path=None, names=None)
     try:
         unittest.main(warnings='ignore', verbosity=2, exit=False)
     except KeyboardInterrupt:

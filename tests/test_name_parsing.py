@@ -398,30 +398,89 @@ class NameParsingTest(unittest.TestCase):
     #     entry = as_node("""[2015.10.31] [[Naegen Neomu Sarangseureoun Geunyeo OST Part 1]] (내겐 너무 사랑스러운 그녀) <small>([[LOCO]] & '''MAMAMOO''', [[Park Mi Young]])</small>""")
     #     name = parse_generasia_name(entry)
     #
-    # def test_ost_rom_track(self):
-    #     entry = as_node('''[2014.08.29] [[Yeonaemalgo Gyeolhon OST]] (#2 ''Love Lane'')''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_ost_rom_track_missing_num(self):
-    #     entry = as_node('''[2014.11.06] [[Naegen Neomu Sarangseureoun Geunyeo OST]] (# ''I Norae'')''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_ost_eng_track_rom_eng(self):
-    #     entry = as_node('''[2015.03.12] [[Spy OST]] (#6 ''Nae Nun Sogen Neo (My Everything)'')''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_competition_part_track(self):
-    #     entry = as_node('''[2019.09.13] [[Queendom (Covergog Gyeongyeon) Part 1|Queendom [Covergog Gyeongyeon] Part 1]] (#1 ''Good Luck'')''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_competition_part_track_missing_num(self):
-    #     entry = as_node('''[2019.10.18] [[Queendom (Pandoraui Sangja) Part 1|Queendom [Pandoraui Sangja] Part 1]] (# ''I Miss You'')''')
-    #     name = parse_generasia_name(entry)
-    #
-    # def test_competition_track_rom_eng(self):
-    #     entry = as_node('''[2019.10.25] [[Queendom (Final Comeback Single)|Queendom [FINAL Comeback Single]]] (#6 ''Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)'')''')
-    #     name = parse_generasia_name(entry)
-    #
+    def test_ost_rom_track(self):
+        # Would prefer that this be captured as a romanization, but that would be tough
+        entry = as_node('''[2014.08.29] [[Yeonaemalgo Gyeolhon OST]] (#2 ''Love Lane'')''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Yeonaemalgo Gyeolhon OST')
+        self.assertEqual(name._english, 'Yeonaemalgo Gyeolhon OST')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, '#2 Love Lane')
+
+    def test_ost_rom_track_missing_num(self):
+        # Would prefer that this be captured as a romanization, but that would be tough
+        # This is really better suited to be tested as a full line parse test, rather than just the name
+        entry = as_node('''[2014.11.06] [[Naegen Neomu Sarangseureoun Geunyeo OST]] (# ''I Norae'')''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Naegen Neomu Sarangseureoun Geunyeo OST')
+        self.assertEqual(name._english, 'Naegen Neomu Sarangseureoun Geunyeo OST')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, '# I Norae')
+
+    def test_ost_eng_track_rom_eng(self):
+        entry = as_node('''[2015.03.12] [[Spy OST]] (#6 ''Nae Nun Sogen Neo (My Everything)'')''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Spy OST')
+        self.assertEqual(name._english, 'Spy OST')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, '#6 Nae Nun Sogen Neo (My Everything)')
+
+    def test_competition_part_track(self):
+        entry = as_node('''[2019.09.13] [[Queendom (Covergog Gyeongyeon) Part 1|Queendom [Covergog Gyeongyeon] Part 1]] (#1 ''Good Luck'')''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Queendom [Covergog Gyeongyeon] Part 1')
+        self.assertEqual(name._english, 'Queendom [Covergog Gyeongyeon] Part 1')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, '#1 Good Luck')
+
+    def test_competition_part_track_missing_num(self):
+        entry = as_node('''[2019.10.18] [[Queendom (Pandoraui Sangja) Part 1|Queendom [Pandoraui Sangja] Part 1]] (# ''I Miss You'')''')
+        name = parse_generasia_name(entry)
+        self.assertEqual(name.english, 'Queendom [Pandoraui Sangja] Part 1')
+        self.assertEqual(name._english, 'Queendom [Pandoraui Sangja] Part 1')
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, '# I Miss You')
+
+    def test_competition_track_rom_eng(self):
+        entry = as_node('''[2019.10.25] [[Queendom (Final Comeback Single)|Queendom [FINAL Comeback Single]]] (#6 ''Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)'')''')
+        name = parse_generasia_name(entry)
+        # self.assertEqual(name.english, 'Queendom [FINAL Comeback Single]')
+        # self.assertEqual(name._english, 'Queendom [FINAL Comeback Single]')
+        self.assertEqual(name.english, 'Queendom [FINAL Comeback Single')       # TODO: update after link bug is fixed
+        self.assertEqual(name._english, 'Queendom [FINAL Comeback Single')      # in upstream lib
+        self.assertIs(name.non_eng, None)
+        self.assertIs(name.korean, None)
+        self.assertIs(name.japanese, None)
+        self.assertIs(name.cjk, None)
+        self.assertIs(name.romanized, None)
+        self.assertIs(name.lit_translation, None)
+        self.assertEqual(name.extra, '#6 Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)')
+
     # def test_rom_han_eng_feat(self):
     #     entry = as_node('''[2012.01.20] [[Michinyeonae]] (미친연애; ''Bad Girl'') (feat. [[E-Sens]] of [[Supreme Team]])''')
     #     name = parse_generasia_name(entry)

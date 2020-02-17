@@ -97,6 +97,7 @@ def node_to_link_dict(node):
 
 
 def parse_generasia_name(node):
+    log.debug(f'Processing node: {node}')
     try:
         date_pat = parse_generasia_name._date_pat
     except AttributeError:

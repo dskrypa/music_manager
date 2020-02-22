@@ -36,7 +36,7 @@ class WikiEntity:
         :param str|None name: The name of this entity
         :param WikiPage|dict|iterable pages: One or more WikiPage objects
         """
-        self.name = name
+        self._name = name
         self.alt_names = None
         if isinstance(pages, dict):
             self._pages = pages
@@ -52,7 +52,7 @@ class WikiEntity:
                         self._pages[page.site] = page
 
     def __repr__(self):
-        return f'<{type(self).__name__}({self.name!r})[pages: {len(self._pages)}]>'
+        return f'<{type(self).__name__}({self._name!r})[pages: {len(self._pages)}]>'
 
     def _add_page(self, page):
         self._pages[page.site] = page

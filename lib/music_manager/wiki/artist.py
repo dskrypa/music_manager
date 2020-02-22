@@ -11,6 +11,8 @@ from traceback import format_exc
 from ds_tools.compat import cached_property
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
+from ..matching.name import Name
+from ..text.extraction import split_parenthesized
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
@@ -22,6 +24,62 @@ log = logging.getLogger(__name__)
 
 class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
+
+    @cached_property
+    def names(self):
+        names = set()
+        for site, artist_page in self._pages.items():
+            if site == 'kpop.fandom.com':
+                pass
+            elif site == 'en.wikipedia.org':
+                pass
+            elif site == 'www.generasia.com':
+                # From intro ===========================================================================================
+                first_string = artist_page.intro[0].value
+                name = first_string[:first_string.rindex(')')+1]
+                log.debug(f'Found name: {name}')
+                first_part, paren_part = split_parenthesized(name)
+                try:
+                    parts = tuple(map(str.strip, paren_part.split(', and')))
+                except Exception:
+                    names.add(Name.from_parts((first_part, paren_part)))
+                else:
+                    if len(parts) == 1:
+                        names.add(Name.from_parts((first_part, paren_part)))
+                    else:
+                        for part in parts:
+                            try:
+                                part = part[:part.rindex(')') + 1]
+                            except ValueError:
+                                log.error(f'Error splitting part={part!r}')
+                                raise
+                            else:
+                                part_a, part_b = split_parenthesized(part)
+                                try:
+                                    romanized, alias = part_b.split(' or ')
+                                except ValueError:
+                                    names.add(Name.from_parts((first_part, part_a, part_b)))
+                                else:
+                                    names.add(Name.from_parts((first_part, part_a, romanized)))
+                                    names.add(Name.from_parts((alias, part_a, romanized)))
+
+                # From profile =========================================================================================
+                try:
+                    section = artist_page.sections.find('Profile')
+                except KeyError:
+                    pass
+                else:
+                    profile = section.content.as_mapping(multiline=False)
+                    for key in ('Stage Name', 'Real Name'):
+                        try:
+                            value = profile[key].value
+                        except KeyError:
+                            pass
+                        else:
+                            names.add(Name.from_parenthesized(value))
+            elif site == 'wiki.d-addicts.com':
+                pass
+        return names or [Name(self._name)]
 
     def _finder_with_entries(self):
         finder = DiscographyEntryFinder()
@@ -265,3 +323,8 @@ class Group(Artist):
                 pages = client.get_pages(titles)
                 return [Singer.from_page(member) for member in pages.values()]
         return []
+
+    @cached_property
+    def sub_units(self):
+        # TODO: implement
+        return None

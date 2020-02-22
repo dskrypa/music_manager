@@ -1,78 +1,5 @@
 """
-Module for syncing Plex ratings with ratings stored in ID3 tags
-
-Note on fetchItems:
-The kwargs to fetchItem/fetchItems use __ to access nested attributes, but the only nested attributes available are
-those that are returned in the items in ``plex._session.query(plex._ekey(search_type))``, not the higher level objects.
-Example available attributes::\n
-    >>> data = plex._session.query(plex._ekey('track'))
-    >>> media = [c for c in data[0]]
-    >>> for m in media:
-    ...     m
-    ...     m.attrib
-    ...     print(', '.join(sorted(m.attrib)))
-    ...     for part in m:
-    ...         part
-    ...         part.attrib
-    ...         print(', '.join(sorted(part.attrib)))
-    ...
-    <Element 'Media' at 0x000001E4E3971458>
-    {'id': '76273', 'duration': '238680', 'bitrate': '320', 'audioChannels': '2', 'audioCodec': 'mp3', 'container': 'mp3'}
-    audioChannels, audioCodec, bitrate, container, duration, id
-    <Element 'Part' at 0x000001E4E48D9458>
-    {'id': '76387', 'key': '/library/parts/76387/1555183134/file.mp3', 'duration': '238680', 'file': '/path/to/song.mp3', 'size': '9773247', 'container': 'mp3', 'hasThumbnail': '1'}
-    container, duration, file, hasThumbnail, id, key, size
-
-    >>> data = plex._session.query(plex._ekey('album'))
-    >>> data[0]
-    <Element 'Directory' at 0x000001E4E3C92458>
-    >>> print(', '.join(sorted(data[0].attrib.keys())))
-    addedAt, guid, index, key, loudnessAnalysisVersion, originallyAvailableAt, parentGuid, parentKey, parentRatingKey, parentThumb, parentTitle, ratingKey, summary, thumb, title, type, updatedAt, year
-    >>> elements = [c for c in data[0]]
-    >>> for e in elements:
-    ...     e
-    ...     e.attrib
-    ...     for sub_ele in e:
-    ...         sub_ele
-    ...         sub_ele.attrib
-    ...
-    <Element 'Genre' at 0x000001E4E3C929F8>
-    {'tag': 'K-pop'}
-
-Example playlist syncs::\n
-    >>> plex.sync_playlist('K-Pop 3+ Stars', userRating__gte=6, genre__like='[kj]-?pop')
-    2019-06-01 08:53:39 EDT INFO __main__ 178 Creating playlist K-Pop 3+ Stars with 485 tracks
-    >>> plex.sync_playlist('K-Pop 4+ Stars', userRating__gte=8, genre__like='[kj]-?pop')
-    2019-06-01 08:54:13 EDT INFO __main__ 178 Creating playlist K-Pop 4+ Stars with 257 tracks
-    >>> plex.sync_playlist('K-Pop 5 Stars', userRating__gte=10, genre__like='[kj]-?pop')
-    2019-06-01 08:54:22 EDT INFO __main__ 178 Creating playlist K-Pop 5 Stars with 78 tracks
-    >>> plex.sync_playlist('K-Pop 5 Stars', userRating__gte=10, genre__like='[kj]-?pop')
-    2019-06-01 08:54:58 EDT VERBOSE __main__ 196 Playlist K-Pop 5 Stars does not contain any tracks that should be removed
-    2019-06-01 08:54:58 EDT VERBOSE __main__ 208 Playlist K-Pop 5 Stars is not missing any tracks
-    2019-06-01 08:54:58 EDT INFO __main__ 212 Playlist K-Pop 5 Stars contains 78 tracks and is already in sync with the given criteria
-
-
-Object and element attributes and elements available for searching:
- - track:
-    - attributes: addedAt, duration, grandparentGuid, grandparentKey, grandparentRatingKey, grandparentThumb,
-      grandparentTitle, guid, index, key, originalTitle, parentGuid, parentIndex, parentKey, parentRatingKey,
-      parentThumb, parentTitle, ratingKey, summary, thumb, title, type, updatedAt
-    - elements: media
- - album:
-    - attributes: addedAt, guid, index, key, loudnessAnalysisVersion, originallyAvailableAt, parentGuid, parentKey,
-      parentRatingKey, parentThumb, parentTitle, ratingKey, summary, thumb, title, type, updatedAt, year
-    - elements: genre
- - artist:
-    - attributes: addedAt, guid, index, key, lastViewedAt, ratingKey, summary, thumb, title, type, updatedAt,
-      userRating, viewCount
-    - elements: genre
- - media:
-    - attributes: audioChannels, audioCodec, bitrate, container, duration, id
-    - elements: part
- - genre:
-    - attributes: tag
- - part:
-    - attributes: container, duration, file, hasThumbnail, id, key, size
+Local Plex server client implementation.
 
 :author: Doug Skrypa
 """
@@ -81,6 +8,7 @@ import logging
 import re
 from collections import defaultdict
 from configparser import NoSectionError
+from functools import partialmethod
 from getpass import getpass
 from pathlib import Path
 
@@ -106,11 +34,14 @@ log = logging.getLogger(__name__)
 disable_urllib3_warnings()
 apply_plex_patches()
 
-CUSTOM_FILTERS = {
+CUSTOM_FILTERS_BASE = {
     'genre': ('album', 'genre__tag', {'track': 'parentKey'}),
     'album': ('album', 'title', {'track': 'parentKey'}),
-    'artist': ('artist', 'title', {'track': 'grandparentKey', 'album': 'parentKey'}),
+    'artist': ('artist', 'title', {'album': 'parentKey'}),
     'in_playlist': ('playlist', 'title', {})
+}
+CUSTOM_FILTERS_TRACK_ARTIST = {
+    'artist': ('artist', 'title', {'track': 'grandparentKey'}),
 }
 CUSTOM_OPS = {
     '__like': 'sregex',
@@ -185,50 +116,12 @@ class LocalPlexServer:
     def _ekey(self, search_type):
         return '/library/sections/1/all?type={}'.format(SEARCHTYPES[search_type])
 
-    def _update_filters(self, obj_type, kwargs):
-        """
-        Update the kwarg search filters for a fetchItem/fetchItems call using custom search filters.
-
-        Implemented custom filters:
-         - *__like: Automatically compiles the given str value as a regex pattern and replaces 'like' with the custom
-           sregex filter function, which uses pattern.search() instead of re.match()
-         - *__not_like: Like __like, but translates to nsregex
-         - genre: Plex stores genres at the album and artist level rather than the track level - this filter first runs
-           a search for albums that match the given value, then adds a filter to the track search so that only tracks
-           that are in the albums with the given genre are returned.
-         - artist/album: Rather than needing to chain searches manually where artist/album objects are passed as the
-           values, they can now be provided as strings.  Similar to the genre search, a separate search is run first for
-           finding artists/albums that match the given value, then tracks from/in the given criteria are found by using
-           the parentKey__in/grandparentKey__in filters, respectfully.  In theory, this should be more efficient than
-           using the parentTitle/grandparentTitle filters, since any regex operations only need to be done on the
-           album/artist titles once instead of on each track's album/artist titles, and the track search can use a O(1)
-           set lookup against the discovered parent/grandparent keys.
-
-        :param dict kwargs: The kwargs that were passed to :meth:`.get_tracks` or a similar method
-        :return dict: Modified kwargs with custom search filters
-        """
-        exclude_rated_dupes = kwargs.pop('exclude_rated_dupes', False)
-        kwargs = _resolve_aliases(kwargs)
-        kwargs = _resolve_custom_ops(kwargs)
-        kwargs = self.__apply_custom_filters(obj_type, kwargs)
-
-        # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
-        if exclude_rated_dupes and obj_type == 'track' and 'userRating' in kwargs:
-            kwargs['custom__custom'] = self.__get_dupe_filter(kwargs)
-
-        return kwargs
-
-    def get_tracks(self, **kwargs):
-        return self.music.fetchItems(self._ekey('track'), **self._update_filters('track', kwargs))
-
-    def get_track(self, **kwargs):
-        return self.music.fetchItem(self._ekey('track'), **self._update_filters('track', kwargs))
-
     def find_songs_by_rating_gte(self, rating, **kwargs):
         """
         :param int rating: Song rating on a scale of 0-10
         :return list: List of :class:`plexapi.audio.Track` objects
         """
+        # noinspection PyCallingNonCallable
         return self.get_tracks(userRating__gte=rating, **kwargs)
 
     def find_song(self, path):
@@ -236,14 +129,36 @@ class LocalPlexServer:
 
     def get_artists(self, name, mode='contains', **kwargs):
         kwargs.setdefault('title__{}'.format(mode), name)
-        return self.music.fetchItems(self._ekey('artist'), **self._update_filters('artist', kwargs))
+        return self.find_objects('artist', **kwargs)
 
     def get_albums(self, name, mode='contains', **kwargs):
         kwargs.setdefault('title__{}'.format(mode), name)
-        return self.music.fetchItems(self._ekey('album'), **self._update_filters('album', kwargs))
+        return self.find_objects('album', **kwargs)
+
+    def find_object(self, obj_type, **kwargs):
+        ekey = self._ekey(obj_type)
+        for kwargs in self._updated_filters(obj_type, kwargs):
+            final_filters = '\n'.join(f'{key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
+            log.debug(f'Final filters:\n{final_filters}')
+            return self.music.fetchItem(ekey, **kwargs)
 
     def find_objects(self, obj_type, **kwargs):
-        return self.music.fetchItems(self._ekey(obj_type), **self._update_filters(obj_type, kwargs))
+        ekey = self._ekey(obj_type)
+        if obj_type == 'track':
+            results = set()
+            for kwargs in self._updated_filters(obj_type, kwargs):
+                final_filters = '\n'.join(f'{key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
+                log.debug(f'Final filters:\n{final_filters}')
+                results.update(self.music.fetchItems(ekey, **kwargs))
+            return results
+        else:
+            kwargs = next(self._updated_filters(obj_type, kwargs))
+            final_filters = '\n'.join(f'{key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
+            log.debug(f'Final filters:\n{final_filters}')
+            return self.music.fetchItems(ekey, **kwargs)
+
+    get_track = partialmethod(find_object, 'track')
+    get_tracks = partialmethod(find_objects, 'track')
 
     @property
     def playlists(self):
@@ -345,16 +260,62 @@ class LocalPlexServer:
                     if not dry_run:
                         track.edit(**{'userRating.value': file_stars})
 
-    def __apply_custom_filters(self, obj_type, kwargs):
+    def _updated_filters(self, obj_type, kwargs):
+        """
+        Update the kwarg search filters for a fetchItem/fetchItems call using custom search filters.
+
+        Implemented custom filters:
+         - *__like: Automatically compiles the given str value as a regex pattern and replaces 'like' with the custom
+           sregex filter function, which uses pattern.search() instead of re.match()
+         - *__not_like: Like __like, but translates to nsregex
+         - genre: Plex stores genres at the album and artist level rather than the track level - this filter first runs
+           a search for albums that match the given value, then adds a filter to the track search so that only tracks
+           that are in the albums with the given genre are returned.
+         - artist/album: Rather than needing to chain searches manually where artist/album objects are passed as the
+           values, they can now be provided as strings.  Similar to the genre search, a separate search is run first for
+           finding artists/albums that match the given value, then tracks from/in the given criteria are found by using
+           the parentKey__in/grandparentKey__in filters, respectfully.  In theory, this should be more efficient than
+           using the parentTitle/grandparentTitle filters, since any regex operations only need to be done on the
+           album/artist titles once instead of on each track's album/artist titles, and the track search can use a O(1)
+           set lookup against the discovered parent/grandparent keys.
+
+        :param dict kwargs: The kwargs that were passed to :meth:`.get_tracks` or a similar method
+        :return dict: Modified kwargs with custom search filters
+        """
+        exclude_rated_dupes = kwargs.pop('exclude_rated_dupes', False)
+        kwargs = _resolve_aliases(kwargs)
+        kwargs = _resolve_custom_ops(kwargs)
+
+        # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
+        if exclude_rated_dupes and obj_type == 'track' and 'userRating' in kwargs:
+            kwargs['custom__custom'] = self.__get_dupe_filter(kwargs)
+
+        kwargs = self.__apply_custom_filters(obj_type, kwargs, CUSTOM_FILTERS_BASE)
+        if obj_type == 'track':
+            artist_keys = _prefixed_filters('artist', kwargs)
+            if artist_keys:
+                yield self.__apply_custom_filters(obj_type, kwargs.copy(), CUSTOM_FILTERS_TRACK_ARTIST)
+                filter_repl_fmt = 'Replacing custom filter {!r} with {}={}'
+                for filter_key in artist_keys:
+                    artist_key = filter_key.replace('artist', 'originalTitle', 1)
+                    filter_val = kwargs.pop(filter_key)
+                    log.debug(filter_repl_fmt.format(filter_key, artist_key, short_repr(filter_val)))
+                    kwargs[artist_key] = filter_val
+                yield kwargs
+            else:
+                yield kwargs
+        else:
+            yield kwargs
+
+    def __apply_custom_filters(self, obj_type, kwargs, filters):
         # Perform intermediate searches that are necessary for custom filters
         filter_repl_fmt = 'Replacing custom filter {!r} with {}={}'
-        for kw, (ekey, field, targets) in sorted(CUSTOM_FILTERS.items()):
-            us_key = '{}__'.format(kw)
+        for kw, (ekey, field, targets) in sorted(filters.items()):
             try:
                 target_key = '{}__in'.format(targets[obj_type])
             except KeyError:
                 if kw == 'genre':  # tracks need to go by their parents' genre, but albums/artists can use their own
-                    for filter_key in {k for k in kwargs if k == kw or k.startswith(us_key)}:
+                    for filter_key in _prefixed_filters(kw, kwargs):
                         if filter_key.startswith('genre') and not filter_key.startswith('genre__tag'):
                             target_key = filter_key.replace('genre', 'genre__tag', 1)
                             filter_val = kwargs.pop(filter_key)
@@ -362,7 +323,7 @@ class LocalPlexServer:
                             kwargs[target_key] = filter_val
                 elif kw == 'in_playlist':
                     target_key = 'key__in'
-                    for filter_key in {k for k in kwargs if k == kw or k.startswith(us_key)}:
+                    for filter_key in _prefixed_filters(kw, kwargs):
                         filter_val = kwargs.pop(filter_key)
                         lc_val = filter_val.lower()
                         for pl_name, playlist in self.playlists.items():
@@ -376,40 +337,41 @@ class LocalPlexServer:
                                 break
                         else:
                             raise ValueError('Invalid playlist: {!r}'.format(filter_val))
+            else:
+                log.debug(f'custom filter kw={kw!r} for obj_type={obj_type!r} has target_key={target_key!r}')
+                kw_keys = _prefixed_filters(kw, kwargs)
+                if kw_keys:
+                    ekey_filters = {}
+                    for filter_key in kw_keys:
+                        filter_val = kwargs.pop(filter_key)
+                        try:
+                            base, op = filter_key.rsplit('__', 1)
+                        except ValueError:
+                            op = 'contains'
+                        else:
+                            if base.endswith('__not'):
+                                op = 'not__' + op
 
-                continue
+                        ekey_filters['{}__{}'.format(field, op)] = filter_val
 
-            kw_keys = {k for k in kwargs if k == kw or k.startswith(us_key)}
-            if kw_keys:
-                ekey_filters = {}
-                for filter_key in kw_keys:
-                    filter_val = kwargs.pop(filter_key)
-                    try:
-                        base, op = filter_key.rsplit('__', 1)
-                    except ValueError:
-                        op = 'contains'
+                    custom_filter_keys = '+'.join(sorted(kw_keys))
+
+                    fmt = 'Performing intermediate search for custom filters={}: ekey={!r} with filters={}'
+                    filter_repr = ', '.join('{}={}'.format(k, short_repr(v)) for k, v in ekey_filters.items())
+                    log.debug(fmt.format(ekey, custom_filter_keys, filter_repr))
+
+                    results = self.music.fetchItems(self._ekey(ekey), **ekey_filters)
+                    if obj_type == 'album' and target_key == 'key__in':
+                        keys = {'{}/children'.format(a.key) for a in results}
                     else:
-                        if base.endswith('__not'):
-                            op = 'not__' + op
+                        keys = {a.key for a in results}
 
-                    ekey_filters['{}__{}'.format(field, op)] = filter_val
-
-                fmt = 'Performing intermediate search for custom filters={}: ekey={!r} with filters={}'
-                custom_filter_keys = '+'.join(sorted(kw_keys))
-                filter_repr = ', '.join('{}={}'.format(k, short_repr(v)) for k, v in ekey_filters.items())
-                log.debug(fmt.format(ekey, custom_filter_keys, filter_repr))
-                results = self.music.fetchItems(self._ekey(ekey), **ekey_filters)
-                if obj_type == 'album' and target_key == 'key__in':
-                    keys = {'{}/children'.format(a.key) for a in results}
-                else:
-                    keys = {a.key for a in results}
-
-                fmt = 'Replacing custom filters {} with {}={}'
-                log.debug(fmt.format(custom_filter_keys, target_key, short_repr(keys)))
-                if target_key in kwargs:
-                    keys = keys.intersection(kwargs[target_key])
-                    log.debug('Merging {} values: {}'.format(target_key, short_repr(keys)))
-                kwargs[target_key] = keys
+                    fmt = 'Replacing custom filters {} with {}={}'
+                    log.debug(fmt.format(custom_filter_keys, target_key, short_repr(keys)))
+                    if target_key in kwargs:
+                        keys = keys.intersection(kwargs[target_key])
+                        log.debug('Merging {} values: {}'.format(target_key, short_repr(keys)))
+                    kwargs[target_key] = keys
 
         return kwargs
 
@@ -443,6 +405,11 @@ class LocalPlexServer:
 
         # return lambda a: a['title'] not in rated_tracks_by_artist_key[a['grandparentKey']]
         return _filter
+
+
+def _prefixed_filters(field, filters):
+    us_key = '{}__'.format(field)
+    return {k for k in filters if k == field or k.startswith(us_key)}
 
 
 def _resolve_aliases(kwargs):

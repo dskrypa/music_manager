@@ -102,9 +102,19 @@ def apply_plex_patches(deinit_colorama=True):
             op_cache[attr] = (base, op, operator)
             return base, op, operator
 
+    op_to_cast_func = {
+        k: None for k in (
+            'sregex', 'nsregex', 'lc', 'ieq', 'iexact', 'icontains', 'startswith', 'istartswith', 'endswith',
+            'iendswith', 'regex', 'iregex'
+        )
+    }
     cast_funcs = {}
 
     def cast_func(op, query):
+        try:
+            return op_to_cast_func[op]
+        except KeyError:
+            pass
         key = (op, tuple(query) if not isinstance(query, Hashable) else query)
         try:
             return cast_funcs[key]
@@ -121,18 +131,18 @@ def apply_plex_patches(deinit_colorama=True):
                 elif op == 'in' and isinstance(query, Iterable) and not isinstance(query, str):
                     types = {type(v) for v in query}
                     if not types:                       # the set was empty
-                        func = lambda x: x
+                        func = None
                     elif len(types) == 1:
                         func = next(iter(types))
                     elif all(isinstance(v, Number) for v in query):
                         func = float
                     else:
                         log.debug('No common type found for values in {}'.format(query))
-                        func = lambda x: x
+                        func = None
                 else:
-                    func = lambda x: x
+                    func = None
             else:
-                func = lambda x: x
+                func = None
 
             if func is int:
                 func = lambda x: float(x) if '.' in x else int(x)
@@ -171,21 +181,23 @@ def apply_plex_patches(deinit_colorama=True):
 
     def _cast(cast, value, attr, elem):
         try:
-            return cast(value)
+            return cast(value) if cast is not None else value
         except ValueError:
             log.error('Unable to cast attr={} value={} from elem={}'.format(attr, value, elem))
             raise
 
     def _checkAttrs(self, elem, **kwargs):
+        # Return True if the elem should be included in results, False otherwise
         for attr, query in kwargs.items():
             attr, op, operator = _get_attr_operator(None, attr)
-            # if op == 'nsregex':
-            #     log.debug('Processing {!r} with op={}'.format(elem.attrib.get('title'), op))
             if op == 'custom':
                 if not query(elem.attrib):
                     return False
             else:
                 values = get_attr_value(elem, attr)
+                # if op == 'sregex' and attr == 'originalTitle':
+                #     log.debug(f'Processing title={elem.attrib.get("title")!r} with op={op} values={values}')
+
                 # special case query in (None, 0, '') to include missing attr
                 if op == 'exact' and not values and query in (None, 0, ''):
                     # original would return True here, bypassing other filters, which was bad!
@@ -195,7 +207,7 @@ def apply_plex_patches(deinit_colorama=True):
                         return False
                 else:
                     cast = cast_func(op, query)
-                    # return if attr were looking for is missing
+                    # return if attr we're looking for is missing
                     if op in ('ne', 'nsregex') or 'not' in op:
                         # If any value is not truthy for a negative filter, then it should be filtered out
                         if not all(operator(_cast(cast, value, attr, elem), query) for value in values):
@@ -206,10 +218,14 @@ def apply_plex_patches(deinit_colorama=True):
                         for value in values:
                             try:
                                 if operator(_cast(cast, value, attr, elem), query):
+                                    # if op == 'sregex' and attr == 'originalTitle':
+                                    #     log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => True')
                                     break
+                                # else:
+                                #     if op == 'sregex' and attr == 'originalTitle':
+                                #         log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => False')
                             except ValueError:
-                                cast = lambda x: x
-                                if operator(_cast(cast, value, attr, elem), query):
+                                if operator(value, query):
                                     break
 
                             #     log.error(f'Problem processing operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')

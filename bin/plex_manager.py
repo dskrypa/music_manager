@@ -13,9 +13,9 @@ from ds_tools.core import wrap_main
 from ds_tools.logging import init_logging
 from ds_tools.output import bullet_list, Printer
 
-sys.path.append(Path(__file__).resolve().parents[1].joinpath('lib_old').as_posix())
-from music import apply_mutagen_patches, stars
-from music.plex import LocalPlexServer
+sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
+from music_manager.plex import LocalPlexServer, stars
+from music_manager.files.patches import apply_mutagen_patches
 
 log = logging.getLogger(__name__)
 

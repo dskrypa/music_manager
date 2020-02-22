@@ -96,7 +96,7 @@ from ds_tools.compat import cached_property
 from ds_tools.core import get_input
 from ds_tools.unicode import LangCat
 from ds_tools.output import short_repr, bullet_list
-from .files import SongFile
+from ..files.track.track import SongFile
 from .patches import apply_plex_patches
 from .utils import stars
 
@@ -207,34 +207,145 @@ class LocalPlexServer:
         :param dict kwargs: The kwargs that were passed to :meth:`.get_tracks` or a similar method
         :return dict: Modified kwargs with custom search filters
         """
-        for key, val in list(kwargs.items()):
-            base = key
-            op = None
-            if '__' in key:
-                base, op = key.split('__', maxsplit=1)
-            try:
-                real_key = ALIASES[base]
-            except KeyError:
-                pass
-            else:
-                del kwargs[key]
-                if op:
-                    real_key = f'{real_key}__{op}'
-                kwargs[real_key] = val
-
         exclude_rated_dupes = kwargs.pop('exclude_rated_dupes', False)
-        # Replace custom/shorthand ops with the real operators
-        for filter_key, filter_val in sorted(kwargs.items()):
-            keyword = next((val for val in CUSTOM_OPS if filter_key.endswith(val)), None)
-            if keyword:
-                kwargs.pop(filter_key)
-                target_key = '{}__{}'.format(filter_key[:-len(keyword)], CUSTOM_OPS[keyword])
-                if keyword == '__like' and isinstance(filter_val, str):
-                    filter_val = filter_val.replace(' ', '.*?')
-                filter_val = re.compile(filter_val, re.IGNORECASE) if isinstance(filter_val, str) else filter_val
-                log.debug('Replacing custom op {!r} with {}={}'.format(filter_key, target_key, short_repr(filter_val)))
-                kwargs[target_key] = filter_val
+        kwargs = _resolve_aliases(kwargs)
+        kwargs = _resolve_custom_ops(kwargs)
+        kwargs = self.__apply_custom_filters(obj_type, kwargs)
 
+        # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
+        if exclude_rated_dupes and obj_type == 'track' and 'userRating' in kwargs:
+            kwargs['custom__custom'] = self.__get_dupe_filter(kwargs)
+
+        return kwargs
+
+    def get_tracks(self, **kwargs):
+        return self.music.fetchItems(self._ekey('track'), **self._update_filters('track', kwargs))
+
+    def get_track(self, **kwargs):
+        return self.music.fetchItem(self._ekey('track'), **self._update_filters('track', kwargs))
+
+    def find_songs_by_rating_gte(self, rating, **kwargs):
+        """
+        :param int rating: Song rating on a scale of 0-10
+        :return list: List of :class:`plexapi.audio.Track` objects
+        """
+        return self.get_tracks(userRating__gte=rating, **kwargs)
+
+    def find_song(self, path):
+        return self.get_track(media__part__file=path)
+
+    def get_artists(self, name, mode='contains', **kwargs):
+        kwargs.setdefault('title__{}'.format(mode), name)
+        return self.music.fetchItems(self._ekey('artist'), **self._update_filters('artist', kwargs))
+
+    def get_albums(self, name, mode='contains', **kwargs):
+        kwargs.setdefault('title__{}'.format(mode), name)
+        return self.music.fetchItems(self._ekey('album'), **self._update_filters('album', kwargs))
+
+    def find_objects(self, obj_type, **kwargs):
+        return self.music.fetchItems(self._ekey(obj_type), **self._update_filters(obj_type, kwargs))
+
+    @property
+    def playlists(self):
+        return {p.title: p for p in self._session.playlists()}
+
+    def create_playlist(self, name, items):
+        if not items:
+            raise ValueError('An iterable containing one or more tracks/items must be provided')
+        return Playlist.create(self._session, name, items)
+
+    def sync_playlist(self, name, **criteria):
+        expected = self.get_tracks(**criteria)
+        playlists = self.playlists
+        add_fmt = 'Adding {:,d} tracks to playlist {} ({:,d} tracks => {:,d}):'
+        rm_fmt = 'Removing {:,d} tracks from playlist {} ({:,d} tracks => {:,d}):'
+        if name not in playlists:
+            log.info('Creating playlist {} with {:,d} tracks'.format(name, len(expected)), extra={'color': 10})
+            log.debug('Creating playlist {} with tracks: {}'.format(name, expected))
+            plist = self.create_playlist(name, expected)
+        else:
+            plist = playlists[name]
+            plist_items = plist.items()
+            size = len(plist_items)
+
+            to_rm = []
+            for track in plist_items:
+                if track not in expected:
+                    to_rm.append(track)
+
+            if to_rm:
+                log.info(rm_fmt.format(len(to_rm), name, size, size - len(to_rm)), extra={'color': 13})
+                print(bullet_list(to_rm))
+                size -= len(to_rm)
+                # for track in to_remove:
+                #     plist.removeItem(track)
+                plist.removeItems(to_rm)
+            else:
+                log.log(19, 'Playlist {} does not contain any tracks that should be removed'.format(name))
+
+            to_add = []
+            for track in expected:
+                if track not in plist_items:
+                    to_add.append(track)
+
+            if to_add:
+                log.info(add_fmt.format(len(to_add), name, size, size + len(to_add)), extra={'color': 14})
+                print(bullet_list(to_add))
+                plist.addItems(to_add)
+                size += len(to_add)
+            else:
+                log.log(19, 'Playlist {} is not missing any tracks'.format(name))
+
+            if not to_add and not to_rm:
+                fmt = 'Playlist {} contains {:,d} tracks and is already in sync with the given criteria'
+                log.info(fmt.format(name, len(plist_items)), extra={'color': 11})
+
+    def sync_ratings_to_files(self, path_filter=None, dry_run=False):
+        """
+        Sync the song ratings from this Plex server to the files
+
+        :param str path_filter: String that file paths must contain to be sync'd
+        :param bool dry_run: Dry run - print the actions that would be taken instead of taking them
+        """
+        if self.server_root is None:
+            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
+        prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
+        kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
+        for track in self.find_songs_by_rating_gte(1, **kwargs):
+            file = SongFile.for_plex_track(track, self.server_root)
+            file_stars = file.star_rating_10
+            plex_stars = track.userRating
+            if file_stars == plex_stars:
+                log.log(9, 'Rating is already correct for {}'.format(file))
+            else:
+                log.info('{} rating from {} to {} for {}'.format(prefix, file_stars, plex_stars, file))
+                if not dry_run:
+                    file.star_rating_10 = plex_stars
+
+    def sync_ratings_from_files(self, path_filter=None, dry_run=False):
+        """
+        Sync the song ratings on this Plex server with the ratings in the files
+
+        :param str path_filter: String that file paths must contain to be sync'd
+        :param bool dry_run: Dry run - print the actions that would be taken instead of taking them
+        """
+        if self.server_root is None:
+            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
+        prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
+        kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
+        for track in self.get_tracks(**kwargs):
+            file = SongFile.for_plex_track(track, self.server_root)
+            file_stars = file.star_rating_10
+            if file_stars is not None:
+                plex_stars = track.userRating
+                if file_stars == plex_stars:
+                    log.log(9, 'Rating is already correct for {}'.format(file))
+                else:
+                    log.info('{} rating from {} to {} for {}'.format(prefix, plex_stars, file_stars, file))
+                    if not dry_run:
+                        track.edit(**{'userRating.value': file_stars})
+
+    def __apply_custom_filters(self, obj_type, kwargs):
         # Perform intermediate searches that are necessary for custom filters
         filter_repl_fmt = 'Replacing custom filter {!r} with {}={}'
         for kw, (ekey, field, targets) in sorted(CUSTOM_FILTERS.items()):
@@ -242,7 +353,7 @@ class LocalPlexServer:
             try:
                 target_key = '{}__in'.format(targets[obj_type])
             except KeyError:
-                if kw == 'genre':   # tracks need to go by their parents' genre, but albums/artists can use their own
+                if kw == 'genre':  # tracks need to go by their parents' genre, but albums/artists can use their own
                     for filter_key in {k for k in kwargs if k == kw or k.startswith(us_key)}:
                         if filter_key.startswith('genre') and not filter_key.startswith('genre__tag'):
                             target_key = filter_key.replace('genre', 'genre__tag', 1)
@@ -300,173 +411,75 @@ class LocalPlexServer:
                     log.debug('Merging {} values: {}'.format(target_key, short_repr(keys)))
                 kwargs[target_key] = keys
 
-        # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
-        if exclude_rated_dupes and obj_type == 'track' and 'userRating' in kwargs:
-            dupe_kwargs = kwargs.copy()
-            dupe_kwargs.pop('userRating')
-            dupe_kwargs['userRating__gte'] = 1
-            rated_tracks = self.music.fetchItems(self._ekey('track'), **dupe_kwargs)
-            rated_tracks_by_artist_key = defaultdict(set)
-            for track in rated_tracks:
-                rated_tracks_by_artist_key[track.grandparentKey].add(track.title.lower())
-
-            pat = re.compile(r'(.*)\((?:Japanese|JP|Chinese|Mandarin)\s*(?:ver\.?(?:sion))?\)$', re.IGNORECASE)
-
-            def _filter(elem_attrib):
-                titles = rated_tracks_by_artist_key[elem_attrib['grandparentKey']]
-                if not titles:
-                    return True
-                title = elem_attrib['title'].lower()
-                if title in titles:
-                    return False
-                m = pat.match(title)
-                if m and m.group(1).strip() in titles:
-                    return False
-                part = next((t for t in titles if t.startswith(title) or title.startswith(t)), None)
-                if not part:
-                    return True
-                elif len(part) > len(title):
-                    return title not in LangCat.split(part)
-                return part not in LangCat.split(title)
-
-            # kwargs['custom__custom'] = lambda a: a['title'] not in rated_tracks_by_artist_key[a['grandparentKey']]
-            kwargs['custom__custom'] = _filter
-
         return kwargs
 
-    def get_tracks(self, **kwargs):
-        return self.music.fetchItems(self._ekey('track'), **self._update_filters('track', kwargs))
+    def __get_dupe_filter(self, kwargs):
+        dupe_kwargs = kwargs.copy()
+        dupe_kwargs.pop('userRating')
+        dupe_kwargs['userRating__gte'] = 1
+        rated_tracks = self.music.fetchItems(self._ekey('track'), **dupe_kwargs)
+        rated_tracks_by_artist_key = defaultdict(set)
+        for track in rated_tracks:
+            rated_tracks_by_artist_key[track.grandparentKey].add(track.title.lower())
 
-    def get_track(self, **kwargs):
-        return self.music.fetchItem(self._ekey('track'), **self._update_filters('track', kwargs))
+        pat = re.compile(r'(.*)\((?:Japanese|JP|Chinese|Mandarin)\s*(?:ver\.?(?:sion))?\)$', re.IGNORECASE)
 
-    def find_songs_by_rating_gte(self, rating, **kwargs):
-        """
-        :param int rating: Song rating on a scale of 0-10
-        :return list: List of :class:`plexapi.audio.Track` objects
-        """
-        return self.get_tracks(userRating__gte=rating, **kwargs)
+        def _filter(elem_attrib):
+            titles = rated_tracks_by_artist_key[elem_attrib['grandparentKey']]
+            if not titles:
+                return True
+            title = elem_attrib['title'].lower()
+            if title in titles:
+                return False
+            m = pat.match(title)
+            if m and m.group(1).strip() in titles:
+                return False
+            part = next((t for t in titles if t.startswith(title) or title.startswith(t)), None)
+            if not part:
+                return True
+            elif len(part) > len(title):
+                return title not in LangCat.split(part)
+            return part not in LangCat.split(title)
 
-    def find_song(self, path):
-        return self.get_track(media__part__file=path)
+        # return lambda a: a['title'] not in rated_tracks_by_artist_key[a['grandparentKey']]
+        return _filter
 
-    def get_artists(self, name, mode='contains', **kwargs):
-        kwargs.setdefault('title__{}'.format(mode), name)
-        return self.music.fetchItems(self._ekey('artist'), **self._update_filters('artist', kwargs))
 
-    def get_albums(self, name, mode='contains', **kwargs):
-        kwargs.setdefault('title__{}'.format(mode), name)
-        return self.music.fetchItems(self._ekey('album'), **self._update_filters('album', kwargs))
-
-    def find_objects(self, obj_type, **kwargs):
-        return self.music.fetchItems(self._ekey(obj_type), **self._update_filters(obj_type, kwargs))
-
-    def sync_ratings_to_files(self, path_filter=None, dry_run=False):
-        """
-        Sync the song ratings from this Plex server to the files
-
-        :param str path_filter: String that file paths must contain to be sync'd
-        :param bool dry_run: Dry run - print the actions that would be taken instead of taking them
-        """
-        if self.server_root is None:
-            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
-        prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
-        kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
-        for track in self.find_songs_by_rating_gte(1, **kwargs):
-            file = SongFile.for_plex_track(track, self.server_root)
-            file_stars = file.star_rating_10
-            plex_stars = track.userRating
-            if file_stars == plex_stars:
-                log.log(9, 'Rating is already correct for {}'.format(file))
-            else:
-                log.info('{} rating from {} to {} for {}'.format(prefix, file_stars, plex_stars, file))
-                if not dry_run:
-                    file.star_rating_10 = plex_stars
-
-    def sync_ratings_from_files(self, path_filter=None, dry_run=False):
-        """
-        Sync the song ratings on this Plex server with the ratings in the files
-
-        :param str path_filter: String that file paths must contain to be sync'd
-        :param bool dry_run: Dry run - print the actions that would be taken instead of taking them
-        """
-        if self.server_root is None:
-            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
-        prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
-        kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
-        for track in self.get_tracks(**kwargs):
-            file = SongFile.for_plex_track(track, self.server_root)
-            file_stars = file.star_rating_10
-            if file_stars is not None:
-                plex_stars = track.userRating
-                if file_stars == plex_stars:
-                    log.log(9, 'Rating is already correct for {}'.format(file))
-                else:
-                    log.info('{} rating from {} to {} for {}'.format(prefix, plex_stars, file_stars, file))
-                    if not dry_run:
-                        track.edit(**{'userRating.value': file_stars})
-
-    @property
-    def playlists(self):
-        return {p.title: p for p in self._session.playlists()}
-
-    def create_playlist(self, name, items):
-        if not items:
-            raise ValueError('An iterable containing one or more tracks/items must be provided')
-        return Playlist.create(self._session, name, items)
-
-    def sync_playlist(self, name, **criteria):
-        expected = self.get_tracks(**criteria)
-        playlists = self.playlists
-        add_fmt = 'Adding {:,d} tracks to playlist {} ({:,d} tracks => {:,d}):'
-        rm_fmt = 'Removing {:,d} tracks from playlist {} ({:,d} tracks => {:,d}):'
-        if name not in playlists:
-            log.info('Creating playlist {} with {:,d} tracks'.format(name, len(expected)), extra={'color': 10})
-            log.debug('Creating playlist {} with tracks: {}'.format(name, expected))
-            plist = self.create_playlist(name, expected)
+def _resolve_aliases(kwargs):
+    for key, val in list(kwargs.items()):
+        base = key
+        op = None
+        if '__' in key:
+            base, op = key.split('__', maxsplit=1)
+        try:
+            real_key = ALIASES[base]
+        except KeyError:
+            pass
         else:
-            plist = playlists[name]
-            plist_items = plist.items()
-            size = len(plist_items)
+            del kwargs[key]
+            if op:
+                real_key = f'{real_key}__{op}'
+            kwargs[real_key] = val
 
-            to_rm = []
-            for track in plist_items:
-                if track not in expected:
-                    to_rm.append(track)
+    return kwargs
 
-            if to_rm:
-                log.info(rm_fmt.format(len(to_rm), name, size, size - len(to_rm)), extra={'color': 13})
-                print(bullet_list(to_rm))
-                size -= len(to_rm)
-                # for track in to_remove:
-                #     plist.removeItem(track)
-                plist.removeItems(to_rm)
-            else:
-                log.log(19, 'Playlist {} does not contain any tracks that should be removed'.format(name))
 
-            to_add = []
-            for track in expected:
-                if track not in plist_items:
-                    to_add.append(track)
+def _resolve_custom_ops(kwargs):
+    # Replace custom/shorthand ops with the real operators
+    for filter_key, filter_val in sorted(kwargs.items()):
+        keyword = next((val for val in CUSTOM_OPS if filter_key.endswith(val)), None)
+        if keyword:
+            kwargs.pop(filter_key)
+            target_key = '{}__{}'.format(filter_key[:-len(keyword)], CUSTOM_OPS[keyword])
+            if keyword == '__like' and isinstance(filter_val, str):
+                filter_val = filter_val.replace(' ', '.*?')
+            filter_val = re.compile(filter_val, re.IGNORECASE) if isinstance(filter_val, str) else filter_val
+            log.debug('Replacing custom op {!r} with {}={}'.format(filter_key, target_key, short_repr(filter_val)))
+            kwargs[target_key] = filter_val
 
-            if to_add:
-                log.info(add_fmt.format(len(to_add), name, size, size + len(to_add)), extra={'color': 14})
-                print(bullet_list(to_add))
-                plist.addItems(to_add)
-                size += len(to_add)
-            else:
-                log.log(19, 'Playlist {} is not missing any tracks'.format(name))
-
-            if not to_add and not to_rm:
-                fmt = 'Playlist {} contains {:,d} tracks and is already in sync with the given criteria'
-                log.info(fmt.format(name, len(plist_items)), extra={'color': 11})
+    return kwargs
 
 
 def print_song_info(songs):
     for song in songs:
         print('{} - {} - {} - {}'.format(stars(song.userRating), song.artist().title, song.album().title, song.title))
-
-
-if __name__ == '__main__':
-    from .patches import apply_mutagen_patches
-    apply_mutagen_patches()

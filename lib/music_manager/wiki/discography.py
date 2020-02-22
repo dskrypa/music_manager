@@ -115,6 +115,7 @@ class Discography(WikiEntity, DiscographyMixin):
                         log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
 
     def _process_wikipedia_row(self, client, disco_page, finder, row, alb_types, lang):
+        # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
         title = row['Title']
         track_data = None
         details = next((row[key] for key in ('Details', 'Album details') if key in row), None)
@@ -129,7 +130,7 @@ class Discography(WikiEntity, DiscographyMixin):
 
             if type(details) is CompoundNode:
                 details = details[0]
-            details = details.as_dict()
+            details = details.as_dict(multiline=False)
             date = details.get('Released', details.get('To be released'))
             if date is not None:
                 if isinstance(date, String):

@@ -9,10 +9,16 @@ from traceback import format_stack
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
+from wiki_nodes.http import MediaWikiClient
+from wiki_nodes.nodes import MappingNode, String, CompoundNode
+from wiki_nodes.utils import strip_style
 from .base import WikiEntity
 from .exceptions import EntityTypeError
 
-__all__ = ['DiscographyEntry', 'AlbumPart', 'Album', 'AlbumVersion', 'Single', 'SoundtrackPart', 'Soundtrack']
+__all__ = [
+    'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',
+    'DiscographyEntryPart'
+]
 log = logging.getLogger(__name__)
 OST_PAT = re.compile(r'^(.*? OST) (PART.?\s?\d+)$')
 
@@ -94,19 +100,54 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
         except EntityTypeError as e:
             log.error(f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}', extra={'color': 'red'})
 
+    @cached_property
+    def editions(self):
+        # one or more DiscographyEntryEdition values
+        editions = []
+        for site, entry_page in self._pages.items():
+            if site == 'www.generasia.com':
+                processed = entry_page.sections.processed()
+                for node in processed:
+                    if isinstance(node, MappingNode):
+                        artist_link = node['Artist'].value
+                        album_name = node['Album'].value.value
+                        release_dates = node['Released']
+                        if release_dates.children:
+                            _dates = []
+                            for r_date in release_dates.iter_flat():
+                                if isinstance(r_date, String):
+                                    _dates.append(datetime.strptime(r_date.value, '%Y.%m.%d'))
+                                else:
+                                    _dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d'))
+                            release_dates = _dates
+                        else:
+                            release_dates = [datetime.strptime(release_dates.value.value, '%Y.%m.%d')]
 
-class AlbumPart(WikiEntity):
-    _categories = ()
+                        for key, value in node.items():
+                            lc_key = key.lower().strip()
+                            if 'tracklist' in lc_key:
+                                if lc_key != 'tracklist':
+                                    edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
+                                else:
+                                    edition = None
+                                editions.append(DiscographyEntryEdition(
+                                    album_name, entry_page, artist_link, release_dates, value, edition
+                                ))
+            elif site == 'wiki.d-addicts.com':
+                pass
+            elif site == 'kpop.fandom.com':
+                pass
+            elif site == 'en.wikipedia.org':
+                pass
+            else:
+                log.debug(f'No discography entry extraction is configured for {entry_page}')
+
+        return editions
 
 
 class Album(DiscographyEntry):
-    """An album or mini album or EP"""
+    """An album or mini album or EP, or a repackage thereof"""
     _categories = ('album', 'extended play', '(band) eps', '-language eps')
-
-
-class AlbumVersion(DiscographyEntry):
-    """A repackage or alternate edition of an album"""
-    _categories = ()
 
 
 class Single(DiscographyEntry):
@@ -114,10 +155,37 @@ class Single(DiscographyEntry):
     _not_categories = ('songwriter',)
 
 
-class SoundtrackPart(AlbumPart):
-    """A part of a multi-part soundtrack"""
-    _categories = ()
-
-
 class Soundtrack(DiscographyEntry):
     _categories = ('ost', 'soundtrack')
+
+
+class DiscographyEntryEdition:
+    """An edition of an album"""
+    def __init__(self, name, page, artist, release_dates, tracks, edition=None):
+        self.name = name
+        self.page = page
+        self.artist = artist
+        self.release_dates = release_dates
+        self.tracks = tracks
+        self.edition = edition
+
+    def __repr__(self):
+        date = self.release_dates[0].strftime('%Y-%m-%d')
+        edition = f'[edition={self.edition!r}]' if self.edition else ''
+        return f'<{self.__class__.__name__}[{date}][{self.name!r} @ {self.page}]{edition}>'
+
+    @cached_property
+    def parts(self):
+        # One or more DiscographyEntryPart values
+        # Example with multiple parts (disks): https://www.generasia.com/wiki/Love_Yourself_Gyeol_%27Answer%27
+        return []
+
+
+class DiscographyEntryPart:
+    def __init__(self):
+        pass
+
+
+class SoundtrackPart(DiscographyEntryPart):
+    """A part of a multi-part soundtrack"""
+    pass

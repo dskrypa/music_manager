@@ -34,144 +34,92 @@ class Artist(PersonOrGroup, DiscographyMixin):
             elif site == 'en.wikipedia.org':
                 pass
             elif site == 'www.generasia.com':
-                # From intro ===========================================================================================
-                first_string = artist_page.intro[0].value
-                name = first_string[:first_string.rindex(')')+1]
-                log.debug(f'Found name: {name}')
-                first_part, paren_part = split_parenthesized(name)
-                try:
-                    parts = tuple(map(str.strip, paren_part.split(', and')))
-                except Exception:
-                    names.add(Name.from_parts((first_part, paren_part)))
-                else:
-                    if len(parts) == 1:
-                        names.add(Name.from_parts((first_part, paren_part)))
-                    else:
-                        for part in parts:
-                            try:
-                                part = part[:part.rindex(')') + 1]
-                            except ValueError:
-                                log.error(f'Error splitting part={part!r}')
-                                raise
-                            else:
-                                part_a, part_b = split_parenthesized(part)
-                                try:
-                                    romanized, alias = part_b.split(' or ')
-                                except ValueError:
-                                    names.add(Name.from_parts((first_part, part_a, part_b)))
-                                else:
-                                    names.add(Name.from_parts((first_part, part_a, romanized)))
-                                    names.add(Name.from_parts((alias, part_a, romanized)))
-
-                # From profile =========================================================================================
-                try:
-                    section = artist_page.sections.find('Profile')
-                except KeyError:
-                    pass
-                else:
-                    profile = section.content.as_mapping(multiline=False)
-                    for key in ('Stage Name', 'Real Name'):
-                        try:
-                            value = profile[key].value
-                        except KeyError:
-                            pass
-                        else:
-                            names.add(Name.from_parenthesized(value))
+                names.update(self._process_generasia_name(artist_page))
             elif site == 'wiki.d-addicts.com':
                 pass
         return names or [Name(self._name)]
 
+    def _process_generasia_name(self, artist_page):
+        # From intro ===========================================================================================
+        first_string = artist_page.intro[0].value
+        name = first_string[:first_string.rindex(')') + 1]
+        # log.debug(f'Found name: {name}')
+        first_part, paren_part = split_parenthesized(name)
+        try:
+            parts = tuple(map(str.strip, paren_part.split(', and')))
+        except Exception:
+            yield Name.from_parts((first_part, paren_part))
+        else:
+            if len(parts) == 1:
+                yield Name.from_parts((first_part, paren_part))
+            else:
+                for part in parts:
+                    try:
+                        part = part[:part.rindex(')') + 1]
+                    except ValueError:
+                        log.error(f'Error splitting part={part!r}')
+                        raise
+                    else:
+                        part_a, part_b = split_parenthesized(part)
+                        try:
+                            romanized, alias = part_b.split(' or ')
+                        except ValueError:
+                            yield Name.from_parts((first_part, part_a, part_b))
+                        else:
+                            yield Name.from_parts((first_part, part_a, romanized))
+                            yield Name.from_parts((alias, part_a, romanized))
+
+        # From profile =========================================================================================
+        try:
+            section = artist_page.sections.find('Profile')
+        except KeyError:
+            pass
+        else:
+            profile = section.content.as_mapping(multiline=False)
+            for key in ('Stage Name', 'Real Name'):
+                try:
+                    value = profile[key].value
+                except KeyError:
+                    pass
+                else:
+                    yield Name.from_parenthesized(value)
+
     def _finder_with_entries(self):
         finder = DiscographyEntryFinder()
-
         for site, artist_page in self._pages.items():
             client = MediaWikiClient(site)
             if site == 'www.generasia.com':
-                for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
-                    try:
-                        section = artist_page.sections.find(f'{section_prefix}Discography')
-                    except KeyError:
-                        continue
-                    lang = section_prefix.strip() if section_prefix in ('Korean ', 'Japanese ') else None
-                    for alb_type, alb_type_section in section.children.items():
-                        if 'video' in alb_type.lower():
-                            continue
-                        de_type = DiscoEntryType.for_name(alb_type)
-                        content = alb_type_section.content
-                        for entry in content.iter_flat():
-                            try:
-                                self._process_generasia_entry(client, artist_page, finder, de_type, entry, lang)
-                            except Exception as e:
-                                msg = f'Unexpected error processing section={section} entry={entry}: {format_exc()}'
-                                log.error(msg, extra={'color': 'red'})
+                self._process_generasia_disco_sections(client, artist_page, finder)
             elif site == 'wiki.d-addicts.com':
-                try:
-                    section = artist_page.sections.find('TV Show Theme Songs')
-                except KeyError:
-                    continue
-                # Typical format: {song title} [by {member}] - {soundtrack title} ({year})
-                for entry in section.content.iter_flat():
-                    year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
-                    disco_entry = DiscoEntry(artist_page, entry, type_='Soundtrack', year=year)
-                    links = list(entry.find_all(Link, True))
-                    if not finder.add_entry_links(client, links, disco_entry):
-                        if isinstance(entry[-2], String):
-                            disco_entry.title = entry[-2].value
-                        finder.add_entry(disco_entry, entry)
+                self._process_drama_wiki_disco_sections(client, artist_page, finder)
             elif site == 'kpop.fandom.com':
-                try:
-                    section = artist_page.sections.find('Discography')
-                except KeyError:
-                    continue
-
-                if section.depth == 1:
-                    for alb_type, alb_type_section in section.children.items():
-                        try:
-                            self._process_kpop_fandom_section(client, artist_page, finder, alb_type_section, alb_type)
-                        except Exception as e:
-                            msg = f'Unexpected error processing section={section}: {format_exc()}'
-                            log.error(msg, extra={'color': 'red'})
-                elif section.depth == 2:                                  # key = language, value = sub-section
-                    for lang, lang_section in section.children.items():
-                        for alb_type, alb_type_section in lang_section.children.items():
-                            # log.debug(f'{at_section}: {at_section.content}')
-                            try:
-                                self._process_kpop_fandom_section(
-                                    client, artist_page, finder, alb_type_section, alb_type, lang
-                                )
-                            except Exception as e:
-                                msg = f'Unexpected error processing section={section}: {format_exc()}'
-                                log.error(msg, extra={'color': 'red'})
-                else:
-                    log.warning(f'Unexpected section depth: {section.depth}')
+                self._process_kpop_fandom_disco_sections(client, artist_page, finder)
             elif site == 'en.wikipedia.org':
-                try:
-                    section = artist_page.sections.find('Discography')
-                except KeyError:
-                    log.debug(f'No discography section found for {artist_page}')
-                    continue
-                try:
-                    disco_page_link_tmpl = section.content[0]
-                except Exception as e:
-                    log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
-                    continue
-
-                if isinstance(disco_page_link_tmpl, Template) and disco_page_link_tmpl.name.lower() == 'main':
-                    try:
-                        disco_page_title = disco_page_link_tmpl.value[0].value
-                    except Exception as e:
-                        log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
-                    else:
-                        disco_entity = Discography.from_page(client.get_page(disco_page_title))
-                        disco_entity._process_entries(finder)
-                else:
-                    log.debug(f'Unexpected discography section format on {artist_page}')
+                self._process_wikipedia_disco_sections(client, artist_page, finder)
             else:
                 log.debug(f'No discography entry extraction is configured for {artist_page}')
-
         return finder
 
-    def _process_generasia_entry(self, client, artist_page, finder, de_type, entry, lang=None):
+    def _process_generasia_disco_sections(self, client, artist_page, finder):
+        for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
+            try:
+                section = artist_page.sections.find(f'{section_prefix}Discography')
+            except KeyError:
+                continue
+            lang = section_prefix.strip() if section_prefix in ('Korean ', 'Japanese ') else None
+            for alb_type, alb_type_section in section.children.items():
+                if 'video' in alb_type.lower():
+                    continue
+                de_type = DiscoEntryType.for_name(alb_type)
+                content = alb_type_section.content
+                for entry in content.iter_flat():
+                    try:
+                        self._process_generasia_disco_entry(client, artist_page, finder, de_type, entry, lang)
+                    except Exception as e:
+                        msg = f'Unexpected error processing section={section} entry={entry}: {format_exc()}'
+                        log.error(msg, extra={'color': 'red'})
+
+    def _process_generasia_disco_entry(self, client, artist_page, finder, de_type, entry, lang=None):
         log.debug(f'Processing {parse_generasia_name(entry)!r}')
         entry_type = de_type                                    # Except for collabs with a different primary artist
         entry_link = next(entry.find_all(Link, True), None)     # Almost always the 1st link
@@ -219,7 +167,34 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 disco_entry.title = entry[1].value
             finder.add_entry(disco_entry, entry)
 
-    def _process_kpop_fandom_section(self, client, artist_page, finder, section, alb_type, lang=None):
+    def _process_kpop_fandom_disco_sections(self, client, artist_page, finder):
+        try:
+            section = artist_page.sections.find('Discography')
+        except KeyError:
+            return
+
+        if section.depth == 1:
+            for alb_type, alb_type_section in section.children.items():
+                try:
+                    self._process_kpop_fandom_disco_section(client, artist_page, finder, alb_type_section, alb_type)
+                except Exception as e:
+                    msg = f'Unexpected error processing section={section}: {format_exc()}'
+                    log.error(msg, extra={'color': 'red'})
+        elif section.depth == 2:  # key = language, value = sub-section
+            for lang, lang_section in section.children.items():
+                for alb_type, alb_type_section in lang_section.children.items():
+                    # log.debug(f'{at_section}: {at_section.content}')
+                    try:
+                        self._process_kpop_fandom_disco_section(
+                            client, artist_page, finder, alb_type_section, alb_type, lang
+                        )
+                    except Exception as e:
+                        msg = f'Unexpected error processing section={section}: {format_exc()}'
+                        log.error(msg, extra={'color': 'red'})
+        else:
+            log.warning(f'Unexpected section depth: {section.depth}')
+
+    def _process_kpop_fandom_disco_section(self, client, artist_page, finder, section, alb_type, lang=None):
         content = section.content
         if type(content) is CompoundNode:  # A template for splitting the discography into
             content = content[0]  # columns follows the list of albums in this section
@@ -263,6 +238,44 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 finder.add_entry(disco_entry, entry)
             else:
                 log.warning(f'On page={artist_page}, unexpected type for entry={entry!r}')
+
+    def _process_drama_wiki_disco_sections(self, client, artist_page, finder):
+        try:
+            section = artist_page.sections.find('TV Show Theme Songs')
+        except KeyError:
+            return
+        # Typical format: {song title} [by {member}] - {soundtrack title} ({year})
+        for entry in section.content.iter_flat():
+            year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
+            disco_entry = DiscoEntry(artist_page, entry, type_='Soundtrack', year=year)
+            links = list(entry.find_all(Link, True))
+            if not finder.add_entry_links(client, links, disco_entry):
+                if isinstance(entry[-2], String):
+                    disco_entry.title = entry[-2].value
+                finder.add_entry(disco_entry, entry)
+
+    def _process_wikipedia_disco_sections(self, client, artist_page, finder):
+        try:
+            section = artist_page.sections.find('Discography')
+        except KeyError:
+            log.debug(f'No discography section found for {artist_page}')
+            return
+        try:
+            disco_page_link_tmpl = section.content[0]
+        except Exception as e:
+            log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
+            return
+
+        if isinstance(disco_page_link_tmpl, Template) and disco_page_link_tmpl.name.lower() == 'main':
+            try:
+                disco_page_title = disco_page_link_tmpl.value[0].value
+            except Exception as e:
+                log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
+            else:
+                disco_entity = Discography.from_page(client.get_page(disco_page_title))
+                disco_entity._process_entries(finder)
+        else:
+            log.debug(f'Unexpected discography section format on {artist_page}')
 
 
 def check_type(node, index, cls):

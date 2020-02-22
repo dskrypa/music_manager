@@ -80,9 +80,11 @@ Object and element attributes and elements available for searching:
 import logging
 import re
 from collections import defaultdict
+from configparser import NoSectionError
 from getpass import getpass
 from pathlib import Path
 
+from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
 from plexapi.myplex import MyPlexAccount
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
@@ -91,7 +93,7 @@ from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ds_tools.compat import cached_property
-from ds_tools.core import InputValidationException
+from ds_tools.core import get_input
 from ds_tools.unicode import LangCat
 from ds_tools.output import short_repr, bullet_list
 from .files import SongFile
@@ -121,59 +123,54 @@ ALIASES = {
 
 
 class LocalPlexServer:
-    def __init__(self, url=None, user=None, server_path_root=None, cache_dir='~/.plex', music_library=None):
-        self._cache = Path(cache_dir).expanduser().resolve()
-        if not self._cache.exists():
-            self._cache.mkdir(parents=True)
-
-        self.user = user
-
-        if not url:
-            url_path = self._cache.joinpath('server_url.txt')
-            if url_path.exists():
-                url = url_path.open('r').read().strip()
-            if not url:
-                raise ValueError('A server URL must be provided or be in {}'.format(url_path.as_posix()))
-        self.url = url
-
-        if not server_path_root:
-            root_path = self._cache.joinpath('server_path_root.txt')
-            if root_path.exists():
-                server_path_root = root_path.open('r').read().strip()
-            if not server_path_root:
-                raise ValueError('A server root path must be provided or be in {}'.format(root_path.as_posix()))
-        self.server_root = Path(server_path_root)
-
-        music_library_path = self._cache.joinpath('music_library_name.txt')
-        if not music_library:
-            if music_library_path.exists():
-                music_library = music_library_path.open('r').read().strip()
-            else:
-                music_library = 'Music'
-        else:
-            if not music_library_path.exists():
-                with music_library_path.open('w') as f:
-                    f.write(music_library + '\n')
-        self.music_library = music_library
+    def __init__(self, url=None, user=None, server_path_root=None, config_path=DEFAULT_CONFIG_PATH, music_library=None):
+        self._config_path = Path(config_path).expanduser().resolve()
+        log.debug(f'Reading PlexAPI config from {self._config_path}')
+        if not self._config_path.exists():
+            self._config_path.parent.mkdir(parents=True, exist_ok=True)
+            self._config_path.touch()
+        self._config = PlexConfig(self._config_path)
+        self.url = self._get_config('auth', 'server_baseurl', 'server url', url, required=True)
+        need_user = not self._config.get('auth.server_token')
+        self.user = self._get_config('auth', 'myplex_username', 'username', user, required=need_user)
+        server_path_root = self._get_config('custom', 'server_path_root', new_value=server_path_root)
+        self.server_root = Path(server_path_root) if server_path_root else None
+        self.music_library = self._get_config('custom', 'music_lib_name', new_value=music_library) or 'Music'
 
     @cached_property
     def _token(self):
-        token_path = self._cache.joinpath('token.txt')
-        if token_path.exists():
-            log.debug('Reading Plex token from {}'.format(token_path))
-            with token_path.open('r') as f:
-                return f.read()
-        else:
-            if self.user is None:
-                try:
-                    self.user = input('Please enter your Plex username:').strip()
-                except EOFError as e:
-                    raise InputValidationException('Unable to read stdin (this is often caused by piped input)') from e
+        token = self._get_config('auth', 'server_token')
+        if not token:
+            account = MyPlexAccount(self.user, getpass('Plex password:'))
+            token = account._token
+            self._set_config('auth', 'server_token', token)
+        return token
 
-            account = MyPlexAccount(self.user, getpass())
-            with token_path.open('w') as f:
-                f.write(account._token)
-            return account._token
+    def _get_config(self, section, key, name=None, new_value=None, save=False, required=False):
+        name = name or key
+        cfg_value = self._config.get(f'{section}.{key}')
+        if cfg_value and new_value:
+            msg = f'Found {name}={cfg_value!r} in {self._config_path} - overwrite with {name}={new_value!r}?'
+            if get_input(msg, skip=save):
+                self._set_config(section, key, new_value)
+        elif required and not cfg_value and not new_value:
+            try:
+                new_value = input(f'Please enter your Plex {name}:').strip()
+            except EOFError as e:
+                raise RuntimeError('Unable to read stdin (this is often caused by piped input)') from e
+            if not new_value:
+                raise ValueError(f'Invalid {name}')
+            self._set_config(section, key, new_value)
+        return new_value or cfg_value
+
+    def _set_config(self, section, key, value):
+        try:
+            self._config.set(section, key, value)
+        except NoSectionError:
+            self._config.add_section(section)
+            self._config.set(section, key, value)
+        with self._config_path.open('w', encoding='utf-8') as f:
+            self._config.write(f)
 
     @cached_property
     def _session(self):
@@ -371,10 +368,12 @@ class LocalPlexServer:
         :param str path_filter: String that file paths must contain to be sync'd
         :param bool dry_run: Dry run - print the actions that would be taken instead of taking them
         """
+        if self.server_root is None:
+            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
         prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
         kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
         for track in self.find_songs_by_rating_gte(1, **kwargs):
-            file = SongFile.for_plex_track(track)
+            file = SongFile.for_plex_track(track, self.server_root)
             file_stars = file.star_rating_10
             plex_stars = track.userRating
             if file_stars == plex_stars:
@@ -391,10 +390,12 @@ class LocalPlexServer:
         :param str path_filter: String that file paths must contain to be sync'd
         :param bool dry_run: Dry run - print the actions that would be taken instead of taking them
         """
+        if self.server_root is None:
+            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
         prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
         kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
         for track in self.get_tracks(**kwargs):
-            file = SongFile.for_plex_track(track)
+            file = SongFile.for_plex_track(track, self.server_root)
             file_stars = file.star_rating_10
             if file_stars is not None:
                 plex_stars = track.userRating

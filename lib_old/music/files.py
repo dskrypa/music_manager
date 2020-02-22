@@ -1153,14 +1153,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
 
 class SongFile(BaseSongFile):
     @classmethod
-    def for_plex_track(cls, track, root=None):
-        if root is None:
-            root_path_file = Path('~/.plex/server_path_root.txt').expanduser().resolve()
-            if root_path_file.exists():
-                root = root_path_file.open('r').read().strip()
-            if not root:
-                raise ValueError('A server root path must be provided or be in {}'.format(root_path_file.as_posix()))
-
+    def for_plex_track(cls, track, root):
         return cls(Path(root).joinpath(track.media[0].parts[0].file).resolve())
 
     @cached_property

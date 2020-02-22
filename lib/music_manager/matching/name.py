@@ -7,6 +7,7 @@ import logging
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
+from ..text.extraction import split_parenthesized
 from .fuzz import fuzz_process, revised_weighted_ratio
 
 __all__ = ['Name']
@@ -33,6 +34,12 @@ class Name:
         if eng and non_eng:
             return f'{eng} ({non_eng})'
         return eng or non_eng
+
+    def __eq__(self, other):
+        return self._english == other._english and self.non_eng == other.non_eng
+
+    def __hash__(self):
+        return hash((self._english, self.non_eng))
 
     def _score(self, other, romanization_match=95):
         if isinstance(other, str):
@@ -136,3 +143,30 @@ class Name:
         if text:
             return [j2r.romanize(text) for j2r in J2R.romanizers(False)]
         return []
+
+    @classmethod
+    def from_parenthesized(cls, name):
+        first_part, paren_part = split_parenthesized(name)
+        if LangCat.contains_any(paren_part, LangCat.non_eng_cats):
+            parts = (first_part, paren_part)
+        else:
+            parts = (paren_part, first_part)
+        return cls(*parts)
+
+    @classmethod
+    def from_parts(cls, parts):
+        eng = None
+        non_eng = None
+        for part in parts:
+            if not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
+                non_eng = part
+            elif not eng and LangCat.contains_any(part, LangCat.ENG):
+                eng = part
+            elif eng and non_eng and LangCat.categorize(part) == LangCat.ENG:
+                name = cls(eng, non_eng)
+                if name.has_romanization(part):
+                    name.romanized = part
+                return name
+        if eng or non_eng:
+            return cls(eng, non_eng)
+        raise ValueError(f'Unable to find any valid name parts from {parts!r}')

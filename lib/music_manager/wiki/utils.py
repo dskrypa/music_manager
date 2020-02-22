@@ -10,8 +10,9 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
 from ..matching.name import Name
 from ..matching.spellcheck import is_english
+from ..text.extraction import parenthesized
 
-__all__ = ['parse_date', 'node_to_link_dict', 'parenthesized', 'parse_generasia_name']
+__all__ = ['parse_date', 'node_to_link_dict', 'parse_generasia_name']
 log = logging.getLogger(__name__)
 DATE_FORMATS = ('%Y-%b-%d', '%Y-%m-%d', '%Y.%m.%d', '%B %d, %Y', '%d %B %Y')
 
@@ -193,23 +194,3 @@ def parse_generasia_name(node):
 
     # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
     return Name(eng_title, non_eng, romanized, lit_translation, extra=extra)
-
-
-def parenthesized(text, chars='()'):
-    opener, closer = chars
-    opened = 0
-    closed = 0
-    first = 0
-
-    for i, c in enumerate(text):
-        if c == opener:
-            if not opened:
-                first = i + 1
-            opened += 1
-        elif c == closer:
-            if opened > closed:
-                closed += 1
-            if opened and opened == closed:
-                return text[first:i].strip('\'" ')
-
-    return text

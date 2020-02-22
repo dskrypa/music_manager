@@ -8,12 +8,27 @@ from pathlib import Path
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 from wiki_nodes.nodes import as_node
+from music_manager.matching.name import Name
 from music_manager.wiki.utils import parse_generasia_name
 
 log = logging.getLogger(__name__)
 
 
 class NameParsingTest(unittest.TestCase):
+    def test_from_parens_basic(self):
+        name = Name.from_parenthesized('Taeyeon (태연)')
+        self.assertEqual(name._english, 'Taeyeon')
+        self.assertEqual(name.non_eng, '태연')
+        self.assertEqual(name.korean, '태연')
+
+    def test_from_parens_with_nested(self):
+        name = Name.from_parenthesized('(G)I-DLE ((여자)아이들)')
+        self.assertEqual(name._english, '(G)I-DLE')
+        self.assertEqual(name.non_eng, '(여자)아이들')
+        self.assertEqual(name.korean, '(여자)아이들')
+
+
+class GenerasiaNameParsingTest(unittest.TestCase):
     # def setUp(self):
     #     print()
 

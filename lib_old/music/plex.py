@@ -155,7 +155,7 @@ class LocalPlexServer:
                 self._set_config(section, key, new_value)
         elif required and not cfg_value and not new_value:
             try:
-                new_value = input(f'Please enter your Plex {name}:').strip()
+                new_value = input(f'Please enter your Plex {name}: ').strip()
             except EOFError as e:
                 raise RuntimeError('Unable to read stdin (this is often caused by piped input)') from e
             if not new_value:

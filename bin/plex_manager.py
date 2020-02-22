@@ -55,7 +55,7 @@ def parser():
     parser.add_common_sp_arg('--server_path_root', '-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
     parser.add_common_sp_arg('--server_url', '-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
     parser.add_common_sp_arg('--username', '-n', help='Plex username (only needed when a token is not already cached)')
-    parser.add_common_sp_arg('--config_path', '-c', metavar='PATH', default=DEFAULT_CONFIG_PATH, help='Directory in which your token and server_path_root / server_url should be cached (default: %(default)s)')
+    parser.add_common_sp_arg('--config_path', '-c', metavar='PATH', default=DEFAULT_CONFIG_PATH, help='Config file in which your token and server_path_root / server_url are stored (default: %(default)s)')
     parser.add_common_sp_arg('--music_library', '-m', default=None, help='Name of the Music library to use (default: Music)')
 
     parser.include_common_args('verbosity', 'dry_run')

@@ -138,8 +138,7 @@ class LocalPlexServer:
     def find_object(self, obj_type, **kwargs):
         ekey = self._ekey(obj_type)
         for kwargs in self._updated_filters(obj_type, kwargs):
-            final_filters = '\n'.join(f'{key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
-            log.debug(f'Final filters:\n{final_filters}')
+            _show_filters(kwargs)
             return self.music.fetchItem(ekey, **kwargs)
 
     def find_objects(self, obj_type, **kwargs):
@@ -147,14 +146,12 @@ class LocalPlexServer:
         if obj_type == 'track':
             results = set()
             for kwargs in self._updated_filters(obj_type, kwargs):
-                final_filters = '\n'.join(f'{key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
-                log.debug(f'Final filters:\n{final_filters}')
+                _show_filters(kwargs)
                 results.update(self.music.fetchItems(ekey, **kwargs))
             return results
         else:
             kwargs = next(self._updated_filters(obj_type, kwargs))
-            final_filters = '\n'.join(f'{key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
-            log.debug(f'Final filters:\n{final_filters}')
+            _show_filters(kwargs)
             return self.music.fetchItems(ekey, **kwargs)
 
     get_track = partialmethod(find_object, 'track')
@@ -405,6 +402,11 @@ class LocalPlexServer:
 
         # return lambda a: a['title'] not in rated_tracks_by_artist_key[a['grandparentKey']]
         return _filter
+
+
+def _show_filters(filters):
+    final_filters = '\n'.join(f'    {key}={short_repr(val)}' for key, val in sorted(filters.items()))
+    log.debug(f'Final filters:\n{final_filters}')
 
 
 def _prefixed_filters(field, filters):

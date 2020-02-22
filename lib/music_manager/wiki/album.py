@@ -9,11 +9,11 @@ from traceback import format_stack
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
-from wiki_nodes.http import MediaWikiClient
-from wiki_nodes.nodes import MappingNode, String, CompoundNode
+from wiki_nodes.nodes import MappingNode, String
 from wiki_nodes.utils import strip_style
 from .base import WikiEntity
 from .exceptions import EntityTypeError
+from .utils import parse_generasia_name
 
 __all__ = [
     'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',
@@ -108,13 +108,13 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
             if site == 'www.generasia.com':
                 processed = entry_page.sections.processed()
                 for node in processed:
-                    if isinstance(node, MappingNode):
+                    if isinstance(node, MappingNode) and 'Artist' in node:
                         artist_link = node['Artist'].value
                         album_name = node['Album'].value.value
                         release_dates = node['Released']
                         if release_dates.children:
                             _dates = []
-                            for r_date in release_dates.iter_flat():
+                            for r_date in release_dates.sub_list.iter_flat():
                                 if isinstance(r_date, String):
                                     _dates.append(datetime.strptime(r_date.value, '%Y.%m.%d'))
                                 else:
@@ -166,7 +166,7 @@ class DiscographyEntryEdition:
         self.page = page
         self.artist = artist
         self.release_dates = release_dates
-        self.tracks = tracks
+        self._tracks = tracks
         self.edition = edition
 
     def __repr__(self):
@@ -178,12 +178,53 @@ class DiscographyEntryEdition:
     def parts(self):
         # One or more DiscographyEntryPart values
         # Example with multiple parts (disks): https://www.generasia.com/wiki/Love_Yourself_Gyeol_%27Answer%27
-        return []
+        parts = []
+        site = self.page.site
+        if site == 'www.generasia.com':
+            if self._tracks[0].children:
+                for node in self._tracks:
+                    parts.append(DiscographyEntryPart(node.value.value, self, node.sub_list))
+            else:
+                parts.append(DiscographyEntryPart(None, self, self._tracks))
+        elif site == 'wiki.d-addicts.com':
+            pass
+        elif site == 'kpop.fandom.com':
+            pass
+        elif site == 'en.wikipedia.org':
+            pass
+        else:
+            log.debug(f'No discography entry part extraction is configured for {self.page}')
+        return parts
 
 
 class DiscographyEntryPart:
-    def __init__(self):
-        pass
+    def __init__(self, name, edition, tracks):
+        self.name = name
+        self.edition = edition
+        self._tracks = tracks
+
+    def __repr__(self):
+        ed = self.edition
+        date = ed.release_dates[0].strftime('%Y-%m-%d')
+        edition = f'[edition={ed.edition!r}]' if ed.edition else ''
+        name = f'[{self.name}]' if self.name else ''
+        return f'<{self.__class__.__name__}[{date}][{ed.name!r} @ {ed.page}]{edition}{name}>'
+
+    def track_names(self):
+        names = []
+        site = self.edition.page.site
+        if site == 'www.generasia.com':
+            for node in self._tracks.iter_flat():
+                names.append(parse_generasia_name(node))
+        elif site == 'wiki.d-addicts.com':
+            pass
+        elif site == 'kpop.fandom.com':
+            pass
+        elif site == 'en.wikipedia.org':
+            pass
+        else:
+            log.debug(f'No track name extraction is configured for {self.edition.page}')
+        return names
 
 
 class SoundtrackPart(DiscographyEntryPart):

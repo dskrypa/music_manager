@@ -106,9 +106,11 @@ def parse_generasia_name(node):
     # if isinstance(node, String):
     #     pass
     if not isinstance(node, list) and type(node) is not CompoundNode:
-        raise TypeError(f'Unexpected type={type(node).__name__} for node={node}')
+        nodes = iter([node])
+        # raise TypeError(f'Unexpected type={type(node).__name__} for node={node}')
+    else:
+        nodes = iter(node)
 
-    nodes = iter(node)
     node = next(nodes)
     # after_date = None
     if isinstance(node, String):

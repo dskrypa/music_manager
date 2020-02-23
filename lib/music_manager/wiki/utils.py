@@ -102,8 +102,10 @@ def parse_generasia_name(node):
     _node = node
     try:
         date_pat = parse_generasia_name._date_pat
+        ost_pat = parse_generasia_name._ost_pat
     except AttributeError:
         date_pat = parse_generasia_name._date_pat = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$')
+        ost_pat = parse_generasia_name._ost_pat = re.compile(r'\sOST(?:\s*|$)')
 
     if not isinstance(node, list) and type(node) is not CompoundNode:
         nodes = iter([node])
@@ -126,15 +128,17 @@ def parse_generasia_name(node):
         raise TypeError(f'Unexpected node type following date: {node}')
 
     node = next(nodes, None)
-    if node and isinstance(node, String) and node.value == '-':
-        # [date] [[primary artist]] - [[{romanized} (eng)]] (han; lit)
-        # primary_artist = title
-        node = next(nodes, None)
-        if isinstance(node, Link):
-            title = node.show
-        else:
-            raise TypeError(f'Unexpected node type following date: {node}')
-        node = next(nodes, None)
+    if node and isinstance(node, String):
+        node_str = node.value
+        if node_str == '-' or node_str.startswith('&') and node_str.endswith('-'):
+            # [date] [[primary artist]] - [[{romanized} (eng)]] (han; lit)
+            # primary_artist = title
+            node = next(nodes, None)
+            if isinstance(node, Link):
+                title = node.show
+            else:
+                raise TypeError(f'Unexpected node type following date: {node}')
+            node = next(nodes, None)
 
     title, non_eng, lit_translation, extra = _split_name_parts(title, node)
 
@@ -194,8 +198,12 @@ def parse_generasia_name(node):
                     else:
                         eng_title = f'{a} ({b})'
         else:
-            # TODO: handle [date] [[{track title} ({OST title})]]
-            eng_title = title
+            a, b = split_parenthesized(title)
+            if ost_pat.search(b):
+                eng_title = a
+                extras.append(b)
+            else:
+                eng_title = title
     else:
         if non_eng and Name(non_eng=non_eng).has_romanization(title):
             if is_english(title):

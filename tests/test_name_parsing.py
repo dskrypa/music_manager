@@ -270,14 +270,7 @@ class GenerasiaNameParsingTest(_CustomTestCase):
         name = parse_generasia_name(entry)
         self.assertAll(name, 'Carpet', 'Carpet')
 
-    # def test_song_paren_ost(self):
-    #     # TODO: Handle this case...
-    #     entry = as_node("""[2013.12.01] [[Find Your Soul (Blade & Soul 2013 OST)]]""")
-    #     name = parse_generasia_name(entry)
-    #     self.assertAll(name, 'Find Your Soul', 'Find Your Soul', extra='Blade & Soul 2013 OST')
-
     def test_ost_part_rom_incomplete_han_collabs(self):
-        # TODO: Handle this
         entry = as_node("""[2015.10.31] [[Naegen Neomu Sarangseureoun Geunyeo OST Part 1]] (내겐 너무 사랑스러운 그녀) <small>([[LOCO]] & '''MAMAMOO''', [[Park Mi Young]])</small>""")
         name = parse_generasia_name(entry)
         ko = '내겐 너무 사랑스러운 그녀'
@@ -290,11 +283,15 @@ class GenerasiaNameParsingTest(_CustomTestCase):
         en, ko = 'Romantic Doctor', '낭만닥터 김사부'
         self.assertAll(name, en, None, ko, ko, romanized='Nangmandagteo Kimsabu 2 OST Part 6', lit_translation=en)
 
-    # def test_artists_dash_album(self):
-    #     # TODO: handle this
-    #     entry = as_node("""[2010.05.20] [[2PM]] & '''Girls' Generation''' - [[Cabi Song]]""")
-    #     name = parse_generasia_name(entry)
-    #     self.assertAll(name, 'Cabi Song', 'Cabi Song')
+    def test_song_paren_ost(self):
+        entry = as_node("""[2013.12.01] [[Find Your Soul (Blade & Soul 2013 OST)]]""")
+        name = parse_generasia_name(entry)
+        self.assertAll(name, 'Find Your Soul', 'Find Your Soul', extra='Blade & Soul 2013 OST')
+
+    def test_artists_dash_album(self):
+        entry = as_node("""[2010.05.20] [[2PM]] & '''Girls' Generation''' - [[Cabi Song]]""")
+        name = parse_generasia_name(entry)
+        self.assertAll(name, 'Cabi Song', 'Cabi Song')
 
 
 if __name__ == '__main__':

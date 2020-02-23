@@ -13,6 +13,7 @@ from wiki_nodes.nodes import MappingNode, String
 from wiki_nodes.utils import strip_style
 from ..matching.name import Name
 from .base import WikiEntity
+from .disco_entry import DiscoEntryType
 from .exceptions import EntityTypeError
 from .track import Track
 from .utils import parse_generasia_name
@@ -139,6 +140,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
     def _process_generasia_edition(self, node, entry_page):
         artist_link = node['Artist'].value
         name_key = list(node.keys())[1]  # Works because of insertion order being maintained
+        entry_type = DiscoEntryType.for_name(name_key)
         album_name = node[name_key].value.value
         try:
             release_dates_node = node['Released']
@@ -167,7 +169,9 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
                     edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
                 else:
                     edition = None
-                yield DiscographyEntryEdition(album_name, entry_page, artist_link, release_dates, value, edition)
+                yield DiscographyEntryEdition(
+                    album_name, entry_page, artist_link, release_dates, value, entry_type, edition
+                )
 
 
 class Album(DiscographyEntry):
@@ -186,13 +190,15 @@ class Soundtrack(DiscographyEntry):
 
 class DiscographyEntryEdition:
     """An edition of an album"""
-    def __init__(self, name, page, artist, release_dates, tracks, edition=None):
+    def __init__(self, name, page, artist, release_dates, tracks, entry_type, edition=None):
         self.name = name
         self.page = page
         self.artist = artist
         self.release_dates = release_dates
         self._tracks = tracks
+        self.type = entry_type
         self.edition = edition
+        # TODO: 1st/2nd/3rd/etc (Mini) Album...
 
     def __repr__(self):
         date = self.release_dates[0].strftime('%Y-%m-%d')
@@ -233,10 +239,14 @@ class DiscographyEntryEdition:
 
 
 class DiscographyEntryPart:
+    _disc_pat = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE)
+
     def __init__(self, name, edition, tracks):
         self.name = name
         self.edition = edition
         self._tracks = tracks
+        m = self._disc_pat.match(name) if name else None
+        self.disc = int(m.group(1)) if m else None
 
     def __repr__(self):
         ed = self.edition

@@ -3,6 +3,7 @@
 """
 
 import logging
+import re
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
@@ -12,6 +13,7 @@ from .fuzz import fuzz_process, revised_weighted_ratio
 
 __all__ = ['Name']
 log = logging.getLogger(__name__)
+non_word_char_pat = re.compile(r'\W')
 
 
 class Name:
@@ -24,9 +26,17 @@ class Name:
         self.extra = extra
 
     def __repr__(self):
-        parts = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
+        # parts = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
+        parts = (self.english, self.non_eng, self.extra)
         parts = ', '.join(map(repr, filter(None, parts)))
         return f'<{type(self).__name__}({parts})>'
+
+    def _full_repr(self):
+        var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra')
+        vars = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
+        indent = ' ' * 4
+        parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, vars))
+        return f'<{type(self).__name__}(\n{parts}\n)>'
 
     def __str__(self):
         eng = self.english
@@ -91,6 +101,11 @@ class Name:
         return ''.join(non_eng.split()) if non_eng else None
 
     @cached_property
+    def non_eng_nospecial(self):
+        non_eng_nospace = self.non_eng_nospace
+        return non_word_char_pat.sub('', non_eng_nospace) if non_eng_nospace else None
+
+    @cached_property
     def non_eng_lang(self):
         return LangCat.categorize(self.non_eng)
 
@@ -141,7 +156,7 @@ class Name:
 
     @cached_property
     def _romanization_pattern(self):
-        return hangul_romanized_permutations_pattern(self.non_eng_nospace, False)
+        return hangul_romanized_permutations_pattern(self.non_eng_nospecial, False)
 
     @cached_property
     def _romanizations(self):

@@ -10,7 +10,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
 from ..matching.name import Name
 from ..matching.spellcheck import is_english
-from ..text.extraction import parenthesized
+from ..text.extraction import parenthesized, split_parenthesized
 
 __all__ = ['parse_date', 'node_to_link_dict', 'parse_generasia_name']
 log = logging.getLogger(__name__)
@@ -98,17 +98,15 @@ def node_to_link_dict(node):
 
 
 def parse_generasia_name(node):
-    log.debug(f'Processing node: {node}')
+    # log.debug(f'Processing node: {node}')
+    _node = node
     try:
         date_pat = parse_generasia_name._date_pat
     except AttributeError:
         date_pat = parse_generasia_name._date_pat = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$')
 
-    # if isinstance(node, String):
-    #     pass
     if not isinstance(node, list) and type(node) is not CompoundNode:
         nodes = iter([node])
-        # raise TypeError(f'Unexpected type={type(node).__name__} for node={node}')
     else:
         nodes = iter(node)
 
@@ -127,7 +125,6 @@ def parse_generasia_name(node):
     else:
         raise TypeError(f'Unexpected node type following date: {node}')
 
-    non_eng, lit_translation, romanized, extra, name_parts = None, None, None, None, None
     node = next(nodes, None)
     if node and isinstance(node, String) and node.value == '-':
         # [date] [[primary artist]] - [[{romanized} (eng)]] (han; lit)
@@ -139,13 +136,111 @@ def parse_generasia_name(node):
             raise TypeError(f'Unexpected node type following date: {node}')
         node = next(nodes, None)
 
-    if node and isinstance(node, String):
+    title, non_eng, lit_translation, extra = _split_name_parts(title, node)
+
+    # log.debug(f'title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
+
+    eng_title, romanized = None, None
+    extras = [extra] if extra else []
+    if not title.endswith(')') and ')' in title:
+        pos = title.rindex(')') + 1
+        extras.append(title[pos:].strip())
+        title = title[:pos].strip()
+
+    # [date] [[{romanized} (eng)]] (han; lit)
+    #        ^_______title_______^
+    # TODO: Handle OST(+Part) for checking romanization
+    if title.endswith(')') and '(' in title:
+        if non_eng:
+            a, b = split_parenthesized(title)
+            if a.endswith(')') and '(' in a:
+                extras.append(b)
+                a, b = split_parenthesized(a)
+
+            # log.debug(f'a={a!r} b={b!r}')
+            if Name(non_eng=non_eng).has_romanization(a):
+                # log.debug(f'romanized({non_eng!r}) ==> {a!r}')
+                if _node.root and _node.root.title == title:
+                    # log.debug(f'_node.root.title matches title')
+                    if is_english(a):
+                        # log.debug(f'a={a!r} is the English title')
+                        eng_title = title
+                    else:
+                        # log.debug(f'a={a!r} is the Romanized title')
+                        romanized = title
+                    non_eng = title.replace(a, non_eng)
+                    lit_translation = title.replace(a, lit_translation) if lit_translation else None
+                    # log.debug(f'eng_title={eng_title!r} non_eng={non_eng!r} romanized={romanized!r} lit_translation={lit_translation!r} extra={extra!r}')
+                else:
+                    if is_english(a):
+                        # log.debug(f'Text={a!r} is a romanization of non_eng={non_eng!r}, but it is also valid English')
+                        eng_title = a
+                    else:
+                        romanized = a
+
+                    if is_extra(b):
+                        extras.append(b)
+                    elif eng_title:
+                        eng_title = f'{eng_title} ({b})'
+                    else:
+                        eng_title = b
+            else:
+                if _node.root and _node.root.title == title:
+                    eng_title = title
+                else:
+                    if is_extra(b):
+                        eng_title = a
+                        extras.append(b)
+                    else:
+                        eng_title = f'{a} ({b})'
+        else:
+            # TODO: handle [date] [[{track title} ({OST title})]]
+            eng_title = title
+    else:
+        if non_eng and Name(non_eng=non_eng).has_romanization(title):
+            if is_english(title):
+                eng_title = title
+            else:
+                romanized = title
+        else:
+            eng_title = title
+
+    # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
+    return Name(eng_title, non_eng, romanized, lit_translation, extra=extras[0] if len(extras) == 1 else extras or None)
+
+
+def is_extra(text):
+    # TODO: more cases
+    lc_text = text.lower()
+    if lc_text.endswith('ver.'):
+        return True
+    return False
+
+
+def _split_name_parts(title, node):
+    """
+    :param str title: The title
+    :param Node|None node: The node to split
+    :return tuple:
+    """
+    original_title = title
+    non_eng, lit_translation, extra, name_parts = None, None, None, None
+    if isinstance(node, String):
         name_parts = parenthesized(node.value)
-        if LangCat.contains_any(name_parts, LangCat.asian_cats):
-            name_parts = tuple(map(str.strip, name_parts.split(';')))
+    elif node is None:
+        try:
+            title, name_parts = split_parenthesized(title)
+        except ValueError:
+            pass
+
+    if name_parts and LangCat.contains_any(name_parts, LangCat.asian_cats):
+        name_parts = tuple(map(str.strip, name_parts.split(';')))
+    else:
+        if node is None:
+            title = original_title
         else:
             extra = name_parts
-            name_parts = None
+        name_parts = None
 
     if name_parts:
         if len(name_parts) == 1:
@@ -155,44 +250,5 @@ def parse_generasia_name(node):
         else:
             raise ValueError(f'Unexpected name parts in node={node}')
 
-    # [date] [[{romanized} (eng)]] (han; lit)
-    #        ^_______title_______^
-    # TODO: Handle OST(+Part) for checking romanization
-    if '(' not in title:
-        if non_eng:
-            romanized = title
-            eng_title = None
-        else:
-            eng_title = title
-    elif non_eng:
-        eng_title = parenthesized(title)
-        if eng_title != title:                          # returns the full string if it didn't extract anything
-            with_parens = f'({eng_title})'
-            romanized, with_parens, remainder = map(str.strip, title.partition(with_parens))
-            if remainder:                               # remix, etc
-                extra = parenthesized(remainder)        # Remove parens around it if they exist
-            elif eng_title.lower().endswith('ver.'):    # it wasn't an english part
-                extra = eng_title                       # TODO: more cases than 'ver.'
-                eng_title = None
-        else:                                           # It only contained an opening (
-            romanized = eng_title
-            eng_title = None
-    else:
-        # TODO: handle [date] [[{track title} ({OST title})]]
-        eng_title = title
-
-    if romanized and non_eng:
-        # log.debug(f'Verifying that rom={romanized!r} is a romanization of non_eng={non_eng!r}')
-        if not Name(non_eng=non_eng).has_romanization(romanized):
-            # log.debug('It is not')
-            eng_title = romanized
-            romanized = None
-        elif is_english(romanized):
-            log.debug(f'Text={romanized!r} is a romanization of non_eng={non_eng!r}, but it is also valid English')
-            eng_title = romanized
-            romanized = None
-        # else:
-        #     log.debug('It is')
-
-    # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
-    return Name(eng_title, non_eng, romanized, lit_translation, extra=extra)
+    # log.debug(f'node={node!r} => title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
+    return title, non_eng, lit_translation, extra

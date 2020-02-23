@@ -21,6 +21,9 @@ log = logging.getLogger(__name__)
 
 
 class DiscographyMixin(ABC):
+    def __iter__(self):
+        return iter(self.discography)
+
     @abstractmethod
     def _finder_with_entries(self):
         """

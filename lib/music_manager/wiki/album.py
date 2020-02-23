@@ -11,8 +11,10 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from wiki_nodes.nodes import MappingNode, String
 from wiki_nodes.utils import strip_style
+from ..matching.name import Name
 from .base import WikiEntity
 from .exceptions import EntityTypeError
+from .track import Track
 from .utils import parse_generasia_name
 
 __all__ = [
@@ -45,11 +47,21 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
         self.disco_entries = [disco_entry] if disco_entry else []
         self._date = None
 
+    @cached_property
+    def name(self):
+        # TODO: Provide full name
+        return Name(self._name)
+
     def __repr__(self):
-        return f'<{type(self).__name__}[{self.date_str}]({self.name!r})[pages: {len(self._pages)}]>'
+        return f'<{type(self).__name__}[{self.date_str}]({self._name!r})[pages: {len(self._pages)}]>'
 
     def __lt__(self, other):
         return self._sort_key < other._sort_key
+
+    def __iter__(self):
+        """Iterate over every edition part in this DiscographyEntry"""
+        for edition in self.editions:
+            yield from edition
 
     @cached_property
     def _sort_key(self):
@@ -58,7 +70,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     @cached_property
     def _merge_key(self):
-        uc_name = self.name.upper()
+        uc_name = self._name.upper()
         ost_match = OST_PAT.match(uc_name)
         if ost_match:
             uc_name = ost_match.group(1)
@@ -109,30 +121,10 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
                 processed = entry_page.sections.processed()
                 for node in processed:
                     if isinstance(node, MappingNode) and 'Artist' in node:
-                        artist_link = node['Artist'].value
-                        album_name = node['Album'].value.value
-                        release_dates = node['Released']
-                        if release_dates.children:
-                            _dates = []
-                            for r_date in release_dates.sub_list.iter_flat():
-                                if isinstance(r_date, String):
-                                    _dates.append(datetime.strptime(r_date.value, '%Y.%m.%d'))
-                                else:
-                                    _dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d'))
-                            release_dates = _dates
-                        else:
-                            release_dates = [datetime.strptime(release_dates.value.value, '%Y.%m.%d')]
-
-                        for key, value in node.items():
-                            lc_key = key.lower().strip()
-                            if 'tracklist' in lc_key:
-                                if lc_key != 'tracklist':
-                                    edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
-                                else:
-                                    edition = None
-                                editions.append(DiscographyEntryEdition(
-                                    album_name, entry_page, artist_link, release_dates, value, edition
-                                ))
+                        try:
+                            editions.extend(self._process_generasia_edition(node, entry_page))
+                        except Exception as e:
+                            log.error(f'Error processing edition node={node}: {e}', exc_info=True)
             elif site == 'wiki.d-addicts.com':
                 pass
             elif site == 'kpop.fandom.com':
@@ -143,6 +135,39 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
                 log.debug(f'No discography entry extraction is configured for {entry_page}')
 
         return editions
+
+    def _process_generasia_edition(self, node, entry_page):
+        artist_link = node['Artist'].value
+        name_key = list(node.keys())[1]  # Works because of insertion order being maintained
+        album_name = node[name_key].value.value
+        try:
+            release_dates_node = node['Released']
+        except KeyError:
+            for disco_entry in self.disco_entries:
+                if disco_entry.date:
+                    release_dates = [disco_entry.date]
+                    break
+            else:
+                release_dates = []
+        else:
+            if release_dates_node.children:
+                release_dates = []
+                for r_date in release_dates_node.sub_list.iter_flat():
+                    if isinstance(r_date, String):
+                        release_dates.append(datetime.strptime(r_date.value, '%Y.%m.%d'))
+                    else:
+                        release_dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d'))
+            else:
+                release_dates = [datetime.strptime(release_dates_node.value.value, '%Y.%m.%d')]
+
+        for key, value in node.items():
+            lc_key = key.lower().strip()
+            if 'tracklist' in lc_key:
+                if lc_key != 'tracklist':
+                    edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
+                else:
+                    edition = None
+                yield DiscographyEntryEdition(album_name, entry_page, artist_link, release_dates, value, edition)
 
 
 class Album(DiscographyEntry):
@@ -173,6 +198,16 @@ class DiscographyEntryEdition:
         date = self.release_dates[0].strftime('%Y-%m-%d')
         edition = f'[edition={self.edition!r}]' if self.edition else ''
         return f'<{self.__class__.__name__}[{date}][{self.name!r} @ {self.page}]{edition}>'
+
+    def __iter__(self):
+        return iter(self.parts)
+
+    def __lt__(self, other):
+        return (self.artist, self.date, self.name, self.edition) < (other.artist, other.date, other.name, other.edition)
+
+    @cached_property
+    def date(self):
+        return min(self.release_dates)
 
     @cached_property
     def parts(self):
@@ -210,6 +245,13 @@ class DiscographyEntryPart:
         name = f'[{self.name}]' if self.name else ''
         return f'<{self.__class__.__name__}[{date}][{ed.name!r} @ {ed.page}]{edition}{name}>'
 
+    def __lt__(self, other):
+        return (self.edition, self.name) < (other.edition, other.name)
+
+    def __iter__(self):
+        return iter(self.tracks)
+
+    @cached_property
     def track_names(self):
         names = []
         site = self.edition.page.site
@@ -225,6 +267,10 @@ class DiscographyEntryPart:
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')
         return names
+
+    @cached_property
+    def tracks(self):
+        return [Track(i, name, self) for i, name in enumerate(self.track_names)]
 
 
 class SoundtrackPart(DiscographyEntryPart):

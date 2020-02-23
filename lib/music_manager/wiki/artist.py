@@ -8,6 +8,8 @@ import logging
 from datetime import datetime
 from traceback import format_exc
 
+from ordered_set import OrderedSet
+
 from ds_tools.compat import cached_property
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
@@ -26,8 +28,25 @@ class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
 
     @cached_property
+    def name(self):
+        names = self.names
+        if not names:
+            raise AttributeError(f'This {self.__class__.__name__} has no \'name\' attribute')
+        if len(names) == 1:
+            return next(iter(names))
+        _name = self._name.lower()
+        candidate = None
+        for name in names:
+            if _name in (name.eng_lower, name.non_eng):
+                if name.english and name.non_eng:
+                    return name
+                else:
+                    candidate = name
+        return candidate or next(iter(names))
+
+    @cached_property
     def names(self):
-        names = set()
+        names = OrderedSet()
         for site, artist_page in self._pages.items():
             if site == 'kpop.fandom.com':
                 pass
@@ -37,7 +56,11 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 names.update(self._process_generasia_name(artist_page))
             elif site == 'wiki.d-addicts.com':
                 pass
-        return names or [Name(self._name)]
+            else:
+                log.debug(f'No name extraction is configured for {artist_page}')
+        if not names:
+            names.add(Name(self._name))
+        return names
 
     def _process_generasia_name(self, artist_page):
         # From intro ===========================================================================================
@@ -155,7 +178,8 @@ class Artist(PersonOrGroup, DiscographyMixin):
                         # [date] single (primary feat collaborators)
                         pass
 
-        date = datetime.strptime(entry[0].value, '[%Y.%m.%d]')
+        first_str = entry[0].value
+        date = datetime.strptime(first_str[:first_str.index(']')], '[%Y.%m.%d')
         # noinspection PyTypeChecker
         disco_entry = DiscoEntry(
             artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title

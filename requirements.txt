@@ -8,3 +8,4 @@ fuzzywuzzy
 plexapi
 urllib3
 python-Levenshtein
+ordered-set

@@ -35,6 +35,12 @@ class Name:
             return f'{eng} ({non_eng})'
         return eng or non_eng
 
+    def __bool__(self):
+        return bool(self._english or self.non_eng or self.romanized or self.lit_translation)
+
+    def __lt__(self, other):
+        return (self.english, self.non_eng) < (other.english, other.non_eng)
+
     def __eq__(self, other):
         return self._english == other._english and self.non_eng == other.non_eng
 

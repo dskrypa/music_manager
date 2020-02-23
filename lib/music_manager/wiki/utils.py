@@ -122,6 +122,8 @@ def parse_generasia_name(node):
 
     if isinstance(node, Link):
         title = node.show
+    elif isinstance(node, String):
+        title = node.value
     else:
         raise TypeError(f'Unexpected node type following date: {node}')
 

@@ -179,7 +179,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
                         pass
 
         first_str = entry[0].value
-        date = datetime.strptime(first_str[:first_str.index(']')], '[%Y.%m.%d')
+        date = datetime.strptime(first_str[:first_str.index(']')], '[%Y.%m.%d').date()
         # noinspection PyTypeChecker
         disco_entry = DiscoEntry(
             artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title

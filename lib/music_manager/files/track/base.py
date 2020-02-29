@@ -5,6 +5,7 @@
 import logging
 import os
 import re
+from datetime import datetime
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -17,7 +18,7 @@ from mutagen.mp4 import MP4Tags
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
-from tz_aware_dt import format_duration, datetime_with_tz
+from tz_aware_dt import format_duration
 # from ...matching.name import Name
 from ..exceptions import *
 from .utils import MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP
@@ -334,7 +335,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
     @cached_property
     def date(self):
         date_str = self.tag_text('date')
-        return datetime_with_tz(date_str, '%Y%m%d')
+        return datetime.strptime(date_str, '%Y%m%d').date()
 
     @cached_property
     def year(self):

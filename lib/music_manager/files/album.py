@@ -13,6 +13,7 @@ from mutagen.mp4 import MP4Tags
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
+from ds_tools.core.filesystem import iter_paths
 from tz_aware_dt import format_duration
 from .exceptions import *
 from .track import BaseSongFile
@@ -259,11 +260,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
 
 def iter_album_dirs(paths):
-    if isinstance(paths, str):
-        paths = [paths]
-
-    for _path in paths:
-        path = Path(_path).expanduser().resolve()
+    for path in iter_paths(paths):
         if path.is_dir():
             for root, dirs, files in os.walk(path.as_posix()):  # as_posix for 3.5 compatibility
                 if files and not dirs:

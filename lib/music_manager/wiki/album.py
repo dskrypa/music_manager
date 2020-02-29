@@ -4,7 +4,7 @@
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, date
 from traceback import format_stack
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -66,7 +66,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     @cached_property
     def _sort_key(self):
-        date = self.date or datetime.fromtimestamp(0)
+        date = self.date or datetime.fromtimestamp(0).date()
         return self.year or date.year, date, self.name or ''
 
     @cached_property
@@ -92,7 +92,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     @cached_property
     def date(self):
-        if not isinstance(self._date, datetime):
+        if not isinstance(self._date, date):
             for entry in self.disco_entries:
                 if entry.date:
                     self._date = entry.date
@@ -156,11 +156,11 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
                 release_dates = []
                 for r_date in release_dates_node.sub_list.iter_flat():
                     if isinstance(r_date, String):
-                        release_dates.append(datetime.strptime(r_date.value, '%Y.%m.%d'))
+                        release_dates.append(datetime.strptime(r_date.value, '%Y.%m.%d').date())
                     else:
-                        release_dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d'))
+                        release_dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d').date())
             else:
-                release_dates = [datetime.strptime(release_dates_node.value.value, '%Y.%m.%d')]
+                release_dates = [datetime.strptime(release_dates_node.value.value, '%Y.%m.%d').date()]
 
         for key, value in node.items():
             lc_key = key.lower().strip()

@@ -4,12 +4,13 @@
 
 import logging
 from collections import defaultdict
+from itertools import chain
 
-__all__ = ['parenthesized', 'partition_parenthesized']
+__all__ = ['parenthesized', 'partition_parenthesized', 'split_parenthesized']
 log = logging.getLogger(__name__)
 
-OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘'
-CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’'
+OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-'
+CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’-'
 
 class _CharMatcher:
     """Lazily compute the mapping only after the first request"""
@@ -42,7 +43,24 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def partition_parenthesized(text, reverse=False):
+def split_parenthesized(text, reverse=False, outer=False, recurse=0):
+    try:
+        a, b, c = partition_parenthesized(text, reverse, outer)
+    except ValueError:
+        # noinspection PyRedundantParentheses
+        return (text,)
+    if recurse > 0:
+        recurse -= 1
+        chained = chain(
+            split_parenthesized(a, reverse, outer, recurse), split_parenthesized(b, reverse, outer, recurse),
+            split_parenthesized(c, reverse, outer, recurse)
+        )
+    else:
+        chained = chain(split_parenthesized(a, reverse, outer), (b,), split_parenthesized(c, reverse, outer))
+    return tuple(filter(None, chained))
+
+
+def partition_parenthesized(text, reverse=False, outer=False):
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
         text = text[::-1]
@@ -52,6 +70,7 @@ def partition_parenthesized(text, reverse=False):
     opened = defaultdict(int)
     closed = defaultdict(int)
     first = {}
+    pairs = []
     for i, c in enumerate(text):
         if c in o2c:
             if c in c2o:
@@ -60,10 +79,14 @@ def partition_parenthesized(text, reverse=False):
                         closed[k] += 1
                     if opened[k] and opened[k] == closed[k]:
                         first_k = first[k]
-                        a, b, c = text[:first_k - 1].strip(), text[first_k:i].strip(), text[i + 1:].strip()
-                        if reverse:
-                            return c[::-1], b[::-1], a[::-1]
-                        return a, b, c
+                        if outer:
+                            del first[k]
+                            if not first or first_k < min(first.values()):
+                                return _return_partitioned(text, first_k, i, reverse)
+                            else:
+                                pairs.append((first_k, i))
+                        else:
+                            return _return_partitioned(text, first_k, i, reverse)
 
             if not opened[c]:
                 first[c] = i + 1
@@ -74,12 +97,27 @@ def partition_parenthesized(text, reverse=False):
                     closed[k] += 1
                 if opened[k] and opened[k] == closed[k]:
                     first_k = first[k]
-                    a, b, c = text[:first_k - 1].strip(), text[first_k:i].strip(), text[i + 1:].strip()
-                    if reverse:
-                        return c[::-1], b[::-1], a[::-1]
-                    return a, b, c
+                    if outer:
+                        del first[k]
+                        if not first or first_k < min(first.values()):
+                            return _return_partitioned(text, first_k, i, reverse)
+                        else:
+                            pairs.append((first_k, i))
+                    else:
+                        return _return_partitioned(text, first_k, i, reverse)
+
+    if outer and pairs:
+        first_k, i = min(pairs)
+        return _return_partitioned(text, first_k, i, reverse)
 
     raise ValueError('No parenthesized text found')
+
+
+def _return_partitioned(text, first_k, i, reverse):
+    a, b, c = text[:first_k - 1].strip(), text[first_k:i].strip(), text[i + 1:].strip()
+    if reverse:
+        return c[::-1], b[::-1], a[::-1]
+    return a, b, c
 
 
 def parenthesized(text, chars='()'):

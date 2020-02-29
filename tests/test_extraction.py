@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from music_manager.text.extraction import partition_parenthesized
+from music_manager.text.extraction import partition_parenthesized, split_parenthesized
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
@@ -36,7 +36,7 @@ class ParenthesizedTestCase(_CustomTestCase):
         for case, expected in cases.items():
             self.assertEqual(expected, partition_parenthesized(case))
 
-    def test_spartition_parenthesized_reverse(self):
+    def test_partition_parenthesized_reverse(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a -', 'b', '- c'),
@@ -48,6 +48,48 @@ class ParenthesizedTestCase(_CustomTestCase):
         }
         for case, expected in cases.items():
             self.assertEqual(expected, partition_parenthesized(case, reverse=True))
+
+    def test_partition_parenthesized_outer(self):
+        cases = {
+            'a (b) c': ('a', 'b', 'c'),
+            'a - (b) - c': ('a', '(b)', 'c'),
+            '"a (b) "c': ('', 'a (b)', 'c'),
+            '(a (b) "c"': ('(a (b)', 'c', ''),
+            ')a (b) "c"': (')a', 'b', '"c"'),
+            '"a" b': ('', 'a', 'b'),
+            'a "b"': ('a', 'b', ''),
+        }
+        for case, expected in cases.items():
+            self.assertEqual(expected, partition_parenthesized(case, outer=True))
+
+    def test_split_parenthesized(self):
+        cases = {
+            'a (b) c': ('a', 'b', 'c'),
+            'a - (b) - c': ('a -', 'b', '- c'),
+            '"a (b) "c': ('"a', 'b', '"c'),
+            '(a (b) "c"': ('(a (b)', 'c'),
+            ')a (b) "c"': (')a', 'b', 'c'),
+            '"a" b': ('a', 'b'),
+            'a "b"': ('a', 'b'),
+            '((a) b)': ('(a) b',)
+        }
+        for case, expected in cases.items():
+            self.assertEqual(expected, split_parenthesized(case))
+
+    def test_split_partitioned_recurse(self):
+        cases = {
+            '((a) b)': ('a', 'b'),
+            '((a (b)) c)': ('a (b)', 'c'),
+        }
+        for case, expected in cases.items():
+            self.assertEqual(expected, split_parenthesized(case, recurse=1))
+
+        cases = {
+            '((a) b)': ('a', 'b'),
+            '((a (b)) c)': ('a', 'b', 'c'),
+        }
+        for case, expected in cases.items():
+            self.assertEqual(expected, split_parenthesized(case, recurse=2))
 
 
 if __name__ == '__main__':

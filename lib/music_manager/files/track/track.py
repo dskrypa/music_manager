@@ -23,6 +23,14 @@ class SongFile(BaseSongFile):
         return cls(Path(root).joinpath(track.media[0].parts[0].file).resolve())
 
     @cached_property
+    def extended_repr(self):
+        try:
+            info = '[{!r} by {}, in {!r}]'.format(self.tag_title, self.tag_artist, self.album_name_cleaned)
+        except Exception as e:
+            info = ''
+        return '<{}({!r}){}>'.format(self.__class__.__name__, self.rel_path, info)
+
+    @cached_property
     def album_from_dir(self):
         album = self.path.parent.name
         if album.lower().startswith(self.tag_artist.lower()):
@@ -59,6 +67,61 @@ class SongFile(BaseSongFile):
         multiple_artists = len({f.tag_artist for f in alb_dir}) > 1
         return full_ost and album_artist == 'various artists' and multiple_artists and len(alb_dir) > 2
 
+    def _cleanup_album_name(self, album):
+        m = re.match(r'^\[\d{4}[0-9.]*\](.*)', album, re.IGNORECASE)
+        if m:
+            album = m.group(1).strip()
+
+        m = re.match(r'(.*)\s*\[.*Album(?: repackage)?\]', album, re.IGNORECASE)
+        if m:
+            album = m.group(1).strip()
+
+        m = re.match(r'^(.*?)-?\s*(?:the)?\s*[0-9](?:st|nd|rd|th)\s+\S*\s*album\s*(?:repackage)?\s*(.*)$', album, re.I)
+        if m:
+            album = ' '.join(map(str.strip, m.groups())).strip()
+
+        m = re.search(r'((?:^|\s+)\d+\s*집(?:$|\s+))', album)  # {num}집 == nth album
+        if m:
+            album = album.replace(m.group(1), ' ').strip()
+
+        m = re.match(r'(.*)(\s-\s*(?:EP|Single))$', album, re.IGNORECASE)
+        if m:
+            album = m.group(1)
+
+        m = re.match(r'^(.*)\sO\.S\.T\.?(\s.*|$)', album, re.IGNORECASE)
+        if m:
+            album = '{} OST{}'.format(*m.groups())
+
+        for pat in ('^(.*) `(.*)`$', '^(.*) - (.*)$'):
+            m = re.match(pat, album)
+            if m:
+                group, title = m.groups()
+                if group in self.tag_artist:
+                    album = title
+                break
+
+        return album.replace(' : ', ': ').strip()
+
+    @cached_property
+    def album_name_cleaned(self):
+        cleaned = self._cleanup_album_name(self.tag_text('album'))
+        return cleaned if cleaned else self.tag_text('album')
+
+    def _extract_album_part(self, title):
+        part = None
+        m = re.match(r'^(.*)\s+((?:Part|Code No)\.?\s*\d+)$', title, re.IGNORECASE)
+        if m:
+            title = m.group(1).strip()
+            part = m.group(2).strip()
+
+        if title.endswith(' -'):
+            title = title[:-1].strip()
+        return title, part
+
+    @cached_property
+    def album_name_cleaned_plus_and_part(self):
+        return self._extract_album_part(self.album_name_cleaned)
+
     @cached_property
     def album_name_cleaner(self):
         album = self.album_name_cleaned
@@ -66,6 +129,14 @@ class SongFile(BaseSongFile):
         if m:
             album = m.group(1)
         return album
+
+    @cached_property
+    def dir_name_cleaned(self):
+        return self._cleanup_album_name(self.path.parent.name)
+
+    @cached_property
+    def dir_name_cleaned_plus_and_part(self):
+        return self._extract_album_part(self.dir_name_cleaned)
 
     @cached_property
     def _artist_path(self):
@@ -106,7 +177,7 @@ class SongFile(BaseSongFile):
 
             current_vals = self.tags_for_id(tag_id)
             if not current_vals:
-                if self.ext == 'mp3':
+                if self._tag_type == 'mp3':
                     try:
                         frame_cls = getattr(id3_frames, tag_id.upper())
                     except AttributeError as e:

@@ -184,7 +184,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         upd_msg = 'Would update' if dry_run else 'Updating'
 
         for music_file in self.songs:
-            if music_file.ext != 'mp3':
+            if music_file._tag_type != 'mp3':
                 log.debug('Skipping non-MP3: {}'.format(music_file))
                 continue
 

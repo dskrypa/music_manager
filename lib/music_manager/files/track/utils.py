@@ -2,7 +2,13 @@
 :author: Doug Skrypa
 """
 
-__all__ = ['MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP']
+import re
+from pathlib import Path
+
+from ds_tools.caching import ClearableCachedProperty
+from ds_tools.compat import cached_property
+
+__all__ = ['MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject']
 
 RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
 TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
@@ -22,19 +28,45 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
 }
 
 
-class MusicFileProperty:
+class FileBasedObject:
+    __fspath__ = None
+
+    @cached_property
+    def path(self):
+        return Path(self.__fspath__).resolve()
+
+    @property
+    def rel_path(self):
+        try:
+            return self.path.relative_to(Path('.').resolve()).as_posix()
+        except Exception:
+            return self.path.as_posix()
+
+    def basename(self, no_ext=False, trim_prefix=False):
+        basename = self.path.stem if no_ext else self.path.name
+        if trim_prefix:
+            m = re.match(r'\d+\.?\s*(.*)', basename)
+            if m:
+                basename = m.group(1)
+        return basename
+
+    @cached_property
+    def ext(self):
+        return self.path.suffix[1:]
+
+
+class MusicFileProperty(ClearableCachedProperty):
+    _set_name = True
+
     def __init__(self, name):
-        self.name = '_{}#{}'.format(self.__class__.__name__, name)
+        self.name = '_{}#{}'.format(self.__class__.__name__, name)  # Replaced by ClearableCachedPropertyMeta
         self.parts = name.split('.')
 
     def __get__(self, obj, owner):
         if obj is None:
             return self
-        try:
-            value = obj.__dict__[self.name]
-        except KeyError:
-            value = obj._f
-            for part in self.parts:
-                value = getattr(value, part)
-            obj.__dict__[self.name] = value
+        value = obj._f
+        for part in self.parts:
+            value = getattr(value, part)
+        obj.__dict__[self.name] = value
         return value

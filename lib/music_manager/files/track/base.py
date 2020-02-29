@@ -21,18 +21,18 @@ from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 # from ...matching.name import Name
 from ..exceptions import *
-from .utils import MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP
+from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)
 _NotSet = object()
 
 
-class BaseSongFile(ClearableCachedPropertyMixin):
+class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
     __instances = {}
     tags = MusicFileProperty('tags')
-    filename = MusicFileProperty('filename')
+    filename = __fspath__ = MusicFileProperty('filename')
     length = MusicFileProperty('info.length')   # float: The length of this song in seconds
 
     def __new__(cls, file_path, *args, **kwargs):
@@ -64,21 +64,13 @@ class BaseSongFile(ClearableCachedPropertyMixin):
     def __repr__(self):
         return '<{}({!r})>'.format(self.__class__.__name__, self.rel_path)
 
-    @cached_property
-    def extended_repr(self):
-        try:
-            info = '[{!r} by {}, in {!r}]'.format(self.tag_title, self.tag_artist, self.album_name_cleaned)
-        except Exception as e:
-            info = ''
-        return '<{}({!r}){}>'.format(self.__class__.__name__, self.rel_path, info)
-
     def rename(self, dest_path):
         old_path = self.path.as_posix()
         if not isinstance(dest_path, Path):
-            dest_path = Path(dest_path).expanduser().resolve()
-
+            dest_path = Path(dest_path)
+        dest_path = dest_path.expanduser().resolve()
         if not dest_path.parent.exists():
-            os.makedirs(dest_path.parent.as_posix())
+            dest_path.parent.mkdir(parents=True)
         if dest_path.exists():
             raise ValueError('Destination for {} already exists: {!r}'.format(self, dest_path.as_posix()))
 
@@ -96,33 +88,6 @@ class BaseSongFile(ClearableCachedPropertyMixin):
         self._f.tags.save(self._f.filename)
 
     @cached_property
-    def path(self):
-        return Path(self._f.filename).resolve()
-
-    @property
-    def rel_path(self):
-        try:
-            return self.path.relative_to(Path('.').resolve()).as_posix()
-        except Exception:
-            return self.path.as_posix()
-
-    def basename(self, no_ext=False, trim_prefix=False):
-        basename = self.path.stem if no_ext else self.path.name
-        if trim_prefix:
-            m = re.match(r'\d+\.?\s*(.*)', basename)
-            if m:
-                basename = m.group(1)
-        return basename
-
-    @cached_property
-    def ext(self):
-        if isinstance(self._f.tags, MP4Tags):
-            return self.path.suffix[1:]
-        elif isinstance(self._f.tags, ID3):
-            return 'mp3'
-        return None
-
-    @cached_property
     def tag_artist(self):
         return self.tag_text('artist')
 
@@ -132,69 +97,6 @@ class BaseSongFile(ClearableCachedPropertyMixin):
 
     def set_title(self, title):
         self.set_text_tag('title', title, by_id=False)
-
-    def _cleanup_album_name(self, album):
-        m = re.match(r'^\[\d{4}[0-9.]*\](.*)', album, re.IGNORECASE)
-        if m:
-            album = m.group(1).strip()
-
-        m = re.match(r'(.*)\s*\[.*Album(?: repackage)?\]', album, re.IGNORECASE)
-        if m:
-            album = m.group(1).strip()
-
-        m = re.match(r'^(.*?)-?\s*(?:the)?\s*[0-9](?:st|nd|rd|th)\s+\S*\s*album\s*(?:repackage)?\s*(.*)$', album, re.I)
-        if m:
-            album = ' '.join(map(str.strip, m.groups())).strip()
-
-        m = re.search(r'((?:^|\s+)\d+\s*집(?:$|\s+))', album)  # {num}집 == nth album
-        if m:
-            album = album.replace(m.group(1), ' ').strip()
-
-        m = re.match(r'(.*)(\s-\s*(?:EP|Single))$', album, re.IGNORECASE)
-        if m:
-            album = m.group(1)
-
-        m = re.match(r'^(.*)\sO\.S\.T\.?(\s.*|$)', album, re.IGNORECASE)
-        if m:
-            album = '{} OST{}'.format(*m.groups())
-
-        for pat in ('^(.*) `(.*)`$', '^(.*) - (.*)$'):
-            m = re.match(pat, album)
-            if m:
-                group, title = m.groups()
-                if group in self.tag_artist:
-                    album = title
-                break
-
-        return album.replace(' : ', ': ').strip()
-
-    def _extract_album_part(self, title):
-        part = None
-        m = re.match(r'^(.*)\s+((?:Part|Code No)\.?\s*\d+)$', title, re.IGNORECASE)
-        if m:
-            title = m.group(1).strip()
-            part = m.group(2).strip()
-
-        if title.endswith(' -'):
-            title = title[:-1].strip()
-        return title, part
-
-    @cached_property
-    def album_name_cleaned(self):
-        cleaned = self._cleanup_album_name(self.tag_text('album'))
-        return cleaned if cleaned else self.tag_text('album')
-
-    @cached_property
-    def album_name_cleaned_plus_and_part(self):
-        return self._extract_album_part(self.album_name_cleaned)
-
-    @cached_property
-    def dir_name_cleaned(self):
-        return self._cleanup_album_name(self.path.parent.name)
-
-    @cached_property
-    def dir_name_cleaned_plus_and_part(self):
-        return self._extract_album_part(self.dir_name_cleaned)
 
     @cached_property
     def length_str(self):
@@ -231,7 +133,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
         if isinstance(self._f.tags, MP4Tags):
             self._f.tags[tag_id] = value
-        elif self.ext == 'mp3':
+        elif self._tag_type == 'mp3':
             try:
                 tag_cls = getattr(mutagen.id3._frames, tag_id.upper())
             except AttributeError as e:
@@ -239,7 +141,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
             else:
                 self._f.tags[tag_id] = tag_cls(text=value)
         else:
-            raise TypeError('Unable to set {!r} for {} because its extension is {!r}'.format(tag, self, self.ext))
+            raise TypeError('Unable to set {!r} for {} because its extension is {!r}'.format(tag, self, self._tag_type))
 
     def tag_name_to_id(self, tag_name):
         """
@@ -260,7 +162,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
         :param str tag_id: A tag ID
         :return list: All tags from this file with the given ID
         """
-        if self.ext == 'mp3':
+        if self._tag_type == 'mp3':
             return self._f.tags.getall(tag_id.upper())         # all MP3 tags are uppercase; some MP4 tags are mixed case
         return self._f.tags.get(tag_id, [])                    # MP4Tags doesn't have getall() and always returns a list
 

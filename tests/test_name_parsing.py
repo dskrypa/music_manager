@@ -15,9 +15,16 @@ from music_manager.matching.name import Name
 from music_manager.wiki.utils import parse_generasia_name
 
 log = logging.getLogger(__name__)
+maybe_print = lambda: None
 
 
 class _CustomTestCase(unittest.TestCase):
+    def setUp(self):
+        maybe_print()
+
+    def tearDown(self):
+        maybe_print()
+
     def assertIsOrEqual(self, name, attr, expected):
         value = getattr(name, attr)
         found = colored(f'{attr}={value!r}', 'cyan')
@@ -309,10 +316,7 @@ if __name__ == '__main__':
             argv.append(names.get(method_name, method_name))
 
     if args.verbose:
-        # Adding either or both of these seems to make it think there are more tests than there are for some reason...
-        for cls in test_classes:
-            cls.setUp = lambda self: print()
-            cls.tearDown = lambda self: print()
+        maybe_print = lambda: print()
 
     try:
         unittest.main(warnings='ignore', verbosity=2, exit=False, argv=argv)

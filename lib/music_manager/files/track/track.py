@@ -3,15 +3,17 @@
 """
 
 import logging
-import re
-from fnmatch import translate as fnmatch_to_regex_str
 from pathlib import Path
 
 import mutagen.id3._frames as id3_frames
 
 from ds_tools.compat import cached_property
+# from ...matching.name import Name
 from ...utils.constants import tag_name_map
 from .base import BaseSongFile
+from .patterns import (
+    ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
+)
 
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
@@ -33,16 +35,15 @@ class SongFile(BaseSongFile):
     @cached_property
     def album_from_dir(self):
         album = self.path.parent.name
-        if album.lower().startswith(self.tag_artist.lower()):
-            album = album[len(self.tag_artist):].strip()
+        tag_artist = self.tag_artist
+        if album.lower().startswith(tag_artist.lower()):
+            album = album[len(tag_artist):].strip()
         if album.startswith('- '):
             album = album[1:].strip()
-        m = re.match(r'^\[\d{4}[0-9.]*\] (.*)$', album)     # Begins with date
-        if m:
-            album = m.group(1).strip()
-        m = re.match(r'(.*)\s*\[.*Album\]', album)          # Ends with Xth Album
-        if m:
-            album = m.group(1).strip()
+        for re_func, on_match_func in ALBUM_DIR_CLEANUP_RE_FUNCS:
+            m = re_func(album)
+            if m:
+                album = on_match_func(m)
         return album
 
     @cached_property
@@ -67,72 +68,36 @@ class SongFile(BaseSongFile):
         multiple_artists = len({f.tag_artist for f in alb_dir}) > 1
         return full_ost and album_artist == 'various artists' and multiple_artists and len(alb_dir) > 2
 
-    def _cleanup_album_name(self, album):
-        m = re.match(r'^\[\d{4}[0-9.]*\](.*)', album, re.IGNORECASE)
-        if m:
-            album = m.group(1).strip()
-
-        m = re.match(r'(.*)\s*\[.*Album(?: repackage)?\]', album, re.IGNORECASE)
-        if m:
-            album = m.group(1).strip()
-
-        m = re.match(r'^(.*?)-?\s*(?:the)?\s*[0-9](?:st|nd|rd|th)\s+\S*\s*album\s*(?:repackage)?\s*(.*)$', album, re.I)
-        if m:
-            album = ' '.join(map(str.strip, m.groups())).strip()
-
-        m = re.search(r'((?:^|\s+)\d+\s*집(?:$|\s+))', album)  # {num}집 == nth album
-        if m:
-            album = album.replace(m.group(1), ' ').strip()
-
-        m = re.match(r'(.*)(\s-\s*(?:EP|Single))$', album, re.IGNORECASE)
-        if m:
-            album = m.group(1)
-
-        m = re.match(r'^(.*)\sO\.S\.T\.?(\s.*|$)', album, re.IGNORECASE)
-        if m:
-            album = '{} OST{}'.format(*m.groups())
-
-        for pat in ('^(.*) `(.*)`$', '^(.*) - (.*)$'):
-            m = re.match(pat, album)
-            if m:
-                group, title = m.groups()
-                if group in self.tag_artist:
-                    album = title
-                break
-
-        return album.replace(' : ', ': ').strip()
-
     @cached_property
     def album_name_cleaned(self):
-        cleaned = self._cleanup_album_name(self.tag_text('album'))
+        cleaned = cleanup_album_name(self.tag_text('album'), self.tag_artist)
         return cleaned if cleaned else self.tag_text('album')
 
     def _extract_album_part(self, title):
         part = None
-        m = re.match(r'^(.*)\s+((?:Part|Code No)\.?\s*\d+)$', title, re.IGNORECASE)
+        m = EXTRACT_PART_MATCH(title)
         if m:
-            title = m.group(1).strip()
-            part = m.group(2).strip()
-
+            title, part = map(str.strip, m.groups())
         if title.endswith(' -'):
             title = title[:-1].strip()
         return title, part
 
     @cached_property
     def album_name_cleaned_plus_and_part(self):
+        """Tuple of title, part"""
         return self._extract_album_part(self.album_name_cleaned)
 
     @cached_property
     def album_name_cleaner(self):
         album = self.album_name_cleaned
-        m = re.match(r'(.*)(\((?:vol.?|volume) (?:\d+|[ivx]+)\))$', album, re.IGNORECASE)
+        m = ALBUM_VOLUME_MATCH(album)
         if m:
             album = m.group(1)
         return album
 
     @cached_property
     def dir_name_cleaned(self):
-        return self._cleanup_album_name(self.path.parent.name)
+        return cleanup_album_name(self.path.parent.name, self.tag_artist)
 
     @cached_property
     def dir_name_cleaned_plus_and_part(self):
@@ -163,11 +128,8 @@ class SongFile(BaseSongFile):
     def update_tags(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         if partial and not patterns:
             raise ValueError('Unable to perform partial tag update without any patterns')
-        if patterns:
-            patterns = [re.compile(fnmatch_to_regex_str(p)[4:-3]) if isinstance(p, str) else p for p in patterns]
-
+        patterns = compiled_fnmatch_patterns(patterns)
         prefix, repl_msg, set_msg = ('[DRY RUN] Would ', 'replace', 'set') if dry_run else ('', 'Replacing', 'Setting')
-
         should_save = False
         for tag_id in tag_ids:
             tag_name = tag_name_map.get(tag_id)

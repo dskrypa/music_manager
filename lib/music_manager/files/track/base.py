@@ -3,8 +3,6 @@
 """
 
 import logging
-import os
-import re
 from datetime import datetime
 from hashlib import sha256
 from io import BytesIO
@@ -19,7 +17,6 @@ from mutagen.mp4 import MP4Tags
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
-# from ...matching.name import Name
 from ..exceptions import *
 from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP
 

@@ -15,9 +15,8 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 from .exceptions import *
-from .patches import tag_repr
 from .track import BaseSongFile
-from .utils import _iter_music_files
+from .utils import iter_music_files, tag_repr
 
 __all__ = ['AlbumDir', 'RM_TAGS_MP4', 'RM_TAGS_ID3', 'iter_album_dirs']
 log = logging.getLogger(__name__)
@@ -84,7 +83,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
     @cached_property
     def songs(self):
-        songs = list(_iter_music_files(self.path.as_posix()))
+        songs = list(iter_music_files(self.path))
         for song in songs:
             song._in_album_dir = True
             song._album_dir = self

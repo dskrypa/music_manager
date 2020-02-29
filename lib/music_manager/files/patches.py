@@ -3,24 +3,13 @@
 """
 
 import logging
-import string
-from unicodedata import normalize
 
 from mutagen.id3._frames import Frame
 from mutagen.mp4 import AtomDataType, MP4Cover, MP4FreeForm, MP4Tags
+from .utils import tag_repr
 
-__all__ = ['tag_repr', 'apply_mutagen_patches']
+__all__ = ['apply_mutagen_patches']
 log = logging.getLogger(__name__)
-
-# Translate whitespace characters (such as \n, \r, etc.) to their escape sequences
-WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-8') for c in string.whitespace})
-
-
-def tag_repr(tag_val, max_len=125, sub_len=25):
-    tag_val = normalize('NFC', str(tag_val)).translate(WHITESPACE_TRANS_TBL)
-    if len(tag_val) > max_len:
-        return '{}...{}'.format(tag_val[:sub_len], tag_val[-sub_len:])
-    return tag_val
 
 
 def apply_mutagen_patches():

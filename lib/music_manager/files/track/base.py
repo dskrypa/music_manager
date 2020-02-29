@@ -2,10 +2,6 @@
 :author: Doug Skrypa
 """
 
-"""
-:author: Doug Skrypa
-"""
-
 import logging
 import os
 import re
@@ -15,58 +11,45 @@ from pathlib import Path
 
 import mutagen
 import mutagen.id3._frames
+from mutagen import File
 from mutagen.id3 import ID3, POPM
 from mutagen.mp4 import MP4Tags
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration, datetime_with_tz
+# from ...matching.name import Name
 from ..exceptions import *
+from .utils import MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)
-
-RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
-TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
-    'title': {'mp4': '\xa9nam', 'mp3': 'TIT2'},
-    'date': {'mp4': '\xa9day', 'mp3': 'TDRC'},
-    'genre': {'mp4': '\xa9gen', 'mp3': 'TCON'},
-    'album': {'mp4': '\xa9alb', 'mp3': 'TALB'},
-    'artist': {'mp4': '\xa9ART', 'mp3': 'TPE1'},
-    'album_artist': {'mp4': 'aART', 'mp3': 'TPE2'},
-    'track': {'mp4': 'trkn', 'mp3': 'TRCK'},
-    'disk': {'mp4': 'disk', 'mp3': 'TPOS'},
-    'grouping': {'mp4': '\xa9grp', 'mp3': 'TIT1'},
-    'album_sort_order': {'mp4': 'soal', 'mp3': 'TSOA'},
-    'track_sort_order': {'mp4': 'sonm', 'mp3': 'TSOT'},
-    'album_artist_sort_order': {'mp4': 'soaa', 'mp3': 'TSO2'},
-    'track_artist_sort_order': {'mp4': 'soar', 'mp3': 'TSOP'},
-}
 _NotSet = object()
 
 
 class BaseSongFile(ClearableCachedPropertyMixin):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
     __instances = {}
+    tags = MusicFileProperty('tags')
+    filename = MusicFileProperty('filename')
+    length = MusicFileProperty('info.length')   # float: The length of this song in seconds
 
     def __new__(cls, file_path, *args, **kwargs):
-        file_path = Path(file_path).expanduser().as_posix()
-        if file_path not in cls.__instances:
+        file_path = (Path(file_path).expanduser() if isinstance(file_path, str) else file_path).as_posix()
+        try:
+            return cls.__instances[file_path]
+        except KeyError:
             try:
-                music_file = mutagen.File(file_path, *args, **kwargs)
+                music_file = File(file_path, *args, **kwargs)
             except Exception as e:
                 log.debug('Error loading {}: {}'.format(file_path, e))
-                music_file = None
-
-            if music_file:
-                obj = super().__new__(cls)
-                obj._f = music_file
-                cls.__instances[file_path] = obj
-                return obj
-            else:
                 return None
-        else:
-            return cls.__instances[file_path]
+            if not music_file:          # mutagen.File is a function that returns different obj types based on the given
+                return None             # file path - it may return None
+            obj = super().__new__(cls)
+            obj._f = music_file
+            cls.__instances[file_path] = obj
+            return obj
 
     def __init__(self, file_path, *args, **kwargs):
         if not getattr(self, '_BaseSongFile__initialized', False):
@@ -78,15 +61,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
         return self._f[item]
 
     def __repr__(self):
-        return '<{}({!r})>'.format(type(self).__name__, self.rel_path)
-
-    @property
-    def tags(self):
-        return self._f.tags
-
-    @property
-    def filename(self):
-        return self._f.filename
+        return '<{}({!r})>'.format(self.__class__.__name__, self.rel_path)
 
     @cached_property
     def extended_repr(self):
@@ -94,7 +69,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
             info = '[{!r} by {}, in {!r}]'.format(self.tag_title, self.tag_artist, self.album_name_cleaned)
         except Exception as e:
             info = ''
-        return '<{}({!r}){}>'.format(type(self).__name__, self.rel_path, info)
+        return '<{}({!r}){}>'.format(self.__class__.__name__, self.rel_path, info)
 
     def rename(self, dest_path):
         old_path = self.path.as_posix()
@@ -127,7 +102,7 @@ class BaseSongFile(ClearableCachedPropertyMixin):
     def rel_path(self):
         try:
             return self.path.relative_to(Path('.').resolve()).as_posix()
-        except Exception as e:
+        except Exception:
             return self.path.as_posix()
 
     def basename(self, no_ext=False, trim_prefix=False):
@@ -153,6 +128,9 @@ class BaseSongFile(ClearableCachedPropertyMixin):
     @cached_property
     def tag_title(self):
         return self.tag_text('title')
+
+    def set_title(self, title):
+        self.set_text_tag('title', title, by_id=False)
 
     def _cleanup_album_name(self, album):
         m = re.match(r'^\[\d{4}[0-9.]*\](.*)', album, re.IGNORECASE)
@@ -217,16 +195,6 @@ class BaseSongFile(ClearableCachedPropertyMixin):
     def dir_name_cleaned_plus_and_part(self):
         return self._extract_album_part(self.dir_name_cleaned)
 
-    def set_title(self, title):
-        self.set_text_tag('title', title, by_id=False)
-
-    @property
-    def length(self):
-        """
-        :return float: The length of this song in seconds
-        """
-        return self._f.info.length
-
     @cached_property
     def length_str(self):
         """
@@ -241,11 +209,22 @@ class BaseSongFile(ClearableCachedPropertyMixin):
 
     @cached_property
     def _tag_type(self):
-        if isinstance(self._f.tags, MP4Tags):
+        tags = self._f.tags
+        if isinstance(tags, MP4Tags):
             return 'mp4'
-        elif isinstance(self._f.tags, ID3):
+        elif isinstance(tags, ID3):
             return 'mp3'
         return None
+
+    @cached_property
+    def tag_version(self):
+        tags = self._f.tags
+        if isinstance(tags, MP4Tags):
+            return 'MP4'
+        elif isinstance(tags, ID3):
+            return 'ID3v{}.{}'.format(*tags.version[:2])
+        else:
+            return tags.__name__
 
     def set_text_tag(self, tag, value, by_id=False):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
@@ -348,27 +327,9 @@ class BaseSongFile(ClearableCachedPropertyMixin):
             else:
                 raise e
 
-    def tagless_sha256sum(self):
-        with self.path.open('rb') as f:
-            tmp = BytesIO(f.read())
-
-        try:
-            mutagen.File(tmp).tags.delete(tmp)
-        except AttributeError as e:
-            log.error('Error determining tagless sha256sum for {}: {}'.format(self._f.filename, e))
-            return self._f.filename
-
-        tmp.seek(0)
-        return sha256(tmp.read()).hexdigest()
-
-    def sha256sum(self):
-        with self.path.open('rb') as f:
-            return sha256(f.read()).hexdigest()
-
-    # @cached_property
-    # def acoustid_fingerprint(self):
-    #     """Returns the 2-tuple of this file's (duration, fingerprint)"""
-    #     return acoustid.fingerprint_file(self.filename)
+    def iter_clean_tags(self):
+        for tag, value in self._f.tags.items():
+            yield tag[:4], value
 
     @cached_property
     def date(self):
@@ -495,3 +456,25 @@ class BaseSongFile(ClearableCachedPropertyMixin):
                 raise ValueError('Star ratings must be a multiple of 0.5; invalid value: {}'.format(value))
         else:
             self.rating = RATING_RANGES[int(value) - 1][2]
+
+    def tagless_sha256sum(self):
+        with self.path.open('rb') as f:
+            tmp = BytesIO(f.read())
+
+        try:
+            mutagen.File(tmp).tags.delete(tmp)
+        except AttributeError as e:
+            log.error('Error determining tagless sha256sum for {}: {}'.format(self._f.filename, e))
+            return self._f.filename
+
+        tmp.seek(0)
+        return sha256(tmp.read()).hexdigest()
+
+    def sha256sum(self):
+        with self.path.open('rb') as f:
+            return sha256(f.read()).hexdigest()
+
+    # @cached_property
+    # def acoustid_fingerprint(self):
+    #     """Returns the 2-tuple of this file's (duration, fingerprint)"""
+    #     return acoustid.fingerprint_file(self.filename)

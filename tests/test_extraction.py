@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from music_manager.text.extraction import split_parenthesized
+from music_manager.text.extraction import partition_parenthesized
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
@@ -23,27 +23,31 @@ class _CustomTestCase(unittest.TestCase):
 
 
 class ParenthesizedTestCase(_CustomTestCase):
-    def test_split_parenthesized(self):
+    def test_partition_parenthesized(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a -', 'b', '- c'),
             '"a (b) "c': ('"a', 'b', '"c'),
             '(a (b) "c"': ('(a (b)', 'c', ''),
             ')a (b) "c"': (')a', 'b', '"c"'),
+            '"a" b': ('', 'a', 'b'),
+            'a "b"': ('a', 'b', ''),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, split_parenthesized(case))
+            self.assertEqual(expected, partition_parenthesized(case))
 
-    def test_split_parenthesized_reverse(self):
+    def test_spartition_parenthesized_reverse(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a -', 'b', '- c'),
             '"a (b) "c': ('"a', 'b', '"c'),
             '(a (b) "c"': ('(a (b)', 'c', ''),
             ')a (b) "c"': (')a (b)', 'c', ''),
+            '"a" b': ('', 'a', 'b'),
+            'a "b"': ('a', 'b', ''),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, split_parenthesized(case, reverse=True))
+            self.assertEqual(expected, partition_parenthesized(case, reverse=True))
 
 
 if __name__ == '__main__':

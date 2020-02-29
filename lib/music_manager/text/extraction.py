@@ -5,11 +5,11 @@
 import logging
 from collections import defaultdict
 
-__all__ = ['parenthesized', 'split_parenthesized']
+__all__ = ['parenthesized', 'partition_parenthesized']
 log = logging.getLogger(__name__)
 
-OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐'
-CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐'
+OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘'
+CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’'
 
 class _CharMatcher:
     """Lazily compute the mapping only after the first request"""
@@ -42,7 +42,7 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def split_parenthesized(text, reverse=False):
+def partition_parenthesized(text, reverse=False):
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
         text = text[::-1]

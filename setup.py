@@ -13,7 +13,7 @@ with project_root.joinpath('readme.rst').open('r', encoding='utf-8') as f:
 
 setup(
     name='music_manager',
-    version='2020.02.29-4',
+    version='2020.02.29-5',
     author='Doug Skrypa',
     author_email='dskrypa@gmail.com',
     description='Music Manager',

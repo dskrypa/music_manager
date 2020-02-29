@@ -67,7 +67,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
         first_string = artist_page.intro[0].value
         name = first_string[:first_string.rindex(')') + 1]
         # log.debug(f'Found name: {name}')
-        first_part, paren_part = split_parenthesized(name)
+        first_part, paren_part, _ = split_parenthesized(name, reverse=True)
         try:
             parts = tuple(map(str.strip, paren_part.split(', and')))
         except Exception:
@@ -83,7 +83,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
                         log.error(f'Error splitting part={part!r}')
                         raise
                     else:
-                        part_a, part_b = split_parenthesized(part)
+                        part_a, part_b, _ = split_parenthesized(part, reverse=True)
                         try:
                             romanized, alias = part_b.split(' or ')
                         except ValueError:

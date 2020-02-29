@@ -156,10 +156,10 @@ def parse_generasia_name(node):
     # TODO: Handle OST(+Part) for checking romanization
     if title.endswith(')') and '(' in title:
         if non_eng:
-            a, b = split_parenthesized(title)
+            a, b, _ = split_parenthesized(title, reverse=True)
             if a.endswith(')') and '(' in a:
                 extras.append(b)
-                a, b = split_parenthesized(a)
+                a, b, _ = split_parenthesized(a, reverse=True)
 
             # log.debug(f'a={a!r} b={b!r}')
             if Name(non_eng=non_eng).has_romanization(a):
@@ -198,7 +198,7 @@ def parse_generasia_name(node):
                     else:
                         eng_title = f'{a} ({b})'
         else:
-            a, b = split_parenthesized(title)
+            a, b, _ = split_parenthesized(title, reverse=True)
             if ost_pat.search(b):
                 eng_title = a
                 extras.append(b)
@@ -236,10 +236,11 @@ def _split_name_parts(title, node):
     if isinstance(node, String):
         name_parts = parenthesized(node.value)
     elif node is None:
-        try:
-            title, name_parts = split_parenthesized(title)
-        except ValueError:
-            pass
+        if title.endswith(')'):
+            try:
+                title, name_parts, _ = split_parenthesized(title, reverse=True)
+            except ValueError:
+                pass
 
     if name_parts and LangCat.contains_any(name_parts, LangCat.asian_cats):
         name_parts = tuple(map(str.strip, name_parts.split(';')))

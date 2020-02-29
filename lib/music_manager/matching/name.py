@@ -167,7 +167,7 @@ class Name:
 
     @classmethod
     def from_parenthesized(cls, name):
-        first_part, paren_part = split_parenthesized(name)
+        first_part, paren_part, _ = split_parenthesized(name, reverse=True)
         if LangCat.contains_any(paren_part, LangCat.non_eng_cats):
             parts = (first_part, paren_part)
         else:

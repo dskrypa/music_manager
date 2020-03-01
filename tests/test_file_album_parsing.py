@@ -36,7 +36,7 @@ class AlbumName:
 
         self.feat = []
         try:
-            parts = filter(None, reversed(split_enclosed(name, reverse=True, outer=True, recurse=1)))
+            parts = filter(None, reversed(split_enclosed(name, reverse=True, recurse=1)))
         except ValueError:
             name_parts = (name,)
         else:

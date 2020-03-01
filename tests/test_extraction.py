@@ -26,8 +26,8 @@ class ExtractEnclosedTestCase(_CustomTestCase):
     def test_partition_enclosed(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
-            'a - (b) - c': ('a -', 'b', '- c'),
-            '"a (b) "c': ('"a', 'b', '"c'),
+            'a - (b) - c': ('a', '(b)', 'c'),
+            '"a (b) "c': ('', 'a (b)', 'c'),
             '(a (b) "c"': ('(a (b)', 'c', ''),
             ')a (b) "c"': (')a', 'b', '"c"'),
             '"a" b': ('', 'a', 'b'),
@@ -40,8 +40,8 @@ class ExtractEnclosedTestCase(_CustomTestCase):
     def test_partition_enclosed_reverse(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
-            'a - (b) - c': ('a -', 'b', '- c'),
-            '"a (b) "c': ('"a', 'b', '"c'),
+            'a - (b) - c': ('a', '(b)', 'c'),
+            '"a (b) "c': ('', 'a (b)', 'c'),
             '(a (b) "c"': ('(a (b)', 'c', ''),
             ')a (b) "c"': (')a (b)', 'c', ''),
             '"a" b': ('', 'a', 'b'),
@@ -50,11 +50,11 @@ class ExtractEnclosedTestCase(_CustomTestCase):
         for case, expected in cases.items():
             self.assertEqual(expected, partition_enclosed(case, reverse=True))
 
-    def test_partition_enclosed_outer(self):
+    def test_partition_enclosed_inner(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
-            'a - (b) - c': ('a', '(b)', 'c'),
-            '"a (b) "c': ('', 'a (b)', 'c'),
+            'a - (b) - c': ('a -', 'b', '- c'),
+            '"a (b) "c': ('"a', 'b', '"c'),
             '(a (b) "c"': ('(a (b)', 'c', ''),
             ')a (b) "c"': (')a', 'b', '"c"'),
             '"a" b': ('', 'a', 'b'),
@@ -62,13 +62,13 @@ class ExtractEnclosedTestCase(_CustomTestCase):
             '((a) b) c': ('', '(a) b', 'c'),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, partition_enclosed(case, outer=True))
+            self.assertEqual(expected, partition_enclosed(case, inner=True))
 
     def test_split_enclosed(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
-            'a - (b) - c': ('a -', 'b', '- c'),
-            '"a (b) "c': ('"a', 'b', '"c'),
+            'a - (b) - c': ('a', '(b)', 'c'),
+            '"a (b) "c': ('a (b)', 'c'),
             '(a (b) "c"': ('(a (b)', 'c'),
             ')a (b) "c"': (')a', 'b', 'c'),
             '"a" b': ('a', 'b'),
@@ -82,6 +82,7 @@ class ExtractEnclosedTestCase(_CustomTestCase):
         cases = {
             '((a) b)': ('a', 'b'),
             '((a (b)) c)': ('a (b)', 'c'),
+            '((a) b) c': ('a', 'b', 'c'),
         }
         for case, expected in cases.items():
             self.assertEqual(expected, split_enclosed(case, recurse=1))
@@ -89,6 +90,7 @@ class ExtractEnclosedTestCase(_CustomTestCase):
         cases = {
             '((a) b)': ('a', 'b'),
             '((a (b)) c)': ('a', 'b', 'c'),
+            '((a) b) c': ('a', 'b', 'c'),
         }
         for case, expected in cases.items():
             self.assertEqual(expected, split_enclosed(case, recurse=2))

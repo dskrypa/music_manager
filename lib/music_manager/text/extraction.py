@@ -43,10 +43,10 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def split_enclosed(text, reverse=False, outer=False, recurse=0):
+def split_enclosed(text, reverse=False, inner=False, recurse=0):
     """
     Split the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.  By
-    default, the string is traversed from left to right, and inner-most enclosed substrings are extracted when they are
+    default, the string is traversed from left to right, and outer-most enclosed substrings are extracted when they are
     surrounded by different sets of enclosing characters.  Even with no recursion, the returned tuple may contain more
     than 3 values if the original string contained multiple top-level enclosed substrings.  Enclosed substrings within
     those extracted substrings are only extracted when recursion is enabled.
@@ -54,39 +54,39 @@ def split_enclosed(text, reverse=False, outer=False, recurse=0):
     :param str text: The string to split.
     :param bool reverse: Traverse the string from right to left instead of left to right.  Does not change the order of
       substrings in the returned tuple.
-    :param bool outer: Do not return inner-most enclosed substrings when they are surrounded by multiple different sets
-      of enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same
-      pair of enclosing characters.
+    :param bool inner: Return inner-most enclosed substrings when they are surrounded by multiple different sets of
+      enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same pair
+      of enclosing characters.
     :param int recurse: The number of levels to recurse.
     :return tuple: The split string, with empty values filtered out.  If no enclosed substrings are found, the returned
       tuple will contain the original string.
     """
     try:
-        a, b, c = partition_enclosed(text, reverse, outer)
+        a, b, c = partition_enclosed(text, reverse, inner)
     except ValueError:
         # noinspection PyRedundantParentheses
         return (text,)
     if recurse > 0:
         recurse -= 1
         chained = chain(
-            split_enclosed(a, reverse, outer, recurse), split_enclosed(b, reverse, outer, recurse),
-            split_enclosed(c, reverse, outer, recurse)
+            split_enclosed(a, reverse, inner, recurse), split_enclosed(b, reverse, inner, recurse),
+            split_enclosed(c, reverse, inner, recurse)
         )
     else:
-        chained = chain(split_enclosed(a, reverse, outer), (b,), split_enclosed(c, reverse, outer))
+        chained = chain(split_enclosed(a, reverse, inner), (b,), split_enclosed(c, reverse, inner))
     return tuple(filter(None, chained))
 
 
-def partition_enclosed(text, reverse=False, outer=False):
+def partition_enclosed(text, reverse=False, inner=False):
     """
     Partition the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.
 
     :param str text: The string to partition.
     :param bool reverse: Traverse the string from right to left instead of left to right.  Does not change the order of
       substrings in the returned tuple.
-    :param bool outer: Do not return inner-most enclosed substrings when they are surrounded by multiple different sets
-      of enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same
-      pair of enclosing characters.
+    :param bool inner: Return inner-most enclosed substrings when they are surrounded by multiple different sets of
+      enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same pair
+      of enclosing characters.
     :return tuple: A 3-tuple containing the part before the enclosed substring, the enclosed substring (without the
       enclosing characters), and the part after the enclosed substring.
     :raises: :exc:`ValueError` if no enclosed text is found.
@@ -109,14 +109,14 @@ def partition_enclosed(text, reverse=False, outer=False):
                         closed[k] += 1
                     if opened[k] and opened[k] == closed[k]:
                         first_k = first[k]
-                        if outer:
+                        if inner:
+                            return _return_partitioned(text, first_k, i, reverse)
+                        else:
                             del first[k]
                             if not first or first_k < min(first.values()):
                                 return _return_partitioned(text, first_k, i, reverse)
                             else:
                                 pairs.append((first_k, i))
-                        else:
-                            return _return_partitioned(text, first_k, i, reverse)
 
             if not opened[c]:
                 first[c] = i + 1
@@ -127,16 +127,16 @@ def partition_enclosed(text, reverse=False, outer=False):
                     closed[k] += 1
                 if opened[k] and opened[k] == closed[k]:
                     first_k = first[k]
-                    if outer:
+                    if inner:
+                        return _return_partitioned(text, first_k, i, reverse)
+                    else:
                         del first[k]
                         if not first or first_k < min(first.values()):
                             return _return_partitioned(text, first_k, i, reverse)
                         else:
                             pairs.append((first_k, i))
-                    else:
-                        return _return_partitioned(text, first_k, i, reverse)
 
-    if outer and pairs:
+    if pairs:
         first_k, i = min(pairs)
         return _return_partitioned(text, first_k, i, reverse)
 

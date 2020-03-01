@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 # from music_manager.files.track.patterns import cleanup_album_name
-from music_manager.text.extraction import split_parenthesized
+from music_manager.text.extraction import split_enclosed
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
@@ -36,7 +36,7 @@ class AlbumName:
 
         self.feat = []
         try:
-            parts = filter(None, reversed(split_parenthesized(name, reverse=True, outer=True, recurse=1)))
+            parts = filter(None, reversed(split_enclosed(name, reverse=True, outer=True, recurse=1)))
         except ValueError:
             name_parts = (name,)
         else:

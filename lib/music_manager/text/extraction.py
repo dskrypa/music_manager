@@ -6,7 +6,7 @@ import logging
 from collections import defaultdict
 from itertools import chain
 
-__all__ = ['parenthesized', 'partition_parenthesized', 'split_parenthesized']
+__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed']
 log = logging.getLogger(__name__)
 
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-'
@@ -43,24 +43,24 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def split_parenthesized(text, reverse=False, outer=False, recurse=0):
+def split_enclosed(text, reverse=False, outer=False, recurse=0):
     try:
-        a, b, c = partition_parenthesized(text, reverse, outer)
+        a, b, c = partition_enclosed(text, reverse, outer)
     except ValueError:
         # noinspection PyRedundantParentheses
         return (text,)
     if recurse > 0:
         recurse -= 1
         chained = chain(
-            split_parenthesized(a, reverse, outer, recurse), split_parenthesized(b, reverse, outer, recurse),
-            split_parenthesized(c, reverse, outer, recurse)
+            split_enclosed(a, reverse, outer, recurse), split_enclosed(b, reverse, outer, recurse),
+            split_enclosed(c, reverse, outer, recurse)
         )
     else:
-        chained = chain(split_parenthesized(a, reverse, outer), (b,), split_parenthesized(c, reverse, outer))
+        chained = chain(split_enclosed(a, reverse, outer), (b,), split_enclosed(c, reverse, outer))
     return tuple(filter(None, chained))
 
 
-def partition_parenthesized(text, reverse=False, outer=False):
+def partition_enclosed(text, reverse=False, outer=False):
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
         text = text[::-1]
@@ -110,7 +110,7 @@ def partition_parenthesized(text, reverse=False, outer=False):
         first_k, i = min(pairs)
         return _return_partitioned(text, first_k, i, reverse)
 
-    raise ValueError('No parenthesized text found')
+    raise ValueError('No enclosed text found')
 
 
 def _return_partitioned(text, first_k, i, reverse):

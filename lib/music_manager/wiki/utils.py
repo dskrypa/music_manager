@@ -10,7 +10,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
 from ..matching.name import Name
 from ..matching.spellcheck import is_english
-from ..text.extraction import parenthesized, partition_parenthesized
+from ..text.extraction import parenthesized, partition_enclosed
 
 __all__ = ['parse_date', 'node_to_link_dict', 'parse_generasia_name']
 log = logging.getLogger(__name__)
@@ -156,10 +156,10 @@ def parse_generasia_name(node):
     # TODO: Handle OST(+Part) for checking romanization
     if title.endswith(')') and '(' in title:
         if non_eng:
-            a, b, _ = partition_parenthesized(title, reverse=True)
+            a, b, _ = partition_enclosed(title, reverse=True)
             if a.endswith(')') and '(' in a:
                 extras.append(b)
-                a, b, _ = partition_parenthesized(a, reverse=True)
+                a, b, _ = partition_enclosed(a, reverse=True)
 
             # log.debug(f'a={a!r} b={b!r}')
             if Name(non_eng=non_eng).has_romanization(a):
@@ -198,7 +198,7 @@ def parse_generasia_name(node):
                     else:
                         eng_title = f'{a} ({b})'
         else:
-            a, b, _ = partition_parenthesized(title, reverse=True)
+            a, b, _ = partition_enclosed(title, reverse=True)
             if ost_pat.search(b):
                 eng_title = a
                 extras.append(b)
@@ -238,7 +238,7 @@ def _split_name_parts(title, node):
     elif node is None:
         if title.endswith(')'):
             try:
-                title, name_parts, _ = partition_parenthesized(title, reverse=True)
+                title, name_parts, _ = partition_enclosed(title, reverse=True)
             except ValueError:
                 pass
 

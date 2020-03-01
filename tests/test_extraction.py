@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from music_manager.text.extraction import partition_parenthesized, split_parenthesized
+from music_manager.text.extraction import partition_enclosed, split_enclosed
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
@@ -22,8 +22,8 @@ class _CustomTestCase(unittest.TestCase):
         maybe_print()
 
 
-class ParenthesizedTestCase(_CustomTestCase):
-    def test_partition_parenthesized(self):
+class ExtractEnclosedTestCase(_CustomTestCase):
+    def test_partition_enclosed(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a -', 'b', '- c'),
@@ -34,9 +34,9 @@ class ParenthesizedTestCase(_CustomTestCase):
             'a "b"': ('a', 'b', ''),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, partition_parenthesized(case))
+            self.assertEqual(expected, partition_enclosed(case))
 
-    def test_partition_parenthesized_reverse(self):
+    def test_partition_enclosed_reverse(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a -', 'b', '- c'),
@@ -47,9 +47,9 @@ class ParenthesizedTestCase(_CustomTestCase):
             'a "b"': ('a', 'b', ''),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, partition_parenthesized(case, reverse=True))
+            self.assertEqual(expected, partition_enclosed(case, reverse=True))
 
-    def test_partition_parenthesized_outer(self):
+    def test_partition_enclosed_outer(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a', '(b)', 'c'),
@@ -60,9 +60,9 @@ class ParenthesizedTestCase(_CustomTestCase):
             'a "b"': ('a', 'b', ''),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, partition_parenthesized(case, outer=True))
+            self.assertEqual(expected, partition_enclosed(case, outer=True))
 
-    def test_split_parenthesized(self):
+    def test_split_enclosed(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
             'a - (b) - c': ('a -', 'b', '- c'),
@@ -74,22 +74,22 @@ class ParenthesizedTestCase(_CustomTestCase):
             '((a) b)': ('(a) b',)
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, split_parenthesized(case))
+            self.assertEqual(expected, split_enclosed(case))
 
-    def test_split_partitioned_recurse(self):
+    def test_split_enclosed_recurse(self):
         cases = {
             '((a) b)': ('a', 'b'),
             '((a (b)) c)': ('a (b)', 'c'),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, split_parenthesized(case, recurse=1))
+            self.assertEqual(expected, split_enclosed(case, recurse=1))
 
         cases = {
             '((a) b)': ('a', 'b'),
             '((a (b)) c)': ('a', 'b', 'c'),
         }
         for case, expected in cases.items():
-            self.assertEqual(expected, split_parenthesized(case, recurse=2))
+            self.assertEqual(expected, split_enclosed(case, recurse=2))
 
 
 if __name__ == '__main__':

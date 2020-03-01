@@ -14,7 +14,7 @@ from ds_tools.compat import cached_property
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
 from ..matching.name import Name
-from ..text.extraction import partition_parenthesized
+from ..text.extraction import partition_enclosed
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
@@ -67,7 +67,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
         first_string = artist_page.intro[0].value
         name = first_string[:first_string.rindex(')') + 1]
         # log.debug(f'Found name: {name}')
-        first_part, paren_part, _ = partition_parenthesized(name, reverse=True)
+        first_part, paren_part, _ = partition_enclosed(name, reverse=True)
         try:
             parts = tuple(map(str.strip, paren_part.split(', and')))
         except Exception:
@@ -83,7 +83,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
                         log.error(f'Error splitting part={part!r}')
                         raise
                     else:
-                        part_a, part_b, _ = partition_parenthesized(part, reverse=True)
+                        part_a, part_b, _ = partition_enclosed(part, reverse=True)
                         try:
                             romanized, alias = part_b.split(' or ')
                         except ValueError:
@@ -105,7 +105,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 except KeyError:
                     pass
                 else:
-                    yield Name.from_parenthesized(value)
+                    yield Name.from_enclosed(value)
 
     def _finder_with_entries(self):
         finder = DiscographyEntryFinder()

@@ -47,11 +47,11 @@ class _CustomTestCase(unittest.TestCase):
 
 class NameParsingTest(_CustomTestCase):
     def test_from_parens_basic(self):
-        name = Name.from_parenthesized('Taeyeon (태연)')
+        name = Name.from_enclosed('Taeyeon (태연)')
         self.assertAll(name, _english='Taeyeon', english='Taeyeon', non_eng='태연', korean='태연')
 
     def test_from_parens_with_nested(self):
-        name = Name.from_parenthesized('(G)I-DLE ((여자)아이들)')
+        name = Name.from_enclosed('(G)I-DLE ((여자)아이들)')
         self.assertAll(name, '(G)I-DLE', '(G)I-DLE', '(여자)아이들', '(여자)아이들')
 
     def test_match_on_non_eng(self):

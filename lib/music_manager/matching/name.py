@@ -8,7 +8,7 @@ import re
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
-from ..text.extraction import partition_parenthesized
+from ..text.extraction import partition_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
 
 __all__ = ['Name']
@@ -166,8 +166,8 @@ class Name:
         return []
 
     @classmethod
-    def from_parenthesized(cls, name):
-        first_part, paren_part, _ = partition_parenthesized(name, reverse=True)
+    def from_enclosed(cls, name):
+        first_part, paren_part, _ = partition_enclosed(name, reverse=True)
         if LangCat.contains_any(paren_part, LangCat.non_eng_cats):
             parts = (first_part, paren_part)
         else:

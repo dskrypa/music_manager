@@ -10,59 +10,10 @@ from pathlib import Path
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 # from music_manager.files.track.patterns import cleanup_album_name
-from music_manager.text.extraction import split_enclosed
+from music_manager.files.track.parsing import AlbumName
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
-
-
-class AlbumName:
-    alb_type = None
-    sm_station = False
-    edition = None
-    remix = None
-    version = None
-
-    alb_type_dash_suffix_match = re.compile(r'(.*)\s[-X]\s*((?:EP|Single|SM[\s-]?STATION))$', re.IGNORECASE).match
-
-    def __init__(self, name, artist=None):
-        m = self.alb_type_dash_suffix_match(name)
-        if m:
-            name, alb_type = map(str.strip, m.groups())
-            if 'station' in alb_type.lower():
-                self.sm_station = True
-            else:
-                self.alb_type = alb_type
-
-        self.feat = []
-        try:
-            parts = filter(None, reversed(split_enclosed(name, reverse=True, recurse=1)))
-        except ValueError:
-            name_parts = (name,)
-        else:
-            name_parts = []
-            for i, part in enumerate(parts):
-                lc_part = part.lower()
-                if 'edition' in lc_part:
-                    self.edition = part
-                elif 'remix' in lc_part:
-                    self.remix = part
-                elif any(lc_part.endswith(val) for val in (' version', ' ver.', ' ver')):
-                    self.version = part
-                elif lc_part.endswith('single'):
-                    self.alb_type = part
-                elif lc_part.startswith('feat'):
-                    self.feat.append(part)
-                else:
-                    name_parts.append(part)
-        self.name_parts = tuple(reversed(name_parts))
-
-    def __repr__(self):
-        parts = ', '.join((
-            f'type={self.alb_type!r}, SM={self.sm_station}, ver={self.version!r}, edition={self.edition!r}',
-            f'remix={self.remix!r}, feat={self.feat}'
-        ))
-        return f'<{self.__class__.__name__}[name={self.name_parts!r}, {parts}]>'
 
 
 NAMES = [

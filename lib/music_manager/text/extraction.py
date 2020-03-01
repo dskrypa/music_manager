@@ -13,6 +13,8 @@ OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚�
 CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’-'
 
 class _CharMatcher:
+    __slots__ = ('openers', 'closers', 'opener_to_closer')
+
     """Lazily compute the mapping only after the first request"""
     def __init__(self, openers, closers):
         self.openers = openers

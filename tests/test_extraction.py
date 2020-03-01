@@ -32,6 +32,7 @@ class ExtractEnclosedTestCase(_CustomTestCase):
             ')a (b) "c"': (')a', 'b', '"c"'),
             '"a" b': ('', 'a', 'b'),
             'a "b"': ('a', 'b', ''),
+            '((a) b) c': ('', '(a) b', 'c'),
         }
         for case, expected in cases.items():
             self.assertEqual(expected, partition_enclosed(case))
@@ -58,6 +59,7 @@ class ExtractEnclosedTestCase(_CustomTestCase):
             ')a (b) "c"': (')a', 'b', '"c"'),
             '"a" b': ('', 'a', 'b'),
             'a "b"': ('a', 'b', ''),
+            '((a) b) c': ('', '(a) b', 'c'),
         }
         for case, expected in cases.items():
             self.assertEqual(expected, partition_enclosed(case, outer=True))

@@ -124,7 +124,7 @@ OST_NAMES = [
 
     'Hwarang OST (화랑 OST)',
     'Ruler - Master of the Mask OST (군주 - 가면의 주인 OST)',
-    'Memories of the Alhambra OST (알함브라 궁전의 추억 OST)'
+    'Memories of the Alhambra OST (알함브라 궁전의 추억 OST)',
     
     'You Are The One - 도전에 반하다 OST PART.1',
     '디데이 OST Part.1 `아나요 (Let You Know)`',
@@ -160,10 +160,17 @@ if __name__ == '__main__':
 
     for name in NAMES:
         album_name = AlbumName(name)
-        print(f'AlbumName({name!r}) => {album_name!r}')
+        if len(album_name.name_parts) > 2:
+            print(f'AlbumName({name!r}) => {album_name!r}')
         # clean = cleanup_album_name(name)
         # if clean != name:
             # print(f'cleanup_album_name({name!r}) => {clean!r}')
+
+    for name in OST_NAMES:
+        album_name = AlbumName(name)
+        # if album_name.network_info:
+        if len(album_name.name_parts) > 2:
+            print(f'OST AlbumName({name!r}) => {album_name!r}')
 
     # test_classes = ()
     # argv = [sys.argv[0]]

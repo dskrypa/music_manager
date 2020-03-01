@@ -57,7 +57,7 @@ class Name:
     def __hash__(self):
         return hash((self._english, self.non_eng))
 
-    def _score(self, other, romanization_match=95):
+    def _score(self, other, romanization_match=95, other_versions=True):
         if isinstance(other, str):
             other = Name(other)
         scores = []
@@ -69,6 +69,17 @@ class Name:
             scores.append(romanization_match)
         if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
             scores.append(romanization_match)
+
+        s_versions = self.versions
+        if s_versions:
+            for version in s_versions:
+                scores.extend(version._score(other, romanization_match=romanization_match))
+        if other_versions:
+            o_versions = other.versions
+            if o_versions:
+                for version in o_versions:
+                    scores.extend(self._score(version, romanization_match=romanization_match, other_versions=False))
+
         return scores
 
     def matches(self, other, threshold=80, agg_func=max, romanization_match=95):

@@ -10,6 +10,7 @@ sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 # from music_manager.files.track.patterns import cleanup_album_name
 from music_manager.files.track.parsing import AlbumName
+from music_manager.matching.name import Name, sort_name_parts
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ OST_TEST_CASES = {
     '우리 옆집에 EXO가 산다 OST': AlbumName('우리 옆집에 EXO가 산다', ost=True),
     'Dream Knight Special OST': AlbumName('Dream Knight Special', ost=True),
     'Pokemon: The Movie XY&Z OST': AlbumName('Pokemon: The Movie XY&Z', ost=True),
-    'Yossism (Telemonster - Original Soundtrack)': AlbumName('Telemonster', ost=True, song_name=('Yossism',)),
+    'Yossism (Telemonster - Original Soundtrack)': AlbumName('Telemonster', ost=True, song_name=Name('Yossism')),
 
     'Beautiful Accident (美好的意外) OST': AlbumName(('Beautiful Accident', '美好的意外'), ost=True),
     '영화 `Make Your Move` OST': AlbumName('Make Your Move', ost=True),
@@ -119,12 +120,12 @@ OST_TEST_CASES = {
     'Ruler - Master of the Mask OST (군주 - 가면의 주인 OST)': AlbumName(('Ruler - Master of the Mask', '군주 - 가면의 주인'), ost=True),
     'Memories of the Alhambra OST (알함브라 궁전의 추억 OST)': AlbumName(('Memories of the Alhambra', '알함브라 궁전의 추억'), ost=True),
     'You Are The One - 도전에 반하다 OST PART.1': AlbumName(('You Are The One', '도전에 반하다'), ost=True, part=1),
-    '디데이 OST Part.1 `아나요 (Let You Know)`': AlbumName('디데이', ost=True, song_name=('아나요', 'Let You Know'), part=1),
+    '디데이 OST Part.1 `아나요 (Let You Know)`': AlbumName('디데이', ost=True, song_name=Name('Let You Know', '아나요'), part=1),
     'The Crowned Clown OST (왕이 된 남자 OST) - Part 3': AlbumName(('The Crowned Clown', '왕이 된 남자'), ost=True, part=3),
     'Moon Lovers Scarlet Heart Ryo (달의 연인 - 보보경심 려) OST Part 3': AlbumName(('Moon Lovers Scarlet Heart Ryo', '달의 연인 - 보보경심 려'), ost=True, part=3),
     'ファイナルライフ -明日、君が消えても- (Original Soundtrack)': AlbumName(('ファイナルライフ', '明日、君が消えても'), ost=True),
-    'Let It Go (겨울왕국 OST 효린 버전)': AlbumName('겨울왕국', ost=True, song_name=('Let It Go',), version='효린 버전'),
-    'A Brand New Day (BTS WORLD OST Part.2)': AlbumName('BTS WORLD', ost=True, song_name=('A Brand New Day',), part=2),
+    'Let It Go (겨울왕국 OST 효린 버전)': AlbumName('겨울왕국', ost=True, song_name=Name('Let It Go'), version='효린 버전'),
+    'A Brand New Day (BTS WORLD OST Part.2)': AlbumName('BTS WORLD', ost=True, song_name=Name('A Brand New Day'), part=2),
     'OST Best - Flash Back': AlbumName('OST Best - Flash Back'),
     '"개 같은 하루 (with TTG)" OST': AlbumName('개 같은 하루', ost=True, feat=['TTG']),
 }
@@ -171,6 +172,16 @@ class FileAlbumParsingTestCase(unittest.TestCase):
         msg = f'{passed}/{total} ({passed/total:.2%}) of test cases passed'
         log.info(msg)
         self.assertEqual(passed, total)
+
+    def test_lang_sort_order(self):
+        cases = [
+            (('a', '한'), ('a', '한')),
+            (('한', 'a'), ('a', '한')),
+            (('z한', 'a한'), ('z한', 'a한')),
+            (('z한', 'a'), ('a', 'z한')),
+        ]
+        for case, expected in cases:
+            self.assertEqual(sort_name_parts(case), expected)
 
 
 if __name__ == '__main__':

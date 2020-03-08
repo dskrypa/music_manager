@@ -11,7 +11,7 @@ from ds_tools.unicode.languages import LangCat, J2R
 from ..text.extraction import partition_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
 
-__all__ = ['Name']
+__all__ = ['Name', 'sort_name_parts']
 log = logging.getLogger(__name__)
 non_word_char_pat = re.compile(r'\W')
 
@@ -52,7 +52,10 @@ class Name:
         return (self.english, self.non_eng) < (other.english, other.non_eng)
 
     def __eq__(self, other):
-        return self._english == other._english and self.non_eng == other.non_eng
+        try:
+            return self._english == other._english and self.non_eng == other.non_eng
+        except AttributeError:
+            return False
 
     def __hash__(self):
         return hash((self._english, self.non_eng))
@@ -202,3 +205,30 @@ class Name:
         if eng or non_eng:
             return cls(eng, non_eng)
         raise ValueError(f'Unable to find any valid name parts from {parts!r}')
+
+
+class NamePart:
+    __slots__ = ('pos', 'value', 'cat')
+
+    def __init__(self, pos, value):
+        self.pos = pos
+        self.value = value
+        self.cat = LangCat.categorize(value)
+
+    def __lt__(self, other):
+        s_cat = self.cat
+        o_cat = other.cat
+        if s_cat == o_cat:
+            return self.pos < other.pos
+
+        mix = LangCat.MIX
+        eng = LangCat.ENG
+        if o_cat == mix and s_cat == eng:
+            return True
+        elif s_cat == mix and o_cat == eng:
+            return False
+        return s_cat < o_cat
+
+
+def sort_name_parts(parts):
+    return tuple(p.value for p in sorted(NamePart(i, part) for i, part in enumerate(parts)))

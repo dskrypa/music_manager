@@ -6,7 +6,7 @@ import logging
 import re
 
 from ds_tools.unicode.languages import LangCat
-from ...matching.name import Name
+from ...matching.name import Name, sort_name_parts
 from ...text.extraction import split_enclosed
 
 __all__ = ['AlbumName']
@@ -30,20 +30,19 @@ class AlbumName:
 
     def __init__(self, name_parts, **kwargs):
         if isinstance(name_parts, str):
-            self.name_parts = (name_parts,)
+            self.name = Name(name_parts)
         else:
-            self.name_parts = name_parts if isinstance(name_parts, tuple) else tuple(name_parts)
+            self.name = Name(*sort_name_parts(name_parts))
         self.__dict__.update(kwargs)
 
     def __repr__(self):
         # parts = ', '.join(sorted(
-        #     f'{ATTR_NAMES.get(k, k)}={v!r}' for k, v in self.__dict__.items() if v and k != 'name_parts'
+        #     f'{ATTR_NAMES.get(k, k)}={v!r}' for k, v in self.__dict__.items() if v and k != 'name'
         # ))
-        parts = ', '.join(sorted(f'{k}={v!r}' for k, v in self.__dict__.items() if v and k != 'name_parts'))
+        parts = ', '.join(sorted(f'{k}={v!r}' for k, v in self.__dict__.items() if v and k != 'name'))
         parts = f', {parts}' if parts else ''
-        # return f'<{self.__class__.__name__}[name={self.name_parts!r}{parts}]>'
-        name_parts = self.name_parts[0] if len(self.name_parts) == 1 else self.name_parts
-        return f'{self.__class__.__name__}({name_parts!r}{parts})'
+        # return f'<{self.__class__.__name__}[name={self.name!r}{parts}]>'
+        return f'{self.__class__.__name__}({self.name!r}{parts})'
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -145,18 +144,12 @@ class AlbumName:
 
         if real_album:
             if name_parts:
-                self.song_name = split_name(tuple(reversed(name_parts)))
-            self.name_parts = (real_album,)
+                self.song_name = Name(*sort_name_parts(split_name(tuple(reversed(name_parts)))))
+            name_parts = (real_album,)
         else:
-            self.name_parts = split_name(tuple(reversed(name_parts)))
+            name_parts = split_name(tuple(reversed(name_parts)))
 
-        # if self.ost:
-        #     a, extras, b = sort_ost_name_parts(name_parts)
-        #     self.name = Name(*a, extra=extras)
-        #     if b:
-        #         self.part_name = Name(*b)
-        # else:
-        #     name_parts = sort_name_parts(name_parts, '')
+        self.name = Name(*sort_name_parts(name_parts))
         return self
 
 
@@ -172,74 +165,3 @@ def split_name(name_parts):
 
 def clean(text):
     return text.strip(' -"')
-    # text = text.strip(' -"')
-    # if text.startswith('- '):
-    #     text = text[2:].strip()
-    # if text.endswith(' -'):
-    #     text = text[:-2].strip()
-    # if text == '-':
-    #     text = ''
-    # return text
-
-#
-# def sort_name_parts(parts, punctuation):
-#     """
-#
-#     :param tuple|list parts:
-#     :param punctuation: A string or iterable containing the punctuation that was removed from the original string while
-#       extracting parts.  If successive parts have the same language category, they should be rejoined using the removed
-#       punctuation.
-#     :return tuple:
-#     """
-#     cats = LangCat.categorize_all(parts)
-#     extras = None
-#     part_count = len(parts)
-#     if part_count == 1:
-#         if cats[0] not in (LangCat.ENG, LangCat.MIX):
-#             a = (None, parts[0])
-#         else:
-#             a = (parts[0], None)
-#     elif part_count == 2:
-#         pass
-#
-#
-# def sort_ost_name_parts(parts):
-#     cats = LangCat.categorize_all(parts)
-#     extras, b = None, None
-#     part_count = len(parts)
-#     if part_count == 1:
-#         if cats[0] not in (LangCat.ENG, LangCat.MIX):
-#             a = (None, parts[0])
-#         else:
-#             a = (parts[0], None)
-#     elif part_count == 2:
-#         if cats[0] != cats[1]:
-#             a = LangCat.sort(parts)
-#         else:
-#             a = parts
-#     elif part_count == 3:
-#         if cats[0] == cats[1] != cats[2]:
-#             if cats[0] not in (LangCat.ENG, LangCat.MIX):
-#                 a = (None, parts[0])
-#             else:
-#                 a = (parts[0], None)
-#             b = LangCat.sort(parts[1:])
-#         elif cats[1] == cats[2] != cats[0]:
-#             if cats[2] not in (LangCat.ENG, LangCat.MIX):
-#                 a = (None, parts[2])
-#             else:
-#                 a = (parts[2], None)
-#             b = LangCat.sort(parts[:2])
-#         # elif (cats[0] == cats[1] == cats[2]) or (cats[0] != cats[1] != cats[2]):
-#         else:
-#             a = parts[:2]
-#             extras = parts[2]
-#     elif part_count == 4:
-#         a = parts[:2]
-#         b = parts[2:]
-#         if cats[0] != cats[1] != cats[2] != cats[3]:
-#             a = LangCat.sort(a)
-#             b = LangCat.sort(b)
-#     else:
-#         raise ValueError(f'Unexpected part count={part_count}: {parts!r}')
-#     return a, extras, b

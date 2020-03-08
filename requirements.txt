@@ -1,5 +1,6 @@
 requests_client@ git+git://github.com/dskrypa/requests_client
 wiki_nodes@ git+git://github.com/dskrypa/wiki_nodes
+ds_tools@ git+git://github.com/dskrypa/ds_tools
 cachetools
 beautifulsoup4
 requests

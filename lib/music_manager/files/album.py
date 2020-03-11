@@ -281,3 +281,8 @@ def _album_dir_obj(self):
 
 # Note: The only time this property is not available is in interactive sessions started for the files.track.base module
 BaseSongFile.album_dir_obj = cached_property(_album_dir_obj)
+
+
+if __name__ == '__main__':
+    from .patches import apply_mutagen_patches
+    apply_mutagen_patches()

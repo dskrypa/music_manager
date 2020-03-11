@@ -179,3 +179,8 @@ class SongFile(BaseSongFile):
                 self.save()
         else:
             log.log(19, f'Nothing to change for {self.filename}')
+
+
+if __name__ == '__main__':
+    from ..patches import apply_mutagen_patches
+    apply_mutagen_patches()

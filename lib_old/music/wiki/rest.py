@@ -59,7 +59,7 @@ class WikiClient(RequestsClient):
     def __init__(self, host=None, prefix='wiki', proto='https', **kwargs):
         if not getattr(self, '_WikiClient__initialized', False):
             super().__init__(
-                host or self._site, rate_limit=0.5, prefix=prefix, scheme=proto, log_params=True,
+                host or self._site, rate_limit=0.5, path_prefix=prefix, scheme=proto, log_params=True,
                 exc=CodeBasedRestException, **kwargs
             )
             self._resp_cache = DBCache('responses', cache_subdir='kpop_wiki')

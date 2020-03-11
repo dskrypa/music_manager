@@ -378,3 +378,8 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # def acoustid_fingerprint(self):
     #     """Returns the 2-tuple of this file's (duration, fingerprint)"""
     #     return acoustid.fingerprint_file(self.filename)
+
+
+if __name__ == '__main__':
+    from ..patches import apply_mutagen_patches
+    apply_mutagen_patches()

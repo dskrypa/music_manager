@@ -53,7 +53,7 @@ def parser():
 
 def main():
     args = parser().parse_args()
-    init_logging(args.verbose, log_path=None)
+    init_logging(args.verbose, log_path=None, names=None)
 
     if args.action == 'show':
         sub_action = args.sub_action
@@ -69,7 +69,7 @@ def main():
             table_song_tags(args.path, args.tags)
     elif args.action == 'path2tag':
         path_to_tag(args.path, args.dry_run, args.yes, args.title)
-    elif args.action == 'set':
+    elif args.action == 'update':
         update_tags(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
     else:
         log.error(f'Unexpected action: {args.action!r}')

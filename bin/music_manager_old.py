@@ -125,7 +125,7 @@ def parser():
 
 def main():
     args = parser().parse_args()
-    init_logging(args.verbose, log_path=None)
+    init_logging(args.verbose, log_path=None, names=None)
     if args.verbose > 10:
         logging.getLogger('ds_tools.music.wiki.entities.scoring').setLevel(logging.DEBUG)
 

@@ -280,13 +280,17 @@ class LocalPlexServer:
         :return dict: Modified kwargs with custom search filters
         """
         exclude_rated_dupes = kwargs.pop('exclude_rated_dupes', False)
+        for updated in self.__updated_filters(obj_type, kwargs):
+            # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
+            if exclude_rated_dupes and obj_type == 'track' and 'userRating' in updated:
+                updated['custom__custom'] = self.__get_dupe_filter(updated)
+                yield updated
+            else:
+                yield updated
+
+    def __updated_filters(self, obj_type, kwargs):
         kwargs = _resolve_aliases(kwargs)
         kwargs = _resolve_custom_ops(kwargs)
-
-        # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
-        if exclude_rated_dupes and obj_type == 'track' and 'userRating' in kwargs:
-            kwargs['custom__custom'] = self.__get_dupe_filter(kwargs)
-
         kwargs = self.__apply_custom_filters(obj_type, kwargs, CUSTOM_FILTERS_BASE)
         if obj_type == 'track':
             artist_keys = _prefixed_filters('artist', kwargs)

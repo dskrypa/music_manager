@@ -162,7 +162,7 @@ def parse_name(text, rev_links=None):
         return eng, cjk, None, [], None
     elif is_any_cjk(details):
         return base, details, None, [], None
-    elif base in ('+ +', 'X X'):                            # Special case for particular albums
+    elif base in ('+ +', 'X X', '#'):                            # Special case for particular albums
         return '[{}]'.format(base), '', None, details, None
     elif len(parts) == 2 and first_sentence.endswith('"'):  # Special case for album name ending in quoted word
         return '{} "{}"'.format(base, details), '', None, [], None

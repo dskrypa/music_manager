@@ -3,6 +3,10 @@
 """
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .album import DiscographyEntryPart
 
 __all__ = ['Track']
 log = logging.getLogger(__name__)
@@ -14,7 +18,7 @@ PATH_FORMATS = {
 
 
 class Track:
-    def __init__(self, num, name, album_part):
+    def __init__(self, num: int, name, album_part: 'DiscographyEntryPart'):
         self.num = num
         self.name = name
         self.album_part = album_part

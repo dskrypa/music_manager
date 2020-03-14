@@ -6,6 +6,7 @@ import logging
 import re
 from datetime import datetime, date
 from traceback import format_stack
+from typing import List
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
@@ -14,7 +15,7 @@ from wiki_nodes.utils import strip_style
 from ..text.name import Name
 from .base import WikiEntity
 from .disco_entry import DiscoEntryType
-from .exceptions import EntityTypeError
+from .exceptions import EntityTypeError, BadLinkError
 from .track import Track
 from .utils import parse_generasia_name
 
@@ -114,7 +115,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
             log.error(f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}', extra={'color': 'red'})
 
     @cached_property
-    def editions(self):
+    def editions(self) -> List['DiscographyEntryEdition']:
         # one or more DiscographyEntryEdition values
         editions = []
         for site, entry_page in self._pages.items():
@@ -193,12 +194,18 @@ class DiscographyEntryEdition:
     def __init__(self, name, page, artist, release_dates, tracks, entry_type, edition=None):
         self.name = name
         self.page = page
-        self.artist = artist
         self.release_dates = release_dates
         self._tracks = tracks
         self.type = entry_type
         self.edition = edition
+        self._artist = artist
+        try:
+            self.artist = Artist.from_link(artist)
+        except BadLinkError as e:
+            log.debug(f'Error getting artist={artist} for {self}: {e}')
+            self.artist = None
         # TODO: 1st/2nd/3rd/etc (Mini) Album...
+        # TODO: Language (generasia: from disco entry or page category)
 
     def __repr__(self):
         date = self.release_dates[0].strftime('%Y-%m-%d')
@@ -241,7 +248,7 @@ class DiscographyEntryEdition:
 class DiscographyEntryPart:
     _disc_pat = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE)
 
-    def __init__(self, name, edition, tracks):
+    def __init__(self, name, edition: DiscographyEntryEdition, tracks):
         self.name = name
         self.edition = edition
         self._tracks = tracks
@@ -286,3 +293,7 @@ class DiscographyEntryPart:
 class SoundtrackPart(DiscographyEntryPart):
     """A part of a multi-part soundtrack"""
     pass
+
+
+# Down here due to circular import
+from .artist import Artist

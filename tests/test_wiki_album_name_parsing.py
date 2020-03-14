@@ -2,66 +2,18 @@
 
 import logging
 import sys
-import unittest
-from argparse import ArgumentParser
 from pathlib import Path
 from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from ds_tools.logging import init_logging
-from ds_tools.output import colored
 from wiki_nodes.nodes import as_node
-from music_manager.text.name import Name
 from music_manager.wiki.utils import parse_generasia_name
+from music_manager.utils.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
-maybe_print = lambda: None
 
 
-class _CustomTestCase(unittest.TestCase):
-    def setUp(self):
-        maybe_print()
-
-    def tearDown(self):
-        maybe_print()
-
-    def assertIsOrEqual(self, name, attr, expected):
-        value = getattr(name, attr)
-        found = colored(f'{attr}={value!r}', 'cyan')
-        _expected = colored(f'expected={expected!r}', 13)
-        msg = f'\nFound Name.{found}; {_expected} - full name:\n{name._full_repr()}'
-        if expected is None:
-            self.assertIs(value, expected, msg)
-        else:
-            self.assertEqual(value, expected, msg)
-
-    def assertAll(
-            self, name, english=None, _english=None, non_eng=None, korean=None, japanese=None, cjk=None, romanized=None,
-            lit_translation=None, extra=None
-    ):
-        attrs = ('english', '_english', 'non_eng', 'korean', 'japanese', 'cjk', 'romanized', 'lit_translation', 'extra')
-        args = (english, _english, non_eng, korean, japanese, cjk, romanized, lit_translation, extra)
-        for attr, expected in zip(attrs, args):
-            self.assertIsOrEqual(name, attr, expected)
-
-
-class NameParsingTest(_CustomTestCase):
-    def test_from_parens_basic(self):
-        name = Name.from_enclosed('Taeyeon (태연)')
-        self.assertAll(name, _english='Taeyeon', english='Taeyeon', non_eng='태연', korean='태연')
-
-    def test_from_parens_with_nested(self):
-        name = Name.from_enclosed('(G)I-DLE ((여자)아이들)')
-        self.assertAll(name, '(G)I-DLE', '(G)I-DLE', '(여자)아이들', '(여자)아이들')
-
-    def test_match_on_non_eng(self):
-        name_1 = Name(non_eng='알고 싶어', lit_translation='I Want to Know')
-        name_2 = Name('What\'s in Your House?', '알고 싶어')
-        self.assertTrue(name_1.matches(name_2))
-        self.assertTrue(name_2.matches(name_1))
-
-
-class GenerasiaNameParsingTest(_CustomTestCase):
+class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
     def test_partial_romanized(self):
         entry = as_node("""Dallyeo! (Relay) (달려!; ''Run!'')""")
         entry.root = MagicMock(title='Dallyeo! (Relay)')
@@ -302,23 +254,4 @@ class GenerasiaNameParsingTest(_CustomTestCase):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser('Name Parsing Unit Tests')
-    parser.add_argument('--include', '-i', nargs='+', help='Names of test functions to include (default: all)')
-    parser.add_argument('--verbose', '-v', action='count', default=0, help='Logging verbosity (can be specified multiple times to increase verbosity)')
-    args = parser.parse_args()
-    init_logging(args.verbose, log_path=None, names=None)
-
-    test_classes = (NameParsingTest, GenerasiaNameParsingTest)
-    argv = [sys.argv[0]]
-    if args.include:
-        names = {m: f'{cls.__name__}.{m}' for cls in test_classes for m in dir(cls)}
-        for method_name in args.include:
-            argv.append(names.get(method_name, method_name))
-
-    if args.verbose:
-        maybe_print = lambda: print()
-
-    try:
-        unittest.main(warnings='ignore', verbosity=2, exit=False, argv=argv)
-    except KeyboardInterrupt:
-        print()
+    main(GenerasiaAlbumNameParsingTest)

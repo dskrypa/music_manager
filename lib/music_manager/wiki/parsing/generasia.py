@@ -74,47 +74,54 @@ def parse_generasia_name(node: Node):
     # TODO: Handle OST(+Part) for checking romanization
     if title.endswith(')') and '(' in title:
         if non_eng:
-            a, b, _ = partition_enclosed(title, reverse=True)
-            if a.endswith(')') and '(' in a:
-                extras.append(b)
-                a, b, _ = partition_enclosed(a, reverse=True)
-
-            # log.debug(f'a={a!r} b={b!r}')
-            if Name(non_eng=non_eng).has_romanization(a):
-                # log.debug(f'romanized({non_eng!r}) ==> {a!r}')
-                if _node.root and _node.root.title == title:
-                    # log.debug(f'_node.root.title matches title')
-                    if is_english(a):
-                        # log.debug(f'a={a!r} is the English title')
-                        eng_title = title
-                    else:
-                        # log.debug(f'a={a!r} is the Romanized title')
-                        romanized = title
-                    non_eng = title.replace(a, non_eng)
-                    lit_translation = title.replace(a, lit_translation) if lit_translation else None
-                    # log.debug(f'eng_title={eng_title!r} non_eng={non_eng!r} romanized={romanized!r} lit_translation={lit_translation!r} extra={extra!r}')
-                else:
-                    if is_english(a):
-                        # log.debug(f'Text={a!r} is a romanization of non_eng={non_eng!r}, but it is also valid English')
-                        eng_title = a
-                    else:
-                        romanized = a
-
-                    if is_extra(b):
-                        extras.append(b)
-                    elif eng_title:
-                        eng_title = f'{eng_title} ({b})'
-                    else:
-                        eng_title = b
-            else:
-                if _node.root and _node.root.title == title:
+            non_eng_name = Name(non_eng=non_eng)
+            if non_eng.endswith(')') and '(' in non_eng and non_eng_name.has_romanization(title):
+                if is_english(title):
                     eng_title = title
                 else:
-                    if is_extra(b):
-                        eng_title = a
-                        extras.append(b)
+                    romanized = title
+            else:
+                a, b, _ = partition_enclosed(title, reverse=True)
+                if a.endswith(')') and '(' in a:
+                    extras.append(b)
+                    a, b, _ = partition_enclosed(a, reverse=True)
+
+                # log.debug(f'a={a!r} b={b!r}')
+                if non_eng_name.has_romanization(a):
+                    log.debug(f'romanized({non_eng!r}) ==> {a!r}')
+                    if _node.root and _node.root.title == title:
+                        # log.debug(f'_node.root.title matches title')
+                        if is_english(a):
+                            # log.debug(f'a={a!r} is the English title')
+                            eng_title = title
+                        else:
+                            # log.debug(f'a={a!r} is the Romanized title')
+                            romanized = title
+                        non_eng = title.replace(a, non_eng)
+                        lit_translation = title.replace(a, lit_translation) if lit_translation else None
+                        # log.debug(f'eng_title={eng_title!r} non_eng={non_eng!r} romanized={romanized!r} lit_translation={lit_translation!r} extra={extra!r}')
                     else:
-                        eng_title = f'{a} ({b})'
+                        if is_english(a):
+                            # log.debug(f'Text={a!r} is a romanization of non_eng={non_eng!r}, but it is also valid English')
+                            eng_title = a
+                        else:
+                            romanized = a
+
+                        if is_extra(b):
+                            extras.append(b)
+                        elif eng_title:
+                            eng_title = f'{eng_title} ({b})'
+                        else:
+                            eng_title = b
+                else:
+                    if _node.root and _node.root.title == title:
+                        eng_title = title
+                    else:
+                        if is_extra(b):
+                            eng_title = a
+                            extras.append(b)
+                        else:
+                            eng_title = f'{a} ({b})'
         else:
             a, b, _ = partition_enclosed(title, reverse=True)
             if ost_pat.search(b):

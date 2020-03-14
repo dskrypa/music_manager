@@ -11,11 +11,60 @@ from ...text.extraction import parenthesized, partition_enclosed
 from ...text.name import Name
 from ...text.spellcheck import is_english, english_probability
 
-__all__ = ['parse_generasia_track_name', 'parse_generasia_album_name']
+__all__ = ['parse_generasia_track_name', 'parse_generasia_album_name', 'parse_generasia_artist_name']
 log = logging.getLogger(__name__)
 
 DATE_PAT_MATCH = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$').match
 OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
+
+
+def parse_generasia_artist_name(artist_page):
+    # From intro ===========================================================================================
+    first_string = artist_page.intro[0].value
+    name = first_string[:first_string.rindex(')') + 1]
+    # log.debug(f'Found name: {name}')
+    first_part, paren_part, _ = partition_enclosed(name, reverse=True)
+    if '; ' in paren_part:
+        yield Name.from_parts((first_part, paren_part.split('; ', 1)[0]))
+    else:
+        try:
+            parts = tuple(map(str.strip, paren_part.split(', and')))
+        except Exception:
+            yield Name.from_parts((first_part, paren_part))
+        else:
+            if len(parts) == 1:
+                yield Name.from_parts((first_part, paren_part))
+            else:
+                for part in parts:
+                    try:
+                        part = part[:part.rindex(')') + 1]
+                    except ValueError:
+                        log.error(f'Error splitting part={part!r}')
+                        raise
+                    else:
+                        part_a, part_b, _ = partition_enclosed(part, reverse=True)
+                        try:
+                            romanized, alias = part_b.split(' or ')
+                        except ValueError:
+                            yield Name.from_parts((first_part, part_a, part_b))
+                        else:
+                            yield Name.from_parts((first_part, part_a, romanized))
+                            yield Name.from_parts((alias, part_a, romanized))
+
+    # From profile =========================================================================================
+    try:
+        section = artist_page.sections.find('Profile')
+    except KeyError:
+        pass
+    else:
+        profile = section.content.as_mapping(multiline=False)
+        for key in ('Stage Name', 'Real Name'):
+            try:
+                value = profile[key].value
+            except KeyError:
+                pass
+            else:
+                yield Name.from_enclosed(value)
 
 
 def parse_generasia_album_name(node: Node):

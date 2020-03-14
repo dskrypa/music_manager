@@ -13,12 +13,11 @@ from ordered_set import OrderedSet
 from ds_tools.compat import cached_property
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
-from ..text.extraction import partition_enclosed
 from ..text.name import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
-from .parsing.generasia import parse_generasia_album_name
+from .parsing.generasia import parse_generasia_album_name, parse_generasia_artist_name
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
             elif site == 'en.wikipedia.org':
                 pass
             elif site == 'www.generasia.com':
-                names.update(self._process_generasia_name(artist_page))
+                names.update(parse_generasia_artist_name(artist_page))
             elif site == 'wiki.d-addicts.com':
                 pass
             else:
@@ -61,51 +60,6 @@ class Artist(PersonOrGroup, DiscographyMixin):
         if not names:
             names.add(Name(self._name))
         return names
-
-    def _process_generasia_name(self, artist_page):
-        # From intro ===========================================================================================
-        first_string = artist_page.intro[0].value
-        name = first_string[:first_string.rindex(')') + 1]
-        # log.debug(f'Found name: {name}')
-        first_part, paren_part, _ = partition_enclosed(name, reverse=True)
-        try:
-            parts = tuple(map(str.strip, paren_part.split(', and')))
-        except Exception:
-            yield Name.from_parts((first_part, paren_part))
-        else:
-            if len(parts) == 1:
-                yield Name.from_parts((first_part, paren_part))
-            else:
-                for part in parts:
-                    try:
-                        part = part[:part.rindex(')') + 1]
-                    except ValueError:
-                        log.error(f'Error splitting part={part!r}')
-                        raise
-                    else:
-                        part_a, part_b, _ = partition_enclosed(part, reverse=True)
-                        try:
-                            romanized, alias = part_b.split(' or ')
-                        except ValueError:
-                            yield Name.from_parts((first_part, part_a, part_b))
-                        else:
-                            yield Name.from_parts((first_part, part_a, romanized))
-                            yield Name.from_parts((alias, part_a, romanized))
-
-        # From profile =========================================================================================
-        try:
-            section = artist_page.sections.find('Profile')
-        except KeyError:
-            pass
-        else:
-            profile = section.content.as_mapping(multiline=False)
-            for key in ('Stage Name', 'Real Name'):
-                try:
-                    value = profile[key].value
-                except KeyError:
-                    pass
-                else:
-                    yield Name.from_enclosed(value)
 
     def _finder_with_entries(self):
         finder = DiscographyEntryFinder()

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
-from music_manager.wiki.utils import parse_generasia_name
+from music_manager.wiki.parsing.generasia import parse_generasia_name
 from music_manager.utils.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)

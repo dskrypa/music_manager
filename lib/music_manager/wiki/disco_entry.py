@@ -7,7 +7,8 @@ from enum import Enum
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode import LangCat
-from .utils import parse_date, node_to_link_dict
+from .parsing import parse_date
+from .utils import node_to_link_dict
 
 __all__ = ['DiscoEntryType', 'DiscoEntry']
 log = logging.getLogger(__name__)

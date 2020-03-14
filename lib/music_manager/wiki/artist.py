@@ -18,7 +18,7 @@ from ..text.name import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
-from .utils import parse_generasia_name
+from .parsing.generasia import parse_generasia_name
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)

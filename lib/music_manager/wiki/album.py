@@ -16,8 +16,8 @@ from ..text.name import Name
 from .base import WikiEntity
 from .disco_entry import DiscoEntryType
 from .exceptions import EntityTypeError, BadLinkError
+from .parsing.generasia import parse_generasia_name
 from .track import Track
-from .utils import parse_generasia_name
 
 __all__ = [
     'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',

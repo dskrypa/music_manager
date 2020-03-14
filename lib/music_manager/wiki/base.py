@@ -8,7 +8,8 @@ import logging
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
-from .exceptions import EntityTypeError, NoPagesFoundError
+from wiki_nodes.nodes import Link
+from .exceptions import EntityTypeError, NoPagesFoundError, NoLinkTarget, NoLinkSite
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
 log = logging.getLogger(__name__)
@@ -66,17 +67,6 @@ class WikiEntity:
         yield from self._pages.values()
 
     @classmethod
-    def from_page(cls, page, *args, **kwargs):
-        name = page.title
-        if page.infobox:
-            try:
-                name = page.infobox['name'].value
-            except KeyError:
-                pass
-
-        return cls._by_category(name, page, page.categories, [page], *args, **kwargs)
-
-    @classmethod
     def _by_category(cls, name, obj, page_cats, *args, **kwargs):
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
@@ -95,6 +85,17 @@ class WikiEntity:
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
             raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
         return cls(name, *args, **kwargs)
+
+    @classmethod
+    def from_page(cls, page, *args, **kwargs):
+        name = page.title
+        if page.infobox:
+            try:
+                name = page.infobox['name'].value
+            except KeyError:
+                pass
+
+        return cls._by_category(name, page, page.categories, [page], *args, **kwargs)
 
     @classmethod
     def from_title(cls, title, sites=None, search=True):
@@ -118,6 +119,19 @@ class WikiEntity:
     @classmethod
     def from_url(cls, url):
         return cls.from_page(MediaWikiClient.page_for_article(url))
+
+    @classmethod
+    def from_link(cls, link: Link):
+        if not link.source_site:
+            raise NoLinkSite(link)
+        mw_client = MediaWikiClient(link.source_site)
+        title = link.title
+        if link.interwiki:
+            iw_key, title = link.iw_key_title
+            mw_client = mw_client.interwiki_client(iw_key)
+        elif not title:
+            raise NoLinkTarget(link)
+        return cls.from_page(mw_client.get_page(title))
 
 
 class PersonOrGroup(WikiEntity):

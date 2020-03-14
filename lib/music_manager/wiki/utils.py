@@ -3,14 +3,34 @@
 """
 
 import logging
+from collections import defaultdict
+from typing import Iterable
 
+from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
+from .exceptions import NoLinkSite, NoLinkTarget
 
-__all__ = ['node_to_link_dict']
+__all__ = ['node_to_link_dict', 'site_titles_map']
 log = logging.getLogger(__name__)
 
 
-def node_to_link_dict(node):
+def site_titles_map(links: Iterable[Link]):
+    site_map = defaultdict(set)
+    for link in links:
+        if not link.source_site:
+            raise NoLinkSite(link)
+        mw_client = MediaWikiClient(link.source_site)
+        title = link.title
+        if link.interwiki:
+            iw_key, title = link.iw_key_title
+            mw_client = mw_client.interwiki_client(iw_key)
+        elif not title:
+            raise NoLinkTarget(link)
+        site_map[mw_client].add(title)
+    return site_map
+
+
+def node_to_link_dict(node: Node):
     if not node:
         return None
     elif not isinstance(node, Node):

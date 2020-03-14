@@ -5,11 +5,13 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
+from typing import Iterable
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
 from wiki_nodes.nodes import Link
 from .exceptions import EntityTypeError, NoPagesFoundError, NoLinkTarget, NoLinkSite
+from .utils import site_titles_map
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
 log = logging.getLogger(__name__)
@@ -132,6 +134,26 @@ class WikiEntity:
         elif not title:
             raise NoLinkTarget(link)
         return cls.from_page(mw_client.get_page(title))
+
+    @classmethod
+    def find_from_links(cls, links: Iterable[Link]):
+        """
+        :param links: An iterable that yields Link nodes.
+        :return: The first instance of this class for a link that has a valid category for this class or a subclass
+          thereof
+        """
+        last_exc = None
+        results, errors = MediaWikiClient.get_multi_site_pages(site_titles_map(links))
+        for site, pages in results.items():
+            for title, page in pages.items():
+                try:
+                    return cls.from_page(page)
+                except EntityTypeError as e:
+                    last_exc = e
+
+        if last_exc:
+            raise last_exc
+        raise ValueError(f'No pages were found')
 
 
 class PersonOrGroup(WikiEntity):

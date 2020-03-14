@@ -266,6 +266,36 @@ def check_type(node, index, cls):
 class Singer(Artist):
     _categories = ('singer', 'actor', 'actress', 'member', 'rapper')
 
+    @cached_property
+    def groups(self):
+        groups = []
+        for site, page in self._pages.items():
+            if site == 'kpop.fandom.com':
+                pass
+            elif site == 'en.wikipedia.org':
+                pass
+            elif site == 'www.generasia.com':
+                # group_list = page.sections['Profile'].content.as_mapping()['Groups']
+                links = []
+                member_str_index = None
+                for i, node in enumerate(page.intro):
+                    if isinstance(node, String) and 'is a member of' in node.value:
+                        member_str_index = i
+                    elif member_str_index is not None:
+                        if isinstance(node, Link):
+                            links.append(node)
+                        if i - member_str_index > 3:
+                            break
+
+                if links:
+                    groups.append(Artist.find_from_links(links))
+            elif site == 'wiki.d-addicts.com':
+                pass
+            else:
+                log.debug(f'No groups extraction is configured for {page}')
+
+        return groups
+
 
 class Group(Artist):
     _categories = ('group',)

@@ -8,7 +8,7 @@ from pathlib import Path
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
 
-__all__ = ['MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject']
+__all__ = ['MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty']
 
 RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
 TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
@@ -70,3 +70,24 @@ class MusicFileProperty(ClearableCachedProperty):
             value = getattr(value, part)
         obj.__dict__[self.name] = value
         return value
+
+
+class TextTagProperty(ClearableCachedProperty):
+    _set_name = True
+
+    def __init__(self, name, cast_func=None):
+        self.name = '_{}#{}'.format(self.__class__.__name__, name)  # Replaced by ClearableCachedPropertyMeta
+        self.tag_name = name
+        self.cast_func = cast_func
+
+    def __get__(self, instance, cls):
+        if instance is None:
+            return self
+        value = instance.tag_text(self.tag_name)
+        if self.cast_func is not None:
+            value = self.cast_func(value)
+        instance.__dict__[self.name] = value
+        return value
+
+    def __set__(self, instance, value):
+        instance.set_text_tag(self.tag_name, value, by_id=False)

@@ -125,7 +125,7 @@ class SongFile(BaseSongFile):
     def album_type_dir(self):
         return self.path.parents[1].name
 
-    def update_tags(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
+    def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         if partial and not patterns:
             raise ValueError('Unable to perform partial tag update without any patterns')
         patterns = compiled_fnmatch_patterns(patterns)

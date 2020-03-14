@@ -18,7 +18,7 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 from ..exceptions import *
-from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP
+from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)
@@ -30,7 +30,10 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     __instances = {}
     tags = MusicFileProperty('tags')
     filename = __fspath__ = MusicFileProperty('filename')
-    length = MusicFileProperty('info.length')   # float: The length of this song in seconds
+    length = MusicFileProperty('info.length')               # float: The length of this song in seconds
+    tag_artist = TextTagProperty('artist')
+    tag_title = TextTagProperty('title')
+    date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())
 
     def __new__(cls, file_path, *args, **kwargs):
         file_path = (Path(file_path).expanduser() if isinstance(file_path, str) else file_path).as_posix()
@@ -83,17 +86,6 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def save(self):
         self._f.tags.save(self._f.filename)
-
-    @cached_property
-    def tag_artist(self):
-        return self.tag_text('artist')
-
-    @cached_property
-    def tag_title(self):
-        return self.tag_text('title')
-
-    def set_title(self, title):
-        self.set_text_tag('title', title, by_id=False)
 
     @cached_property
     def length_str(self):
@@ -232,11 +224,6 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             yield tag[:4], value
 
     @cached_property
-    def date(self):
-        date_str = self.tag_text('date')
-        return datetime.strptime(date_str, '%Y%m%d').date()
-
-    @cached_property
     def year(self):
         try:
             return self.date.year
@@ -345,7 +332,6 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         instead of 1: https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
 
         :param int value: The number of stars to set
-        :return:
         """
         if not isinstance(value, (int, float)) or not 0 < value < 5.5:
             raise ValueError('Star ratings must on a scale of 1-5; invalid value: {}'.format(value))

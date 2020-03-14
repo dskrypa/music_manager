@@ -26,7 +26,7 @@ def update_tags(paths, tag_ids, value, replace_pats, partial, dry_run):
             log.info('Skipping non-MP3: {}'.format(music_file.filename))
             continue
 
-        music_file.update_tags(tag_ids, value, patterns=patterns, partial=partial, dry_run=dry_run)
+        music_file.update_tags_with_value(tag_ids, value, patterns=patterns, partial=partial, dry_run=dry_run)
 
 
 def path_to_tag(path, dry_run=False, skip_prompt=False, title=False):

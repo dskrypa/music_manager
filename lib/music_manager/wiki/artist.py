@@ -13,8 +13,8 @@ from ordered_set import OrderedSet
 from ds_tools.compat import cached_property
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
-from ..matching.name import Name
 from ..text.extraction import partition_enclosed
+from ..text.name import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType

@@ -8,9 +8,9 @@ from datetime import datetime, date
 
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
-from ..matching.name import Name
-from ..matching.spellcheck import is_english
 from ..text.extraction import parenthesized, partition_enclosed
+from ..text.name import Name
+from ..text.spellcheck import is_english
 
 __all__ = ['parse_date', 'node_to_link_dict', 'parse_generasia_name']
 log = logging.getLogger(__name__)

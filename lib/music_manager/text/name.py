@@ -8,7 +8,7 @@ import re
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
-from ..text.extraction import partition_enclosed
+from .extraction import partition_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
 
 __all__ = ['Name', 'sort_name_parts']

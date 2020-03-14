@@ -11,7 +11,7 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from wiki_nodes.nodes import MappingNode, String
 from wiki_nodes.utils import strip_style
-from ..matching.name import Name
+from ..text.name import Name
 from .base import WikiEntity
 from .disco_entry import DiscoEntryType
 from .exceptions import EntityTypeError

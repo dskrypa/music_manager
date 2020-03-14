@@ -6,8 +6,8 @@ import logging
 import re
 
 from ds_tools.unicode.languages import LangCat
-from ...matching.name import Name, sort_name_parts
 from ...text.extraction import split_enclosed
+from ...text.name import Name, sort_name_parts
 
 __all__ = ['AlbumName']
 log = logging.getLogger(__name__)

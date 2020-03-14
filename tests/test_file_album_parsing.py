@@ -10,7 +10,7 @@ sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 # from music_manager.files.track.patterns import cleanup_album_name
 from music_manager.files.track.parsing import AlbumName
-from music_manager.matching.name import Name, sort_name_parts
+from music_manager.text.name import Name, sort_name_parts
 
 log = logging.getLogger(__name__)
 

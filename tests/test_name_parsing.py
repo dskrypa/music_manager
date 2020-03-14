@@ -11,7 +11,7 @@ sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 from ds_tools.output import colored
 from wiki_nodes.nodes import as_node
-from music_manager.matching.name import Name
+from music_manager.text.name import Name
 from music_manager.wiki.utils import parse_generasia_name
 
 log = logging.getLogger(__name__)

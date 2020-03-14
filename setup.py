@@ -13,7 +13,7 @@ with project_root.joinpath('readme.rst').open('r', encoding='utf-8') as f:
 
 setup(
     name='music_manager',
-    version='2020.03.13',
+    version='2020.03.14',
     author='Doug Skrypa',
     author_email='dskrypa@gmail.com',
     description='Music Manager',
@@ -25,5 +25,5 @@ setup(
         'Programming Language :: Python :: 3.8',    # Due to use of walrus operator
     ],
     python_requires='~=3.8',
-    install_requires= requirements
+    install_requires=requirements,
 )

@@ -8,7 +8,7 @@ from pathlib import Path
 import mutagen.id3._frames as id3_frames
 
 from ds_tools.compat import cached_property
-# from ...matching.name import Name
+# from ...text.name import Name
 from ...utils.constants import tag_name_map
 from .base import BaseSongFile
 from .patterns import (

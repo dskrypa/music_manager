@@ -32,7 +32,7 @@ class Track:
     def format_path(self, fmt=PATH_FORMATS['alb_type_no_num'], ext='mp3'):
         album_part = self.album_part
         edition = album_part.edition
-        artist = edition.artist
+        artist = edition._artist
         if edition.edition:
             album_name = f'{edition.name} - {edition.edition}'
         else:

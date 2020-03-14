@@ -18,7 +18,7 @@ from ..text.name import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
 from .disco_entry import DiscoEntry, DiscoEntryType
-from .parsing.generasia import parse_generasia_name
+from .parsing.generasia import parse_generasia_album_name
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
                         log.error(msg, extra={'color': 'red'})
 
     def _process_generasia_disco_entry(self, client, artist_page, finder, de_type, entry, lang=None):
-        log.debug(f'Processing {parse_generasia_name(entry)!r}')
+        log.debug(f'Processing {parse_generasia_album_name(entry)!r}')
         entry_type = de_type                                    # Except for collabs with a different primary artist
         entry_link = next(entry.find_all(Link, True), None)     # Almost always the 1st link
         song_title = entry_link.show if entry_link else None

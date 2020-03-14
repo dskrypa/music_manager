@@ -16,7 +16,7 @@ from ..text.name import Name
 from .base import WikiEntity
 from .disco_entry import DiscoEntryType
 from .exceptions import EntityTypeError, BadLinkError
-from .parsing.generasia import parse_generasia_name
+from .parsing.generasia import parse_generasia_track_name
 from .track import Track
 
 __all__ = [
@@ -274,7 +274,7 @@ class DiscographyEntryPart:
         site = self.edition.page.site
         if site == 'www.generasia.com':
             for node in self._tracks.iter_flat():
-                names.append(parse_generasia_name(node))
+                names.append(parse_generasia_track_name(node))
         elif site == 'wiki.d-addicts.com':
             pass
         elif site == 'kpop.fandom.com':

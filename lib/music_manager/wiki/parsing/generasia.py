@@ -11,20 +11,16 @@ from ...text.extraction import parenthesized, partition_enclosed
 from ...text.name import Name
 from ...text.spellcheck import is_english, english_probability
 
-__all__ = ['parse_generasia_name']
+__all__ = ['parse_generasia_track_name', 'parse_generasia_album_name']
 log = logging.getLogger(__name__)
 
+DATE_PAT_MATCH = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$').match
+OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
 
-def parse_generasia_name(node: Node):
+
+def parse_generasia_album_name(node: Node):
     # log.debug(f'Processing node: {node}')
     _node = node
-    try:
-        date_pat = parse_generasia_name._date_pat
-        ost_pat = parse_generasia_name._ost_pat
-    except AttributeError:
-        date_pat = parse_generasia_name._date_pat = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$')
-        ost_pat = parse_generasia_name._ost_pat = re.compile(r'\sOST(?:\s*|$)')
-
     if not isinstance(node, list) and type(node) is not CompoundNode:
         nodes = iter([node])
     else:
@@ -33,7 +29,7 @@ def parse_generasia_name(node: Node):
     node = next(nodes)
     # after_date = None
     if isinstance(node, String):
-        m = date_pat.match(node.value)
+        m = DATE_PAT_MATCH(node.value)
         if m:
             # after_date = m.group(1).strip()
             node = next(nodes)
@@ -124,7 +120,7 @@ def parse_generasia_name(node: Node):
                             eng_title = f'{a} ({b})'
         else:
             a, b, _ = partition_enclosed(title, reverse=True)
-            if ost_pat.search(b) or is_extra(b):
+            if OST_PAT_SEARCH(b) or is_extra(b):
                 eng_title = a
                 extras.append(b)
             else:
@@ -148,6 +144,9 @@ def parse_generasia_name(node: Node):
 
     # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
     return Name(eng_title, non_eng, romanized, lit_translation, extra=extras[0] if len(extras) == 1 else extras or None)
+
+
+parse_generasia_track_name = parse_generasia_album_name
 
 
 def is_extra(text):

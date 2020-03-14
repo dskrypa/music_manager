@@ -10,24 +10,55 @@ from pathlib import Path
 from symspellpy import SymSpell, Verbosity
 
 from ds_tools.core import get_user_cache_dir
+from ds_tools.compat import cached_property
 
-__all__ = ['init_sym_spell', 'is_english']
+__all__ = ['init_sym_spell', 'is_english', 'english_probability']
 log = logging.getLogger(__name__)
 
 
-def is_english(text):
-    try:
-        sym_spell = is_english._sym_spell
-    except AttributeError:
-        sym_spell = is_english._sym_spell = init_sym_spell()
+class SpellChecker:
+    @cached_property
+    def sym_spell(self):
+        return init_sym_spell()
 
-    words = text.lower().split()
-    for word in words:
-        results = sym_spell.lookup(word, Verbosity.TOP)
-        if not results or results[0].distance != 0:
-            return False
+    def is_english(self, text):
+        words = text.lower().split()
+        lookup = self.sym_spell.lookup
+        for word in words:
+            results = lookup(word, Verbosity.TOP)
+            if not results or results[0].distance != 0:
+                return False
+        return True
 
-    return True
+    def english_probability(self, text):
+        """
+        Approximate the likelihood that the provided text is English.
+
+        For strings containing multiple words (delimited by spaces), the string is split and each separate word is
+        analyzed.  The return value is calculated as the sum of the number of characters that would not need to change
+        to make each word match an entry in the dictionary (edit distance) over the total number of word characters.
+
+        :param str text: The text to analyze
+        :return float: A value between 0 and 1, inclusive
+        """
+        words = text.lower().split()
+        lookup = self.sym_spell.lookup
+        total_dist = 0
+        char_count = 0
+        for word in words:
+            results = lookup(word, Verbosity.TOP)
+            char_count += len(word)
+            if results:
+                total_dist += results[0].distance
+            else:
+                total_dist += len(word)
+
+        return (char_count - total_dist) / char_count if char_count else 0
+
+
+spell_checker = SpellChecker()
+is_english = spell_checker.is_english
+english_probability = spell_checker.english_probability
 
 
 def init_sym_spell():

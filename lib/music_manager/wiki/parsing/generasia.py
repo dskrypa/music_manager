@@ -9,7 +9,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode
 from ...text.extraction import parenthesized, partition_enclosed
 from ...text.name import Name
-from ...text.spellcheck import is_english
+from ...text.spellcheck import is_english, english_probability
 
 __all__ = ['parse_generasia_name']
 log = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ def parse_generasia_name(node: Node):
 
     title, non_eng, lit_translation, extra = _split_name_parts(title, node)
 
-    log.debug(f'title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
+    # log.debug(f'title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
 
     eng_title, romanized = None, None
     extras = [extra] if extra else []
@@ -88,7 +88,7 @@ def parse_generasia_name(node: Node):
 
                 # log.debug(f'a={a!r} b={b!r}')
                 if non_eng_name.has_romanization(a):
-                    log.debug(f'romanized({non_eng!r}) ==> {a!r}')
+                    # log.debug(f'romanized({non_eng!r}) ==> {a!r}')
                     if _node.root and _node.root.title == title:
                         # log.debug(f'_node.root.title matches title')
                         if is_english(a):
@@ -124,11 +124,15 @@ def parse_generasia_name(node: Node):
                             eng_title = f'{a} ({b})'
         else:
             a, b, _ = partition_enclosed(title, reverse=True)
-            if ost_pat.search(b):
+            if ost_pat.search(b) or is_extra(b):
                 eng_title = a
                 extras.append(b)
             else:
                 eng_title = title
+
+            if english_probability(eng_title) < 0.5:
+                romanized, eng_title = eng_title, None
+
     else:
         if non_eng and Name(non_eng=non_eng).has_romanization(title):
             if is_english(title):
@@ -142,7 +146,7 @@ def parse_generasia_name(node: Node):
         else:
             eng_title = title
 
-    log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
+    # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
     return Name(eng_title, non_eng, romanized, lit_translation, extra=extras[0] if len(extras) == 1 else extras or None)
 
 
@@ -150,6 +154,8 @@ def is_extra(text):
     # TODO: more cases
     lc_text = text.lower()
     if lc_text.endswith('ver.'):
+        return True
+    elif lc_text.startswith('inst.'):
         return True
     return False
 
@@ -171,6 +177,8 @@ def _split_name_parts(title, node):
             except ValueError:
                 pass
 
+    # log.debug(f'title={title!r} name_parts={name_parts!r}')
+
     if name_parts and LangCat.contains_any(name_parts, LangCat.asian_cats):
         name_parts = tuple(map(str.strip, name_parts.split(';')))
     else:
@@ -187,6 +195,11 @@ def _split_name_parts(title, node):
             non_eng, lit_translation = name_parts
         else:
             raise ValueError(f'Unexpected name parts in node={node}')
+
+    if extra and extra.startswith('(') and ')' not in extra:
+        extra = extra[1:]
+        if extra.lower().startswith('feat'):
+            extra = None
 
     # log.debug(f'node={node!r} => title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
     return title, non_eng, lit_translation, extra

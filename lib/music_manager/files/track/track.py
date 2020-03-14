@@ -11,6 +11,7 @@ from ds_tools.compat import cached_property
 # from ...text.name import Name
 from ...utils.constants import tag_name_map
 from .base import BaseSongFile
+from ..exceptions import TagException
 from .patterns import (
     ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 )
@@ -124,6 +125,36 @@ class SongFile(BaseSongFile):
     @cached_property
     def album_type_dir(self):
         return self.path.parents[1].name
+
+    def update_tags(self, name_value_map, dry_run=False, no_log=None):
+        """
+        :param dict name_value_map: Mapping of {tag name: new value}
+        :param bool dry_run: Whether tags should actually be updated
+        :param container no_log: Names of tags for which updates should not be logged
+        """
+        to_update = []
+        for tag_name, new_value in sorted(name_value_map.items()):
+            file_value = self.tag_text(tag_name, default=None)
+            if new_value != file_value:
+                to_update.append((tag_name, file_value, new_value))
+
+        if to_update:
+            log.info('{} {} by changing...'.format('[DRY RUN] Would update' if dry_run else 'Updating', self))
+            do_save = True
+            for tag_name, file_value, new_value in to_update:
+                if no_log is None or tag_name not in no_log:
+                    extra = {'color': 14} if tag_name == 'title' else None
+                    log.info(f'  - {tag_name} from {file_value!r} to {new_value!r}', extra=extra)
+                if not dry_run:
+                    try:
+                        self.set_text_tag(tag_name, new_value, by_id=False)
+                    except TagException as e:
+                        do_save = False
+                        log.error(f'Error setting tag={tag_name} on {self}: {e}')
+            if do_save and not dry_run:
+                self.save()
+        else:
+            log.info(f'No changes to make for {self.extended_repr}')
 
     def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         if partial and not patterns:

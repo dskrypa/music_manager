@@ -61,7 +61,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
             names.add(Name(self._name))
         return names
 
-    def _finder_with_entries(self):
+    def _finder_with_entries(self) -> DiscographyEntryFinder:
         finder = DiscographyEntryFinder()
         for site, artist_page in self._pages.items():
             client = MediaWikiClient(site)

@@ -32,15 +32,13 @@ class Track:
     def format_path(self, fmt=PATH_FORMATS['alb_type_no_num'], ext='mp3'):
         album_part = self.album_part
         edition = album_part.edition
-        artist = edition._artist
+        artist_name = edition.artist.english if edition.artist else edition._artist.show
         if edition.edition:
             album_name = f'{edition.name} - {edition.edition}'
         else:
             album_name = str(edition.name)
         args = {
-            # 'artist': artist.name.english or artist.name.non_eng,
-            # TODO: Fix artist to be an Artist
-            'artist': artist.show,
+            'artist': artist_name,
             'album_type': edition.type.real_name,
             'date': edition.date.strftime('%Y.%m.%d'),
             'album': album_name,

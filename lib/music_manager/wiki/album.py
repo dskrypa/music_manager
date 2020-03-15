@@ -199,11 +199,6 @@ class DiscographyEntryEdition:
         self.type = entry_type
         self.edition = edition
         self._artist = artist
-        try:
-            self.artist = Artist.from_link(artist)
-        except BadLinkError as e:
-            log.debug(f'Error getting artist={artist} for {self}: {e}')
-            self.artist = None
         # TODO: 1st/2nd/3rd/etc (Mini) Album...
         # TODO: Language (generasia: from disco entry or page category)
 
@@ -217,6 +212,14 @@ class DiscographyEntryEdition:
 
     def __lt__(self, other):
         return (self.artist, self.date, self.name, self.edition) < (other.artist, other.date, other.name, other.edition)
+
+    @cached_property
+    def artist(self):
+        try:
+            return Artist.from_link(self._artist)
+        except BadLinkError as e:
+            log.debug(f'Error getting artist={self._artist} for {self}: {e}')
+            return None
 
     @cached_property
     def date(self):
@@ -287,7 +290,7 @@ class DiscographyEntryPart:
 
     @cached_property
     def tracks(self):
-        return [Track(i, name, self) for i, name in enumerate(self.track_names)]
+        return [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
 
 
 class SoundtrackPart(DiscographyEntryPart):

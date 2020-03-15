@@ -16,6 +16,7 @@ sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix(
 from music_manager.files import apply_mutagen_patches
 from music_manager.files.info import print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values
 from music_manager.files.update import path_to_tag, update_tags_with_value, clean_tags
+from music_manager.wiki import WikiEntity, DiscographyEntry, Artist, Group, Singer
 
 log = logging.getLogger(__name__)
 apply_mutagen_patches()
@@ -28,6 +29,7 @@ SHOW_ARGS = {
 def parser():
     parser = ArgParser(description='Music Manager')
 
+    # region File Actions
     show_parser = parser.add_subparser('action', 'show', help='Show song/tag information')
     for name, help_text in SHOW_ARGS.items():
         _parser = show_parser.add_subparser('sub_action', name, help=help_text)
@@ -49,6 +51,14 @@ def parser():
 
     clean_parser = parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files')
     clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+    # endregion
+
+    # region Wiki Actions
+    wiki_parser = parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions')
+
+    url_parser = wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL')
+    url_parser.add_argument('url', help='A wiki URL')
+    # endregion
 
     parser.include_common_args('verbosity', 'dry_run')
     return parser
@@ -58,8 +68,8 @@ def main():
     args = parser().parse_args()
     init_logging(args.verbose, log_path=None, names=None)
 
-    if args.action == 'show':
-        sub_action = args.sub_action
+    action, sub_action = args.action, getattr(args, 'sub_action', None)
+    if action == 'show':
         if sub_action == 'info':
             print_track_info(args.path, args.tags)
         elif sub_action == 'meta':
@@ -70,14 +80,48 @@ def main():
             table_unique_tag_values(args.path, args.tags)
         elif sub_action == 'table':
             table_song_tags(args.path, args.tags)
-    elif args.action == 'path2tag':
+        else:
+            raise ValueError(f'Unexpected sub-action: {sub_action!r}')
+    elif action == 'wiki':
+        if sub_action == 'show':
+            show_wiki_entity(args.url)
+        else:
+            raise ValueError(f'Unexpected sub-action: {sub_action!r}')
+    elif action == 'path2tag':
         path_to_tag(args.path, args.dry_run, args.yes, args.title)
-    elif args.action == 'update':
+    elif action == 'update':
         update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
-    elif args.action == 'clean':
+    elif action == 'clean':
         clean_tags(args.path, args.dry_run)
     else:
-        log.error(f'Unexpected action: {args.action!r}')
+        raise ValueError(f'Unexpected action: {action!r}')
+
+
+def show_wiki_entity(url):
+    entity = WikiEntity.from_url(url)
+    log.info(f'{entity}:')
+
+    if isinstance(entity, DiscographyEntry):
+        for edition in entity.editions:
+            log.info(f'  - {edition}:')
+            log.info(f'    Artist: {edition.artist}')
+            log.info(f'    Parts:')
+            for part in edition:
+                log.info(f'      - {part}:')
+                log.info(f'        Tracks:')
+                for track in part:
+                    log.info(f'          - {track}')
+    elif isinstance(entity, Artist):
+        log.info(f'  - Name: {entity.name}')
+        discography = entity.discography
+        if discography:
+            log.info(f'    Discography:')
+            for disco_entry in sorted(discography):
+                log.info(f'      - {disco_entry}')
+        else:
+            log.info(f'    Discography: [Unavailable]')
+    else:
+        log.info(f'  - No additional information is configured for {entity.__class__.__name__} entities')
 
 
 if __name__ == '__main__':

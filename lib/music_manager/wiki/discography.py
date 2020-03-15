@@ -6,6 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
 from traceback import format_exc
+from typing import Dict, List
 
 from ds_tools.compat import cached_property
 from wiki_nodes.http import MediaWikiClient
@@ -14,7 +15,6 @@ from .album import DiscographyEntry
 from .base import WikiEntity
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError
-from .utils import node_to_link_dict
 
 __all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
 log = logging.getLogger(__name__)
@@ -25,18 +25,18 @@ class DiscographyMixin(ABC):
         return iter(self.discography)
 
     @abstractmethod
-    def _finder_with_entries(self):
+    def _finder_with_entries(self) -> 'DiscographyEntryFinder':
         """
         Return a DiscographyEntryFinder instance that has DiscoEntry entries added, but has not yet processed links
         """
         raise NotImplementedError
 
     @cached_property
-    def discography_entries(self):
+    def discography_entries(self) -> Dict[str, List[DiscographyEntry]]:
         return self._finder_with_entries().process_entries()
 
     @cached_property
-    def discography(self):
+    def discography(self) -> List[DiscographyEntry]:
         merged = []
         temp = defaultdict(list)
         for site, entries in self.discography_entries.items():
@@ -67,7 +67,7 @@ class Discography(WikiEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
 
-    def _finder_with_entries(self):
+    def _finder_with_entries(self) -> 'DiscographyEntryFinder':
         finder = DiscographyEntryFinder()
         self._process_entries(finder)
         return finder
@@ -204,7 +204,7 @@ class DiscographyEntryFinder:
         if unexpected:
             log.log(9, f'Unexpected entry content from {content.root}: {content!r}')
 
-    def process_entries(self):
+    def process_entries(self) -> Dict[str, List[DiscographyEntry]]:
         discography = {}
         pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(self.entries_by_site)
         for site_client, title_entry_map in self.entries_by_site.items():

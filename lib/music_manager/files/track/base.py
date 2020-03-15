@@ -100,7 +100,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return length
 
     @cached_property
-    def _tag_type(self):
+    def tag_type(self):
         tags = self._f.tags
         if isinstance(tags, MP4Tags):
             return 'mp4'
@@ -118,11 +118,20 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             return tags.__name__
 
+    def delete_tag(self, tag_id):
+        tag_type = self.tag_type
+        if tag_type == 'mp3':
+            self.tags.delall(tag_id)
+        elif tag_type == 'mp4':
+            del self.tags[tag_id]
+        else:
+            raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
+
     def set_text_tag(self, tag, value, by_id=False):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
         if isinstance(self._f.tags, MP4Tags):
             self._f.tags[tag_id] = value
-        elif self._tag_type == 'mp3':
+        elif self.tag_type == 'mp3':
             try:
                 tag_cls = getattr(mutagen.id3._frames, tag_id.upper())
             except AttributeError as e:
@@ -130,7 +139,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             else:
                 self._f.tags[tag_id] = tag_cls(text=value)
         else:
-            raise TypeError('Unable to set {!r} for {} because its extension is {!r}'.format(tag, self, self._tag_type))
+            raise TypeError('Unable to set {!r} for {} because its extension is {!r}'.format(tag, self, self.tag_type))
 
     def tag_name_to_id(self, tag_name):
         """
@@ -142,7 +151,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         except KeyError as e:
             raise InvalidTagName(tag_name, self) from e
         try:
-            return type2id[self._tag_type]
+            return type2id[self.tag_type]
         except KeyError as e:
             raise UnsupportedTagForFileType(tag_name, self) from e
 
@@ -151,7 +160,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :param str tag_id: A tag ID
         :return list: All tags from this file with the given ID
         """
-        if self._tag_type == 'mp3':
+        if self.tag_type == 'mp3':
             return self._f.tags.getall(tag_id.upper())         # all MP3 tags are uppercase; some MP4 tags are mixed case
         return self._f.tags.get(tag_id, [])                    # MP4Tags doesn't have getall() and always returns a list
 

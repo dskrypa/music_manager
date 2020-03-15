@@ -170,7 +170,7 @@ class SongFile(BaseSongFile):
 
             current_vals = self.tags_for_id(tag_id)
             if not current_vals:
-                if self._tag_type == 'mp3':
+                if self.tag_type == 'mp3':
                     try:
                         frame_cls = getattr(id3_frames, tag_id.upper())
                     except AttributeError as e:

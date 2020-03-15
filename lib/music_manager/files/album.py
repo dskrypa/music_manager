@@ -5,25 +5,26 @@
 import logging
 import os
 import re
-from fnmatch import fnmatch
 from pathlib import Path
+from typing import Generator
 
-from mutagen.id3 import ID3, TDRC
-from mutagen.mp4 import MP4Tags
+from mutagen.id3 import TDRC
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
-from ds_tools.core.filesystem import iter_paths
+from ds_tools.core import iter_paths, FnMatcher, Paths
 from tz_aware_dt import format_duration
 from .exceptions import *
 from .track import BaseSongFile
 from .utils import iter_music_files, tag_repr
 
-__all__ = ['AlbumDir', 'RM_TAGS_MP4', 'RM_TAGS_ID3', 'iter_album_dirs']
+__all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs']
 log = logging.getLogger(__name__)
 
-RM_TAGS_MP4 = ['*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt']
-RM_TAGS_ID3 = ['TXXX*', 'PRIV*', 'WXXX*', 'COMM*', 'TCOP']
+RM_TAG_MATCHERS = {
+    'mp3': FnMatcher(('TXXX*', 'PRIV*', 'WXXX*', 'COMM*', 'TCOP')).match,
+    'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match
+}
 
 
 class AlbumDir(ClearableCachedPropertyMixin):
@@ -179,12 +180,12 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 return dates.pop()
         return None
 
-    def fix_song_tags(self, dry_run):
+    def fix_song_tags(self, dry_run=False):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
         upd_msg = 'Would update' if dry_run else 'Updating'
 
         for music_file in self.songs:
-            if music_file._tag_type != 'mp3':
+            if music_file.tag_type != 'mp3':
                 log.debug('Skipping non-MP3: {}'.format(music_file))
                 continue
 
@@ -193,9 +194,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             if (not tdrc) and txxx_date:
                 file_date = txxx_date[0].text[0]
 
-                log.info('{}{} TDRC={} to {} and {} its TXXX:DATE tag'.format(
-                    prefix, add_msg, file_date, music_file, rmv_msg
-                ))
+                log.info(f'{prefix}{add_msg} TDRC={file_date} to {music_file} and {rmv_msg} its TXXX:DATE tag')
                 if not dry_run:
                     music_file.tags.add(TDRC(text=file_date))
                     music_file.tags.delall('TXXX:DATE')
@@ -205,7 +204,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
             for uslt in music_file.tags.getall('USLT'):
                 m = re.match(r'^(.*)(https?://\S+)$', uslt.text, re.DOTALL)
                 if m:
-                    # noinspection PyUnresolvedReferences
                     new_lyrics = m.group(1).strip() + '\r\n'
                     log.info('{}{} lyrics for {} from {!r} to {!r}'.format(
                         prefix, upd_msg, music_file, tag_repr(uslt.text), tag_repr(new_lyrics)
@@ -218,38 +216,32 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 log.info('Saving changes to lyrics in {}'.format(music_file))
                 music_file.save()
 
-    def remove_bad_tags(self, dry_run):
+    def remove_bad_tags(self, dry_run=False):
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
         i = 0
         for music_file in self.songs:
-            if isinstance(music_file.tags, MP4Tags):
-                tag_id_pats = RM_TAGS_MP4
-            elif isinstance(music_file.tags, ID3):
-                tag_id_pats = RM_TAGS_ID3
-            else:
-                raise TypeError('Unhandled tag type: {}'.format(type(music_file.tags).__name__))
+            try:
+                rm_tag_match = RM_TAG_MATCHERS[music_file.tag_type]
+            except KeyError as e:
+                raise TypeError(f'Unhandled tag type: {music_file.tag_type}') from e
 
-            to_remove = {}
-            for tag, val in sorted(music_file.tags.items()):
-                if any(fnmatch(tag, pat) for pat in tag_id_pats):
-                    to_remove[tag] = val if isinstance(val, list) else [val]
-
+            to_remove = {
+                tag: val if isinstance(val, list) else [val]
+                for tag, val in sorted(music_file.tags.items()) if rm_tag_match(tag)
+            }
             if to_remove:
                 if i:
                     log.debug('')
                 rm_str = ', '.join(
-                    '{}: {}'.format(tag_id, tag_repr(val)) for tag_id, vals in sorted(to_remove.items()) for val in vals
+                    f'{tag_id}: {tag_repr(val)}' for tag_id, vals in sorted(to_remove.items()) for val in vals
                 )
-                info_str = ', '.join('{} ({})'.format(tag_id, len(vals)) for tag_id, vals in sorted(to_remove.items()))
+                info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in sorted(to_remove.items()))
 
-                log.info('{} tags from {}: {}'.format(prefix, music_file, info_str))
-                log.debug('\t{}: {}'.format(music_file.filename, rm_str))
+                log.info(f'{prefix} tags from {music_file}: {info_str}')
+                log.debug(f'\t{music_file.filename}: {rm_str}')
                 if not dry_run:
                     for tag_id in to_remove:
-                        if isinstance(music_file.tags, MP4Tags):
-                            del music_file.tags[tag_id]
-                        elif isinstance(music_file.tags, ID3):
-                            music_file.tags.delall(tag_id)
+                        music_file.delete_tag(tag_id)
                     music_file.save()
                 i += 1
             else:
@@ -259,7 +251,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             log.debug('None of the songs in {} had any tags that needed to be removed'.format(self))
 
 
-def iter_album_dirs(paths):
+def iter_album_dirs(paths: Paths) -> Generator[AlbumDir, None, None]:
     for path in iter_paths(paths):
         if path.is_dir():
             for root, dirs, files in os.walk(path.as_posix()):  # as_posix for 3.5 compatibility

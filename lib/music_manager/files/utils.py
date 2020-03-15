@@ -4,11 +4,10 @@
 
 import logging
 import string
-from pathlib import Path
-from typing import Generator, Union, Iterable
+from typing import Generator
 from unicodedata import normalize
 
-from ds_tools.core.filesystem import iter_files
+from ds_tools.core.filesystem import iter_files, Paths
 from .track.track import SongFile
 
 __all__ = ['iter_music_files', 'tag_repr']
@@ -26,7 +25,7 @@ def tag_repr(tag_val, max_len=125, sub_len=25):
     return tag_val
 
 
-def iter_music_files(paths: Union[str, Path, Iterable[Union[str, Path]]]) -> Generator[SongFile, None, None]:
+def iter_music_files(paths: Paths) -> Generator[SongFile, None, None]:
     for file_path in iter_files(paths):
         music_file = SongFile(file_path)
         if music_file:

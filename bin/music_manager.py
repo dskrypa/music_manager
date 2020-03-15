@@ -15,7 +15,7 @@ from ds_tools.logging import init_logging
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
 from music_manager.files import apply_mutagen_patches
 from music_manager.files.info import print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values
-from music_manager.files.update import path_to_tag, update_tags
+from music_manager.files.update import path_to_tag, update_tags_with_value, clean_tags
 
 log = logging.getLogger(__name__)
 apply_mutagen_patches()
@@ -47,6 +47,9 @@ def parser():
     set_parser.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
     set_parser.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
 
+    clean_parser = parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files')
+    clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+
     parser.include_common_args('verbosity', 'dry_run')
     return parser
 
@@ -70,7 +73,9 @@ def main():
     elif args.action == 'path2tag':
         path_to_tag(args.path, args.dry_run, args.yes, args.title)
     elif args.action == 'update':
-        update_tags(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
+        update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
+    elif args.action == 'clean':
+        clean_tags(args.path, args.dry_run)
     else:
         log.error(f'Unexpected action: {args.action!r}')
 

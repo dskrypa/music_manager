@@ -8,15 +8,16 @@ from fnmatch import translate as fnmatch_to_regex_str
 
 from mutagen.id3 import ID3
 
-from ds_tools.core.input import get_input
+from ds_tools.core import get_input, Paths
+from .album import iter_album_dirs
 from .exceptions import TagException
 from .utils import iter_music_files
 
-__all__ = ['path_to_tag', 'update_tags']
+__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags']
 log = logging.getLogger(__name__)
 
 
-def update_tags(paths, tag_ids, value, replace_pats, partial, dry_run):
+def update_tags_with_value(paths: Paths, tag_ids, value, replace_pats=None, partial=False, dry_run=False):
     patterns = [re.compile(fnmatch_to_regex_str(pat)[4:-3]) for pat in replace_pats] if replace_pats else []
     if partial and not patterns:
         raise ValueError('When using --partial/-p, --replace/-r must also be specified')
@@ -29,17 +30,17 @@ def update_tags(paths, tag_ids, value, replace_pats, partial, dry_run):
         music_file.update_tags_with_value(tag_ids, value, patterns=patterns, partial=partial, dry_run=dry_run)
 
 
-def path_to_tag(path, dry_run=False, skip_prompt=False, title=False):
+def path_to_tag(paths: Paths, dry_run=False, skip_prompt=False, title=False):
     """
     Update tags based on the path to each file
 
-    :param str path: A directory that contains directories that contain music files
+    :param paths: A directory that contains directories that contain music files
     :param bool dry_run: Print the actions that would be taken instead of taking them
     :param bool skip_prompt: Skip the prompt asking if a given file should be updated
     :param bool title: Update title based on filename
     """
     prefix = '[DRY RUN] Would update' if dry_run else 'Update'
-    for music_file in iter_music_files(path):
+    for music_file in iter_music_files(paths):
         try:
             tag_title = music_file.tag_title
         except TagException as e:
@@ -52,7 +53,13 @@ def path_to_tag(path, dry_run=False, skip_prompt=False, title=False):
             if dry_run:
                 log.info(msg)
             elif get_input(msg + '? ', skip_prompt):
-                music_file.set_title(filename)
+                music_file.tag_title = filename
                 music_file.save()
         else:
             log.log(19, f'Skipping file with already correct title: {music_file.filename}')
+
+
+def clean_tags(paths: Paths, dry_run=False):
+    for album_dir in iter_album_dirs(paths):
+        album_dir.remove_bad_tags(dry_run)
+        album_dir.fix_song_tags(dry_run)

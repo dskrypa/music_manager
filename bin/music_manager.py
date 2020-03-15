@@ -58,6 +58,7 @@ def parser():
 
     url_parser = wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL')
     url_parser.add_argument('url', help='A wiki URL')
+    url_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
     # endregion
 
     parser.include_common_args('verbosity', 'dry_run')
@@ -84,7 +85,7 @@ def main():
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'wiki':
         if sub_action == 'show':
-            show_wiki_entity(args.url)
+            show_wiki_entity(args.url, args.expand)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':

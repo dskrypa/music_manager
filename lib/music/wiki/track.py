@@ -3,7 +3,10 @@
 """
 
 import logging
+from functools import partialmethod
 from typing import TYPE_CHECKING
+
+from ..text.name import Name
 
 if TYPE_CHECKING:
     from .album import DiscographyEntryPart
@@ -18,13 +21,17 @@ PATH_FORMATS = {
 
 
 class Track:
-    def __init__(self, num: int, name, album_part: 'DiscographyEntryPart'):
+    def __init__(self, num: int, name: Name, album_part: 'DiscographyEntryPart'):
         self.num = num
         self.name = name
         self.album_part = album_part
 
-    def __repr__(self):
-        return f'<{self.__class__.__name__}[{self.num:02d}: {self.name!r} @ {self.album_part}]>'
+    def _repr(self, long=False):
+        if long:
+            return f'<{self.__class__.__name__}[{self.num:02d}: {self.name!r} @ {self.album_part}]>'
+        return f'<{self.__class__.__name__}[{self.num:02d}: {self.name!r}]>'
+
+    __repr__ = partialmethod(_repr, True)
 
     def __lt__(self, other):
         return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)

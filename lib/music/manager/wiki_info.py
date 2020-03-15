@@ -4,34 +4,65 @@
 
 import logging
 
-from ..wiki import WikiEntity, DiscographyEntry, Artist
+from ds_tools.output import uprint
+from ..wiki import WikiEntity, DiscographyEntry, Artist, DiscographyEntryPart
 
 __all__ = ['show_wiki_entity']
 log = logging.getLogger(__name__)
 
 
-def show_wiki_entity(url):
+def show_wiki_entity(url, expand=0):
     entity = WikiEntity.from_url(url)
     log.info(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):
-        for edition in entity.editions:
-            log.info(f'  - {edition}:')
-            log.info(f'    Artist: {edition.artist}')
-            log.info(f'    Parts:')
-            for part in edition:
-                log.info(f'      - {part}:')
-                log.info(f'        Tracks:')
-                for track in part:
-                    log.info(f'          - {track}')
+        print_disco_entry(entity, 2, expand > 0)
     elif isinstance(entity, Artist):
-        log.info(f'  - Name: {entity.name}')
-        discography = entity.discography
-        if discography:
-            log.info(f'    Discography:')
-            for disco_entry in sorted(discography):
-                log.info(f'      - {disco_entry}')
-        else:
-            log.info(f'    Discography: [Unavailable]')
+        print_artist(entity, 2, expand > 0, expand > 1)
     else:
         log.info(f'  - No additional information is configured for {entity.__class__.__name__} entities')
+
+
+def print_artist(artist: Artist, indent=0, expand_disco=False, editions=False):
+    prefix = ' ' * indent
+    uprint(f'{prefix}- {artist.name}:')
+    discography = artist.discography
+    if discography:
+        uprint(f'{prefix}  Discography:')
+        for disco_entry in sorted(discography):
+            if expand_disco:
+                print_disco_entry(disco_entry, indent + 6, editions)
+            else:
+                uprint(f'{prefix}    - {disco_entry}')
+    else:
+        uprint(f'{prefix}  Discography: [Unavailable]')
+
+
+def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False):
+    prefix = ' ' * indent
+    suffix = '' if disco_entry.editions else ' [{} info unavailable]'.format('Edition' if editions else 'Part')
+    uprint(f'{prefix}- {disco_entry}:{suffix}')
+    if editions:
+        for edition in disco_entry.editions:
+            uprint(f'{prefix}  - {edition}:')
+            uprint(f'{prefix}      Artist: {edition.artist}')
+            if edition.parts:
+                uprint(f'{prefix}      Parts:')
+                for part in edition:
+                    print_de_part(part, indent + 8)
+            else:
+                uprint(f'{prefix}      Parts: [Unavailable]')
+    else:
+        for part in disco_entry:
+            print_de_part(part, indent + 4)
+
+
+def print_de_part(part: DiscographyEntryPart, indent=0):
+    prefix = ' ' * indent
+    if part.tracks:
+        uprint(f'{prefix}- {part}:')
+        uprint(f'{prefix}    Tracks:')
+        for track in part:
+            uprint(f'{prefix}      - {track._repr()}')
+    else:
+        uprint(f'{prefix}- {part}: [Track info unavailable]')

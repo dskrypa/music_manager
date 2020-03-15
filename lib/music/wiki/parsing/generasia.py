@@ -18,6 +18,7 @@ from ...text.spellcheck import is_english, english_probability
 from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntryType, DiscoEntry
 from .abc import WikiParser, EditionGenerator
+from .utils import LANG_ABBREV_MAP
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -287,19 +288,51 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionGenerator:
         processed = entry_page.sections.processed()
+        langs = set()
+        for cat in entry_page.categories:
+            if cat.endswith('(releases)'):
+                if cat.startswith('K-'):
+                    langs.add('Korean')
+                elif cat.startswith('J-'):
+                    langs.add('Japanese')
+                elif cat.startswith('Mandopop'):
+                    langs.add('Mandarin')
+                else:
+                    log.debug(f'Unrecognized release category: {cat!r}')
+
         for node in processed:
             if isinstance(node, MappingNode) and 'Artist' in node:
                 try:
-                    yield from cls._process_album_edition(entry, entry_page, node)
+                    yield from cls._process_album_edition(entry, entry_page, node, langs)
                 except Exception as e:
                     log.error(f'Error processing edition node={node}: {e}', exc_info=True)
 
     @classmethod
-    def _process_album_edition(cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode):
+    def _process_album_edition(cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set):
         artist_link = node['Artist'].value
         name_key = list(node.keys())[1]  # Works because of insertion order being maintained
         entry_type = DiscoEntryType.for_name(name_key)
-        album_name = node[name_key].value.value
+        album_name_node = node[name_key].value
+
+        if isinstance(album_name_node, String):
+            album_name = album_name_node.value
+        else:
+            album_name = album_name_node[0].value
+            if album_name.endswith('('):
+                album_name = album_name[:-1].strip()
+
+        lang, version = None, None
+        if 'ver.' in album_name:
+            try:
+                album_name, version, _ = partition_enclosed(album_name, True)
+            except ValueError:
+                log.debug(f'Found \'ver.\' in album name on {entry_page} but could not split it: {album_name!r}')
+            else:
+                try:
+                    lang = LANG_ABBREV_MAP[version.split(maxsplit=1)[0].lower()]
+                except KeyError:
+                    pass
+
         try:
             release_dates_node = node['Released']
         except KeyError:
@@ -322,14 +355,35 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         for key, value in node.items():
             lc_key = key.lower().strip()
-            if 'tracklist' in lc_key:
+            if 'tracklist' in lc_key and not lc_key.startswith('dvd '):
                 if lc_key != 'tracklist':
                     edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
+                    if edition.lower() == 'cd':
+                        edition = None
                 else:
                     edition = None
                 yield DiscographyEntryEdition(
-                    album_name, entry_page, artist_link, release_dates, value, entry_type, edition
+                    album_name, entry_page, artist_link, release_dates, value, entry_type, edition or version,
+                    find_language(value, lang, langs)
                 )
+
+
+def find_language(node, lang, langs):
+    if lang:
+        return lang
+    else:
+        if len(langs) == 1:
+            return next(iter(langs))
+        else:
+            lang_cats = LangCat.categorize(node.raw.string, True)
+            non_eng = [lc.full_name for lc in lang_cats.difference((LangCat.ENG,))]
+            if len(non_eng) == 1:
+                return non_eng[0]
+            elif non_eng and langs:
+                matching_langs = langs.intersection(non_eng)
+                if len(matching_langs) == 1:
+                    return next(iter(matching_langs))
+    return None
 
 
 def is_extra(text):

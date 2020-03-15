@@ -140,7 +140,7 @@ class Soundtrack(DiscographyEntry):
 
 class DiscographyEntryEdition:
     """An edition of an album"""
-    def __init__(self, name, page, artist, release_dates, tracks, entry_type, edition=None):
+    def __init__(self, name, page, artist, release_dates, tracks, entry_type, edition=None, lang=None):
         self.name = name
         self.page = page
         self.release_dates = release_dates
@@ -148,13 +148,15 @@ class DiscographyEntryEdition:
         self.type = entry_type
         self.edition = edition
         self._artist = artist
+        self.lang = lang
         # TODO: 1st/2nd/3rd/etc (Mini) Album...
         # TODO: Language (generasia: from disco entry or page category)
 
     def __repr__(self):
         date = self.release_dates[0].strftime('%Y-%m-%d')
         edition = f'[edition={self.edition!r}]' if self.edition else ''
-        return f'<[{date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{edition}>'
+        lang = f'[lang={self.lang!r}]' if self.lang else ''
+        return f'<[{date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{edition}{lang}>'
 
     def __iter__(self):
         return iter(self.parts)

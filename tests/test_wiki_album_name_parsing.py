@@ -7,10 +7,12 @@ from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
-from music.wiki.parsing.generasia import parse_generasia_album_name
+from music.wiki.parsing.generasia import GenerasiaParser
 from music.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
+
+parse_generasia_album_name = GenerasiaParser.parse_album_name
 
 
 class GenerasiaAlbumNameParsingTest(NameTestCaseBase):

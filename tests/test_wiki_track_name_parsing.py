@@ -6,10 +6,12 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
-from music.wiki.parsing.generasia import parse_generasia_track_name
+from music.wiki.parsing.generasia import GenerasiaParser
 from music.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
+
+parse_generasia_track_name = GenerasiaParser.parse_track_name
 
 
 class GenerasiaTrackNameParsingTest(NameTestCaseBase):
@@ -35,7 +37,7 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
     def test_rom_han_eng_with_feat(self):
         entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]])""")
         name = parse_generasia_track_name(entry)
-        self.assertAll(name, 'SELFISH', 'SELFISH')
+        self.assertAll(name, 'SELFISH', 'SELFISH', extra={'feat': ...})
 
     def test_rom_inst(self):
         entry = as_node("""[[Neona Hae|Neona Hae (Inst.)]]""")

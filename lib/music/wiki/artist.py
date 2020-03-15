@@ -16,8 +16,8 @@ from wiki_nodes.nodes import Table, List, Link, String, CompoundNode, Template
 from ..text.name import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, Discography, DiscographyMixin
-from .disco_entry import DiscoEntry, DiscoEntryType
-from .parsing.generasia import parse_generasia_album_name, parse_generasia_artist_name
+from .disco_entry import DiscoEntry
+from .parsing import WikiParser
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)
@@ -47,16 +47,12 @@ class Artist(PersonOrGroup, DiscographyMixin):
     def names(self):
         names = OrderedSet()
         for site, artist_page in self._pages.items():
-            if site == 'kpop.fandom.com':
-                pass
-            elif site == 'en.wikipedia.org':
-                pass
-            elif site == 'www.generasia.com':
-                names.update(parse_generasia_artist_name(artist_page))
-            elif site == 'wiki.d-addicts.com':
-                pass
-            else:
+            try:
+                parser = WikiParser.for_site(site)
+            except KeyError:
                 log.debug(f'No name extraction is configured for {artist_page}')
+            else:
+                names.update(parser.parse_artist_name(artist_page))
         if not names:
             names.add(Name(self._name))
         return names
@@ -64,86 +60,13 @@ class Artist(PersonOrGroup, DiscographyMixin):
     def _finder_with_entries(self) -> DiscographyEntryFinder:
         finder = DiscographyEntryFinder()
         for site, artist_page in self._pages.items():
-            client = MediaWikiClient(site)
-            if site == 'www.generasia.com':
-                self._process_generasia_disco_sections(client, artist_page, finder)
-            elif site == 'wiki.d-addicts.com':
-                self._process_drama_wiki_disco_sections(client, artist_page, finder)
-            elif site == 'kpop.fandom.com':
-                self._process_kpop_fandom_disco_sections(client, artist_page, finder)
-            elif site == 'en.wikipedia.org':
-                self._process_wikipedia_disco_sections(client, artist_page, finder)
-            else:
-                log.debug(f'No discography entry extraction is configured for {artist_page}')
-        return finder
-
-    def _process_generasia_disco_sections(self, client, artist_page, finder):
-        for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
             try:
-                section = artist_page.sections.find(f'{section_prefix}Discography')
+                parser = WikiParser.for_site(site)
             except KeyError:
-                continue
-            lang = section_prefix.strip() if section_prefix in ('Korean ', 'Japanese ') else None
-            for alb_type, alb_type_section in section.children.items():
-                if 'video' in alb_type.lower():
-                    continue
-                de_type = DiscoEntryType.for_name(alb_type)
-                content = alb_type_section.content
-                for entry in content.iter_flat():
-                    try:
-                        self._process_generasia_disco_entry(client, artist_page, finder, de_type, entry, lang)
-                    except Exception as e:
-                        msg = f'Unexpected error processing section={section} entry={entry}: {format_exc()}'
-                        log.error(msg, extra={'color': 'red'})
-
-    def _process_generasia_disco_entry(self, client, artist_page, finder, de_type, entry, lang=None):
-        log.debug(f'Processing {parse_generasia_album_name(entry)!r}')
-        entry_type = de_type                                    # Except for collabs with a different primary artist
-        entry_link = next(entry.find_all(Link, True), None)     # Almost always the 1st link
-        song_title = entry_link.show if entry_link else None
-
-        """
-        [YYYY.MM.DD] {Album title: romanized OR english} [(repackage)]
-        [YYYY.MM.DD] {Album title: romanized (english)} [(hangul)]
-        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])]
-        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])] (collaborators)
-        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])] (primary artist feat. collaborators)
-        [YYYY.MM.DD] {Album title: romanized OR english} [(hangul[; translation])] (feat. collaborators)
-        [YYYY.MM.DD] {primary artist} - {Album title: romanized OR english} (#track_num track title (feat. collaborators))
-        [YYYY.MM.DD] {primary artist} - {Album title: romanized OR english} (#track_num track title feat. collaborators)
-        """
-
-        parts = len(entry)
-        if parts == 2:
-            # [date] title
-            pass
-        elif parts >= 3:
-            if isinstance(entry[2], String):
-                entry_2 = entry[2].value
-                if check_type(entry, 3, Link) and de_type == DiscoEntryType.Collaboration:
-                    if entry_2 == '-':
-                        # 1st link = primary artist, 2nd link = disco entry
-                        entry_type = DiscoEntryType.Feature
-                        entry_link = entry[3]
-                        if check_type(entry, 4, String) and not entry[4].lower.startswith('(feat'):
-                            # [date] primary - album (song (feat artists))
-                            song_title = entry[4].value[1:].partition('(')[0]
-                    elif entry_2 == '(' and check_type(entry, 4, String) and entry[4].lower.startswith('feat'):
-                        # [date] single (primary feat collaborators)
-                        pass
-
-        first_str = entry[0].value
-        date = datetime.strptime(first_str[:first_str.index(']')], '[%Y.%m.%d').date()
-        # noinspection PyTypeChecker
-        disco_entry = DiscoEntry(
-            artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title
-        )
-        if entry_link:
-            finder.add_entry_link(client, entry_link, disco_entry)
-        else:
-            if isinstance(entry[1], String):
-                disco_entry.title = entry[1].value
-            finder.add_entry(disco_entry, entry)
+                log.debug(f'No discography entry extraction is configured for {artist_page}')
+            else:
+                parser.process_disco_sections(artist_page, finder)
+        return finder
 
     def _process_kpop_fandom_disco_sections(self, client, artist_page, finder):
         try:
@@ -349,3 +272,7 @@ class Group(Artist):
     def sub_units(self):
         # TODO: implement
         return None
+
+
+# Down here due to circular dependency
+from .parsing import WikiParser

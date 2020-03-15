@@ -7,7 +7,6 @@ from enum import Enum
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode import LangCat
-from .parsing import parse_date
 from .utils import node_to_link_dict
 
 __all__ = ['DiscoEntryType', 'DiscoEntry']
@@ -133,3 +132,7 @@ class DiscoEntryType(Enum):
     @cached_property
     def categories(self):
         return self.value[1]
+
+
+# Down here due to circular dependency
+from .parsing.time import parse_date

@@ -9,7 +9,7 @@ import mutagen.id3._frames as id3_frames
 
 from ds_tools.compat import cached_property
 # from ...text.name import Name
-from ...utils.constants import tag_name_map
+from ...constants import tag_name_map
 from .base import BaseSongFile
 from ..exceptions import TagException
 from .patterns import (

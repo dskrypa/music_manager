@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.text.name import Name
-from music.utils.test_common import NameTestCaseBase, main
+from music.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
 

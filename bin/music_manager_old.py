@@ -38,12 +38,11 @@ from ds_tools.utils import num_suffix
 from tz_aware_dt import localize
 
 sys.path.append(Path(__file__).resolve().parents[1].joinpath('lib_old').as_posix())
-from music import (
+from music_old import (
     iter_music_files, load_tags, iter_music_albums, iter_categorized_music_files, tag_repr, apply_mutagen_patches,
     TagException, iter_album_dirs, RM_TAGS_ID3, RM_TAGS_MP4, NoPrimaryArtistError, WikiSoundtrack
 )
-
-from music.constants import tag_name_map
+from music_old.constants import tag_name_map
 
 log = logging.getLogger(__name__)
 

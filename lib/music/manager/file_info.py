@@ -10,7 +10,7 @@ from mutagen.id3 import ID3
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
 from ..utils.constants import tag_name_map
-from .utils import iter_music_files, tag_repr
+from ..files.utils import iter_music_files, tag_repr
 
 __all__ = ['print_track_info', 'table_song_tags', 'table_unique_tag_values', 'table_tag_type_counts']
 log = logging.getLogger(__name__)

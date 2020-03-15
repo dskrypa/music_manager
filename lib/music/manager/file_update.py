@@ -9,9 +9,7 @@ from fnmatch import translate as fnmatch_to_regex_str
 from mutagen.id3 import ID3
 
 from ds_tools.core import get_input, Paths
-from .album import iter_album_dirs
-from .exceptions import TagException
-from .utils import iter_music_files
+from ..files import iter_album_dirs, iter_music_files, TagException
 
 __all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags']
 log = logging.getLogger(__name__)

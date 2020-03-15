@@ -8,11 +8,11 @@ from pathlib import Path
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
 from wiki_nodes.page import WikiPage
-from music_manager.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
-from music_manager.wiki.artist import Artist, Singer, Group
-from music_manager.wiki.album import DiscographyEntry, Album, Single, Soundtrack
-from music_manager.wiki.discography import Discography
-from music_manager.wiki.exceptions import EntityTypeError
+from music.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
+from music.wiki.artist import Artist, Singer, Group
+from music.wiki.album import DiscographyEntry, Album, Single, Soundtrack
+from music.wiki.discography import Discography
+from music.wiki.exceptions import EntityTypeError
 
 log = logging.getLogger(__name__)
 ENTITY_TYPES = {

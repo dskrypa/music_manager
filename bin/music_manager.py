@@ -13,10 +13,10 @@ from ds_tools.argparsing import ArgParser
 from ds_tools.logging import init_logging
 
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
-from music_manager.files import apply_mutagen_patches
-from music_manager.files.info import print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values
-from music_manager.files.update import path_to_tag, update_tags_with_value, clean_tags
-from music_manager.wiki import WikiEntity, DiscographyEntry, Artist, Group, Singer
+from music.files import apply_mutagen_patches
+from music.manager.file_info import print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values
+from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags
+from music.manager.wiki_info import show_wiki_entity
 
 log = logging.getLogger(__name__)
 apply_mutagen_patches()
@@ -95,33 +95,6 @@ def main():
         clean_tags(args.path, args.dry_run)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
-
-
-def show_wiki_entity(url):
-    entity = WikiEntity.from_url(url)
-    log.info(f'{entity}:')
-
-    if isinstance(entity, DiscographyEntry):
-        for edition in entity.editions:
-            log.info(f'  - {edition}:')
-            log.info(f'    Artist: {edition.artist}')
-            log.info(f'    Parts:')
-            for part in edition:
-                log.info(f'      - {part}:')
-                log.info(f'        Tracks:')
-                for track in part:
-                    log.info(f'          - {track}')
-    elif isinstance(entity, Artist):
-        log.info(f'  - Name: {entity.name}')
-        discography = entity.discography
-        if discography:
-            log.info(f'    Discography:')
-            for disco_entry in sorted(discography):
-                log.info(f'      - {disco_entry}')
-        else:
-            log.info(f'    Discography: [Unavailable]')
-    else:
-        log.info(f'  - No additional information is configured for {entity.__class__.__name__} entities')
 
 
 if __name__ == '__main__':

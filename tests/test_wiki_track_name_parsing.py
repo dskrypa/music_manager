@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
-from music_manager.wiki.parsing.generasia import parse_generasia_track_name
-from music_manager.utils.test_common import NameTestCaseBase, main
+from music.wiki.parsing.generasia import parse_generasia_track_name
+from music.utils.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
 

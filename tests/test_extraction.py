@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from music_manager.text.extraction import partition_enclosed, split_enclosed
+from music.text.extraction import partition_enclosed, split_enclosed
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None

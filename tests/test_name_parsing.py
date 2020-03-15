@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music_manager.text.name import Name
-from music_manager.utils.test_common import NameTestCaseBase, main
+from music.text.name import Name
+from music.utils.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
 

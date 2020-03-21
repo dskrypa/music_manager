@@ -291,11 +291,11 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         langs = set()
         for cat in entry_page.categories:
             if cat.endswith('(releases)'):
-                if cat.startswith('K-'):
+                if cat.startswith('k-'):
                     langs.add('Korean')
-                elif cat.startswith('J-'):
+                elif cat.startswith('j-'):
                     langs.add('Japanese')
-                elif cat.startswith('Mandopop'):
+                elif cat.startswith('mandopop'):
                     langs.add('Mandarin')
                 else:
                     log.debug(f'Unrecognized release category: {cat!r}')
@@ -321,15 +321,20 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if album_name.endswith('('):
                 album_name = album_name[:-1].strip()
 
-        lang, version = None, None
-        if 'ver.' in album_name:
+        lang, version, edition = None, None, None
+        lc_album_name = album_name.lower()
+        if ver_ed_indicator := next((val for val in ('ver.', 'edition') if val in lc_album_name), None):
             try:
-                album_name, version, _ = partition_enclosed(album_name, True)
+                album_name, ver_ed_value, _ = partition_enclosed(album_name, True)
             except ValueError:
                 log.debug(f'Found \'ver.\' in album name on {entry_page} but could not split it: {album_name!r}')
             else:
+                if ver_ed_indicator == 'edition':
+                    edition = ver_ed_value
+                else:
+                    version = ver_ed_value
                 try:
-                    lang = LANG_ABBREV_MAP[version.split(maxsplit=1)[0].lower()]
+                    lang = LANG_ABBREV_MAP[ver_ed_value.split(maxsplit=1)[0].lower()]
                 except KeyError:
                     pass
 
@@ -357,11 +362,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             lc_key = key.lower().strip()
             if 'tracklist' in lc_key and not lc_key.startswith('dvd '):
                 if lc_key != 'tracklist':
-                    edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
-                    if edition.lower() == 'cd':
-                        edition = None
-                else:
-                    edition = None
+                    tl_edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
+                    if tl_edition.lower() == 'cd':
+                        tl_edition = None
+                    if tl_edition:
+                        edition = f'{edition} - {tl_edition}' if edition else tl_edition
+
                 yield DiscographyEntryEdition(
                     album_name, entry_page, artist_link, release_dates, value, entry_type, edition or version,
                     find_language(value, lang, langs)

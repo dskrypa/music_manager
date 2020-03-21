@@ -150,7 +150,6 @@ class DiscographyEntryEdition:
         self._artist = artist
         self.lang = lang
         # TODO: 1st/2nd/3rd/etc (Mini) Album...
-        # TODO: Language (generasia: from disco entry or page category)
 
     def __repr__(self):
         date = self.release_dates[0].strftime('%Y-%m-%d')

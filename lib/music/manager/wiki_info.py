@@ -2,25 +2,22 @@
 :author: Doug Skrypa
 """
 
-import logging
-
 from ds_tools.output import uprint
 from ..wiki import WikiEntity, DiscographyEntry, Artist, DiscographyEntryPart
 
 __all__ = ['show_wiki_entity']
-log = logging.getLogger(__name__)
 
 
 def show_wiki_entity(url, expand=0):
     entity = WikiEntity.from_url(url)
-    log.info(f'{entity}:')
+    uprint(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):
         print_disco_entry(entity, 2, expand > 0)
     elif isinstance(entity, Artist):
         print_artist(entity, 2, expand > 0, expand > 1)
     else:
-        log.info(f'  - No additional information is configured for {entity.__class__.__name__} entities')
+        uprint(f'  - No additional information is configured for {entity.__class__.__name__} entities')
 
 
 def print_artist(artist: Artist, indent=0, expand_disco=False, editions=False):

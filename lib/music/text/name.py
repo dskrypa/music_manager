@@ -93,7 +93,10 @@ class Name:
 
     @cached_property
     def english(self):
-        return self._english or self.lit_translation
+        eng = self._english or self.lit_translation
+        if not eng and not self.non_eng and self.romanized:
+            eng = self.romanized
+        return eng
 
     @cached_property
     def eng_lower(self):

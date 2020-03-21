@@ -2,18 +2,20 @@
 :author: Doug Skrypa
 """
 
+from itertools import count
+
 from ds_tools.output import uprint
 from ..wiki import WikiEntity, DiscographyEntry, Artist, DiscographyEntryPart
 
 __all__ = ['show_wiki_entity']
 
 
-def show_wiki_entity(url, expand=0):
+def show_wiki_entity(url, expand=0, limit=0):
     entity = WikiEntity.from_url(url)
     uprint(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):
-        print_disco_entry(entity, 2, expand > 0)
+        print_disco_entry(entity, 2, expand > 0, limit)
     elif isinstance(entity, Artist):
         print_artist(entity, 2, expand > 0, expand > 1)
     else:
@@ -35,10 +37,11 @@ def print_artist(artist: Artist, indent=0, expand_disco=False, editions=False):
         uprint(f'{prefix}  Discography: [Unavailable]')
 
 
-def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False):
+def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False, limit=0):
     prefix = ' ' * indent
     suffix = '' if disco_entry.editions else ' [{} info unavailable]'.format('Edition' if editions else 'Part')
     uprint(f'{prefix}- {disco_entry}:{suffix}')
+    counter = count(1)
     if editions:
         for edition in disco_entry.editions:
             uprint(f'{prefix}  - {edition}:')
@@ -47,11 +50,15 @@ def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False):
                 uprint(f'{prefix}      Parts:')
                 for part in edition:
                     print_de_part(part, indent + 8)
+                    if limit and next(counter) == limit:
+                        break
             else:
                 uprint(f'{prefix}      Parts: [Unavailable]')
     else:
         for part in disco_entry:
             print_de_part(part, indent + 4)
+            if limit and next(counter) == limit:
+                break
 
 
 def print_de_part(part: DiscographyEntryPart, indent=0):

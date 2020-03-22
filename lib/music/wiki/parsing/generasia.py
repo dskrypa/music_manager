@@ -148,6 +148,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                                 incomplete_extra = process_extra(extras, b)
                             else:
                                 name._english = f'{name._english} ({b})' if name._english else b
+                    elif name.cjk and is_english(b) and not is_english(a):
+                        name.romanized = a      # Assume that it is a romanization
+                        if is_extra(b):
+                            incomplete_extra = process_extra(extras, b)
+                        else:
+                            name._english = b
                     else:
                         if _node.root and _node.root.title == title:
                             name._english = title

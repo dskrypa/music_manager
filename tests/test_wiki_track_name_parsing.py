@@ -70,7 +70,6 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
     def test_rom_han_eng_with_feat(self):
         entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]])""")
         name = parse_generasia_track_name(entry)
-        # TODO
         self.assertAll(name, 'SELFISH', 'SELFISH', extra={'feat': as_node('[[Seulgi]] of [[Red Velvet]]')})
 
 

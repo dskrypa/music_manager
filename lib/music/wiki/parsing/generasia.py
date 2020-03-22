@@ -12,7 +12,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
-from ...text.extraction import parenthesized, partition_enclosed
+from ...text.extraction import parenthesized, partition_enclosed, split_enclosed
 from ...text.name import Name
 from ...text.spellcheck import is_english, english_probability
 from ..album import DiscographyEntry, DiscographyEntryEdition
@@ -168,7 +168,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                                 romanized = a
 
                             if is_extra(b):
-                                extras.append(b)
+                                incomplete_extra = process_extra(extras, b)
                             elif eng_title:
                                 eng_title = f'{eng_title} ({b})'
                             else:
@@ -390,12 +390,7 @@ def find_language(node, lang, langs):
 
 
 def is_extra(text):
-    lc_text = text.lower()
-    if lc_text.endswith(('ver.', 'version', 'remix')):
-        return True
-    elif lc_text.startswith(('inst.', 'instrumental')):
-        return True
-    return False
+    return bool(classify_extra(text))
 
 
 def _split_name_parts(title, node):
@@ -446,9 +441,22 @@ def process_extra(extras: dict, extra: Union[str, Node]) -> Union[None, str, Nod
         if extra.startswith('(') and ')' not in extra:
             extra = extra[1:]
         extra_type = classify_extra(extra)
-        if extra_type == 'track' and ',' in extra and extra.count('#') > 1:
-            extra_type = 'tracks'
-            extra = tuple(map(str.strip, extra.split(',')))
+        if extra_type == 'track':
+            if ',' in extra and extra.count('#') > 1:
+                extra_type = 'tracks'
+                extra = tuple(map(str.strip, extra.split(',')))
+            elif ' / ' in extra:
+                extra, extras['collabs'] = map(str.strip, extra.split(' / '))
+            elif '(' in extra:
+                try:
+                    _extra, collabs = split_enclosed(extra, reverse=True)
+                except ValueError:
+                    pass
+                else:
+                    lc_collabs = collabs.lower()
+                    if any(val in lc_collabs for val in ('various artists', ' + ', ' & ', ' x ')):
+                        extra = _extra
+                        extras['collabs'] = collabs
         elif extra_type == 'feat':
             try:
                 extra = extra.split(maxsplit=1)[1]

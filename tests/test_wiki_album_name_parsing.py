@@ -254,7 +254,7 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         entry = as_node("""[2008.12.05] [[Yoon Sang]] - [[Song Book Play With Him|Song Book: Play With Him]] ''(#3 Lallalla ('''Girls' Generation''' + Yoon Sang))''""")
         name = parse_generasia_album_name(entry)
         en = 'Song Book: Play With Him'
-        self.assertAll(name, en, en, extra={'track': '#3 Lallalla', 'collabs': '(Girls\' Generation + Yoon Sang)'})
+        self.assertAll(name, en, en, extra={'track': '#3 Lallalla', 'collabs': 'Girls\' Generation + Yoon Sang'})
 
 
 if __name__ == '__main__':

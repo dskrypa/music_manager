@@ -12,9 +12,9 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
-from ...text.extraction import parenthesized, partition_enclosed, split_enclosed, ends_with_enclosed
+from ...text.extraction import parenthesized, split_enclosed, ends_with_enclosed
 from ...text.name import Name
-from ...text.spellcheck import is_english, english_probability
+from ...text.spellcheck import is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntryType, DiscoEntry
 from .abc import WikiParser, EditionGenerator
@@ -37,7 +37,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         first_string = artist_page.intro[0].value
         name = first_string[:first_string.rindex(')') + 1]
         # log.debug(f'Found name: {name}')
-        first_part, paren_part, _ = partition_enclosed(name, reverse=True)
+        first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         if '; ' in paren_part:
             yield Name.from_parts((first_part, paren_part.split('; ', 1)[0]))
         else:
@@ -56,7 +56,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                             log.error(f'Error splitting part={part!r}')
                             raise
                         else:
-                            part_a, part_b, _ = partition_enclosed(part, reverse=True)
+                            part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
                             try:
                                 romanized, alias = part_b.split(' or ')
                             except ValueError:
@@ -132,10 +132,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 if non_eng.endswith(')') and '(' in non_eng and name.has_romanization(title):
                     name.set_eng_or_rom(title)
                 else:
-                    a, b, _ = partition_enclosed(title, reverse=True)
+                    a, b = split_enclosed(title, reverse=True, maxsplit=1)
                     if a.endswith(')') and '(' in a:
                         incomplete_extra = process_extra(extras, b)
-                        a, b, _ = partition_enclosed(a, reverse=True)
+                        a, b = split_enclosed(a, reverse=True, maxsplit=1)
 
                     if name.has_romanization(a):
                         if _node.root and _node.root.title == title:
@@ -158,7 +158,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                             else:
                                 name._english = f'{a} ({b})'
             else:
-                a, b, _ = partition_enclosed(title, reverse=True)
+                a, b = split_enclosed(title, reverse=True, maxsplit=1)
                 if OST_PAT_SEARCH(b) or is_extra(b):
                     eng_title = a
                     incomplete_extra = process_extra(extras, b)
@@ -297,7 +297,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         lc_album_name = album_name.lower()
         if ver_ed_indicator := next((val for val in ('ver.', 'edition') if val in lc_album_name), None):
             try:
-                album_name, ver_ed_value, _ = partition_enclosed(album_name, True)
+                album_name, ver_ed_value = split_enclosed(album_name, True, maxsplit=1)
             except ValueError:
                 log.debug(f'Found \'ver.\' in album name on {entry_page} but could not split it: {album_name!r}')
             else:
@@ -381,7 +381,7 @@ def _split_name_parts(title, node):
     elif node is None:
         if title.endswith(')'):
             try:
-                title, name_parts_str, _ = partition_enclosed(title, reverse=True)
+                title, name_parts_str = split_enclosed(title, reverse=True, maxsplit=1)
             except ValueError:
                 pass
 

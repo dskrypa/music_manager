@@ -7,7 +7,7 @@ from collections import defaultdict
 from itertools import chain
 from typing import Tuple, Optional
 
-__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed']
+__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed']
 log = logging.getLogger(__name__)
 
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-'
@@ -66,7 +66,16 @@ def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str
     return None
 
 
-def split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[str, ...]:
+def strip_enclosed(text: str) -> str:
+    enclosing = ends_with_enclosed(text)
+    if enclosing:
+        opener, closer = enclosing
+        if text.startswith(opener):
+            return text[1:-1]
+    return text
+
+
+def split_enclosed(text: str, reverse=False, inner=False, recurse=0, maxsplit=0) -> Tuple[str, ...]:
     """
     Split the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.  By
     default, the string is traversed from left to right, and outer-most enclosed substrings are extracted when they are
@@ -81,9 +90,75 @@ def split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[st
       enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same pair
       of enclosing characters.
     :param int recurse: The number of levels to recurse.
+    :param int maxsplit: The maximum number of splits to perform.  If < 2, and text exists after the enclosed portion,
+      then the enclosed portion will not be extracted - it will be attached to the preceding or succeeding part,
+      depending on direction of traversal.
     :return tuple: The split string, with empty values filtered out.  If no enclosed substrings are found, the returned
       tuple will contain the original string.
     """
+    # log.debug(f'split_enclosed({text!r}, rev={reverse}, inner={inner}, recurse={recurse}, max={maxsplit})')
+    if maxsplit < 1:
+        return _split_enclosed(text, reverse, inner, recurse)
+    try:
+        _text, first_k, i = _partition_enclosed(text, reverse, inner)
+    except ValueError:
+        # log.debug(f'  > {(text,)}')
+        # noinspection PyRedundantParentheses
+        return (text,)
+
+    a, b, c = raw = _return_partitioned(_text, first_k, i, reverse)
+    parts = tuple(filter(None, raw))
+    if maxsplit == 1 and len(parts) > 2:
+        opener_idx = first_k - 1
+        a, b = _text[:opener_idx].strip(), _text[opener_idx:].strip()
+        if reverse:
+            a, b = b[::-1], a[::-1]
+        parts = (a, b)
+        c = None
+
+    maxsplit -= len(parts) - 1
+    combined = []
+    if a:
+        if maxsplit:
+            split = split_enclosed(a, reverse, inner, recurse - 1, maxsplit)
+            maxsplit -= len(split) - 1
+            combined.extend(split)
+        else:
+            split = split_enclosed(a, reverse, inner, recurse - 1, 1)
+            if len(split) == 1:
+                combined.extend(split)
+            else:
+                combined.append(a)
+    if b:
+        if recurse:
+            if maxsplit:
+                split = split_enclosed(b, reverse, inner, recurse - 1, maxsplit)
+                maxsplit -= len(split) - 1
+                combined.extend(split)
+            else:
+                split = split_enclosed(b, reverse, inner, recurse - 1, 1)
+                if len(split) == 1:
+                    combined.extend(split)
+                else:
+                    combined.append(b)
+        else:
+            combined.append(b)
+    if c:
+        if maxsplit:
+            split = split_enclosed(c, reverse, inner, recurse - 1, maxsplit)
+            maxsplit -= len(split) - 1
+            combined.extend(split)
+        else:
+            split = split_enclosed(c, reverse, inner, recurse - 1, 1)
+            if len(split) == 1:
+                combined.extend(split)
+            else:
+                combined.append(c)
+    # log.debug(f'  > {combined}')
+    return tuple(combined)
+
+
+def _split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[str, ...]:
     try:
         a, b, c = partition_enclosed(text, reverse, inner)
     except ValueError:
@@ -92,11 +167,11 @@ def split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[st
     if recurse > 0:
         recurse -= 1
         chained = chain(
-            split_enclosed(a, reverse, inner, recurse), split_enclosed(b, reverse, inner, recurse),
-            split_enclosed(c, reverse, inner, recurse)
+            _split_enclosed(a, reverse, inner, recurse), _split_enclosed(b, reverse, inner, recurse),
+            _split_enclosed(c, reverse, inner, recurse)
         )
     else:
-        chained = chain(split_enclosed(a, reverse, inner), (b,), split_enclosed(c, reverse, inner))
+        chained = chain(_split_enclosed(a, reverse, inner), (b,), _split_enclosed(c, reverse, inner))
     return tuple(filter(None, chained))
 
 
@@ -113,6 +188,15 @@ def partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, str,
     :return tuple: A 3-tuple containing the part before the enclosed substring, the enclosed substring (without the
       enclosing characters), and the part after the enclosed substring.
     :raises: :exc:`ValueError` if no enclosed text is found.
+    """
+    text, first_k, i = _partition_enclosed(text, reverse, inner)
+    return _return_partitioned(text, first_k, i, reverse)
+
+
+def _partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, int, int]:
+    """
+    Returns the text in case it was reversed, the index of the first character that is enclosed, and the index of the
+    closing character for the enclosed portion.
     """
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
@@ -133,11 +217,11 @@ def partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, str,
                     if opened[k] and opened[k] == closed[k]:
                         first_k = first[k]
                         if inner:
-                            return _return_partitioned(text, first_k, i, reverse)
+                            return text, first_k, i
                         else:
                             del first[k]
                             if not first or first_k < min(first.values()):
-                                return _return_partitioned(text, first_k, i, reverse)
+                                return text, first_k, i
                             else:
                                 pairs.append((first_k, i))
 
@@ -151,17 +235,17 @@ def partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, str,
                 if opened[k] and opened[k] == closed[k]:
                     first_k = first[k]
                     if inner:
-                        return _return_partitioned(text, first_k, i, reverse)
+                        return text, first_k, i
                     else:
                         del first[k]
                         if not first or first_k < min(first.values()):
-                            return _return_partitioned(text, first_k, i, reverse)
+                            return text, first_k, i
                         else:
                             pairs.append((first_k, i))
 
     if pairs:
         first_k, i = min(pairs)
-        return _return_partitioned(text, first_k, i, reverse)
+        return text, first_k, i
 
     raise ValueError('No enclosed text found')
 

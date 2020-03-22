@@ -95,6 +95,50 @@ class ExtractEnclosedTestCase(_CustomTestCase):
         for case, expected in cases.items():
             self.assertEqual(expected, split_enclosed(case, recurse=2))
 
+    def test_split_enclosed_limit_1(self):
+        cases_fwd = {
+            'a': ('a',),
+            '(a)': ('a',),
+            'a (b)': ('a', 'b'),
+            'a (b) c': ('a', '(b) c'),
+            'a (b) (c)': ('a', '(b) (c)'),
+        }
+        for case, expected in cases_fwd.items():
+            self.assertEqual(expected, split_enclosed(case, maxsplit=1))
+
+        cases_rev = {
+            'a': ('a',),
+            '(a)': ('a',),
+            'a (b)': ('a', 'b'),
+            'a (b) c': ('a (b)', 'c'),
+            'a (b) (c)': ('a (b)', 'c'),
+        }
+        for case, expected in cases_rev.items():
+            self.assertEqual(expected, split_enclosed(case, maxsplit=1, reverse=True))
+
+    def test_split_enclosed_limit_2(self):
+        cases_fwd = {
+            'a (b)': ('a', 'b'),
+            'a (b) c': ('a', 'b', 'c'),
+            'a (b) (c)': ('a', 'b', 'c'),
+            '(a) (b) (c)': ('a', 'b', 'c'),
+            'a (b) (c) d': ('a', 'b', '(c) d'),
+            'a (b) (c) (d)': ('a', 'b', '(c) (d)'),
+        }
+        for case, expected in cases_fwd.items():
+            self.assertEqual(expected, split_enclosed(case, maxsplit=2))
+
+        cases_rev = {
+            'a (b)': ('a', 'b'),
+            'a (b) c': ('a', 'b', 'c'),
+            'a (b) (c)': ('a', 'b', 'c'),
+            '(a) (b) (c)': ('a', 'b', 'c'),
+            'a (b) (c) d': ('a (b)', 'c', 'd'),
+            'a (b) (c) (d)': ('a (b)', 'c', 'd'),
+        }
+        for case, expected in cases_rev.items():
+            self.assertEqual(expected, split_enclosed(case, maxsplit=2, reverse=True))
+
 
 if __name__ == '__main__':
     parser = ArgumentParser('Unit Tests')

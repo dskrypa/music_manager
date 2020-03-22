@@ -52,6 +52,8 @@ class NameTestCaseBase(TestCase):
         msg = f'\nFound Name.{found}; {_expected} - full name:\n{name._full_repr()}'
         if expected is None:
             self.assertIs(value, expected, msg)
+        elif attr == 'extra' and isinstance(expected, list):
+            self.assertSetEqual(set(value), set(expected))
         else:
             self.assertEqual(value, expected, msg)
 

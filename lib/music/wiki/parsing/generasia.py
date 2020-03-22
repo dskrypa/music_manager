@@ -130,6 +130,9 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             extras.append(title[pos:].strip())
             title = title[:pos].strip()
 
+        if '(' in title and ')' not in title:
+            title += ')'
+
         # [date] [[{romanized} (eng)]] (han; lit)
         #        ^_______title_______^
         # TODO: Handle OST(+Part) for checking romanization
@@ -395,7 +398,7 @@ def find_language(node, lang, langs):
 def is_extra(text):
     # TODO: more cases
     lc_text = text.lower()
-    if lc_text.endswith('ver.'):
+    if lc_text.endswith(('ver.', 'version', 'remix')):
         return True
     elif lc_text.startswith('inst.'):
         return True

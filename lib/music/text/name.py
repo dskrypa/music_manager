@@ -4,19 +4,48 @@
 
 import logging
 import re
+from typing import Optional, Type
 
+from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
 from .extraction import partition_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
+from .spellcheck import is_english, english_probability
 
 __all__ = ['Name', 'sort_name_parts']
 log = logging.getLogger(__name__)
 non_word_char_pat = re.compile(r'\W')
 
 
-class Name:
+class NamePart:
+    """Facilitates resetting of cached properties on value changes"""
+    def __set_name__(self, owner: Type['Name'], name: str):
+        owner._parts.add(name)
+        self.name = name
+
+    def __get__(self, instance: Optional['Name'], owner):
+        if instance is None:
+            return self
+        return instance.__dict__.get(f'_NamePart__{self.name}')
+
+    def __set__(self, instance: 'Name', value):
+        instance.__dict__[f'_NamePart__{self.name}'] = value
+        if getattr(instance, '_Name__clear', False):            # works for both class property + instance property
+            instance.clear_cached_properties()
+
+
+class Name(ClearableCachedPropertyMixin):
+    __clear = False                 # Prevent unnecessary cached property reset on init
+    _parts = set()                  # Populated automatically by NamePart
+    _english = NamePart()
+    non_eng = NamePart()
+    romanized = NamePart()
+    lit_translation = NamePart()
+    versions = NamePart()
+    extra = NamePart()
+
     def __init__(self, eng=None, non_eng=None, romanized=None, lit_translation=None, versions=None, extra=None):
         self._english = eng
         self.non_eng = non_eng
@@ -24,6 +53,7 @@ class Name:
         self.lit_translation = lit_translation
         self.versions = versions or []
         self.extra = extra
+        self.__clear = True
 
     def __repr__(self):
         # parts = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
@@ -90,6 +120,31 @@ class Name:
         if scores:
             return agg_func(scores) >= threshold
         return False
+
+    def set_eng_or_rom(self, text: str, probability: Optional[float] = None, value: Optional[str] = None):
+        """
+        :param str text: The text that should be stored as either this Name's english or romanized version
+        :param float probability: If specified, consider the given text to be English if :func:`english_probability
+          <.spellcheck.english_probability>` returns a value greater than or equal to the specified value
+        :param str value: The value to use after checking the Englishness of the provided text (defaults to the provided
+          text)
+        """
+        if probability is not None:
+            is_eng = english_probability(text) >= probability
+        else:
+            is_eng = is_english(text)
+        if is_eng:
+            self._english = value or text
+        else:
+            self.romanized = value or text
+
+    def update(self, **kwargs):
+        name_parts = self._parts
+        for key, val in kwargs.items():
+            if key in name_parts:
+                setattr(self, key, val)
+            else:
+                raise ValueError(f'Invalid name part: {key!r}')
 
     @cached_property
     def english(self):

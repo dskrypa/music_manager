@@ -26,6 +26,22 @@ class NameParsingTest(NameTestCaseBase):
         self.assertTrue(name_1.matches(name_2))
         self.assertTrue(name_2.matches(name_1))
 
+    def test_name_part_reset(self):
+        name = Name('foo')
+        self.assertEqual(name._english, 'foo')
+        self.assertEqual(name.english, 'foo')
+        name._english = 'bar'
+        self.assertEqual(name._english, 'bar')
+        self.assertEqual(name.english, 'bar')
+
+    def test_name_part_reset_via_setattr(self):
+        name = Name('foo')
+        self.assertEqual(name._english, 'foo')
+        self.assertEqual(name.english, 'foo')
+        setattr(name, '_english', 'bar')
+        self.assertEqual(name._english, 'bar')
+        self.assertEqual(name.english, 'bar')
+
 
 if __name__ == '__main__':
     main(NameParsingTest)

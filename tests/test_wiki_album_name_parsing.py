@@ -36,7 +36,7 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
     def test_eng_repackage(self):
         entry = as_node("""[2008.03.17] [[So Nyeo Si Dae|Baby Baby]] ''(Repackage Album)''""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, 'Baby Baby', 'Baby Baby', extra='Repackage Album')
+        self.assertAll(name, 'Baby Baby', 'Baby Baby', extra={'album_type': 'Repackage Album'})
 
     def test_eng_simple(self):
         entry = as_node("""[2010.01.28] [[Oh!]]""")
@@ -55,7 +55,7 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         entry = as_node("""[2008.02.18] [[Sweet Memories With Girls' Generation|Sweet Memories with Girls' Generation]] ''(Song Selection Album)''""")
         name = parse_generasia_album_name(entry)
         en = 'Sweet Memories with Girls\' Generation'
-        self.assertAll(name, en, en, extra='Song Selection Album')
+        self.assertAll(name, en, en, extra={'album_type': 'Song Selection Album'})
 
     def test_rom_eng_han(self):
         entry = as_node("""[2007.08.02] [[Dasi Mannan Segye (Into the New World)|Dasi Mannan Segye (Into the new world)]] (다시 만난 세계)""")
@@ -67,7 +67,7 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         entry = as_node("""[2007.09.13] [[Dasi Mannan Segye (Into the New World)|Dasi Mannan Segye (Into the new world) Remix]] (다시 만난 세계)""")
         name = parse_generasia_album_name(entry)
         en, ko = 'Into the new world', '다시 만난 세계'
-        self.assertAll(name, en, en, ko, ko, romanized='Dasi Mannan Segye', extra='Remix')
+        self.assertAll(name, en, en, ko, ko, romanized='Dasi Mannan Segye', extra={'remix': True})
 
     def test_eng_parens(self):
         # "POP!POP!" should be part of the english name here...
@@ -84,22 +84,24 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         entry = as_node("""[2007.11.23] [[Thirty Thousand Miles in Search of My Son OST]] ''(#1 Touch the Sky (Original Ver.), #13 Touch the Sky (Drama Ver.))''""")
         name = parse_generasia_album_name(entry)
         en = 'Thirty Thousand Miles in Search of My Son OST'
-        self.assertAll(name, en, en, extra='#1 Touch the Sky (Original Ver.), #13 Touch the Sky (Drama Ver.)')
+        self.assertAll(
+            name, en, en, extra={'tracks': ('#1 Touch the Sky (Original Ver.)', '#13 Touch the Sky (Drama Ver.)')}
+        )
 
     def test_eng_album_plus_track(self):
         entry = as_node("""[2007.12.07] [[2007 Winter SMTown|2007 WINTER SMTOWN]] ''(#7 Lovely Melody)''""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, '2007 WINTER SMTOWN', '2007 WINTER SMTOWN', extra='#7 Lovely Melody')
+        self.assertAll(name, '2007 WINTER SMTOWN', '2007 WINTER SMTOWN', extra={'track': '#7 Lovely Melody'})
 
     def test_eng_album_track_various_artists(self):
         entry = as_node("""[2007.12.13] [[Light]] ''(#1 Light (Various Artists))''""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, 'Light', 'Light', extra='#1 Light (Various Artists)')
+        self.assertAll(name, 'Light', 'Light', extra={'track': '#1 Light', 'collabs': 'Various Artists'})
 
     def test_eng_ost_track(self):
         entry = as_node("""[2008.01.22] [[Hong Gil Dong OST]] ''(#5 Jak Eun Bae)''""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, 'Hong Gil Dong OST', 'Hong Gil Dong OST', extra='#5 Jak Eun Bae')
+        self.assertAll(name, 'Hong Gil Dong OST', 'Hong Gil Dong OST', extra={'track': '#5 Jak Eun Bae'})
 
     def test_eng_rom_artists(self):
         entry = as_node("""[2008.05.08] [[Haptic Motion]] (햅틱모션) <small>([[Jessica]], [[Yoona]], [[Tiffany]], [[Tong Vfang Xien Qi|Dong Bang Shin Ki]])</small>""")
@@ -107,24 +109,11 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         en, ko = 'Haptic Motion', '햅틱모션'
         self.assertAll(name, en, en, ko, ko)
 
-    def test_primary_dash_eng_paren_track_paren_collabs(self):
-        entry = as_node("""[2008.12.05] [[Yoon Sang]] - [[Song Book Play With Him|Song Book: Play With Him]] ''(#3 Lallalla ('''Girls' Generation''' + Yoon Sang))''""")
-        name = parse_generasia_album_name(entry)
-        en = 'Song Book: Play With Him'
-        self.assertAll(name, en, en, extra='#3 Lallalla (Girls\' Generation + Yoon Sang)')
-
     def test_eng_with_parens_artists(self):
         entry = as_node("""[2009.12.15] [[Seoul (Seoul City Promotional Song)|SEOUL (Seoul City Promotional Song) ]] <small>([[Taeyeon]], [[Jessica]], [[Sunny]], [[Seohyun]], [[Kyuhyun]], [[Ryeowook]], [[Sungmin]], [[Donghae]])</small>""")
         name = parse_generasia_album_name(entry)
         en = 'SEOUL (Seoul City Promotional Song)'
         self.assertAll(name, en, en)
-
-    def test_project_track_slash_collabs(self):
-        # Note: the extras on this line have an extra trailing ''
-        entry = as_node("""[2013.03.28] [[10 Corso Como Seoul Melody Collaboration Project|10 CORSO COMO SEOUL MELODY Collaboration Project]] (#1 ''Trick'' / '''Girls Generation''' x DJ Soul Scape'')""")
-        name = parse_generasia_album_name(entry)
-        en = '10 CORSO COMO SEOUL MELODY Collaboration Project'
-        self.assertAll(name, en, en, extra='#1 Trick / Girls Generation x DJ Soul Scape')
 
     def test_eng_ost_han_no_ost(self):
         entry = as_node("""[2015.09.16] [[Innisia Nest OST]] (이니시아 네스트)""")
@@ -187,7 +176,7 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         # Would prefer that this be captured as a romanization, but that would be tough
         entry = as_node("""[2014.08.29] [[Yeonaemalgo Gyeolhon OST]] (#2 ''Love Lane'')""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, 'Yeonaemalgo Gyeolhon OST', 'Yeonaemalgo Gyeolhon OST', extra='#2 Love Lane')
+        self.assertAll(name, 'Yeonaemalgo Gyeolhon OST', 'Yeonaemalgo Gyeolhon OST', extra={'track': '#2 Love Lane'})
 
     def test_ost_rom_track_missing_num(self):
         # Would prefer that this be captured as a romanization, but that would be tough
@@ -195,30 +184,30 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
         entry = as_node("""[2014.11.06] [[Naegen Neomu Sarangseureoun Geunyeo OST]] (# ''I Norae'')""")
         name = parse_generasia_album_name(entry)
         en = 'Naegen Neomu Sarangseureoun Geunyeo OST'
-        self.assertAll(name, en, en, extra='# I Norae')
+        self.assertAll(name, en, en, extra={'track': '# I Norae'})
 
     def test_ost_eng_track_rom_eng(self):
         entry = as_node("""[2015.03.12] [[Spy OST]] (#6 ''Nae Nun Sogen Neo (My Everything)'')""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, 'Spy OST', 'Spy OST', extra='#6 Nae Nun Sogen Neo (My Everything)')
+        self.assertAll(name, 'Spy OST', 'Spy OST', extra={'track': '#6 Nae Nun Sogen Neo (My Everything)'})
 
     def test_competition_part_track(self):
         entry = as_node("""[2019.09.13] [[Queendom (Covergog Gyeongyeon) Part 1|Queendom [Covergog Gyeongyeon] Part 1]] (#1 ''Good Luck'')""")
         name = parse_generasia_album_name(entry)
         en = 'Queendom [Covergog Gyeongyeon] Part 1'
-        self.assertAll(name, en, en, extra='#1 Good Luck')
+        self.assertAll(name, en, en, extra={'track': '#1 Good Luck'})
 
     def test_competition_part_track_missing_num(self):
         entry = as_node("""[2019.10.18] [[Queendom (Pandoraui Sangja) Part 1|Queendom [Pandoraui Sangja] Part 1]] (# ''I Miss You'')""")
         name = parse_generasia_album_name(entry)
         en = 'Queendom [Pandoraui Sangja] Part 1'
-        self.assertAll(name, en, en, extra='# I Miss You')
+        self.assertAll(name, en, en, extra={'track': '# I Miss You'})
 
     def test_competition_track_rom_eng(self):
         entry = as_node("""[2019.10.25] [[Queendom (Final Comeback Single)|Queendom [FINAL Comeback Single]]] (#6 ''Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)'')""")
         name = parse_generasia_album_name(entry)
         en = 'Queendom [FINAL Comeback Single]'
-        self.assertAll(name, en, en, extra='#6 Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)')
+        self.assertAll(name, en, en, extra={'track': '#6 Urin Gyeolgug Dasi Mannal Unmyeongieossji (Destiny)'})
 
     def test_rom_han_eng_feat(self):
         entry = as_node("""[2012.01.20] [[Michinyeonae]] (미친연애; ''Bad Girl'') (feat. [[E-Sens]] of [[Supreme Team]])""")
@@ -247,12 +236,25 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
     def test_song_paren_ost(self):
         entry = as_node("""[2013.12.01] [[Find Your Soul (Blade & Soul 2013 OST)]]""")
         name = parse_generasia_album_name(entry)
-        self.assertAll(name, 'Find Your Soul', 'Find Your Soul', extra='Blade & Soul 2013 OST')
+        self.assertAll(name, 'Find Your Soul', 'Find Your Soul', extra={'album': 'Blade & Soul 2013 OST'})
 
     def test_artists_dash_album(self):
         entry = as_node("""[2010.05.20] [[2PM]] & '''Girls' Generation''' - [[Cabi Song]]""")
         name = parse_generasia_album_name(entry)
         self.assertAll(name, 'Cabi Song', 'Cabi Song')
+
+    def test_project_track_slash_collabs(self):
+        # Note: the extras on this line have an extra trailing ''
+        entry = as_node("""[2013.03.28] [[10 Corso Como Seoul Melody Collaboration Project|10 CORSO COMO SEOUL MELODY Collaboration Project]] (#1 ''Trick'' / '''Girls Generation''' x DJ Soul Scape'')""")
+        name = parse_generasia_album_name(entry)
+        en = '10 CORSO COMO SEOUL MELODY Collaboration Project'
+        self.assertAll(name, en, en, extra={'track': '#1 Trick', 'collabs': 'Girls Generation x DJ Soul Scape'})
+
+    def test_primary_dash_eng_paren_track_paren_collabs(self):
+        entry = as_node("""[2008.12.05] [[Yoon Sang]] - [[Song Book Play With Him|Song Book: Play With Him]] ''(#3 Lallalla ('''Girls' Generation''' + Yoon Sang))''""")
+        name = parse_generasia_album_name(entry)
+        en = 'Song Book: Play With Him'
+        self.assertAll(name, en, en, extra={'track': '#3 Lallalla', 'collabs': '(Girls\' Generation + Yoon Sang)'})
 
 
 if __name__ == '__main__':

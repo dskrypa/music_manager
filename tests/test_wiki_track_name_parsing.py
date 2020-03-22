@@ -37,7 +37,7 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
     def test_eng_feat(self):
         entry = as_node("""[[The Boys (Girls' Generation single)|The Boys "Bring Dem Boys"]] feat. Suzi""")
         name = parse_generasia_track_name(entry)
-        self.assertAll(name, 'The Boys "Bring Dem Boys"', 'The Boys "Bring Dem Boys"', extra='feat. Suzi')
+        self.assertAll(name, 'The Boys "Bring Dem Boys"', 'The Boys "Bring Dem Boys"', extra={'feat': 'Suzi'})
 
     def test_eng_other(self):
         entry = as_node("""[[Lazy Girl (Dolce Far Niente)]]""")
@@ -47,29 +47,31 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
     def test_unclosed_paren(self):
         entry = as_node("""[[The Boys (Girls' Generation single)|The Boys (Clinton Sparks & Disco Fries Remix]] feat. Snoop Dogg""")
         name = parse_generasia_track_name(entry)
-        self.assertAll(name, 'The Boys', 'The Boys', extra=['Clinton Sparks & Disco Fries Remix', 'feat. Snoop Dogg'])
+        self.assertAll(
+            name, 'The Boys', 'The Boys', extra={'remix': 'Clinton Sparks & Disco Fries Remix', 'feat': 'Snoop Dogg'}
+        )
 
     def test_eng_version(self):
         entry = as_node("""[[The Boys (Girls' Generation single)|The Boys (Korean Version)]]""")
         name = parse_generasia_track_name(entry)
-        self.assertAll(name, 'The Boys', 'The Boys', extra='Korean Version')
+        self.assertAll(name, 'The Boys', 'The Boys', extra={'version': 'Korean Version'})
 
     def test_eng_remix(self):
         entry = as_node("""[[The Boys (Girls' Generation single)|The Boys "Bring The Boys Out" (David Anthony Remix)]]""")
         name = parse_generasia_track_name(entry)
         eng = 'The Boys "Bring The Boys Out"'
-        self.assertAll(name, eng, eng, extra='David Anthony Remix')
+        self.assertAll(name, eng, eng, extra={'remix': 'David Anthony Remix'})
 
     def test_rom_inst(self):
         entry = as_node("""[[Neona Hae|Neona Hae (Inst.)]]""")
         name = parse_generasia_track_name(entry)
-        self.assertAll(name, 'Neona Hae', romanized='Neona Hae', extra='Inst.')
+        self.assertAll(name, 'Neona Hae', romanized='Neona Hae', extra={'instrumental': True})
 
     def test_rom_han_eng_with_feat(self):
         entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]])""")
         name = parse_generasia_track_name(entry)
         # TODO
-        self.assertAll(name, 'SELFISH', 'SELFISH', extra={'feat': ...})
+        self.assertAll(name, 'SELFISH', 'SELFISH', extra={'feat': as_node('[[Seulgi]] of [[Red Velvet]]')})
 
 
 if __name__ == '__main__':

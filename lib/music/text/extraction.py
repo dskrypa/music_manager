@@ -5,6 +5,7 @@
 import logging
 from collections import defaultdict
 from itertools import chain
+from typing import Tuple
 
 __all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed']
 log = logging.getLogger(__name__)
@@ -16,19 +17,19 @@ class _CharMatcher:
     __slots__ = ('openers', 'closers', 'opener_to_closer')
 
     """Lazily compute the mapping only after the first request"""
-    def __init__(self, openers, closers):
+    def __init__(self, openers: str, closers: str):
         self.openers = openers
         self.closers = closers
         self.opener_to_closer = None
 
-    def __contains__(self, item):
+    def __contains__(self, item) -> bool:
         try:
             self[item]
         except KeyError:
             return False
         return True
 
-    def __getitem__(self, opener):
+    def __getitem__(self, opener: str) -> str:
         try:
             return self.opener_to_closer[opener]
         except TypeError:
@@ -45,7 +46,7 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def split_enclosed(text, reverse=False, inner=False, recurse=0):
+def split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[str, ...]:
     """
     Split the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.  By
     default, the string is traversed from left to right, and outer-most enclosed substrings are extracted when they are
@@ -79,7 +80,7 @@ def split_enclosed(text, reverse=False, inner=False, recurse=0):
     return tuple(filter(None, chained))
 
 
-def partition_enclosed(text, reverse=False, inner=False):
+def partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, str, str]:
     """
     Partition the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.
 
@@ -145,14 +146,14 @@ def partition_enclosed(text, reverse=False, inner=False):
     raise ValueError('No enclosed text found')
 
 
-def _return_partitioned(text, first_k, i, reverse):
+def _return_partitioned(text: str, first_k: int, i: int, reverse: bool) -> Tuple[str, str, str]:
     a, b, c = text[:first_k - 1].strip(), text[first_k:i].strip(), text[i + 1:].strip()
     if reverse:
         return c[::-1], b[::-1], a[::-1]
     return a, b, c
 
 
-def parenthesized(text, chars='()'):
+def parenthesized(text: str, chars: str = '()') -> str:
     opener, closer = chars
     opened = 0
     closed = 0

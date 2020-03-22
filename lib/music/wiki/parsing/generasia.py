@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import datetime
 from traceback import format_exc
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Generator, Union
 
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
@@ -117,17 +117,14 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     raise TypeError(f'Unexpected node type following date: {node}')
                 node = next(nodes, None)
 
-        title, non_eng, lit_translation, extra = _split_name_parts(title, node)
-        # log.debug(f'title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
+        title, non_eng, lit_translation, extras, incomplete_extra = _split_name_parts(title, node)
+        # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
 
-        if extra == 'feat':
-            extra = None
-
+        # TODO: handle incomplete extras
         eng_title, romanized = None, None
-        extras = [extra] if extra else []
         if not title.endswith(')') and ')' in title:
             pos = title.rindex(')') + 1
-            extras.append(title[pos:].strip())
+            incomplete_extra = process_extra(extras, title[pos:].strip())
             title = title[:pos].strip()
 
         if '(' in title and ')' not in title:
@@ -135,7 +132,6 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         # [date] [[{romanized} (eng)]] (han; lit)
         #        ^_______title_______^
-        # TODO: Handle OST(+Part) for checking romanization
         if title.endswith(')') and '(' in title:
             if non_eng:
                 non_eng_name = Name(non_eng=non_eng)
@@ -147,7 +143,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     a, b, _ = partition_enclosed(title, reverse=True)
                     if a.endswith(')') and '(' in a:
-                        extras.append(b)
+                        incomplete_extra = process_extra(extras, b)
                         a, b, _ = partition_enclosed(a, reverse=True)
 
                     # log.debug(f'a={a!r} b={b!r}')
@@ -183,14 +179,14 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         else:
                             if is_extra(b):
                                 eng_title = a
-                                extras.append(b)
+                                incomplete_extra = process_extra(extras, b)
                             else:
                                 eng_title = f'{a} ({b})'
             else:
                 a, b, _ = partition_enclosed(title, reverse=True)
                 if OST_PAT_SEARCH(b) or is_extra(b):
                     eng_title = a
-                    extras.append(b)
+                    incomplete_extra = process_extra(extras, b)
                 else:
                     eng_title = title
 
@@ -211,9 +207,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 eng_title = title
 
         # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
-        name = Name(
-            eng_title, non_eng, romanized, lit_translation, extra=extras[0] if len(extras) == 1 else extras or None
-        )
+        name = Name(eng_title, non_eng, romanized, lit_translation, extra=extras if extras else None)
         return name
 
     parse_track_name = parse_album_name
@@ -396,11 +390,10 @@ def find_language(node, lang, langs):
 
 
 def is_extra(text):
-    # TODO: more cases
     lc_text = text.lower()
     if lc_text.endswith(('ver.', 'version', 'remix')):
         return True
-    elif lc_text.startswith('inst.'):
+    elif lc_text.startswith(('inst.', 'instrumental')):
         return True
     return False
 
@@ -412,39 +405,82 @@ def _split_name_parts(title, node):
     :return tuple:
     """
     original_title = title
-    non_eng, lit_translation, extra, name_parts = None, None, None, None
+    non_eng, lit_translation, name_parts_str, extra = None, None, None, None
     if isinstance(node, String):
-        name_parts = parenthesized(node.value)
+        name_parts_str = parenthesized(node.value)
     elif node is None:
         if title.endswith(')'):
             try:
-                title, name_parts, _ = partition_enclosed(title, reverse=True)
+                title, name_parts_str, _ = partition_enclosed(title, reverse=True)
             except ValueError:
                 pass
 
     # log.debug(f'title={title!r} name_parts={name_parts!r}')
 
-    if name_parts and LangCat.contains_any(name_parts, LangCat.asian_cats):
-        name_parts = tuple(map(str.strip, name_parts.split(';')))
-    else:
-        if node is None:
-            title = original_title
-        else:
-            extra = name_parts
-        name_parts = None
-
-    if name_parts:
+    if name_parts_str and LangCat.contains_any(name_parts_str, LangCat.asian_cats):
+        name_parts = tuple(map(str.strip, name_parts_str.split(';')))
         if len(name_parts) == 1:
             non_eng = name_parts[0]
         elif len(name_parts) == 2:
             non_eng, lit_translation = name_parts
         else:
             raise ValueError(f'Unexpected name parts in node={node}')
+    else:
+        if node is None:
+            title = original_title
+        else:
+            extra = name_parts_str
 
-    if extra and extra.startswith('(') and ')' not in extra:
-        extra = extra[1:]
-        if extra.lower().startswith('feat'):
-            extra = 'feat'
+    extras = {}
+    incomplete_extra = None
+    if extra:
+        # log.info(f'node={node!r} => extra={extra!r}', extra={'color': 'red'})
+        incomplete_extra = process_extra(extras, extra)
 
-    # log.debug(f'node={node!r} => title={title!r} non_eng={non_eng!r} lit_translation={lit_translation!r} extra={extra!r}')
-    return title, non_eng, lit_translation, extra
+    # log.debug(f'node={node!r} => title={title!r} non_eng={non_eng!r} lit={lit_translation!r} extras={extras}')
+    return title, non_eng, lit_translation, extras, incomplete_extra
+
+
+def process_extra(extras: dict, extra: Union[str, Node]) -> Union[None, str, Node]:
+    if isinstance(extra, str):
+        if extra.startswith('(') and ')' not in extra:
+            extra = extra[1:]
+        extra_type = classify_extra(extra)
+        if extra_type == 'track' and ',' in extra and extra.count('#') > 1:
+            extra_type = 'tracks'
+            extra = tuple(map(str.strip, extra.split(',')))
+        elif extra_type == 'feat':
+            try:
+                extra = extra.split(maxsplit=1)[1]
+            except IndexError:
+                return extra_type
+    else:
+        raise TypeError(f'Extras of type={extra.__class__.__name__} are not currently supported')
+
+    if extra_type == 'instrumental':
+        extras[extra_type] = True
+    elif extra_type == 'remix' and extra.lower() == 'remix':
+        extras[extra_type] = True
+    else:
+        extras[extra_type] = extra
+    return None
+
+
+def classify_extra(text: str):
+    if text.startswith('#'):
+        return 'track'
+    lc_text = text.lower()
+    if lc_text.endswith(' ost'):
+        return 'album'
+    elif lc_text.endswith('album'):
+        return 'album_type'
+    elif lc_text.startswith(('feat.', 'featuring')):
+        return 'feat'
+    elif lc_text.endswith('remix'):
+        return 'remix'
+    elif lc_text.endswith(('ver.', 'version')):
+        return 'version'
+    elif lc_text.startswith(('inst.', 'instrumental')):
+        return 'instrumental'
+
+    return None

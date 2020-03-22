@@ -12,7 +12,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
-from ...text.extraction import parenthesized, partition_enclosed, split_enclosed, contains_enclosed
+from ...text.extraction import parenthesized, partition_enclosed, split_enclosed, ends_with_enclosed
 from ...text.name import Name
 from ...text.spellcheck import is_english, english_probability
 from ..album import DiscographyEntry, DiscographyEntryEdition
@@ -90,12 +90,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             nodes = iter(node)
 
         node = next(nodes)
-        # after_date = None
-        if isinstance(node, String):
-            m = DATE_PAT_MATCH(node.value)
-            if m:
-                # after_date = m.group(1).strip()
-                node = next(nodes)
+        if isinstance(node, String) and DATE_PAT_MATCH(node.value):
+            node = next(nodes)
 
         if isinstance(node, Link):
             title = node.show
@@ -120,7 +116,6 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         title, non_eng, lit_translation, extras, incomplete_extra = _split_name_parts(title, node)
         # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
 
-        eng_title, romanized = None, None
         if not title.endswith(')') and ')' in title:
             pos = title.rindex(')') + 1
             incomplete_extra = process_extra(extras, title[pos:].strip())
@@ -131,56 +126,37 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         # [date] [[{romanized} (eng)]] (han; lit)
         #        ^_______title_______^
-        if (enclosing_chars := contains_enclosed(title)) and '"' not in enclosing_chars:
+        name = Name(non_eng=non_eng, lit_translation=lit_translation)
+        if ends_with_enclosed(title, exclude='"'):
             if non_eng:
-                non_eng_name = Name(non_eng=non_eng)
-                if non_eng.endswith(')') and '(' in non_eng and non_eng_name.has_romanization(title):
-                    if is_english(title):
-                        eng_title = title
-                    else:
-                        romanized = title
+                if non_eng.endswith(')') and '(' in non_eng and name.has_romanization(title):
+                    name.set_eng_or_rom(title)
                 else:
                     a, b, _ = partition_enclosed(title, reverse=True)
                     if a.endswith(')') and '(' in a:
                         incomplete_extra = process_extra(extras, b)
                         a, b, _ = partition_enclosed(a, reverse=True)
 
-                    # log.debug(f'a={a!r} b={b!r}')
-                    if non_eng_name.has_romanization(a):
-                        # log.debug(f'romanized({non_eng!r}) ==> {a!r}')
+                    if name.has_romanization(a):
                         if _node.root and _node.root.title == title:
-                            # log.debug(f'_node.root.title matches title')
-                            if is_english(a):
-                                # log.debug(f'a={a!r} is the English title')
-                                eng_title = title
-                            else:
-                                # log.debug(f'a={a!r} is the Romanized title')
-                                romanized = title
-                            non_eng = title.replace(a, non_eng)
-                            lit_translation = title.replace(a, lit_translation) if lit_translation else None
-                            # log.debug(f'eng_title={eng_title!r} non_eng={non_eng!r} romanized={romanized!r} lit_translation={lit_translation!r} extra={extra!r}')
+                            name.set_eng_or_rom(a, value=title)
+                            name.non_eng = title.replace(a, non_eng)
+                            name.lit_translation = title.replace(a, lit_translation) if lit_translation else None
                         else:
-                            if is_english(a):
-                                # log.debug(f'Text={a!r} is a romanization of non_eng={non_eng!r}, but it is also valid English')
-                                eng_title = a
-                            else:
-                                romanized = a
-
+                            name.set_eng_or_rom(a)
                             if is_extra(b):
                                 incomplete_extra = process_extra(extras, b)
-                            elif eng_title:
-                                eng_title = f'{eng_title} ({b})'
                             else:
-                                eng_title = b
+                                name._english = f'{name._english} ({b})' if name._english else b
                     else:
                         if _node.root and _node.root.title == title:
-                            eng_title = title
+                            name._english = title
                         else:
                             if is_extra(b):
-                                eng_title = a
+                                name._english = a
                                 incomplete_extra = process_extra(extras, b)
                             else:
-                                eng_title = f'{a} ({b})'
+                                name._english = f'{a} ({b})'
             else:
                 a, b, _ = partition_enclosed(title, reverse=True)
                 if OST_PAT_SEARCH(b) or is_extra(b):
@@ -189,27 +165,24 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     eng_title = title
 
-                if english_probability(eng_title) < 0.5:
-                    romanized, eng_title = eng_title, None
-
+                name.set_eng_or_rom(eng_title, 0.5)
         else:
-            if non_eng and Name(non_eng=non_eng).has_romanization(title):
+            if non_eng and name.has_romanization(title):
                 if is_english(title):
-                    eng_title = title
+                    name._english = title
                 else:
-                    romanized = title
+                    name.romanized = title
                     if lit_translation and ' / ' in lit_translation:
                         lit, eng = lit_translation.split(' / ', 1)
                         if f'{lit} / {eng}' not in _node.raw.string:  # Make sure it had formatting after lit / before eng
-                            eng_title, lit_translation = eng, lit
+                            name.update(_english=eng, lit_translation=lit)
             else:
-                eng_title = title
+                name._english = title
 
         if incomplete_extra:
             process_incomplete_extra(extras, incomplete_extra, nodes)
-
-        # log.debug(f'Name: eng={eng_title!r} non_eng={non_eng!r} rom={romanized!r} lit={lit_translation!r} extra={extra!r}')
-        name = Name(eng_title, non_eng, romanized, lit_translation, extra=extras if extras else None)
+        if extras:
+            name.extra = extras
         return name
 
     parse_track_name = parse_album_name

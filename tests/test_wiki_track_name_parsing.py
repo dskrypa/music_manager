@@ -82,6 +82,27 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         name = parse_generasia_track_name(entry)
         self.assertAll(name, 'HIP', 'HIP', extra={'version': 'Japanese ver.'})
 
+    def test_cjk_eng_rom_lit(self):
+        entry = as_node("""[[Wolf (EXO)|Lang Yu Meinu (Wolf)]] (狼与美女; ''Wolf and the Beauty'')""")
+        name = parse_generasia_track_name(entry)
+        self.assertAll(
+            name, 'Wolf', 'Wolf', '狼与美女', cjk='狼与美女', romanized='Lang Yu Meinu',
+            lit_translation='Wolf and the Beauty'
+        )
+
+    def test_cjk_eng_rom_ver(self):
+        entry = as_node("""[[Wolf (EXO)|Lang Yu Meinu (Wolf) (EXO-M Ver.)]] (狼与美女)""")
+        name = parse_generasia_track_name(entry)
+        self.assertAll(
+            name, 'Wolf', 'Wolf', '狼与美女', cjk='狼与美女', romanized='Lang Yu Meinu',
+            extra={'version': 'EXO-M Ver.'}
+        )
+
+    def test_cjk_eng_rom(self):
+        entry = as_node("""[[Growl (EXO)|Páoxiāo (Growl)]] (咆哮)""")
+        name = parse_generasia_track_name(entry)
+        self.assertAll(name, 'Growl', 'Growl', '咆哮', cjk='咆哮', romanized='Páoxiāo')
+
 
 if __name__ == '__main__':
     main(GenerasiaTrackNameParsingTest)

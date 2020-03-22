@@ -7,7 +7,7 @@ from collections import defaultdict
 from itertools import chain
 from typing import Tuple, Optional
 
-__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'contains_enclosed']
+__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed']
 log = logging.getLogger(__name__)
 
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-'
@@ -46,14 +46,17 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def contains_enclosed(text: str) -> Optional[str]:
+def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str]:
     """
     :param str text: A string to examine
+    :param str exclude: If specified, exclude the provided characters from counting as closers
     :return str|None: The opener + closer characters if the string contains enclosed text, otherwise None
     """
     if len(text) < 2:
         return None
     closer = text[-1]
+    if exclude and closer in exclude:
+        return None
     try:
         openers = CLOSER_TO_OPENER[closer]
     except KeyError:

@@ -137,6 +137,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         incomplete_extra = process_extra(extras, b)
                         a, b = split_enclosed(a, reverse=True, maxsplit=1)
 
+                    # log.debug(f'Split title -> a={a!r} (eng: {is_english(a)}), b={b!r} (eng: {is_english(b)})')
                     if name.has_romanization(a):
                         if _node.root and _node.root.title == title:
                             name.set_eng_or_rom(a, value=title)

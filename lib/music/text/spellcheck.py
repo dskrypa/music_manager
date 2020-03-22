@@ -5,6 +5,7 @@
 import logging
 import lzma
 import pkg_resources
+import re
 from pathlib import Path
 
 from symspellpy import SymSpell, Verbosity
@@ -14,6 +15,7 @@ from ds_tools.compat import cached_property
 
 __all__ = ['init_sym_spell', 'is_english', 'english_probability']
 log = logging.getLogger(__name__)
+WORD_FINDER = re.compile(r'(\w+)').finditer
 
 
 class SpellChecker:
@@ -21,16 +23,15 @@ class SpellChecker:
     def sym_spell(self):
         return init_sym_spell()
 
-    def is_english(self, text):
-        words = text.lower().split()
+    def is_english(self, text: str) -> bool:
         lookup = self.sym_spell.lookup
-        for word in words:
-            results = lookup(word, Verbosity.TOP)
+        for m in WORD_FINDER(text.lower()):
+            results = lookup(m.group(), Verbosity.TOP)
             if not results or results[0].distance != 0:
                 return False
         return True
 
-    def english_probability(self, text):
+    def english_probability(self, text: str):
         """
         Approximate the likelihood that the provided text is English.
 

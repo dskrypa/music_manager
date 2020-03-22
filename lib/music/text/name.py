@@ -62,8 +62,8 @@ class Name(ClearableCachedPropertyMixin):
         return f'<{type(self).__name__}({parts})>'
 
     def _full_repr(self):
-        var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra')
-        vars = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
+        var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang')
+        vars = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra, self.non_eng_lang)
         indent = ' ' * 4
         parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, vars))
         return f'<{type(self).__name__}(\n{parts}\n)>'

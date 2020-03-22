@@ -103,6 +103,12 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         name = parse_generasia_track_name(entry)
         self.assertAll(name, 'Growl', 'Growl', '咆哮', cjk='咆哮', romanized='Páoxiāo')
 
+    def test_rom_eng_cjk_lit(self):
+        entry = as_node("""[[Baby, Don't Cry|Renyu de Yanlei (Baby, Don't Cry)]] (人鱼的眼泪; ''Mermaid Tears'')""")
+        name = parse_generasia_track_name(entry)
+        en, cjk = 'Baby, Don\'t Cry', '人鱼的眼泪'
+        self.assertAll(name, en, en, cjk, cjk=cjk, romanized='Renyu de Yanlei', lit_translation='Mermaid Tears')
+
 
 if __name__ == '__main__':
     main(GenerasiaTrackNameParsingTest)

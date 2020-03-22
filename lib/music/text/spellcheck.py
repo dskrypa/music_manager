@@ -72,7 +72,7 @@ def init_sym_spell():
     else:
         dict_path = pkg_resources.resource_filename('symspellpy', 'frequency_dictionary_en_82_765.txt')
         sym_spell.load_dictionary(dict_path, 0, 1)
-        word_list_path_xz = Path(pkg_resources.resource_filename('music_manager', '../../etc/scowl/words.xz')).resolve()
+        word_list_path_xz = Path(pkg_resources.resource_filename('music', '../../etc/scowl/words.xz')).resolve()
         log.debug(f'Loading default dictionary + word list from {word_list_path_xz}')
         with lzma.open(word_list_path_xz, 'rt', encoding='utf-8') as f:
             word_list = f.read().splitlines()

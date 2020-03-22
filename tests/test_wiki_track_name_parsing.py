@@ -72,6 +72,16 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         name = parse_generasia_track_name(entry)
         self.assertAll(name, 'SELFISH', 'SELFISH', extra={'feat': as_node('[[Seulgi]] of [[Red Velvet]]')})
 
+    def test_digital_edition(self):
+        entry = as_node("""[[The Boys (Girls' Generation single)|The Boys (English Ver.)]] ''(Digital Ed. Only)''""")
+        name = parse_generasia_track_name(entry)
+        self.assertAll(name, 'The Boys', 'The Boys', extra={'version': 'English Ver.', 'edition': 'Digital Ed. Only'})
+
+    def test_lang_ver_no_space(self):
+        entry = as_node("""[[Hip|HIP-Japanese ver.-]]""")
+        name = parse_generasia_track_name(entry)
+        self.assertAll(name, 'HIP', 'HIP', extra={'version': 'Japanese ver.'})
+
 
 if __name__ == '__main__':
     main(GenerasiaTrackNameParsingTest)

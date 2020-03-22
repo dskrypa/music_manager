@@ -5,9 +5,9 @@
 import logging
 from collections import defaultdict
 from itertools import chain
-from typing import Tuple
+from typing import Tuple, Optional
 
-__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed']
+__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'contains_enclosed']
 log = logging.getLogger(__name__)
 
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-'
@@ -44,6 +44,23 @@ class _CharMatcher:
 
 OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
+
+
+def contains_enclosed(text: str) -> Optional[str]:
+    """
+    :param str text: A string to examine
+    :return str|None: The opener + closer characters if the string contains enclosed text, otherwise None
+    """
+    if len(text) < 2:
+        return None
+    closer = text[-1]
+    try:
+        openers = CLOSER_TO_OPENER[closer]
+    except KeyError:
+        return None
+    if opener := next((c for c in openers if c in text), None):
+        return opener + closer
+    return None
 
 
 def split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[str, ...]:

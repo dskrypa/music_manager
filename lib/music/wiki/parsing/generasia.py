@@ -12,7 +12,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
-from ...text.extraction import parenthesized, partition_enclosed, split_enclosed
+from ...text.extraction import parenthesized, partition_enclosed, split_enclosed, contains_enclosed
 from ...text.name import Name
 from ...text.spellcheck import is_english, english_probability
 from ..album import DiscographyEntry, DiscographyEntryEdition
@@ -131,7 +131,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         # [date] [[{romanized} (eng)]] (han; lit)
         #        ^_______title_______^
-        if title.endswith(')') and '(' in title:
+        if (enclosing_chars := contains_enclosed(title)) and '"' not in enclosing_chars:
             if non_eng:
                 non_eng_name = Name(non_eng=non_eng)
                 if non_eng.endswith(')') and '(' in non_eng and non_eng_name.has_romanization(title):
@@ -510,5 +510,7 @@ def classify_extra(text: str):
         return 'version'
     elif lc_text.startswith(('inst.', 'instrumental')):
         return 'instrumental'
+    elif any(val in lc_text for val in (' ed.', 'edition')):
+        return 'edition'
 
     return None

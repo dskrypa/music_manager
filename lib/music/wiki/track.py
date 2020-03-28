@@ -7,7 +7,9 @@ from functools import partialmethod
 from typing import TYPE_CHECKING, Any, List
 
 from ds_tools.compat import cached_property
+from wiki_nodes.nodes import CompoundNode, String, Link
 from ..text import Name, combine_with_parens
+from .artist import Artist
 
 if TYPE_CHECKING:
     from .album import DiscographyEntryPart
@@ -49,7 +51,18 @@ class Track:
         parts = []
         if extras := self.name.extra:
             if feat := extras.get('feat'):
-                parts.append(f'feat. {feat}')
+                if isinstance(feat, CompoundNode):
+                    feat_parts = []
+                    for node in feat.children:
+                        if isinstance(node, String):
+                            value = node.value.strip()
+                            if value not in '()':
+                                feat_parts.append(value)
+                        elif isinstance(node, Link):
+                            feat_parts.append(Artist.from_link(node).name)
+                    parts.append(f'feat. {combine_with_parens(feat_parts)}')
+                else:
+                    parts.append(f'feat. {feat}')
             if collab := extras.get('collabs'):
                 parts.append(f'with {collab}')
         return parts

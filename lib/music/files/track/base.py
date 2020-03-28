@@ -3,7 +3,7 @@
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -33,7 +33,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     length = MusicFileProperty('info.length')               # float: The length of this song in seconds
     tag_artist = TextTagProperty('artist')
     tag_title = TextTagProperty('title')
-    date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())
+    date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())     # type: date
 
     def __new__(cls, file_path, *args, **kwargs):
         file_path = (Path(file_path).expanduser() if isinstance(file_path, str) else file_path).as_posix()

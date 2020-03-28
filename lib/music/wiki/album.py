@@ -15,7 +15,6 @@ from wiki_nodes.page import WikiPage
 from ..text.name import Name
 from .base import WikiEntity, Pages
 from .exceptions import EntityTypeError, BadLinkError
-from .track import Track
 
 if TYPE_CHECKING:
     from .disco_entry import DiscoEntry, DiscoEntryType
@@ -225,7 +224,7 @@ class DiscographyEntryPart:
     def __lt__(self, other: 'DiscographyEntryPart') -> bool:
         return (self.edition, self.name) < (other.edition, other.name)
 
-    def __iter__(self) -> Iterator[Track]:
+    def __iter__(self) -> Iterator['Track']:
         return iter(self.tracks)
 
     @cached_property
@@ -239,7 +238,7 @@ class DiscographyEntryPart:
             return [parse_track_name(node) for node in self._tracks.iter_flat()]
 
     @cached_property
-    def tracks(self) -> List[Track]:
+    def tracks(self) -> List['Track']:
         return [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
 
 
@@ -251,3 +250,4 @@ class SoundtrackPart(DiscographyEntryPart):
 # Down here due to circular dependency
 from .artist import Artist
 from .parsing import WikiParser
+from .track import Track

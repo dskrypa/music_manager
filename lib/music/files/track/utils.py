@@ -4,7 +4,7 @@
 
 import re
 from pathlib import Path
-from typing import Mapping, Tuple, Any
+from typing import Mapping, Tuple, Any, Callable, Optional
 
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
@@ -79,7 +79,7 @@ class MusicFileProperty(ClearableCachedProperty):
 class TextTagProperty(ClearableCachedProperty):
     _set_name = True
 
-    def __init__(self, name, cast_func=None):
+    def __init__(self, name: str, cast_func: Optional[Callable] = None):
         self.tag_name = name
         self.cast_func = cast_func
 

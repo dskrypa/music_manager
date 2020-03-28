@@ -17,6 +17,7 @@ from music.files import apply_mutagen_patches
 from music.manager.file_info import print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values
 from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags
 from music.manager.wiki_info import show_wiki_entity
+from music.manager.wiki_update import update_tracks
 
 log = logging.getLogger(__name__)
 apply_mutagen_patches()
@@ -60,6 +61,13 @@ def parser():
     url_parser.add_argument('url', help='A wiki URL')
     url_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
     url_parser.add_argument('--limit', '-L', type=int, default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
+
+    upd_parser = wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info')
+    upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+    upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
+    upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
+    upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
+    upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
     # endregion
 
     parser.include_common_args('verbosity', 'dry_run')
@@ -87,6 +95,8 @@ def main():
     elif action == 'wiki':
         if sub_action == 'show':
             show_wiki_entity(args.url, args.expand, args.limit)
+        elif sub_action == 'update':
+            update_tracks(args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':

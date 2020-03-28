@@ -117,6 +117,21 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         title, non_eng, lit_translation, extras, incomplete_extra = _split_name_parts(title, node)
         # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
 
+        if incomplete_extra:
+            recombined = process_incomplete_extra(extras, incomplete_extra, nodes)
+            if non_eng is None and lit_translation is None and isinstance(recombined[-1], String):
+                last_val = recombined[-1].value                                 # type: str
+                if last_val.startswith(')') and String('(') in recombined:
+                    recombined[-1] = String(')')
+                    extras[incomplete_extra] = CompoundNode.from_nodes(recombined.children, delim=' ')
+                    last_val = last_val[1:].strip()
+                    if last_val.startswith(')'):
+                        last_val = last_val[1:].strip()
+                    non_eng, lit_translation = _split_non_eng_lit(last_val)
+            incomplete_extra = None
+
+        # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
+
         if not title.endswith(')') and ')' in title:
             pos = title.rindex(')') + 1
             incomplete_extra = process_extra(extras, title[pos:].strip())
@@ -399,16 +414,9 @@ def _split_name_parts(
                 pass
 
     # log.debug(f'title={title!r} name_parts={name_parts!r}')
-
-    if name_parts_str and LangCat.contains_any(name_parts_str, LangCat.asian_cats):
-        name_parts = tuple(map(str.strip, name_parts_str.split(';')))
-        if len(name_parts) == 1:
-            non_eng = name_parts[0]
-        elif len(name_parts) == 2:
-            non_eng, lit_translation = name_parts
-        else:
-            raise ValueError(f'Unexpected name parts in node={node}')
-    else:
+    if name_parts_str:
+        non_eng, lit_translation = _split_non_eng_lit(name_parts_str)
+    if non_eng is None and lit_translation is None:
         if node is None:
             title = original_title
         else:
@@ -424,7 +432,23 @@ def _split_name_parts(
     return title, non_eng, lit_translation, extras, incomplete_extra
 
 
-def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter: Iterator[Node]):
+def _split_non_eng_lit(name_parts_str: str):
+    # log.debug(f'Splitting: {name_parts_str!r}')
+    non_eng, lit_translation = None, None
+    if name_parts_str.startswith('('):
+        name_parts_str = parenthesized(name_parts_str)
+    if name_parts_str and LangCat.contains_any(name_parts_str, LangCat.asian_cats):
+        name_parts = tuple(map(str.strip, name_parts_str.split(';')))
+        if len(name_parts) == 1:
+            non_eng = name_parts[0]
+        elif len(name_parts) == 2:
+            non_eng, lit_translation = name_parts
+        else:
+            raise ValueError(f'Unexpected name parts format: {name_parts_str!r}')
+    return non_eng, lit_translation
+
+
+def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter: Iterator[Node]) -> CompoundNode:
     nodes = []
     for node in node_iter:
         if isinstance(node, String):
@@ -432,12 +456,12 @@ def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter
             if value == ')':
                 break
             elif value.endswith(')'):
-                node.value = value[:-1].strip()
                 nodes.append(node)
                 break
         nodes.append(node)
 
-    extras[incomplete_extra_type] = CompoundNode.from_nodes(nodes, delim=' ')
+    extras[incomplete_extra_type] = recombined = CompoundNode.from_nodes(nodes, delim=' ')
+    return recombined
 
 
 def process_extra(extras: dict, extra: str) -> Optional[str]:
@@ -478,6 +502,8 @@ def process_extra(extras: dict, extra: str) -> Optional[str]:
     elif extra_type == 'remix' and extra.lower() == 'remix':
         extras[extra_type] = True
     else:
+        if extra_type == 'version' and ' RnB ' in extra:
+            extra = extra.replace(' RnB ', ' R&B ')
         extras[extra_type] = extra
     return None
 

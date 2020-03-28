@@ -258,6 +258,13 @@ def _return_partitioned(text: str, first_k: int, i: int, reverse: bool) -> Tuple
 
 
 def parenthesized(text: str, chars: str = '()') -> str:
+    """
+    Extract the first enclosed substring from the given string.
+
+    :param str text: A string
+    :param str chars: The enclosing characters from which text should be extracted
+    :return str: The first substring that was enclosed
+    """
     opener, closer = chars
     opened = 0
     closed = 0

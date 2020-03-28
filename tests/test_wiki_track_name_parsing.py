@@ -131,7 +131,15 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         entry = as_node("""[[Byeol Byeol Byeol|Byeol Byeol Byeol (☆★☆)- Acoustic RnB ver.]] (별별별; ''Star Star Star'')""")
         name = parse_generasia_track_name(entry)
         rom, eng, ko, lit = 'Byeol Byeol Byeol', '☆★☆', '별별별', 'Star Star Star'
-        self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit, extra={'version': 'Acoustic RnB ver.'})
+        self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit, extra={'version': 'Acoustic R&B ver.'})
+
+    def test_rom_eng_feat_han_lit(self):
+        entry = as_node("""[[Hwaseongin Baireoseu (Boys & Girls)]] (feat. [[Key]] ([[SHINee]])) (화성인 바이러스; ''Martian Virus'')""")
+        name = parse_generasia_track_name(entry)
+        rom, eng, ko, lit = 'Hwaseongin Baireoseu', 'Boys & Girls', '화성인 바이러스', 'Martian Virus'
+        feat = as_node("""[[Key]] ( [[SHINee]] )""")
+        log.debug(f'Expected feat={feat.raw.string!r}')
+        self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit, extra={'feat': feat})
 
 
 if __name__ == '__main__':

@@ -5,8 +5,9 @@
 import logging
 import os
 import re
+from datetime import date
 from pathlib import Path
-from typing import Generator
+from typing import Iterator, List, Union, Optional
 
 from mutagen.id3 import TDRC
 
@@ -15,7 +16,7 @@ from ds_tools.compat import cached_property
 from ds_tools.core import iter_paths, FnMatcher, Paths
 from tz_aware_dt import format_duration
 from .exceptions import *
-from .track import BaseSongFile
+from .track import BaseSongFile, SongFile
 from .utils import iter_music_files, tag_repr
 
 __all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs']
@@ -30,7 +31,7 @@ RM_TAG_MATCHERS = {
 class AlbumDir(ClearableCachedPropertyMixin):
     __instances = {}
 
-    def __new__(cls, path):
+    def __new__(cls, path: Union[Path, str]):
         if not isinstance(path, Path):
             path = Path(path).expanduser().resolve()
 
@@ -45,7 +46,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         else:
             return cls.__instances[str_path]
 
-    def __init__(self, path):
+    def __init__(self, path: Union[Path, str]):
         """
         :param str|Path path: The path to a directory that contains one album's music files
         """
@@ -56,20 +57,20 @@ class AlbumDir(ClearableCachedPropertyMixin):
         self.path = path
         self._album_score = -1
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         try:
             rel_path = self.path.relative_to(Path('.').resolve()).as_posix()
         except Exception as e:
             rel_path = self.path.as_posix()
         return '<{}({!r})>'.format(type(self).__name__, rel_path)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[SongFile]:
         yield from self.songs
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.songs)
 
-    def move(self, dest_path):
+    def move(self, dest_path: Union[Path, str]):
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
         dest_path = dest_path.expanduser().resolve()
@@ -84,7 +85,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         self.clear_cached_properties()
 
     @cached_property
-    def songs(self):
+    def songs(self) -> List[SongFile]:
         songs = list(iter_music_files(self.path))
         for song in songs:
             song._in_album_dir = True
@@ -92,7 +93,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return songs
 
     @cached_property
-    def name(self):
+    def name(self) -> str:
         album = self.path.name
         m = re.match('^\[\d{4}[0-9.]*\] (.*)$', album)  # Begins with date
         if m:
@@ -103,7 +104,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return album
 
     @cached_property
-    def artist_path(self):
+    def artist_path(self) -> Optional[Path]:
         bad = (
             'album', 'single', 'soundtrack', 'collaboration', 'solo', 'christmas', 'download', 'compilation',
             'unknown_fixme'
@@ -121,19 +122,19 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return None
 
     @cached_property
-    def _type_path(self):
+    def _type_path(self) -> Optional[Path]:
         """Not accurate if not already sorted"""
         return self.path.parent
 
     @property
-    def length(self):
+    def length(self) -> int:
         """
         :return float: The length of this album in seconds
         """
         return sum(f.length for f in self.songs)
 
     @cached_property
-    def length_str(self):
+    def length_str(self) -> str:
         """
         :return str: The length of this album in the format (HH:M)M:SS
         """
@@ -145,11 +146,11 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return length
 
     @cached_property
-    def _is_full_ost(self):
+    def _is_full_ost(self) -> bool:
         return all(f._is_full_ost for f in self.songs)
 
     @cached_property
-    def title(self):
+    def title(self) -> Optional[str]:
         titles = {f.album_name_cleaned_plus_and_part[0] for f in self.songs}
         title = None
         if len(titles) == 1:
@@ -161,7 +162,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return title
 
     @cached_property
-    def disk_num(self):
+    def disk_num(self) -> Optional[int]:
         nums = {f.disk_num for f in self.songs}
         if len(nums) == 1:
             return nums.pop()
@@ -170,7 +171,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             return None
 
     @cached_property
-    def tag_release_date(self):
+    def tag_release_date(self) -> Optional[date]:
         try:
             dates = {f.date for f in self.songs}
         except Exception as e:
@@ -251,7 +252,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             log.debug('None of the songs in {} had any tags that needed to be removed'.format(self))
 
 
-def iter_album_dirs(paths: Paths) -> Generator[AlbumDir, None, None]:
+def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:
     for path in iter_paths(paths):
         if path.is_dir():
             for root, dirs, files in os.walk(path.as_posix()):  # as_posix for 3.5 compatibility

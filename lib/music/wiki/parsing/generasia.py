@@ -34,7 +34,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         # From intro ===========================================================================================
-        first_string = artist_page.intro[0].value
+        intro = artist_page.intro
+        first_string = intro[0].value if isinstance(intro, CompoundNode) else intro.value
         name = first_string[:first_string.rindex(')') + 1]
         # log.debug(f'Found name: {name}')
         first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)

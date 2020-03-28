@@ -5,7 +5,7 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
-from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any
+from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
@@ -17,7 +17,7 @@ __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
-GenericWikiEntity = TypeVar('GenericWikiEntity', bound='WikiEntity')
+WE = TypeVar('WE', bound='WikiEntity')
 Pages = Union[Dict[str, WikiPage], Iterable[WikiPage], None]
 
 
@@ -71,7 +71,9 @@ class WikiEntity:
         yield from self._pages.values()
 
     @classmethod
-    def _by_category(cls, name: str, obj: Union[WikiPage, Any], page_cats: Iterable[str], *args, **kwargs):
+    def _by_category(
+            cls: Type[WE], name: str, obj: Union[WikiPage, Any], page_cats: Iterable[str], *args, **kwargs
+    ) -> WE:
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
         for cls_cat, cat_cls in cls._category_classes.items():
@@ -91,7 +93,7 @@ class WikiEntity:
         return cls(name, *args, **kwargs)
 
     @classmethod
-    def from_page(cls, page: WikiPage, *args, **kwargs) -> GenericWikiEntity:
+    def from_page(cls: Type[WE], page: WikiPage, *args, **kwargs) -> WE:
         name = page.title
         if page.infobox:
             try:
@@ -102,7 +104,7 @@ class WikiEntity:
         return cls._by_category(name, page, page.categories, [page], *args, **kwargs)
 
     @classmethod
-    def from_title(cls, title: str, sites: Optional[Iterable[str]] = None, search=True) -> GenericWikiEntity:
+    def from_title(cls: Type[WE], title: str, sites: Optional[Iterable[str]] = None, search=True) -> WE:
         """
         :param str title: A page title
         :param iterable sites: A list or other iterable that yields site host strings
@@ -121,11 +123,11 @@ class WikiEntity:
         raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
 
     @classmethod
-    def from_url(cls, url: str) -> GenericWikiEntity:
+    def from_url(cls: Type[WE], url: str) -> WE:
         return cls.from_page(MediaWikiClient.page_for_article(url))
 
     @classmethod
-    def from_link(cls, link: Link) -> GenericWikiEntity:
+    def from_link(cls: Type[WE], link: Link) -> WE:
         if not link.source_site:
             raise NoLinkSite(link)
         mw_client = MediaWikiClient(link.source_site)
@@ -138,7 +140,7 @@ class WikiEntity:
         return cls.from_page(mw_client.get_page(title))
 
     @classmethod
-    def find_from_links(cls, links: Iterable[Link]) -> GenericWikiEntity:
+    def find_from_links(cls: Type[WE], links: Iterable[Link]) -> WE:
         """
         :param links: An iterable that yields Link nodes.
         :return: The first instance of this class for a link that has a valid category for this class or a subclass
@@ -162,7 +164,7 @@ class PersonOrGroup(WikiEntity):
     _categories = ()
 
     @classmethod
-    def from_name(cls, name, affiliations=None, sites=None):
+    def from_name(cls: Type[WE], name, affiliations=None, sites=None) -> WE:
         """
         :param str name: The name of a person or group
         :param iterable affiliations: A list or other iterable that yields name strings and/or WikiEntity objects that

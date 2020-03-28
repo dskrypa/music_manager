@@ -240,28 +240,26 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return None
 
     @cached_property
-    def track_num(self):
-        track = self.tag_text('track', default=None)
+    def track_num(self) -> int:
+        orig = track = self.tag_text('track', default=None)
         if track:
             if '/' in track:
-                track = track.split('/')[0].strip()
+                track = track.split('/', 1)[0].strip()
             if ',' in track:
-                track = track.split(',')[0].strip()
+                track = track.split(',', 1)[0].strip()
             if track.startswith('('):
                 track = track[1:].strip()
 
-            try:                        # Strip any leading 0s
-                _track = int(track)
-            except Exception:
-                pass
-            else:
-                track = str(_track)
-
-        return track
+            try:
+                track = int(track)
+            except Exception as e:
+                log.debug(f'{self}: Error converting track num={orig!r} [{track!r}] to int: {e}')
+                track = 0
+        return track or 0
 
     @cached_property
-    def disk_num(self):
-        disk = self.tag_text('disk', default=None)
+    def disk_num(self) -> int:
+        orig = disk = self.tag_text('disk', default=None)
         if disk:
             if '/' in disk:
                 disk = disk.split('/')[0].strip()
@@ -269,7 +267,13 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 disk = disk.split(',')[0].strip()
             if disk.startswith('('):
                 disk = disk[1:].strip()
-        return disk
+
+            try:
+                disk = int(disk)
+            except Exception as e:
+                log.debug(f'{self}: Error converting disk num={orig!r} [{disk!r}] to int: {e}')
+                disk = 0
+        return disk or 0
 
     @property
     def rating(self):

@@ -15,6 +15,7 @@ from ..exceptions import TagException
 from .patterns import (
     ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 )
+from .utils import print_tag_changes
 
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
@@ -132,19 +133,17 @@ class SongFile(BaseSongFile):
         :param bool dry_run: Whether tags should actually be updated
         :param container no_log: Names of tags for which updates should not be logged
         """
-        to_update = []
+        to_update = {}
         for tag_name, new_value in sorted(name_value_map.items()):
             file_value = self.tag_text(tag_name, default=None)
             if new_value != file_value:
-                to_update.append((tag_name, file_value, new_value))
+                to_update[tag_name] = (file_value, new_value)
 
         if to_update:
-            log.info('{} {} by changing...'.format('[DRY RUN] Would update' if dry_run else 'Updating', self))
+            no_log = no_log or ()
+            print_tag_changes(self, {k: v for k, v in to_update.items() if k not in no_log}, dry_run)
             do_save = True
-            for tag_name, file_value, new_value in to_update:
-                if no_log is None or tag_name not in no_log:
-                    extra = {'color': 14} if tag_name == 'title' else None
-                    log.info(f'  - {tag_name} from {file_value!r} to {new_value!r}', extra=extra)
+            for tag_name, (file_value, new_value) in to_update.items():
                 if not dry_run:
                     try:
                         self.set_text_tag(tag_name, new_value, by_id=False)

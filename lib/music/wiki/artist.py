@@ -49,6 +49,9 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 log.debug(f'No name extraction is configured for {artist_page}')
             else:
                 names.update(parser.parse_artist_name(artist_page))
+                # for name in parser.parse_artist_name(artist_page):
+                #     names.add(name)
+
         if not names:
             names.add(Name(self._name))
         return names

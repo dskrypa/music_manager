@@ -4,7 +4,7 @@
 
 import logging
 import string
-from typing import Generator
+from typing import Iterator
 from unicodedata import normalize
 
 from ds_tools.core.filesystem import iter_files, Paths
@@ -25,7 +25,7 @@ def tag_repr(tag_val, max_len=125, sub_len=25):
     return tag_val
 
 
-def iter_music_files(paths: Paths) -> Generator[SongFile, None, None]:
+def iter_music_files(paths: Paths) -> Iterator[SongFile]:
     for file_path in iter_files(paths):
         music_file = SongFile(file_path)
         if music_file:

@@ -4,8 +4,9 @@
 
 import logging
 from functools import partialmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List
 
+from ds_tools.compat import cached_property
 from ..text.name import Name
 
 if TYPE_CHECKING:
@@ -36,6 +37,23 @@ class Track:
     def __lt__(self, other: 'Track'):
         return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)
 
+    def __getitem__(self, item: str) -> Any:
+        extras = self.name.extra
+        if extras:
+            return extras[item]
+        else:
+            raise KeyError(item)
+
+    @cached_property
+    def collab_parts(self) -> List[str]:
+        parts = []
+        if extras := self.name.extra:
+            if feat := extras.get('feat'):
+                parts.append(f'feat. {feat}')
+            if collab := extras.get('collabs'):
+                parts.append(f'with {collab}')
+        return parts
+
     def full_name(self, collabs=True) -> str:
         """
         :param bool collabs: Whether collaborators / featured artists should be included
@@ -43,8 +61,7 @@ class Track:
         """
         name_obj = self.name
         parts = []
-        extras = name_obj.extra
-        if extras:
+        if extras := name_obj.extra:
             if extras.get('instrumental'):
                 parts.append('Inst.')
 
@@ -53,10 +70,7 @@ class Track:
                     parts.append(value)
 
             if collabs:
-                if feat := extras.get('feat'):
-                    parts.append(f'feat. {feat}')
-                if collab := extras.get('collabs'):
-                    parts.append(f'with {collab}')
+                parts.extend(self.collab_parts)
 
         if parts:
             return '{} {}'.format(name_obj, ' '.join(f'({part})' for part in parts))

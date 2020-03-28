@@ -4,11 +4,16 @@
 
 import re
 from pathlib import Path
+from typing import Mapping, Tuple, Any
 
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
+from ds_tools.output import colored, uprint
+from ds_tools.output.table import mono_width
 
-__all__ = ['MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty']
+__all__ = [
+    'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes'
+]
 
 RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
 TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
@@ -92,3 +97,28 @@ class TextTagProperty(ClearableCachedProperty):
 
     def __delete__(self, instance):
         instance.delete_tag(instance.tag_name_to_id(self.tag_name))
+
+
+def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run, color=None):
+    name_width = max(len(tag_name) for tag_name in changes)
+    orig_width = max(max(len(r), mono_width(r)) for r in (repr(orig) for orig, _ in changes.values()))
+    _fmt = '  - {{:<{}s}}{}{{:>{}s}}{}{{}}'
+    uprint(colored('{} {} by changing...'.format('[DRY RUN] Would update' if dry_run else 'Updating', obj), color))
+    for tag_name, (orig_val, new_val) in changes.items():
+        if tag_name == 'title':
+            bg, reset, w = 20, False, 20
+        else:
+            bg, reset, w = None, True, 14
+
+        orig_repr = repr(orig_val)
+        fmt = _fmt.format(
+            name_width + w, colored(' from ', 15, bg, reset=reset),
+            orig_width - (mono_width(orig_repr) - len(orig_repr)) + w, colored(' to ', 15, bg, reset=reset)
+        )
+
+        uprint(colored(
+            fmt.format(
+                colored(tag_name, 14, bg, reset=reset), colored(orig_repr, 11, bg, reset=reset),
+                colored(repr(new_val), 10, bg, reset=reset)
+            ), bg_color=bg
+        ))

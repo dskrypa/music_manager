@@ -21,7 +21,7 @@ __all__ = [
     'DiscographyEntryPart'
 ]
 log = logging.getLogger(__name__)
-OST_PAT = re.compile(r'^(.*? OST) (PART.?\s?\d+)$')
+OST_MATCH = re.compile(r'^(.*? OST) (PART.?\s?\d+)$').match
 
 
 class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
@@ -70,8 +70,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
     @cached_property
     def _merge_key(self):
         uc_name = self._name.upper()
-        ost_match = OST_PAT.match(uc_name)
-        if ost_match:
+        if ost_match := OST_MATCH(uc_name):
             uc_name = ost_match.group(1)
         return self.year, uc_name
 
@@ -199,13 +198,13 @@ class DiscographyEntryEdition:
 
 
 class DiscographyEntryPart:
-    _disc_pat = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE)
+    _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
     def __init__(self, name, edition: DiscographyEntryEdition, tracks):
         self.name = name
         self.edition = edition
         self._tracks = tracks
-        m = self._disc_pat.match(name) if name else None
+        m = self._disc_match(name) if name else None
         self.disc = int(m.group(1)) if m else None
 
     def __repr__(self):

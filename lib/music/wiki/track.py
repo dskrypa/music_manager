@@ -33,8 +33,36 @@ class Track:
 
     __repr__ = partialmethod(_repr, True)
 
-    def __lt__(self, other):
+    def __lt__(self, other: 'Track'):
         return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)
+
+    def full_name(self, collabs=True) -> str:
+        """
+        :param bool collabs: Whether collaborators / featured artists should be included
+        :return str: This track's full name
+        """
+        name_obj = self.name
+        parts = []
+        extras = name_obj.extra
+        if extras:
+            if extras.get('instrumental'):
+                parts.append('Inst.')
+
+            for key in ('version', 'edition'):
+                if value := extras.get(key):
+                    parts.append(value)
+
+            if collabs:
+                if feat := extras.get('feat'):
+                    parts.append(f'feat. {feat}')
+                if collab := extras.get('collabs'):
+                    parts.append(f'with {collab}')
+
+        if parts:
+            parts = ' '.join(f'({part})' for part in parts)
+            return f'{name_obj} {parts}'
+        else:
+            return str(name_obj)
 
     def format_path(self, fmt=PATH_FORMATS['alb_type_no_num'], ext='mp3'):
         album_part = self.album_part

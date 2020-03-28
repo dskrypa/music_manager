@@ -114,5 +114,6 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         name = parse_generasia_track_name(entry)
         self.assertAll(name, 'Baby', 'Baby', '第一步', cjk='第一步', romanized='Di Yi Bu')
 
+
 if __name__ == '__main__':
     main(GenerasiaTrackNameParsingTest)

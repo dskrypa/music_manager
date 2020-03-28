@@ -114,6 +114,25 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         name = parse_generasia_track_name(entry)
         self.assertAll(name, 'Baby', 'Baby', '第一步', cjk='第一步', romanized='Di Yi Bu')
 
+    def test_rom_eng_han_lit(self):
+        entry = as_node("""[[Yeongwonhi Neowa Ggumgugo Shipda (Forever)]] (영원히 너와 꿈꾸고 싶다; ''I Want To Dream Forever With You'')""")
+        name = parse_generasia_track_name(entry)
+        rom, ko = 'Yeongwonhi Neowa Ggumgugo Shipda', '영원히 너와 꿈꾸고 싶다'
+        lit = 'I Want To Dream Forever With You'
+        self.assertAll(name, 'Forever', 'Forever', ko, ko, romanized=rom, lit_translation=lit)
+
+    def test_more_rom_eng_han_lit(self):
+        entry = as_node("""[[Geunyang Utja (Be Happy)]] (웃자; ''Just Smile'')""")
+        name = parse_generasia_track_name(entry)
+        rom, eng, ko, lit = 'Geunyang Utja', 'Be Happy', '웃자', 'Just Smile'
+        self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit)
+
+    def test_half_enclosed_version(self):
+        entry = as_node("""[[Byeol Byeol Byeol|Byeol Byeol Byeol (☆★☆)- Acoustic RnB ver.]] (별별별; ''Star Star Star'')""")
+        name = parse_generasia_track_name(entry)
+        rom, eng, ko, lit = 'Byeol Byeol Byeol', '☆★☆', '별별별', 'Star Star Star'
+        self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit, extra={'version': 'Acoustic RnB ver.'})
+
 
 if __name__ == '__main__':
     main(GenerasiaTrackNameParsingTest)

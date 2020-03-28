@@ -213,7 +213,7 @@ class DiscographyEntryPart:
         self.edition = edition                          # type: DiscographyEntryEdition
         self._tracks = tracks                           # type: ListNode
         m = self._disc_match(name) if name else None
-        self.disc = int(m.group(1)) if m else None      # type: Optional[int]
+        self.disc = int(m.group(1)) if m else 1         # type: int
 
     def __repr__(self) -> str:
         ed = self.edition

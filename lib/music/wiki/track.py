@@ -7,7 +7,7 @@ from functools import partialmethod
 from typing import TYPE_CHECKING, Any, List
 
 from ds_tools.compat import cached_property
-from ..text.name import Name
+from ..text import Name, combine_with_parens
 
 if TYPE_CHECKING:
     from .album import DiscographyEntryPart
@@ -60,7 +60,7 @@ class Track:
         :return str: This track's full name
         """
         name_obj = self.name
-        parts = []
+        parts = [str(name_obj)]
         if extras := name_obj.extra:
             if extras.get('instrumental'):
                 parts.append('Inst.')
@@ -72,10 +72,7 @@ class Track:
             if collabs:
                 parts.extend(self.collab_parts)
 
-        if parts:
-            return '{} {}'.format(name_obj, ' '.join(f'({part})' for part in parts))
-        else:
-            return str(name_obj)
+        return combine_with_parens(parts)
 
     def format_path(self, fmt=PATH_FORMATS['alb_type_no_num'], ext='mp3'):
         album_part = self.album_part

@@ -150,7 +150,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                                 incomplete_extra = process_extra(extras, b)
                             else:
                                 name._english = f'{name._english} ({b})' if name._english else b
-                    elif name.cjk and is_english(b) and not is_english(a):
+                    elif name.non_eng and is_english(b) and not is_english(a):
                         name.romanized = a      # Assume that it is a romanization
                         if is_extra(b):
                             incomplete_extra = process_extra(extras, b)
@@ -447,7 +447,9 @@ def process_extra(extras: dict, extra: str) -> Optional[str]:
     :return str|None: None if the provided extra was complete, or the type of the incomplete extra if it was not
     """
     if extra.startswith('(') and ')' not in extra:
-        extra = extra[1:]
+        extra = extra[1:].strip()
+    if extra.startswith('- '):
+        extra = extra[1:].strip()
     extra_type = classify_extra(extra)
     if extra_type == 'track':
         if ',' in extra and extra.count('#') > 1:

@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import datetime
 from traceback import format_exc
-from typing import TYPE_CHECKING, Generator, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any
 
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
@@ -17,7 +17,7 @@ from ...text.name import Name
 from ...text.spellcheck import is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntryType, DiscoEntry
-from .abc import WikiParser, EditionGenerator
+from .abc import WikiParser, EditionIterator
 from .utils import LANG_ABBREV_MAP
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
 
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Generator[Name, None, None]:
+    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         # From intro ===========================================================================================
         first_string = artist_page.intro[0].value
         name = first_string[:first_string.rindex(')') + 1]
@@ -215,7 +215,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         log.error(msg, extra={'color': 'red'})
 
     @classmethod
-    def _process_disco_entry(cls, artist_page, finder, de_type, entry, lang):
+    def _process_disco_entry(
+            cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', de_type: DiscoEntryType, entry: CompoundNode,
+            lang: Optional[str]
+    ):
         log.debug(f'Processing {cls.parse_album_name(entry)!r}')
         entry_type = de_type  # Except for collabs with a different primary artist
         entry_link = next(entry.find_all(Link, True), None)  # Almost always the 1st link
@@ -265,7 +268,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             finder.add_entry(disco_entry, entry)
 
     @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionGenerator:
+    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
         processed = entry_page.sections.processed()
         langs = set()
         for cat in entry_page.categories:
@@ -353,7 +356,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 )
 
 
-def find_language(node, lang, langs):
+def find_language(node: Node, lang: str, langs: Set[str]) -> Optional[str]:
     if lang:
         return lang
     else:
@@ -371,11 +374,13 @@ def find_language(node, lang, langs):
     return None
 
 
-def is_extra(text):
+def is_extra(text: str) -> bool:
     return bool(classify_extra(text))
 
 
-def _split_name_parts(title, node):
+def _split_name_parts(
+        title: str, node: Optional[Node]
+) -> Tuple[str, Optional[str], Optional[str], Dict[str, Any], Optional[str]]:
     """
     :param str title: The title
     :param Node|None node: The node to split
@@ -474,7 +479,7 @@ def process_extra(extras: dict, extra: str) -> Optional[str]:
     return None
 
 
-def classify_extra(text: str):
+def classify_extra(text: str) -> Optional[str]:
     if text.startswith('#'):
         return 'track'
     lc_text = text.lower()

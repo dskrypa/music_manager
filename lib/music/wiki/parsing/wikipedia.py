@@ -3,14 +3,14 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Iterator
 
 from wiki_nodes.nodes import Node, Template
 from wiki_nodes.page import WikiPage
 from ...text.name import Name
 from ..album import DiscographyEntry
 from ..discography import Discography
-from .abc import WikiParser, EditionGenerator
+from .abc import WikiParser, EditionIterator
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
     @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Generator[Name, None, None]:
+    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         raise NotImplementedError
 
     @classmethod
@@ -57,5 +57,5 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.debug(f'Unexpected discography section format on {artist_page}')
 
     @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionGenerator:
+    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError

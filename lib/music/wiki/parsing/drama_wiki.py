@@ -4,14 +4,14 @@
 
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Iterator
 
 from wiki_nodes.nodes import Node, Link, String
 from wiki_nodes.page import WikiPage
 from ...text.name import Name
 from ..album import DiscographyEntry
 from ..disco_entry import DiscoEntry
-from .abc import WikiParser, EditionGenerator
+from .abc import WikiParser, EditionIterator
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Generator[Name, None, None]:
+    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         raise NotImplementedError
 
     @classmethod
@@ -50,5 +50,5 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 finder.add_entry(disco_entry, entry)
 
     @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionGenerator:
+    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError

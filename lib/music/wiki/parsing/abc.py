@@ -4,7 +4,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Iterator
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Node
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 __all__ = ['WikiParser']
 log = logging.getLogger(__name__)
 
-EditionGenerator = Generator['DiscographyEntryEdition', None, None]
+EditionIterator = Iterator['DiscographyEntryEdition']
 
 
 class WikiParser(ABC):
@@ -36,7 +36,7 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Generator[Name, None, None]:
+    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         raise NotImplementedError
 
     @classmethod
@@ -56,7 +56,7 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionGenerator:
+    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError
 
     @classmethod

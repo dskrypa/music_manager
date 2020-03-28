@@ -5,7 +5,7 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
-from typing import Iterable
+from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
@@ -17,6 +17,8 @@ __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
+GenericWikiEntity = TypeVar('GenericWikiEntity', bound='WikiEntity')
+Pages = Union[Dict[str, WikiPage], Iterable[WikiPage], None]
 
 
 class WikiEntity:
@@ -34,17 +36,17 @@ class WikiEntity:
                 sub_classes.add(cls)
         WikiEntity._subclasses[cls] = set()
 
-    def __init__(self, name, pages=None):
+    def __init__(self, name: Optional[str], pages: Pages = None):
         """
         :param str|None name: The name of this entity
         :param WikiPage|dict|iterable pages: One or more WikiPage objects
         """
         self._name = name
         self.alt_names = None
-        if isinstance(pages, dict):
-            self._pages = pages
+        if isinstance(pages, Dict):
+            self._pages = pages         # type: Dict[str, WikiPage]
         else:
-            self._pages = {}
+            self._pages = {}            # type: Dict[str, WikiPage]
             if pages:
                 if isinstance(pages, str):
                     raise TypeError(f'pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
@@ -55,21 +57,21 @@ class WikiEntity:
                         self._pages[page.site] = page
 
     def __repr__(self):
-        return f'<{type(self).__name__}({self._name!r})[pages: {len(self._pages)}]>'
+        return f'<{self.__class__.__name__}({self._name!r})[pages: {len(self._pages)}]>'
 
-    def _add_page(self, page):
+    def _add_page(self, page: WikiPage):
         self._pages[page.site] = page
 
-    def _add_pages(self, pages):
+    def _add_pages(self, pages: Iterable[WikiPage]):
         for page in pages:
             self._pages[page.site] = page
 
     @property
-    def pages(self):
+    def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
 
     @classmethod
-    def _by_category(cls, name, obj, page_cats, *args, **kwargs):
+    def _by_category(cls, name: str, obj: Union[WikiPage, Any], page_cats: Iterable[str], *args, **kwargs):
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
         for cls_cat, cat_cls in cls._category_classes.items():
@@ -89,7 +91,7 @@ class WikiEntity:
         return cls(name, *args, **kwargs)
 
     @classmethod
-    def from_page(cls, page, *args, **kwargs):
+    def from_page(cls, page: WikiPage, *args, **kwargs) -> GenericWikiEntity:
         name = page.title
         if page.infobox:
             try:
@@ -100,7 +102,7 @@ class WikiEntity:
         return cls._by_category(name, page, page.categories, [page], *args, **kwargs)
 
     @classmethod
-    def from_title(cls, title, sites=None, search=True):
+    def from_title(cls, title: str, sites: Optional[Iterable[str]] = None, search=True) -> GenericWikiEntity:
         """
         :param str title: A page title
         :param iterable sites: A list or other iterable that yields site host strings
@@ -119,11 +121,11 @@ class WikiEntity:
         raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
 
     @classmethod
-    def from_url(cls, url):
+    def from_url(cls, url: str) -> GenericWikiEntity:
         return cls.from_page(MediaWikiClient.page_for_article(url))
 
     @classmethod
-    def from_link(cls, link: Link):
+    def from_link(cls, link: Link) -> GenericWikiEntity:
         if not link.source_site:
             raise NoLinkSite(link)
         mw_client = MediaWikiClient(link.source_site)
@@ -136,7 +138,7 @@ class WikiEntity:
         return cls.from_page(mw_client.get_page(title))
 
     @classmethod
-    def find_from_links(cls, links: Iterable[Link]):
+    def find_from_links(cls, links: Iterable[Link]) -> GenericWikiEntity:
         """
         :param links: An iterable that yields Link nodes.
         :return: The first instance of this class for a link that has a valid category for this class or a subclass

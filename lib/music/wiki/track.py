@@ -22,9 +22,9 @@ PATH_FORMATS = {
 
 class Track:
     def __init__(self, num: int, name: Name, album_part: 'DiscographyEntryPart'):
-        self.num = num
-        self.name = name
-        self.album_part = album_part
+        self.num = num                  # type: int
+        self.name = name                # type: Name
+        self.album_part = album_part    # type: DiscographyEntryPart
 
     def _repr(self, long=False):
         if long:
@@ -59,8 +59,7 @@ class Track:
                     parts.append(f'with {collab}')
 
         if parts:
-            parts = ' '.join(f'({part})' for part in parts)
-            return f'{name_obj} {parts}'
+            return '{} {}'.format(name_obj, ' '.join(f'({part})' for part in parts))
         else:
             return str(name_obj)
 

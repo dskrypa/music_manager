@@ -16,8 +16,8 @@ from ds_tools.compat import cached_property
 from ds_tools.core import iter_paths, FnMatcher, Paths
 from tz_aware_dt import format_duration
 from .exceptions import *
-from .track import BaseSongFile, SongFile
-from .utils import iter_music_files, tag_repr
+from .track import BaseSongFile, SongFile, tag_repr
+from .utils import iter_music_files
 
 __all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs']
 log = logging.getLogger(__name__)
@@ -182,13 +182,20 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 return dates.pop()
         return None
 
-    def fix_song_tags(self, dry_run=False):
+    def fix_song_tags(self, dry_run=False, add_bpm=False):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
-        upd_msg = 'Would update' if dry_run else 'Updating'
 
         for music_file in self.songs:
-            if music_file.tag_type != 'mp3':
-                log.debug('Skipping non-MP3: {}'.format(music_file))
+            music_file._cleanup_lyrics(dry_run)
+            tag_type = music_file.tag_type
+            if add_bpm:
+                bpm = music_file.bpm(False, False)
+                if bpm is None:
+                    bpm = music_file.bpm(not dry_run, calculate=True)
+                    log.info(f'{prefix}{add_msg} BPM={bpm} to {music_file}')
+
+            if tag_type != 'mp3':
+                log.debug(f'Skipping date tags for non-MP3: {music_file}')
                 continue
 
             tdrc = music_file.tags.getall('TDRC')
@@ -201,22 +208,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
                     music_file.tags.add(TDRC(text=file_date))
                     music_file.tags.delall('TXXX:DATE')
                     music_file.save()
-
-            changes = 0
-            for uslt in music_file.tags.getall('USLT'):
-                m = re.match(r'^(.*)(https?://\S+)$', uslt.text, re.DOTALL)
-                if m:
-                    new_lyrics = m.group(1).strip() + '\r\n'
-                    log.info('{}{} lyrics for {} from {!r} to {!r}'.format(
-                        prefix, upd_msg, music_file, tag_repr(uslt.text), tag_repr(new_lyrics)
-                    ))
-                    if not dry_run:
-                        uslt.text = new_lyrics
-                        changes += 1
-
-            if changes and not dry_run:
-                log.info('Saving changes to lyrics in {}'.format(music_file))
-                music_file.save()
 
     def remove_bad_tags(self, dry_run=False):
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'

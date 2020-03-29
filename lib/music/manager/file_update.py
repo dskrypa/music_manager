@@ -57,7 +57,7 @@ def path_to_tag(paths: Paths, dry_run=False, skip_prompt=False, title=False):
             log.log(19, f'Skipping file with already correct title: {music_file.filename}')
 
 
-def clean_tags(paths: Paths, dry_run=False):
+def clean_tags(paths: Paths, dry_run=False, add_bpm=False):
     for album_dir in iter_album_dirs(paths):
         album_dir.remove_bad_tags(dry_run)
-        album_dir.fix_song_tags(dry_run)
+        album_dir.fix_song_tags(dry_run, add_bpm)

@@ -6,7 +6,7 @@ import logging
 
 from mutagen.id3._frames import Frame
 from mutagen.mp4 import AtomDataType, MP4Cover, MP4FreeForm, MP4Tags
-from .utils import tag_repr
+from .track.utils import tag_repr
 
 __all__ = ['apply_mutagen_patches']
 log = logging.getLogger(__name__)

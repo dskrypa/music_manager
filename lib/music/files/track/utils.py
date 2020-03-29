@@ -3,8 +3,10 @@
 """
 
 import re
+import string
 from pathlib import Path
 from typing import Mapping, Tuple, Any, Callable, Optional
+from unicodedata import normalize
 
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
@@ -12,7 +14,8 @@ from ds_tools.output import colored, uprint
 from ds_tools.output.table import mono_width
 
 __all__ = [
-    'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes'
+    'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
+    'tag_repr'
 ]
 
 RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
@@ -38,6 +41,15 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT'},
     # 'name': {'mp4': '', 'mp3': ''},
 }
+# Translate whitespace characters (such as \n, \r, etc.) to their escape sequences
+WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-8') for c in string.whitespace})
+
+
+def tag_repr(tag_val, max_len=125, sub_len=25):
+    tag_val = normalize('NFC', str(tag_val)).translate(WHITESPACE_TRANS_TBL)
+    if len(tag_val) > max_len:
+        return '{}...{}'.format(tag_val[:sub_len], tag_val[-sub_len:])
+    return tag_val
 
 
 class FileBasedObject:

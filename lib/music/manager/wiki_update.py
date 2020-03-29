@@ -22,7 +22,7 @@ DiscoObj = Union[DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 
 def update_tracks(
         paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
-        url: Optional[str] = None
+        url: Optional[str] = None, add_bpm=False
 ):
     if not isinstance(collab_mode, CM):
         collab_mode = CM(collab_mode)
@@ -33,17 +33,19 @@ def update_tracks(
             raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
 
         entry = DiscographyEntry.from_url(url)
-        return _update_album_from_disco_entry(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode)
+        return _update_album_from_disco_entry(
+            album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, add_bpm
+        )
     else:
         raise NotImplementedError('Automatic matching is not yet implemented')
 
 
 def _update_album_from_disco_entry(
         album_dir: AlbumDir, entry: DiscoObj, dry_run=False, soloist=False, hide_edition=False,
-        collab_mode: CM = CM.ARTIST
+        collab_mode: CM = CM.ARTIST, add_bpm=False
 ):
     album_dir.remove_bad_tags(dry_run)
-    album_dir.fix_song_tags(dry_run)
+    album_dir.fix_song_tags(dry_run, add_bpm)
 
     updates = {}
     counts = defaultdict(Counter)

@@ -3,7 +3,9 @@
 """
 
 import logging
+import re
 from pathlib import Path
+from typing import Optional
 
 import mutagen.id3._frames as id3_frames
 
@@ -16,10 +18,11 @@ from .bpm import get_bpm
 from .patterns import (
     ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 )
-from .utils import print_tag_changes
+from .utils import print_tag_changes, tag_repr
 
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
+LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
 
 
 class SongFile(BaseSongFile):
@@ -130,22 +133,52 @@ class SongFile(BaseSongFile):
     def album_type_dir(self):
         return self.path.parents[1].name
 
-    def bpm(self, save=True):
+    def _cleanup_lyrics(self, dry_run=False):
+        prefix, upd_msg = ('[DRY RUN] ', 'Would update') if dry_run else ('', 'Updating')
+        changes = 0
+        tag_type = self.tag_type
+        lyrics = self.tags_named('lyrics')
+        new_lyrics = []
+        for lyric_tag in lyrics:
+            lyric = lyric_tag.text if tag_type == 'mp3' else lyric_tag
+            if m := LYRIC_URL_MATCH(lyric):
+                new_lyric = m.group(1).strip() + '\r\n'
+                log.info(f'{prefix}{upd_msg} lyrics for {self} from {tag_repr(lyric)!r} to {tag_repr(new_lyric)!r}')
+                if not dry_run:
+                    if tag_type == 'mp3':
+                        lyric_tag.text = new_lyric
+                    else:
+                        new_lyrics.append(new_lyric)
+                    changes += 1
+            else:
+                new_lyrics.append(lyric)
+
+        if changes and not dry_run:
+            log.info('Saving changes to lyrics in {}'.format(self))
+            if tag_type == 'mp4':
+                self.set_text_tag('lyrics', new_lyrics)
+            self.save()
+
+    def bpm(self, save=True, calculate=True) -> Optional[int]:
         """
         :param bool save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
+        :param bool calculate: If the BPM was not already stored in a tag, calculate it
         :return int: This track's BPM from a tag if available, or calculated
         """
         try:
             bpm = int(self.tag_text('bpm'))
         except TagException:
-            if self._bpm:
-                bpm = self._bpm
+            if calculate:
+                if self._bpm:
+                    bpm = self._bpm
+                else:
+                    bpm = self._bpm = get_bpm(self.path)
+                if save:
+                    self.set_text_tag('bpm', bpm)
+                    log.debug(f'Saving {bpm=} for {self}')
+                    self.save()
             else:
-                bpm = self._bpm = get_bpm(self.path)
-            if save:
-                self.set_text_tag('bpm', bpm)
-                log.debug(f'Saving {bpm=} for {self}')
-                self.save()
+                bpm = None
         return bpm
 
     def update_tags(self, name_value_map, dry_run=False, no_log=None):

@@ -129,17 +129,21 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def set_text_tag(self, tag, value, by_id=False):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
-        if isinstance(self._f.tags, MP4Tags):
-            self._f.tags[tag_id] = value
-        elif self.tag_type == 'mp3':
+        tags = self._f.tags
+        tag_type = self.tag_type
+        if tag_type == 'mp4':
+            if not isinstance(value, list):
+                value = [value]
+            tags[tag_id] = value
+        elif tag_type == 'mp3':
             try:
                 tag_cls = getattr(mutagen.id3._frames, tag_id.upper())
             except AttributeError as e:
-                raise ValueError('Invalid tag for {}: {} (no frame class found for it)'.format(self, tag)) from e
+                raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
             else:
-                self._f.tags[tag_id] = tag_cls(text=value)
+                tags[tag_id] = tag_cls(text=value)
         else:
-            raise TypeError('Unable to set {!r} for {} because its extension is {!r}'.format(tag, self, self.tag_type))
+            raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 
     def tag_name_to_id(self, tag_name):
         """

@@ -30,6 +30,13 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'track_sort_order': {'mp4': 'sonm', 'mp3': 'TSOT'},
     'album_artist_sort_order': {'mp4': 'soaa', 'mp3': 'TSO2'},
     'track_artist_sort_order': {'mp4': 'soar', 'mp3': 'TSOP'},
+    'isrc': {'mp4': '----:com.apple.iTunes:ISRC', 'mp3': 'TSRC'},   # International Standard Recording Code
+    'compilation': {'mp4': 'cpil', 'mp3': 'TCMP'},
+    'podcast': {'mp4': 'pcst', 'mp3': 'PCST'},
+    'bpm': {'mp4': 'tmpo', 'mp3': 'TBPM'},
+    'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN'},
+    'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT'},
+    # 'name': {'mp4': '', 'mp3': ''},
 }
 
 

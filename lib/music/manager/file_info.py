@@ -16,7 +16,7 @@ __all__ = ['print_track_info', 'table_song_tags', 'table_unique_tag_values', 'ta
 log = logging.getLogger(__name__)
 
 
-def print_track_info(paths, tags=None, meta_only=False):
+def print_track_info(paths, tags=None, meta_only=False, trim=True):
     tags = {tag.upper() for tag in tags} if tags else None
     suffix = '' if meta_only else ':'
     for i, music_file in enumerate(iter_music_files(paths)):
@@ -28,7 +28,7 @@ def print_track_info(paths, tags=None, meta_only=False):
             tbl = Table(SimpleColumn('Tag'), SimpleColumn('Tag Name'), SimpleColumn('Value'), update_width=True)
             rows = []
             for tag, val in sorted(music_file.tags.items()):
-                if len(tag) > 4:
+                if trim and len(tag) > 4:
                     tag = tag[:4]
 
                 if not tags or (tag in tags):

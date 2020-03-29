@@ -37,6 +37,8 @@ def parser():
         _parser.add_argument('path', nargs='+', help='Paths for music files or directories containing music files')
         if name in ('info', 'unique', 'table'):
             _parser.add_argument('--tags', '-t', nargs='+', help='The tags to display', required=(name == 'unique'))
+        if name == 'info':
+            _parser.add_argument('--no_trim', '-T', action='store_true', help='Do not trim tag IDs')
 
     p2t_parser = parser.add_subparser('action', 'path2tag', help='Update tags based on the path to each file')
     p2t_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -81,7 +83,7 @@ def main():
     action, sub_action = args.action, getattr(args, 'sub_action', None)
     if action == 'show':
         if sub_action == 'info':
-            print_track_info(args.path, args.tags)
+            print_track_info(args.path, args.tags, trim=not args.no_trim)
         elif sub_action == 'meta':
             print_track_info(args.path, meta_only=True)
         elif sub_action == 'count':

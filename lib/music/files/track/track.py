@@ -12,6 +12,7 @@ from ds_tools.compat import cached_property
 from ...constants import tag_name_map
 from .base import BaseSongFile
 from ..exceptions import TagException
+from .bpm import get_bpm
 from .patterns import (
     ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 )
@@ -22,6 +23,8 @@ log = logging.getLogger(__name__)
 
 
 class SongFile(BaseSongFile):
+    _bpm = None
+
     @classmethod
     def for_plex_track(cls, track, root):
         return cls(Path(root).joinpath(track.media[0].parts[0].file).resolve())
@@ -126,6 +129,24 @@ class SongFile(BaseSongFile):
     @cached_property
     def album_type_dir(self):
         return self.path.parents[1].name
+
+    def bpm(self, save=True):
+        """
+        :param bool save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
+        :return int: This track's BPM from a tag if available, or calculated
+        """
+        try:
+            bpm = int(self.tag_text('bpm'))
+        except TagException:
+            if self._bpm:
+                bpm = self._bpm
+            else:
+                bpm = self._bpm = get_bpm(self.path)
+            if save:
+                self.set_text_tag('bpm', bpm)
+                log.debug(f'Saving {bpm=} for {self}')
+                self.save()
+        return bpm
 
     def update_tags(self, name_value_map, dry_run=False, no_log=None):
         """

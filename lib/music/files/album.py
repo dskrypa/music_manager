@@ -26,6 +26,7 @@ RM_TAG_MATCHERS = {
     'mp3': FnMatcher(('TXXX*', 'PRIV*', 'WXXX*', 'COMM*', 'TCOP')).match,
     'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match
 }
+KEEP_TAGS = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
 
 
 class AlbumDir(ClearableCachedPropertyMixin):
@@ -228,7 +229,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
             to_remove = {
                 tag: val if isinstance(val, list) else [val]
-                for tag, val in sorted(music_file.tags.items()) if rm_tag_match(tag)
+                for tag, val in sorted(music_file.tags.items()) if rm_tag_match(tag) and tag not in KEEP_TAGS
             }
             if to_remove:
                 if i:

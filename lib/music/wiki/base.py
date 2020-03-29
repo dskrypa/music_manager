@@ -159,6 +159,22 @@ class WikiEntity:
             raise last_exc
         raise ValueError(f'No pages were found')
 
+    @classmethod
+    def from_links(cls: Type[WE], links: Iterable[Link]) -> Dict[Link, WE]:
+        link_entity_map = {}
+        site_title_link_map = site_titles_map(links)
+        results, errors = MediaWikiClient.get_multi_site_pages(site_title_link_map)
+        for site, pages in results.items():
+            title_link_map = site_title_link_map[MediaWikiClient(site)]
+            for title, page in pages.items():
+                link = title_link_map[title]
+                try:
+                    link_entity_map[link] = cls.from_page(page)
+                except EntityTypeError as e:
+                    log.debug(f'Error processing {link=}: {e}')
+
+        return link_entity_map
+
 
 class PersonOrGroup(WikiEntity):
     _categories = ()

@@ -40,8 +40,7 @@ class Track:
         return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)
 
     def __getitem__(self, item: str) -> Any:
-        extras = self.name.extra
-        if extras:
+        if extras := self.name.extra:
             return extras[item]
         else:
             raise KeyError(item)
@@ -52,18 +51,11 @@ class Track:
         if extras := self.name.extra:
             if feat := extras.get('feat'):
                 if isinstance(feat, CompoundNode):
-                    feat_parts = []
-                    for node in feat.children:
-                        if isinstance(node, String):
-                            value = node.value.strip()
-                            if value not in '()':
-                                feat_parts.append(value)
-                        elif isinstance(node, Link):
-                            feat_parts.append(Artist.from_link(node).name)
-                    parts.append(f'feat. {combine_with_parens(feat_parts)}')
-                else:
-                    parts.append(f'feat. {feat}')
+                    feat = artist_string(feat)
+                parts.append(f'feat. {feat}')
             if collab := extras.get('collabs'):
+                if isinstance(collab, CompoundNode):
+                    collab = artist_string(collab)
                 parts.append(f'with {collab}')
         return parts
 
@@ -87,7 +79,7 @@ class Track:
 
         return combine_with_parens(parts)
 
-    def format_path(self, fmt=PATH_FORMATS['alb_type_no_num'], ext='mp3'):
+    def format_path(self, fmt: str = PATH_FORMATS['alb_type_no_num'], ext: str = 'mp3'):
         album_part = self.album_part
         edition = album_part.edition
         artist_name = edition.artist.english if edition.artist else edition._artist.show
@@ -106,3 +98,22 @@ class Track:
             'ext': ext
         }
         return fmt.format(**args)
+
+
+def artist_string(node: CompoundNode) -> str:
+    link_artist_map = Artist.from_links(node.find_all(Link))
+    parts = []
+    for child in node.children:
+        if isinstance(child, String):
+            parts.append(child.value)
+            # value = child.value.strip()
+            # if value not in '()':
+            #     feat_parts.append(value)
+        elif isinstance(child, Link):
+            try:
+                parts.append(link_artist_map[child].name)
+            except KeyError:
+                parts.append(child.show)
+
+    # return combine_with_parens(parts)
+    return ''.join(map(str, parts)).replace(')(', ') (')

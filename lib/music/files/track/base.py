@@ -7,6 +7,7 @@ from datetime import datetime, date
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+from typing import Optional, Union, Iterator, Tuple, Any
 
 import mutagen
 import mutagen.id3._frames
@@ -35,7 +36,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_title = TextTagProperty('title')
     date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())     # type: date
 
-    def __new__(cls, file_path, *args, **kwargs):
+    def __new__(cls, file_path: Union[Path, str], *args, **kwargs):
         file_path = (Path(file_path).expanduser() if isinstance(file_path, str) else file_path).as_posix()
         try:
             return cls.__instances[file_path]
@@ -52,7 +53,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             cls.__instances[file_path] = obj
             return obj
 
-    def __init__(self, file_path, *args, **kwargs):
+    def __init__(self, file_path: Union[Path, str], *args, **kwargs):
         if not getattr(self, '_BaseSongFile__initialized', False):
             self._album_dir = None
             self._in_album_dir = False
@@ -64,7 +65,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def __repr__(self):
         return '<{}({!r})>'.format(self.__class__.__name__, self.rel_path)
 
-    def rename(self, dest_path):
+    def rename(self, dest_path: Union[Path, str]):
         old_path = self.path.as_posix()
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
@@ -88,7 +89,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         self._f.tags.save(self._f.filename)
 
     @cached_property
-    def length_str(self):
+    def length_str(self) -> str:
         """
         :return str: The length of this song in the format (HH:M)M:SS
         """
@@ -100,7 +101,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return length
 
     @cached_property
-    def tag_type(self):
+    def tag_type(self) -> Optional[str]:
         tags = self._f.tags
         if isinstance(tags, MP4Tags):
             return 'mp4'
@@ -109,7 +110,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None
 
     @cached_property
-    def tag_version(self):
+    def tag_version(self) -> str:
         tags = self._f.tags
         if isinstance(tags, MP4Tags):
             return 'MP4'
@@ -118,7 +119,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             return tags.__name__
 
-    def delete_tag(self, tag_id):
+    def delete_tag(self, tag_id: str):
         tag_type = self.tag_type
         if tag_type == 'mp3':
             self.tags.delall(tag_id)
@@ -127,14 +128,18 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
 
-    def set_text_tag(self, tag, value, by_id=False):
+    def set_text_tag(self, tag: str, value, by_id=False):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
         tags = self._f.tags
         tag_type = self.tag_type
         if tag_type == 'mp4':
             if not isinstance(value, list):
                 value = [value]
-            tags[tag_id] = value
+            try:
+                tags[tag_id] = value
+            except Exception as e:
+                log.error(f'Error setting tag={tag_id!r} on {self} to {value=!r}: {e}')
+                raise
         elif tag_type == 'mp3':
             try:
                 tag_cls = getattr(mutagen.id3._frames, tag_id.upper())
@@ -145,7 +150,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 
-    def tag_name_to_id(self, tag_name):
+    def tag_name_to_id(self, tag_name: str) -> str:
         """
         :param str tag_name: The file type-agnostic name of a tag, e.g., 'title' or 'date'
         :return str: The tag ID appropriate for this file based on whether it is an MP3 or MP4
@@ -159,7 +164,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         except KeyError as e:
             raise UnsupportedTagForFileType(tag_name, self) from e
 
-    def tags_for_id(self, tag_id):
+    def tags_for_id(self, tag_id: str):
         """
         :param str tag_id: A tag ID
         :return list: All tags from this file with the given ID
@@ -168,14 +173,14 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return self._f.tags.getall(tag_id.upper())         # all MP3 tags are uppercase; some MP4 tags are mixed case
         return self._f.tags.get(tag_id, [])                    # MP4Tags doesn't have getall() and always returns a list
 
-    def tags_named(self, tag_name):
+    def tags_named(self, tag_name: str):
         """
         :param str tag_name: A tag name; see :meth:`.tag_name_to_id` for mapping of names to IDs
         :return list: All tags from this file with the given name
         """
         return self.tags_for_id(self.tag_name_to_id(tag_name))
 
-    def get_tag(self, tag, by_id=False):
+    def get_tag(self, tag: str, by_id=False):
         """
         :param str tag: The name of the tag to retrieve, or the tag ID if by_id is set to True
         :param bool by_id: The provided value was a tag ID rather than a tag name
@@ -191,7 +196,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             raise TagNotFound('No {!r} tags were found for {}'.format(tag, self))
         return tags[0]
 
-    def tag_text(self, tag, strip=True, by_id=False, default=_NotSet):
+    def tag_text(self, tag: str, strip=True, by_id=False, default=_NotSet):
         """
         :param str tag: The name of the tag to retrieve, or the tag ID if by_id is set to True
         :param bool strip: Strip leading/trailing spaces from the value before returning it
@@ -222,7 +227,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             raise TagValueException('No {!r} tag values were found for {}'.format(tag, self))
         return vals[0].strip() if strip else vals[0]
 
-    def all_tag_text(self, tag_name, suppress_exc=True):
+    def all_tag_text(self, tag_name: str, suppress_exc=True):
         try:
             for tag in self.tags_named(tag_name):
                 yield from tag
@@ -232,12 +237,12 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             else:
                 raise e
 
-    def iter_clean_tags(self):
+    def iter_clean_tags(self) -> Iterator[Tuple[str, Any]]:
         for tag, value in self._f.tags.items():
             yield tag[:4], value
 
     @cached_property
-    def year(self):
+    def year(self) -> Optional[int]:
         try:
             return self.date.year
         except Exception:
@@ -280,7 +285,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return disk or 0
 
     @property
-    def rating(self):
+    def rating(self) -> Optional[int]:
         """The rating for this track on a scale of 1-255"""
         if isinstance(self._f.tags, MP4Tags):
             try:
@@ -294,7 +299,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 return None
 
     @rating.setter
-    def rating(self, value):
+    def rating(self, value: Union[int, float]):
         if isinstance(self._f.tags, MP4Tags):
             self._f.tags['POPM'] = [value]
         else:
@@ -307,7 +312,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         self.save()
 
     @property
-    def star_rating_10(self):
+    def star_rating_10(self) -> Optional[int]:
         star_rating_5 = self.star_rating
         if star_rating_5 is None:
             return None
@@ -319,7 +324,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return star_rating_10 + 1 if self.rating > c else star_rating_10
 
     @star_rating_10.setter
-    def star_rating_10(self, value):
+    def star_rating_10(self, value: Union[int, float]):
         if not isinstance(value, (int, float)) or not 0 < value < 11:
             raise ValueError('Star ratings must be ints on a scale of 1-10; invalid value: {}'.format(value))
         elif value == 1:
@@ -329,7 +334,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self.rating = RATING_RANGES[base - 1][2] + extra
 
     @property
-    def star_rating(self):
+    def star_rating(self) -> Optional[int]:
         """
         This implementation uses the ranges specified here: https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
 
@@ -343,7 +348,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None
 
     @star_rating.setter
-    def star_rating(self, value):
+    def star_rating(self, value: Union[int, float]):
         """
         This implementation uses the same values specified in the following link, except for 1 star, which uses 15
         instead of 1: https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue

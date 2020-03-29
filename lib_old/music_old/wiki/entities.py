@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import bs4
 from cachetools import LRUCache
 
-from ds_tools.caching import cached, DictAttrProperty, DictAttrPropertyMixin
+from ds_tools.caching import cached, DictAttrProperty
 from ds_tools.compat import cached_property
 from ds_tools.http import CodeBasedRestException
 from ds_tools.unicode import LangCat, romanized_permutations, matches_permutation
@@ -3413,7 +3413,7 @@ class WikiFeatureOrSingle(WikiSongCollection):
         return tracks
 
 
-class WikiTrack(WikiMatchable, DictAttrPropertyMixin):
+class WikiTrack(WikiMatchable):
     _category = '__track__'
     __feat_rx = re.compile(r'\((?:with|feat\.?|featuring)\s+(.*?)\)', re.IGNORECASE)
     disk = DictAttrProperty('_info', 'disk', type=int, default=1)

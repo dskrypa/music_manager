@@ -133,7 +133,7 @@ class SongFile(BaseSongFile):
     def album_type_dir(self):
         return self.path.parents[1].name
 
-    def _cleanup_lyrics(self, dry_run=False):
+    def cleanup_lyrics(self, dry_run=False):
         prefix, upd_msg = ('[DRY RUN] ', 'Would update') if dry_run else ('', 'Updating')
         changes = 0
         tag_type = self.tag_type
@@ -190,7 +190,8 @@ class SongFile(BaseSongFile):
         to_update = {}
         for tag_name, new_value in sorted(name_value_map.items()):
             file_value = self.tag_text(tag_name, default=None)
-            if new_value != file_value:
+            cmp_value = str(new_value) if tag_name in ('disk', 'track') else new_value
+            if cmp_value != file_value:
                 to_update[tag_name] = (file_value, new_value)
 
         if to_update:

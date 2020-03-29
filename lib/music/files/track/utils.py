@@ -56,17 +56,17 @@ class FileBasedObject:
     __fspath__ = None
 
     @cached_property
-    def path(self):
+    def path(self) -> Path:
         return Path(self.__fspath__).resolve()
 
     @property
-    def rel_path(self):
+    def rel_path(self) -> str:
         try:
             return self.path.relative_to(Path('.').resolve()).as_posix()
         except Exception:
             return self.path.as_posix()
 
-    def basename(self, no_ext=False, trim_prefix=False):
+    def basename(self, no_ext=False, trim_prefix=False) -> str:
         basename = self.path.stem if no_ext else self.path.name
         if trim_prefix:
             m = re.match(r'\d+\.?\s*(.*)', basename)
@@ -75,7 +75,7 @@ class FileBasedObject:
         return basename
 
     @cached_property
-    def ext(self):
+    def ext(self) -> str:
         return self.path.suffix[1:]
 
 

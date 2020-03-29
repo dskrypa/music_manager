@@ -29,12 +29,13 @@ def get_bpm(path: Union[str, Path], sample_rate=44100, window_size=1024, hop_siz
         path = Path(path)
 
     if path.suffix != '.wav':
+        # This was easier than getting aubio installed on Windows with ffmpeg support built-in
         if ffmpeg is None:
             raise RuntimeError('ffmpeg-python is required to calculate bpm for non-WAV files')
 
         with TemporaryDirectory() as d:
-            temp_path = Path(d).joinpath('temp.wav')
-            ffmpeg.input(path.as_posix()).output(temp_path.as_posix()).run(quiet=True)
+            temp_path = Path(d).joinpath('temp.wav').as_posix()
+            ffmpeg.input(path.as_posix()).output(temp_path).run(quiet=True)
             return _get_bpm(temp_path, sample_rate, window_size, hop_size)
     else:
         return _get_bpm(path, sample_rate, window_size, hop_size)

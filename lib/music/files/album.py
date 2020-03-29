@@ -186,7 +186,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
 
         for music_file in self.songs:
-            music_file._cleanup_lyrics(dry_run)
+            music_file.cleanup_lyrics(dry_run)
             tag_type = music_file.tag_type
             if add_bpm:
                 bpm = music_file.bpm(False, False)

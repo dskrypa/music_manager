@@ -5,10 +5,12 @@
 import logging
 from collections import defaultdict, Counter
 from functools import partial
+from pathlib import Path
 from typing import Union, Optional, Dict, Any
 
 from ds_tools.core import Paths, get_input, parse_with_func
-from ..files import iter_album_dirs, AlbumDir
+from ds_tools.output import colored
+from ..files import iter_album_dirs, AlbumDir, SafePath
 from ..files.track import SongFile, print_tag_changes
 from ..text import combine_with_parens
 from ..wiki import Track, Singer, DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -18,6 +20,11 @@ from .enums import CollabMode as CM
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)
 DiscoObj = Union[DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart]
+TRACK_NAME_FORMAT = SafePath('{num}. {track}.{ext}')
+PATH_FORMATS = {
+    'alb_type_with_num': SafePath('{artist}/{album_type}/[{date}] {album} [{album_num}]/{num}. {track}.{ext}'),
+    'alb_type_no_num': SafePath('{artist}/{album_type}/[{date}] {album}/{num}. {track}.{ext}'),
+}
 
 
 def update_tracks(
@@ -47,13 +54,18 @@ def _update_album_from_disco_entry(
     album_dir.remove_bad_tags(dry_run)
     album_dir.fix_song_tags(dry_run, add_bpm)
 
-    updates = {}
+    ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), _get_disco_part(entry).tracks)
+    file_track_map = {file: track for file, track in ft_iter}                   # type: Dict[SongFile, Track]
+
+    updates = {}                                                                # type: Dict[SongFile, Dict[str, Any]]
     counts = defaultdict(Counter)
-    for file, track in zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), _get_disco_part(entry).tracks):
-        values = _get_update_values(track, soloist, hide_edition, collab_mode)
-        updates[file] = values
+    for file, track in file_track_map.items():
+        updates[file] = values = _get_update_values(track, soloist, hide_edition, collab_mode)
         for tag_name, new_val in values.items():
-            orig = file.tag_text(tag_name)
+            if tag_name in ('disk', 'track'):
+                orig = getattr(file, f'{tag_name}_num')
+            else:
+                orig = file.tag_text(tag_name)
             counts[tag_name][(orig, new_val)] += 1
 
     # noinspection PyUnboundLocalVariable
@@ -66,10 +78,22 @@ def _update_album_from_disco_entry(
         print_tag_changes(album_dir, common_changes, 10)
         print()
 
+    prefix = '[DRY RUN] Would rename' if dry_run else 'Renaming'
     for file, values in updates.items():
+        if file.tag_type == 'mp4':
+            values['track'] = (values['track'], len(file_track_map))
+            values['disk'] = (values['disk'], values['disk'])           # TODO: get actual disk count
         file.update_tags(values, dry_run, no_log=common_changes)
+        track = file_track_map[file]
+        filename = TRACK_NAME_FORMAT(track=track.full_name(True), ext=file.ext, num=track.num)
+        if file.path.name != filename:
+            rel_path = Path(file.rel_path)
+            from_path = f'{rel_path.parent}/{colored(rel_path.name, 11)}'
+            log.info(f'{prefix} {from_path} -> {colored(filename, 10)}')
+            if not dry_run:
+                file.rename(file.path.with_name(filename))
 
-    # TODO: Move/rename files
+    # TODO: move files to expected dir
 
 
 def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST) -> Dict[str, Any]:

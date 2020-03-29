@@ -54,7 +54,6 @@ def parser():
 
     clean_parser = parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files')
     clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    clean_parser.add_argument('--bpm', '-b', action='store_true', help='Add a BPM tag if it is not already present')
     # endregion
 
     # region Wiki Actions
@@ -71,8 +70,12 @@ def parser():
     upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
     upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
     upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
-    upd_parser.add_argument('--bpm', '-b', action='store_true', help='Add a BPM tag if it is not already present')
     # endregion
+
+    for _parser in (clean_parser, upd_parser):
+        bpm_group = _parser.add_mutually_exclusive_group()
+        bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
+        bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
 
     parser.include_common_args('verbosity', 'dry_run')
     return parser
@@ -100,9 +103,8 @@ def main():
         if sub_action == 'show':
             show_wiki_entity(args.url, args.expand, args.limit)
         elif sub_action == 'update':
-            update_tracks(
-                args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, args.bpm
-            )
+            bpm = aubio_installed() if args.bpm is None else args.bpm
+            update_tracks(args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':
@@ -110,9 +112,18 @@ def main():
     elif action == 'update':
         update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
     elif action == 'clean':
-        clean_tags(args.path, args.dry_run, args.bpm)
+        bpm = aubio_installed() if args.bpm is None else args.bpm
+        clean_tags(args.path, args.dry_run, bpm)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
+
+
+def aubio_installed():
+    try:
+        import aubio
+    except ImportError:
+        return False
+    return True
 
 
 if __name__ == '__main__':

@@ -81,15 +81,15 @@ def _update_album_from_disco_entry(
     prefix = '[DRY RUN] Would rename' if dry_run else 'Renaming'
     for file, values in updates.items():
         if file.tag_type == 'mp4':
-            values['track'] = (values['track'], len(file_track_map))
+            values['track'] = (values['track'], len(file_track_map))    # TODO: Handle incomplete file set
             values['disk'] = (values['disk'], values['disk'])           # TODO: get actual disk count
         file.update_tags(values, dry_run, no_log=common_changes)
+
         track = file_track_map[file]
         filename = TRACK_NAME_FORMAT(track=track.full_name(True), ext=file.ext, num=track.num)
         if file.path.name != filename:
             rel_path = Path(file.rel_path)
-            from_path = f'{rel_path.parent}/{colored(rel_path.name, 11)}'
-            log.info(f'{prefix} {from_path} -> {colored(filename, 10)}')
+            log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')
             if not dry_run:
                 file.rename(file.path.with_name(filename))
 
@@ -129,14 +129,6 @@ def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_m
     values['album'] = combine_with_parens(list(filter(None, album_name_parts)))
 
     return values
-
-
-def update_track(
-        file: SongFile, track: Track, dry_run=False, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST
-):
-    values = _get_update_values(track, soloist, hide_edition, collab_mode)
-    file.update_tags(values, dry_run)
-    return values['title']
 
 
 def _get_disco_part(entry: DiscoObj) -> DiscographyEntryPart:

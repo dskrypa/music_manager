@@ -675,14 +675,12 @@ def parse_track_info(
             continue
 
         lc_part = part.lower()
-        feat = next((val for val in FEAT_ARTIST_INDICATORS if val in lc_part), None)
-        duet_etc = next((val for val in (' duet', ' trio') if val in lc_part), None)
-        if feat:
+        if feat := next((val for val in FEAT_ARTIST_INDICATORS if val in lc_part), None):
             collab_part = part[len(feat):].strip() if lc_part.startswith(feat) else part
             collabs.extend(split_artist_list(collab_part, context, links, client)[0])
             # collabs.extend(str2list(collab_part, pat='(?: and |,|;|&| feat\.? | featuring | with )'))
             # collabs.extend(str2list(part[len(feat):].strip()))
-        elif duet_etc:
+        elif duet_etc := next((val for val in (' duet', ' trio') if val in lc_part), None):
             collab_part = part[:-len(duet_etc)].strip()
             collabs.extend(split_artist_list(collab_part, context, links, client)[0])
             # collabs.extend(str2list(collab_part, pat='(?: and |,|;|&| feat\.? | featuring | with )'))

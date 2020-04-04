@@ -3,15 +3,32 @@
 import logging
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
-from music.wiki.parsing.generasia import GenerasiaParser
 from music.test_common import NameTestCaseBase, main
+from music.wiki.parsing.generasia import GenerasiaParser
+from music.wiki.track import Track
 
 log = logging.getLogger(__name__)
 
 parse_generasia_track_name = GenerasiaParser.parse_track_name
+
+
+class GenerasiaTrackNameReprTest(NameTestCaseBase):
+    def test_feat_solo_of_group(self):
+        root = MagicMock(site='www.generasia.com')
+        entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]]) """, root=root)
+        track = Track(6, parse_generasia_track_name(entry), None)
+        self.assertEqual(track.full_name(collabs=True), 'SELFISH (feat. Seulgi (슬기) of Red Velvet (레드벨벳))')
+
+    def test_feat_solo_paren_group(self):
+        root = MagicMock(site='www.generasia.com')
+        entry = as_node("""[[Hwaseongin Baireoseu (Boys & Girls)]] (feat. [[Key]] ([[SHINee]])) (화성인 바이러스; ''Martian Virus'')""", root=root)
+        track = Track(9, parse_generasia_track_name(entry), None)
+        expected = 'Boys & Girls (화성인 바이러스) (feat. Key (키) (SHINee (샤이니)))'
+        self.assertEqual(track.full_name(collabs=True), expected)
 
 
 class GenerasiaTrackNameParsingTest(NameTestCaseBase):
@@ -143,4 +160,4 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
 
 
 if __name__ == '__main__':
-    main(GenerasiaTrackNameParsingTest)
+    main(GenerasiaTrackNameParsingTest, GenerasiaTrackNameReprTest)

@@ -4,7 +4,7 @@
 
 import logging
 from functools import partialmethod
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from ds_tools.compat import cached_property
 from wiki_nodes.nodes import CompoundNode, String, Link
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 __all__ = ['Track']
 log = logging.getLogger(__name__)
-
+EXTRA_VALUE_MAP = {'instrumental': 'Inst.', 'acoustic': 'Acoustic'}
 PATH_FORMATS = {
     'alb_type_with_num': '{artist}/{album_type}/[{date}] {album} [{album_num}]/{num}. {track}.{ext}',
     'alb_type_no_num': '{artist}/{album_type}/[{date}] {album}/{num}. {track}.{ext}',
@@ -24,10 +24,10 @@ PATH_FORMATS = {
 
 
 class Track:
-    def __init__(self, num: int, name: Name, album_part: 'DiscographyEntryPart'):
+    def __init__(self, num: int, name: Name, album_part: Optional['DiscographyEntryPart']):
         self.num = num                  # type: int
         self.name = name                # type: Name
-        self.album_part = album_part    # type: DiscographyEntryPart
+        self.album_part = album_part    # type: Optional[DiscographyEntryPart]
 
     def _repr(self, long=False):
         if long:
@@ -67,8 +67,7 @@ class Track:
         name_obj = self.name
         parts = [str(name_obj)]
         if extras := name_obj.extra:
-            if extras.get('instrumental'):
-                parts.append('Inst.')
+            parts.extend(val for key, val in EXTRA_VALUE_MAP.items() if extras.get(key))
 
             for key in ('version', 'edition'):
                 if value := extras.get(key):
@@ -115,5 +114,17 @@ def artist_string(node: CompoundNode) -> str:
             except KeyError:
                 parts.append(child.show)
 
-    # return combine_with_parens(parts)
-    return ''.join(map(str, parts)).replace(')(', ') (')
+    # log.debug(f'Artist string parts: {parts}')
+    processed = []
+    last = None
+    for part in map(str, parts):
+        if part:
+            if last == ')':
+                if not part.startswith(')'):
+                    processed.append(' ')
+            elif last and last not in ' (':
+                processed.append(' ')
+            processed.append(part)
+            last = part[-1]
+
+    return ''.join(processed)

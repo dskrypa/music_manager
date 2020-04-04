@@ -36,7 +36,10 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
     """
     _categories = ()
 
-    def __init__(self, name: Optional[str] = None, pages: Pages = None, disco_entry: Optional['DiscoEntry'] = None):
+    def __init__(
+            self, name: Optional[str] = None, pages: Pages = None, disco_entry: Optional['DiscoEntry'] = None,
+            artist: Optional['Artist'] = None
+    ):
         """
         :param str name: The name of this discography entry
         :param WikiPage|dict|iterable pages: One or more WikiPage objects
@@ -48,6 +51,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
         super().__init__(name, pages)
         self.disco_entries = [disco_entry] if disco_entry else []   # type: List[DiscoEntry]
         self._date = None                                           # type: Optional[date]
+        self._artist = artist                                       # type: Optional[Artist]
 
     @cached_property
     def name(self) -> Name:
@@ -62,8 +66,23 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     def __iter__(self) -> Iterator['DiscographyEntryEdition']:
         """Iterate over every edition part in this DiscographyEntry"""
+        return iter(self.editions)
+
+    def __bool__(self):
+        return bool(self.editions)
+
+    def parts(self) -> Iterator['DiscographyEntryPart']:
         for edition in self.editions:
             yield from edition
+
+    @cached_property
+    def artist(self) -> Optional['Artist']:
+        if not isinstance(self._artist, Artist):
+            for edition in self.editions:
+                if edition.artist:
+                    self._artist = edition.artist
+                    break
+        return self._artist
 
     @cached_property
     def _sort_key(self) -> Tuple[int, date, str]:
@@ -97,6 +116,8 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
                 if entry.date:
                     self._date = entry.date
                     break
+            else:
+                self._date = min(edition.date for edition in self.editions) if self.editions else None
         return self._date
 
     def _merge(self, other: 'DiscographyEntry'):
@@ -159,12 +180,16 @@ class DiscographyEntryEdition:
 
     def __repr__(self) -> str:
         date = self.release_dates[0].strftime('%Y-%m-%d')
+        alb_type = f'[type={self.type.real_name!r}]' if self.type else ''
         edition = f'[edition={self.edition!r}]' if self.edition else ''
         lang = f'[lang={self.lang!r}]' if self.lang else ''
-        return f'<[{date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{edition}{lang}>'
+        return f'<[{date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
         return iter(self.parts)
+
+    def __bool__(self):
+        return bool(self.parts)
 
     def __lt__(self, other: 'DiscographyEntryEdition') -> bool:
         return (self.artist, self.date, self.name, self.edition) < (other.artist, other.date, other.name, other.edition)
@@ -226,6 +251,9 @@ class DiscographyEntryPart:
 
     def __iter__(self) -> Iterator['Track']:
         return iter(self.tracks)
+
+    def __bool__(self):
+        return bool(self.tracks)
 
     @cached_property
     def track_names(self) -> List[Name]:

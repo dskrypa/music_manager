@@ -19,11 +19,10 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 from ..exceptions import *
-from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty
+from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)
-_NotSet = object()
 
 
 class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
@@ -32,8 +31,9 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tags = MusicFileProperty('tags')
     filename = __fspath__ = MusicFileProperty('filename')
     length = MusicFileProperty('info.length')               # float: The length of this song in seconds
-    tag_artist = TextTagProperty('artist')
-    tag_title = TextTagProperty('title')
+    tag_artist = TextTagProperty('artist', default=None)
+    tag_album_artist = TextTagProperty('album_artist', default=None)
+    tag_title = TextTagProperty('title', default=None)
     date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())     # type: date
 
     def __new__(cls, file_path: Union[Path, str], *args, **kwargs):

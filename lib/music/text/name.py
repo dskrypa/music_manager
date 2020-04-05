@@ -12,7 +12,7 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
-from .extraction import partition_enclosed
+from .extraction import split_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
 from .spellcheck import is_english, english_probability
 
@@ -90,10 +90,10 @@ class Name(ClearableCachedPropertyMixin):
     def __bool__(self):
         return bool(self._english or self.non_eng or self.romanized or self.lit_translation)
 
-    def __lt__(self, other):
+    def __lt__(self, other: 'Name'):
         return (self.english, self.non_eng) < (other.english, other.non_eng)
 
-    def __eq__(self, other):
+    def __eq__(self, other: 'Name'):
         try:
             return self._english == other._english and self.non_eng == other.non_eng
         except AttributeError:
@@ -251,19 +251,22 @@ class Name(ClearableCachedPropertyMixin):
 
     @classmethod
     def from_enclosed(cls, name: str) -> 'Name':
-        first_part, paren_part, _ = partition_enclosed(name, reverse=True)
-        if LangCat.contains_any(paren_part, LangCat.non_eng_cats):
-            parts = (first_part, paren_part)
+        if LangCat.categorize(name) == LangCat.MIX:
+            parts = split_enclosed(name, reverse=True, maxsplit=1)
         else:
-            parts = (paren_part, first_part)
-        return cls(*parts)
+            parts = (name,)
+        return cls.from_parts(parts)
 
     @classmethod
     def from_parts(cls, parts: Iterable[str]) -> 'Name':
         eng = None
         non_eng = None
+        extra = []
+        name = None
         for part in parts:
-            if not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
+            if name is not None:
+                extra.append(part)
+            elif not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
                 non_eng = part
             elif not eng and LangCat.contains_any(part, LangCat.ENG):
                 eng = part
@@ -271,10 +274,22 @@ class Name(ClearableCachedPropertyMixin):
                 name = cls(eng, non_eng)
                 if name.has_romanization(part):
                     name.romanized = part
-                return name
-        if eng or non_eng:
-            return cls(eng, non_eng)
-        raise ValueError(f'Unable to find any valid name parts from {parts!r}')
+                elif name.has_romanization(eng) and not is_english(eng) and is_english(part):
+                    name._english = part
+                    name.romanized = eng
+                else:
+                    name = None
+                    extra.append(part)
+            else:
+                extra.append(part)
+
+        if name is None and eng or non_eng:
+            name = cls(eng, non_eng)
+        if name is None:
+            raise ValueError(f'Unable to find any valid name parts from {parts!r}')
+        if extra:
+            name.extra = {'unknown': extra}
+        return name
 
 
 class _NamePart:

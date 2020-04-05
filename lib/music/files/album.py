@@ -8,7 +8,7 @@ import re
 from concurrent import futures
 from datetime import date
 from pathlib import Path
-from typing import Iterator, List, Union, Optional
+from typing import Iterator, List, Union, Optional, Set
 
 from mutagen.id3 import TDRC
 
@@ -16,6 +16,7 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.core import iter_paths, FnMatcher, Paths
 from tz_aware_dt import format_duration
+from ..text import Name
 from .exceptions import *
 from .track import BaseSongFile, SongFile, tag_repr
 from .utils import iter_music_files
@@ -67,7 +68,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return '<{}({!r})>'.format(type(self).__name__, rel_path)
 
     def __iter__(self) -> Iterator[SongFile]:
-        yield from self.songs
+        return iter(self.songs)
 
     def __len__(self) -> int:
         return len(self.songs)
@@ -104,6 +105,22 @@ class AlbumDir(ClearableCachedPropertyMixin):
         if m:
             album = m.group(1).strip()
         return album
+
+    @cached_property
+    def artists(self) -> Set[Name]:
+        artists = set()
+        for music_file in self.songs:
+            if artist := music_file.tag_artist:
+                artists.add(artist)
+            if album_artist := music_file.tag_album_artist:
+                artists.add(album_artist)
+        return artists
+
+    @cached_property
+    def artist(self) -> Optional[Name]:
+        if (artists := self.artists) and len(artists) == 1:
+            return next(iter(artists))
+        return None
 
     @cached_property
     def artist_path(self) -> Optional[Path]:

@@ -10,8 +10,8 @@ from typing import Tuple, Optional
 __all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed']
 log = logging.getLogger(__name__)
 
-OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-'
-CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’-'
+OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-<'
+CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’->'
 
 class _CharMatcher:
     __slots__ = ('openers', 'closers', 'opener_to_closer')
@@ -206,39 +206,44 @@ def _partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, int
 
     opened = defaultdict(int)
     closed = defaultdict(int)
-    first = {}
+    first = defaultdict(list)   # Treat as a LIFO queue
     pairs = []
+    # log.debug(f'Partitioning enclosed {text=!r}')
     for i, c in enumerate(text):
+        # log.debug(f'{i=} {c=!r} ord(c)={ord(c)} first={dict(first)} {pairs=} opened={dict(opened)} closed={dict(closed)}')
         if c in o2c:
             if c in c2o:
                 for k in c2o[c]:
                     if opened[k] > closed[k]:
                         closed[k] += 1
                     if opened[k] and opened[k] == closed[k]:
-                        first_k = first[k]
+                        first_k = first[k].pop()
                         if inner:
                             return text, first_k, i
                         else:
-                            del first[k]
-                            if not first or first_k < min(first.values()):
+                            if not first[k]:
+                                del first[k]
+                            if not first or first_k < min(vals[0] for vals in first.values()):
                                 return text, first_k, i
                             else:
                                 pairs.append((first_k, i))
 
-            if not opened[c]:
-                first[c] = i + 1
+            # if not opened[c] or opened[c] == closed[c]:
+            if opened[c] == closed[c]:
+                first[c].append(i + 1)
             opened[c] += 1
         elif c in c2o:
             for k in c2o[c]:
                 if opened[k] > closed[k]:
                     closed[k] += 1
                 if opened[k] and opened[k] == closed[k]:
-                    first_k = first[k]
+                    first_k = first[k].pop()
                     if inner:
                         return text, first_k, i
                     else:
-                        del first[k]
-                        if not first or first_k < min(first.values()):
+                        if not first[k]:
+                            del first[k]
+                        if not first or first_k < min(vals[0] for vals in first.values()):
                             return text, first_k, i
                         else:
                             pairs.append((first_k, i))

@@ -5,13 +5,16 @@
 import re
 import string
 from pathlib import Path
-from typing import Mapping, Tuple, Any, Callable, Optional
+from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type
 from unicodedata import normalize
 
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
 from ds_tools.output import colored, uprint
 from ds_tools.output.table import mono_width
+
+if TYPE_CHECKING:
+    from .base import BaseSongFile
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
@@ -43,6 +46,7 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
 }
 # Translate whitespace characters (such as \n, \r, etc.) to their escape sequences
 WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-8') for c in string.whitespace})
+_NotSet = object()
 
 
 def tag_repr(tag_val, max_len=125, sub_len=25):
@@ -98,14 +102,15 @@ class MusicFileProperty(ClearableCachedProperty):
 class TextTagProperty(ClearableCachedProperty):
     _set_name = True
 
-    def __init__(self, name: str, cast_func: Optional[Callable] = None):
+    def __init__(self, name: str, cast_func: Optional[Callable] = None, default: Any = _NotSet):
         self.tag_name = name
         self.cast_func = cast_func
+        self.default = default
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance: 'BaseSongFile', cls: Type['BaseSongFile']):
         if instance is None:
             return self
-        value = instance.tag_text(self.tag_name)
+        value = instance.tag_text(self.tag_name, default=self.default)
         if self.cast_func is not None:
             value = self.cast_func(value)
         instance.__dict__[self.name] = value

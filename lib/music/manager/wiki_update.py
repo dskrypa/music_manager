@@ -12,7 +12,6 @@ from ds_tools.core import Paths, get_input, parse_with_func
 from ds_tools.output import colored
 from ..files import iter_album_dirs, AlbumDir, SafePath
 from ..files.track import SongFile, print_tag_changes
-from ..text import combine_with_parens
 from ..wiki import Track, Singer, DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from .enums import CollabMode as CM

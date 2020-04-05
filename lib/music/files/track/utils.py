@@ -2,24 +2,27 @@
 :author: Doug Skrypa
 """
 
+import logging
 import re
 import string
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type
+from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type, List
 from unicodedata import normalize
 
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
 from ds_tools.output import colored, uprint
 from ds_tools.output.table import mono_width
+from ...text import Name, split_enclosed
 
 if TYPE_CHECKING:
     from .base import BaseSongFile
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
-    'tag_repr'
+    'tag_repr', 'split_artists'
 ]
+log = logging.getLogger(__name__)
 
 RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
 TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
@@ -46,6 +49,10 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
 }
 # Translate whitespace characters (such as \n, \r, etc.) to their escape sequences
 WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-8') for c in string.whitespace})
+DELIMS_PAT = re.compile('(?:[;,&]| [x×] )', re.IGNORECASE)
+CONTAINS_DELIM = DELIMS_PAT.search
+SPLIT_STR_LIST = DELIMS_PAT.split
+UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search
 _NotSet = object()
 
 
@@ -146,3 +153,43 @@ def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run, colo
                 colored(repr(new_val), 10, bg, reset=reset)
             ), bg_color=bg
         ))
+
+
+def split_str_list(text: str):
+    return map(str.strip, SPLIT_STR_LIST(text))
+
+
+def split_artists(text: str) -> List[Name]:
+    artists = []
+    if parts := _unzipped_parts(text):
+        log.debug(f'Split {parts=}')
+        for pair in zip(*map(split_str_list, parts)):
+            log.debug(f'Found {pair=!r}')
+            artists.append(Name.from_parts(pair))
+    else:
+        for part in split_str_list(text):
+            log.debug(f'Found {part=!r}')
+            parts = split_enclosed(text, True, maxsplit=1)
+            if len(parts) == 2 and CONTAINS_DELIM(parts[1]):
+                log.debug(f'Split group/members {parts=}')
+                name = Name.from_enclosed(parts[0])
+                name.extra = {'members': split_artists(parts[1])}
+            elif len(parts) == 2 and parts[1].startswith('from '):
+                log.debug(f'Split soloist/group {parts=}')
+                name = Name.from_enclosed(parts[0])
+                name.extra = {'group': Name.from_enclosed(parts[1])}
+            else:
+                log.debug(f'No custom action for {parts=}')
+                name = Name.from_enclosed(part)
+            artists.append(name)
+
+    return artists
+
+
+def _unzipped_parts(text: str) -> Optional[Tuple[str, str]]:
+    if UNZIPPED_LIST_MATCH(text):
+        parts = split_enclosed(text, True, maxsplit=1)
+        if parts[0].count(',') == parts[1].count(','):
+            # noinspection PyTypeChecker
+            return parts
+    return None

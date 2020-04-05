@@ -7,6 +7,7 @@ import os
 import re
 from concurrent import futures
 from datetime import date
+from itertools import chain
 from pathlib import Path
 from typing import Iterator, List, Union, Optional, Set
 
@@ -108,13 +109,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
     @cached_property
     def artists(self) -> Set[Name]:
-        artists = set()
-        for music_file in self.songs:
-            if artist := music_file.tag_artist:
-                artists.add(artist)
-            if album_artist := music_file.tag_album_artist:
-                artists.add(album_artist)
-        return artists
+        return set(chain.from_iterable(music_file.artists for music_file in self.songs))
 
     @cached_property
     def artist(self) -> Optional[Name]:

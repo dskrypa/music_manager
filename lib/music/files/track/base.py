@@ -7,7 +7,7 @@ from datetime import datetime, date
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, Iterator, Tuple, Any
+from typing import Optional, Union, Iterator, Tuple, Any, Set
 
 import mutagen
 import mutagen.id3._frames
@@ -18,8 +18,11 @@ from mutagen.mp4 import MP4Tags
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
+from ...text import Name
 from ..exceptions import *
-from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet
+from .utils import (
+    FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, split_artists
+)
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)
@@ -240,6 +243,21 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def iter_clean_tags(self) -> Iterator[Tuple[str, Any]]:
         for tag, value in self._f.tags.items():
             yield tag[:4], value
+
+    @cached_property
+    def artists(self) -> Set[Name]:
+        artists = set()
+        if artist := self.tag_artist:
+            artists.update(split_artists(artist))
+        if album_artist := self.tag_album_artist:
+            artists.update(split_artists(album_artist))
+        return artists
+
+    @cached_property
+    def artist(self) -> Optional[Name]:
+        if (artists := self.artists) and len(artists) == 1:
+            return next(iter(artists))
+        return None
 
     @cached_property
     def year(self) -> Optional[int]:

@@ -7,6 +7,7 @@ from collections import defaultdict, Counter
 
 from mutagen.id3 import ID3
 
+from ds_tools.core import Paths
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
 from ..constants import tag_name_map
@@ -17,7 +18,7 @@ __all__ = ['print_track_info', 'table_song_tags', 'table_unique_tag_values', 'ta
 log = logging.getLogger(__name__)
 
 
-def print_track_info(paths, tags=None, meta_only=False, trim=True):
+def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
     tags = {tag.upper() for tag in tags} if tags else None
     suffix = '' if meta_only else ':'
     for i, music_file in enumerate(iter_music_files(paths)):
@@ -38,7 +39,7 @@ def print_track_info(paths, tags=None, meta_only=False, trim=True):
                 tbl.print_rows(rows)
 
 
-def table_song_tags(paths, include_tags=None):
+def table_song_tags(paths: Paths, include_tags=None):
     rows = [{'path': '[Tag Description]'}, TableBar()]
     tags = set()
     for music_file in iter_music_files(paths):
@@ -55,7 +56,7 @@ def table_song_tags(paths, include_tags=None):
     tbl.print_rows(rows)
 
 
-def table_unique_tag_values(paths, tag_ids):
+def table_unique_tag_values(paths: Paths, tag_ids):
     matcher = FnMatcher(tag_ids, ignore_case=True)
     unique_vals = defaultdict(Counter)
     for music_file in iter_music_files(paths):
@@ -74,7 +75,7 @@ def table_unique_tag_values(paths, tag_ids):
     tbl.print_rows(rows)
 
 
-def table_tag_type_counts(paths):
+def table_tag_type_counts(paths: Paths):
     total_tags, unique_tags, id3_versions = Counter(), Counter(), Counter()
     unique_values = defaultdict(Counter)
     files = 0

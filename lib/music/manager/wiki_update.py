@@ -96,10 +96,9 @@ def _update_album_from_disco_entry(
     if dest_base_dir:
         edition = disco_part.edition
         rel_dir_fmt = ARTIST_TYPE_DIRS + _album_format(edition.date, edition.type.numbered and edition.entry.number)
-        album_name = _get_album_name(disco_part, edition, hide_edition)
         expected_rel_dir = rel_dir_fmt(
-            artist=edition.artist.name.english, type_dir=edition.type.directory, album=album_name, date=edition.date,
-            album_num=edition.numbered_type
+            artist=edition.artist.name.english, type_dir=edition.type.directory, album_num=edition.numbered_type,
+            album=disco_part.full_name(hide_edition), date=edition.date
         )
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)
         if expected_dir != album_dir.path:
@@ -110,13 +109,6 @@ def _update_album_from_disco_entry(
                 # TODO: cleanup empty original dir(s)
         else:
             log.log(19, f'Album {album_dir} is already in expected dir: {expected_dir}')
-
-
-def _get_album_name(part, edition, hide_edition):
-    album_name_parts = [edition.name, part.name]
-    if not hide_edition:
-        album_name_parts.append(edition.edition)
-    return combine_with_parens(list(filter(None, album_name_parts)))
 
 
 def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST) -> Dict[str, Any]:
@@ -140,7 +132,7 @@ def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_m
     values['date'] = album_edition.date.strftime('%Y%m%d')
     values['track'] = track.num
     values['disk'] = album_part.disc
-    values['album'] = _get_album_name(album_part, album_edition, hide_edition)
+    values['album'] = album_part.full_name(hide_edition)
 
     lang = album_edition.lang
     lang = LANG_ABBREV_MAP.get(lang.lower()) if lang else None

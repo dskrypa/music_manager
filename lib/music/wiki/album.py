@@ -13,7 +13,7 @@ from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes.nodes import Node, Link, List as ListNode
 from wiki_nodes.page import WikiPage
-from ..text.name import Name
+from ..text import combine_with_parens, Name
 from .base import WikiEntity, Pages
 from .exceptions import EntityTypeError, BadLinkError
 
@@ -278,6 +278,11 @@ class DiscographyEntryPart:
 
     def __bool__(self):
         return bool(self.tracks)
+
+    def full_name(self, hide_edition=False):
+        edition = self.edition
+        parts = (edition.name, self.name, edition.edition if not hide_edition else None)
+        return combine_with_parens(tuple(filter(None, parts)))
 
     @cached_property
     def track_names(self) -> List[Name]:

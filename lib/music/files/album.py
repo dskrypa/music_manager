@@ -5,6 +5,7 @@
 import logging
 import os
 import re
+from concurrent import futures
 from datetime import date
 from pathlib import Path
 from typing import Iterator, List, Union, Optional
@@ -188,12 +189,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
         for music_file in self.songs:
             music_file.cleanup_lyrics(dry_run)
             tag_type = music_file.tag_type
-            if add_bpm:
-                bpm = music_file.bpm(False, False)
-                if bpm is None:
-                    bpm = music_file.bpm(not dry_run, calculate=True)
-                    log.info(f'{prefix}{add_msg} BPM={bpm} to {music_file}')
-
             if tag_type != 'mp3':
                 log.debug(f'Skipping date tags for non-MP3: {music_file}')
                 continue
@@ -208,6 +203,19 @@ class AlbumDir(ClearableCachedPropertyMixin):
                     music_file.tags.add(TDRC(text=file_date))
                     music_file.tags.delall('TXXX:DATE')
                     music_file.save()
+
+        if add_bpm:
+            def bpm_func(_file):
+                bpm = _file.bpm(False, False)
+                if bpm is None:
+                    bpm = _file.bpm(not dry_run, calculate=True)
+                    log.info(f'{prefix}{add_msg} BPM={bpm} to {_file}')
+
+            with futures.ThreadPoolExecutor(max_workers=max(1, len(self.songs))) as executor:
+                # Would be better with ProcessPoolExecutor, but it had issues. This is still faster than single-threaded
+                _futures = {executor.submit(bpm_func, music_file) for music_file in self.songs}
+                for future in futures.as_completed(_futures):
+                    future.result()
 
     def remove_bad_tags(self, dry_run=False):
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'

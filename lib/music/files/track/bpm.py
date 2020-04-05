@@ -47,7 +47,8 @@ def _get_bpm(path: Union[str, Path], sample_rate=44100, window_size=1024, hop_si
 
     src = source(path, sample_rate, hop_size, channels=1)
     tempo_obj = tempo('specdiff', window_size, hop_size, src.samplerate)
-    beats = [tempo_obj.get_last_s() for samples in src if tempo_obj(samples)]
+    beats = [tempo_obj.get_last_s() for samples in src if len(samples) >= hop_size and tempo_obj(samples)]
+
     if len(beats) < 4:
         raise BPMDetectionError(f'Too few beats found in {path} to determine BPM')
     # noinspection PyTypeChecker

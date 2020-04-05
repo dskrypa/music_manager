@@ -20,19 +20,18 @@ from .enums import CollabMode as CM
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)
 DiscoObj = Union[DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart]
+ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
 TRACK_NAME_FORMAT = SafePath('{num}. {track}.{ext}')
-PATH_FORMATS = {
-    'alb_type_with_num': SafePath('{artist}/{album_type}/[{date}] {album} [{album_num}]/{num}. {track}.{ext}'),
-    'alb_type_no_num': SafePath('{artist}/{album_type}/[{date}] {album}/{num}. {track}.{ext}'),
-}
 
 
 def update_tracks(
         paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
-        url: Optional[str] = None, add_bpm=False
+        url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None
 ):
     if not isinstance(collab_mode, CM):
         collab_mode = CM(collab_mode)
+    if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
+        dest_base_dir = Path(dest_base_dir).expanduser().resolve()
 
     if url:
         album_dirs = list(iter_album_dirs(paths))
@@ -41,7 +40,7 @@ def update_tracks(
 
         entry = DiscographyEntry.from_url(url)
         return _update_album_from_disco_entry(
-            album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, add_bpm
+            album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, add_bpm, dest_base_dir
         )
     else:
         raise NotImplementedError('Automatic matching is not yet implemented')
@@ -49,12 +48,13 @@ def update_tracks(
 
 def _update_album_from_disco_entry(
         album_dir: AlbumDir, entry: DiscoObj, dry_run=False, soloist=False, hide_edition=False,
-        collab_mode: CM = CM.ARTIST, add_bpm=False
+        collab_mode: CM = CM.ARTIST, add_bpm=False, dest_base_dir: Optional[Path] = None
 ):
     album_dir.remove_bad_tags(dry_run)
     album_dir.fix_song_tags(dry_run, add_bpm)
 
-    ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), _get_disco_part(entry).tracks)
+    disco_part = _get_disco_part(entry)                                         # type: DiscographyEntryPart
+    ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), disco_part.tracks)
     file_track_map = {file: track for file, track in ft_iter}                   # type: Dict[SongFile, Track]
 
     updates = {}                                                                # type: Dict[SongFile, Dict[str, Any]]
@@ -93,7 +93,30 @@ def _update_album_from_disco_entry(
             if not dry_run:
                 file.rename(file.path.with_name(filename))
 
-    # TODO: move files to expected dir
+    if dest_base_dir:
+        edition = disco_part.edition
+        rel_dir_fmt = ARTIST_TYPE_DIRS + _album_format(edition.date, edition.type.numbered and edition.entry.number)
+        album_name = _get_album_name(disco_part, edition, hide_edition)
+        expected_rel_dir = rel_dir_fmt(
+            artist=edition.artist.name.english, type_dir=edition.type.directory, album=album_name, date=edition.date,
+            album_num=edition.numbered_type
+        )
+        expected_dir = dest_base_dir.joinpath(expected_rel_dir)
+        if expected_dir != album_dir.path:
+            prefix = '[DRY RUN] Would move' if dry_run else 'Moving'
+            log.info(f'{prefix} {album_dir} -> {expected_dir}')
+            if not dry_run:
+                album_dir.move(expected_dir)
+                # TODO: cleanup empty original dir(s)
+        else:
+            log.log(19, f'Album {album_dir} is already in expected dir: {expected_dir}')
+
+
+def _get_album_name(part, edition, hide_edition):
+    album_name_parts = [edition.name, part.name]
+    if not hide_edition:
+        album_name_parts.append(edition.edition)
+    return combine_with_parens(list(filter(None, album_name_parts)))
 
 
 def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST) -> Dict[str, Any]:
@@ -117,16 +140,12 @@ def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_m
     values['date'] = album_edition.date.strftime('%Y%m%d')
     values['track'] = track.num
     values['disk'] = album_part.disc
+    values['album'] = _get_album_name(album_part, album_edition, hide_edition)
 
     lang = album_edition.lang
     lang = LANG_ABBREV_MAP.get(lang.lower()) if lang else None
     if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin'):
         values['genre'] = f'{lang[0]}-pop'
-
-    album_name_parts = [album_edition.name, album_part.name]
-    if not hide_edition:
-        album_name_parts.append(album_edition.edition)
-    values['album'] = combine_with_parens(list(filter(None, album_name_parts)))
 
     return values
 
@@ -156,3 +175,14 @@ def _get_choice(source, values, name):
             raise ValueError(f'Invalid {name} index - must be a value from 0 to {len(values)}') from e
     else:
         return next(iter(values))
+
+
+def _album_format(date, num):
+    if date and num:
+        return SafePath('[{date}] {album} [{album_num}]')
+    elif date:
+        return SafePath('[{date}] {album}')
+    elif num:
+        return SafePath('{album} [{album_num}]')
+    else:
+        return SafePath('{album}')

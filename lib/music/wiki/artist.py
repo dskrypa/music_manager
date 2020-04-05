@@ -5,6 +5,7 @@ Artist wiki pages.
 """
 
 import logging
+from typing import MutableSet
 
 from ordered_set import OrderedSet
 
@@ -23,7 +24,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
 
     @cached_property
-    def name(self):
+    def name(self) -> Name:
         names = self.names
         if not names:
             raise AttributeError(f'This {self.__class__.__name__} has no \'name\' attribute')
@@ -40,7 +41,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
         return candidate or next(iter(names))
 
     @cached_property
-    def names(self):
+    def names(self) -> MutableSet[Name]:
         names = OrderedSet()
         for site, artist_page in self._pages.items():
             try:

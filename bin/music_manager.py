@@ -66,6 +66,7 @@ def parser():
 
     upd_parser = wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info')
     upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+    upd_parser.add_argument('--destination', '-d', metavar='PATH', help='Destination base directory for sorted files')
     upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
     upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
     upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
@@ -104,7 +105,10 @@ def main():
             show_wiki_entity(args.url, args.expand, args.limit)
         elif sub_action == 'update':
             bpm = aubio_installed() if args.bpm is None else args.bpm
-            update_tracks(args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm)
+            update_tracks(
+                args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
+                args.destination
+            )
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':

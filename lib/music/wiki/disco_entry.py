@@ -93,20 +93,24 @@ class DiscoEntry:
 
 
 class DiscoEntryType(Enum):
-    UNKNOWN = 'UNKNOWN', ()
-    MiniAlbum = 'Mini Album', ('mini album',)
-    ExtendedPlay = 'EP', ('extended play',)
-    SingleAlbum = 'Single Album', ('single album',)
-    SpecialAlbum = 'Special Album', ('special album',)
-    Compilation = 'Compilation', ('compilation', 'best album')
-    Feature = 'Feature', ('feature',)
-    Collaboration = 'Collaboration', ('collaboration',)
-    Live = 'Live Album', ('live album',)
-    MixTape = 'MixTape', ('mixtape',)
-    CoverAlbum = 'Cover Album', ('cover album', 'remake album')
-    Soundtrack = 'Soundtrack', ('soundtrack', 'ost')
-    Single = 'Single', ('single', 'song', 'digital single', 'promotional single', 'special single', 'other release')
-    Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album')
+    # Format: real_name, categories, directory, numbered
+    UNKNOWN = 'UNKNOWN', (), 'Other', False
+    MiniAlbum = 'Mini Album', ('mini album',), 'Mini Albums', True
+    ExtendedPlay = 'EP', ('extended play',), 'EPs', False
+    SingleAlbum = 'Single Album', ('single album',), 'Single Albums', True
+    SpecialAlbum = 'Special Album', ('special album',), 'Special Albums', True
+    Compilation = 'Compilation', ('compilation', 'best album'), 'Compilations', False
+    Feature = 'Feature', ('feature',), 'Collaborations', False
+    Collaboration = 'Collaboration', ('collaboration',), 'Collaborations', False
+    Live = 'Live Album', ('live album',), 'Live', False
+    MixTape = 'MixTape', ('mixtape',), 'Other', False
+    CoverAlbum = 'Cover Album', ('cover album', 'remake album'), 'Other', False
+    Soundtrack = 'Soundtrack', ('soundtrack', 'ost'), 'Soundtracks', False
+    Single = (
+        'Single', ('single', 'song', 'digital single', 'promotional single', 'special single', 'other release'),
+        'Singles', False
+    )
+    Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album'), 'Albums', True
 
     def __repr__(self):
         return f'<{type(self).__name__}: {self.value[0]!r}>'
@@ -132,6 +136,14 @@ class DiscoEntryType(Enum):
     @cached_property
     def categories(self):
         return self.value[1]
+
+    @cached_property
+    def directory(self):
+        return self.value[2]
+
+    @cached_property
+    def numbered(self):
+        return self.value[3]
 
 
 # Down here due to circular dependency

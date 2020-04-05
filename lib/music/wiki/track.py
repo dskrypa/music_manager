@@ -17,10 +17,6 @@ if TYPE_CHECKING:
 __all__ = ['Track']
 log = logging.getLogger(__name__)
 EXTRA_VALUE_MAP = {'instrumental': 'Inst.', 'acoustic': 'Acoustic'}
-PATH_FORMATS = {
-    'alb_type_with_num': '{artist}/{album_type}/[{date}] {album} [{album_num}]/{num}. {track}.{ext}',
-    'alb_type_no_num': '{artist}/{album_type}/[{date}] {album}/{num}. {track}.{ext}',
-}
 
 
 class Track:
@@ -77,26 +73,6 @@ class Track:
                 parts.extend(self.collab_parts)
 
         return combine_with_parens(parts)
-
-    def format_path(self, fmt: str = PATH_FORMATS['alb_type_no_num'], ext: str = 'mp3'):
-        album_part = self.album_part
-        edition = album_part.edition
-        artist_name = edition.artist.english if edition.artist else edition._artist.show
-        if edition.edition:
-            album_name = f'{edition.name} - {edition.edition}'
-        else:
-            album_name = str(edition.name)
-        args = {
-            'artist': artist_name,
-            'album_type': edition.type.real_name,
-            'date': edition.date.strftime('%Y.%m.%d'),
-            'album': album_name,
-            'album_num': None,
-            'num': self.num,
-            'track': self.name,
-            'ext': ext
-        }
-        return fmt.format(**args)
 
 
 def artist_string(node: CompoundNode) -> str:

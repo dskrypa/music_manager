@@ -208,7 +208,7 @@ class SongFile(BaseSongFile):
             if do_save and not dry_run:
                 self.save()
         else:
-            log.info(f'No changes to make for {self.extended_repr}')
+            log.log(19, f'No changes to make for {self.extended_repr}')
 
     def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         if partial and not patterns:

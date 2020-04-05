@@ -3,6 +3,7 @@
 """
 
 import logging
+from itertools import chain
 from typing import Iterator, Iterable, Union
 
 from ds_tools.core.filesystem import iter_files, Paths
@@ -43,3 +44,10 @@ class SafePath:
 
     def __repr__(self):
         return f'<{self.__class__.__name__}({"/".join(self.parts)!r})>'
+
+    def __add__(self, other: 'SafePath') -> 'SafePath':
+        return SafePath(tuple(chain(self.parts, other.parts)))
+
+    def __iadd__(self, other: 'SafePath') -> 'SafePath':
+        self.parts = tuple(chain(self.parts, other.parts))
+        return self

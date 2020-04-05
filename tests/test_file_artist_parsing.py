@@ -11,6 +11,49 @@ from music.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
 
+"""
+TODO:
+- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/super_junior/Girls_ Generation, Super Junior - SEOUL - Single')>
+    Artists: Unexpected str list format for text="소녀시대 (Girls' Generation), 슈퍼주니어 (Super Junior)" -
+processed=[]
+processing=["소녀시대 (Girls' Generation)", ',', ' 슈퍼주니어 (Super Junior)']
+
+- Album: <AlbumDir("C:/Users/dougs/etc/kpop/sorting/snsd_sort_later/GIRLS' GENERATION - Sailing - 0805 (SM STATION Single)")>
+    Artists: Unexpected str list format for text="소녀시대 (GIRLS' GENERATION)" -
+processed=[]
+processing=["소녀시대 (GIRLS' GENERATION)"]
+
+- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/snsd_members/YoonA - Deoksugung Stonewall Walkway (Feat. 10cm)')>
+    Artists: Unexpected str list format for text="윤아 (소녀시대) [YoonA (Girls' Generation)]" -
+processed=[]
+processing=["윤아 (소녀시대) [YoonA (Girls' Generation)]"]
+
+- Album: <AlbumDir("C:/Users/dougs/etc/kpop/sorting/snsd/GIRL'S GENERATION - The Best (New Edition)")>
+    Artists: Unexpected str list format for text="少女時代 (GIRL'S GENERATION)" -
+processed=[]
+processing=["少女時代 (GIRL'S GENERATION)"]
+
+- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/omg/Collaborations/White [with HAHA + M.TySON]')>
+    Artists: Unexpected str list format for text='스컬, 타린 (' -
+processed=['스컬']
+processing=[' 타린 (']
+
+- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/girls_day/Solo/Minah - I am a Woman too')>
+    Artists: Unexpected str list format for text="민아 (걸스데이) [MinAh (Girl's Day)]" -
+processed=[]
+processing=["민아 (걸스데이) [MinAh (Girl's Day)]"]
+
+- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/girls_day/Solo/Sojin - DEUX 20th Anniversary Tribute Album Part.1')>
+    Artists: Unexpected str list format for text="소진 (Sojin of Girl's Day)" -
+processed=[]
+processing=["소진 (Sojin of Girl's Day)"]
+
+- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/brown_eyed_girls_members/JeA (Brown Eyed Girls) - Just For One Day')>
+    Artists: Unexpected str list format for text='제아 (JeA (Brown Eyed Girls)' -
+processed=[]
+processing=['제아 (JeA (Brown Eyed Girls)']
+"""
+
 
 class FileArtistParsingTest(NameTestCaseBase):
     def test_eng_eng_mix(self):

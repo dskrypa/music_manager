@@ -12,6 +12,7 @@ from typing import Optional, Union, Iterator, Tuple, Any, Set
 import mutagen
 import mutagen.id3._frames
 from mutagen import File
+from mutagen.flac import VCFLACDict
 from mutagen.id3 import ID3, POPM
 from mutagen.mp4 import MP4Tags
 
@@ -110,6 +111,8 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return 'mp4'
         elif isinstance(tags, ID3):
             return 'mp3'
+        elif isinstance(tags, VCFLACDict):
+            return 'flac'
         return None
 
     @cached_property
@@ -119,6 +122,8 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return 'MP4'
         elif isinstance(tags, ID3):
             return 'ID3v{}.{}'.format(*tags.version[:2])
+        elif isinstance(tags, VCFLACDict):
+            return 'FLAC'
         else:
             return tags.__name__
 
@@ -126,7 +131,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         tag_type = self.tag_type
         if tag_type == 'mp3':
             self.tags.delall(tag_id)
-        elif tag_type == 'mp4':
+        elif tag_type in ('mp4', 'flac'):
             del self.tags[tag_id]
         else:
             raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
@@ -135,7 +140,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
         tags = self._f.tags
         tag_type = self.tag_type
-        if tag_type == 'mp4':
+        if tag_type in ('mp4', 'flac'):
             if not isinstance(value, list):
                 value = [value]
             try:

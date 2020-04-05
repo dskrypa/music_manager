@@ -27,7 +27,8 @@ log = logging.getLogger(__name__)
 
 RM_TAG_MATCHERS = {
     'mp3': FnMatcher(('TXXX*', 'PRIV*', 'WXXX*', 'COMM*', 'TCOP')).match,
-    'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match
+    'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
+    'flac': FnMatcher(('UPLOADED*',)).match
 }
 KEEP_TAGS = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
 

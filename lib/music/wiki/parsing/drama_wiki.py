@@ -4,7 +4,7 @@
 
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from wiki_nodes.nodes import Node, Link, String
 from wiki_nodes.page import WikiPage
@@ -27,6 +27,10 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     @classmethod
     def parse_album_name(cls, node: Node) -> Name:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 
     @classmethod

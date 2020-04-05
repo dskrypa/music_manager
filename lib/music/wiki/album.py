@@ -6,18 +6,16 @@ import logging
 import re
 from datetime import datetime, date
 from traceback import format_stack
-from typing import TYPE_CHECKING, List, Optional, Tuple, Sequence, Iterator
+from typing import List, Optional, Tuple, Sequence, Iterator
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
+from ds_tools.utils.misc import num_suffix
 from wiki_nodes.nodes import Node, Link, List as ListNode
 from wiki_nodes.page import WikiPage
 from ..text.name import Name
 from .base import WikiEntity, Pages
 from .exceptions import EntityTypeError, BadLinkError
-
-if TYPE_CHECKING:
-    from .disco_entry import DiscoEntry, DiscoEntryType
 
 __all__ = [
     'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',
@@ -38,7 +36,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     def __init__(
             self, name: Optional[str] = None, pages: Pages = None, disco_entry: Optional['DiscoEntry'] = None,
-            artist: Optional['Artist'] = None
+            artist: Optional['Artist'] = None, entry_type: Optional['DiscoEntryType'] = None
     ):
         """
         :param str name: The name of this discography entry
@@ -52,6 +50,7 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
         self.disco_entries = [disco_entry] if disco_entry else []   # type: List[DiscoEntry]
         self._date = None                                           # type: Optional[date]
         self._artist = artist                                       # type: Optional[Artist]
+        self._type = entry_type                                     # type: Optional[DiscoEntryType]
 
     @cached_property
     def name(self) -> Name:
@@ -71,18 +70,23 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
     def __bool__(self):
         return bool(self.editions)
 
-    def parts(self) -> Iterator['DiscographyEntryPart']:
-        for edition in self.editions:
-            yield from edition
-
     @cached_property
     def artist(self) -> Optional['Artist']:
-        if not isinstance(self._artist, Artist):
-            for edition in self.editions:
-                if edition.artist:
-                    self._artist = edition.artist
-                    break
-        return self._artist
+        if isinstance(self._artist, Artist):
+            return self._artist
+        for edition in self.editions:
+            if edition.artist:
+                return edition.artist
+        return None
+
+    @cached_property
+    def type(self) -> Optional['DiscoEntryType']:
+        if isinstance(self._type, DiscoEntryType):
+            return self._type
+        for edition in self.editions:
+            if edition.type:
+                return edition.type
+        return None
 
     @cached_property
     def _sort_key(self) -> Tuple[int, date, str]:
@@ -138,14 +142,19 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
     @cached_property
     def editions(self) -> List['DiscographyEntryEdition']:
         editions = []
-        for site, entry_page in self._pages.items():
-            try:
-                parser = WikiParser.for_site(site)
-            except KeyError:
-                log.debug(f'No discography entry extraction is configured for {entry_page}')
-            else:
-                editions.extend(parser.process_album_editions(self, entry_page))
+        for entry_page, parser in self.page_parsers():
+            editions.extend(parser.process_album_editions(self, entry_page))
         return editions
+
+    def parts(self) -> Iterator['DiscographyEntryPart']:
+        for edition in self.editions:
+            yield from edition
+
+    @cached_property
+    def number(self) -> Optional[int]:
+        for page, parser in self.page_parsers():
+            return parser.parse_album_number(page)
+        return None
 
 
 class Album(DiscographyEntry):
@@ -165,25 +174,28 @@ class Soundtrack(DiscographyEntry):
 class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
-            self, name: Optional[str], page: WikiPage, artist: Optional[Node], release_dates: Sequence[date],
-            tracks: ListNode, entry_type: 'DiscoEntryType', edition: Optional[str] = None, lang: Optional[str] = None
+            self, name: Optional[str], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
+            artist: Optional[Node], release_dates: Sequence[date], tracks: ListNode,  edition: Optional[str] = None,
+            lang: Optional[str] = None, repackage=False
     ):
         self.name = name                        # type: Optional[str]
         self.page = page                        # type: WikiPage
+        self.entry = entry                      # type: DiscographyEntry
+        self.type = entry_type                  # type: DiscoEntryType
+        self._artist = artist                   # type: Optional[Node]
         self.release_dates = release_dates      # type: Sequence[date]
         self._tracks = tracks                   # type: ListNode
-        self.type = entry_type                  # type: DiscoEntryType
         self.edition = edition                  # type: Optional[str]
-        self._artist = artist                   # type: Optional[Node]
         self.lang = lang                        # type: Optional[str]
-        # TODO: 1st/2nd/3rd/etc (Mini) Album...
+        self.repackage = repackage
 
     def __repr__(self) -> str:
-        date = self.release_dates[0].strftime('%Y-%m-%d')
-        alb_type = f'[type={self.type.real_name!r}]' if self.type else ''
+        _date = self.release_dates[0].strftime('%Y-%m-%d')
+        _type = self.numbered_type or (repr(self.type.real_name) if self.type else None)
+        alb_type = f'[type={_type}]' if _type else ''
         edition = f'[edition={self.edition!r}]' if self.edition else ''
         lang = f'[lang={self.lang!r}]' if self.lang else ''
-        return f'<[{date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{alb_type}{edition}{lang}>'
+        return f'<[{_date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
         return iter(self.parts)
@@ -227,6 +239,13 @@ class DiscographyEntryEdition:
         else:
             log.debug(f'No discography entry part extraction is configured for {self.page}')
         return parts
+
+    @cached_property
+    def numbered_type(self) -> Optional[str]:
+        if (num := self.entry.number) and self.type:
+            parts = (f'{num}{num_suffix(num)}', self.type.real_name, 'Repackage' if self.repackage else None)
+            return ' '.join(filter(None, parts))
+        return None
 
 
 class DiscographyEntryPart:
@@ -277,5 +296,6 @@ class SoundtrackPart(DiscographyEntryPart):
 
 # Down here due to circular dependency
 from .artist import Artist
+from .disco_entry import DiscoEntry, DiscoEntryType
 from .parsing import WikiParser
 from .track import Track

@@ -4,7 +4,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Node
@@ -42,6 +42,11 @@ class WikiParser(ABC):
     @classmethod
     @abstractmethod
     def parse_album_name(cls, node: Node) -> Name:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 
     @classmethod

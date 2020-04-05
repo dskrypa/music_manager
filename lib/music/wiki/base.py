@@ -5,7 +5,7 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
-from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type
+from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type, Tuple
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
@@ -69,6 +69,15 @@ class WikiEntity:
     @property
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
+
+    def page_parsers(self) -> Iterator[Tuple[WikiPage, 'WikiParser']]:
+        for site, page in self._pages.items():
+            try:
+                parser = WikiParser.for_site(site)
+            except KeyError:
+                log.debug(f'No parser is configured for {page}')
+            else:
+                yield page, parser
 
     @classmethod
     def _by_category(
@@ -204,3 +213,7 @@ class SpecialEvent(WikiEntity):
 
 class TVSeries(WikiEntity):
     _categories = ('television program', 'television series', 'drama')
+
+
+# Down here due to circular dependency
+from .parsing import WikiParser

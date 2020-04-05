@@ -17,6 +17,8 @@ parse_generasia_track_name = GenerasiaParser.parse_track_name
 
 
 class GenerasiaTrackNameReprTest(NameTestCaseBase):
+    # These feat tests are not ideal because they need to pull info from the wiki to look up the artist names, rather
+    # than being fully self-contained.
     def test_feat_solo_of_group(self):
         root = MagicMock(site='www.generasia.com')
         entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]]) """, root=root)

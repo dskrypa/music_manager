@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from wiki_nodes.nodes import Node, Template
 from wiki_nodes.page import WikiPage
@@ -26,6 +26,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def parse_album_name(cls, node: Node) -> Name:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 
     @classmethod

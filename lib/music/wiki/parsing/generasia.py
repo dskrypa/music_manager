@@ -18,7 +18,7 @@ from ...text.spellcheck import is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntryType, DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import LANG_ABBREV_MAP
+from .utils import LANG_ABBREV_MAP, find_ordinal
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -304,15 +304,20 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     log.debug(f'Unrecognized release category: {cat!r}')
 
+        repackage = False
         for node in processed:
             if isinstance(node, MappingNode) and 'Artist' in node:
                 try:
-                    yield from cls._process_album_edition(entry, entry_page, node, langs)
+                    yield from cls._process_album_edition(entry, entry_page, node, langs, repackage)
                 except Exception as e:
                     log.error(f'Error processing edition node={node}: {e}', exc_info=True)
+                else:
+                    repackage = True
 
     @classmethod
-    def _process_album_edition(cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set):
+    def _process_album_edition(
+            cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set, repackage=False
+    ):
         artist_link = node['Artist'].value
         name_key = list(node.keys())[1]  # Works because of insertion order being maintained
         entry_type = DiscoEntryType.for_name(name_key)
@@ -325,6 +330,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if album_name.endswith('('):
                 album_name = album_name[:-1].strip()
 
+        log.debug(f'Processing edition entry with {album_name=!r} {entry_type=!r} {artist_link=!r}')
         lang, version, edition = None, None, None
         lc_album_name = album_name.lower()
         if ver_ed_indicator := next((val for val in ('ver.', 'edition') if val in lc_album_name), None):
@@ -373,9 +379,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         edition = f'{edition} - {tl_edition}' if edition else tl_edition
 
                 yield DiscographyEntryEdition(
-                    album_name, entry_page, artist_link, release_dates, value, entry_type, edition or version,
-                    find_language(value, lang, langs)
+                    album_name, entry_page, entry, entry_type, artist_link, release_dates, value, edition or version,
+                    find_language(value, lang, langs), repackage
                 )
+
+    @classmethod
+    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
+        entry_page.sections.processed()                     # Necessary to populate the Information section
+        info = entry_page.sections['Information'].content
+        return find_ordinal(info.raw.string)
 
 
 def find_language(node: Node, lang: str, langs: Set[str]) -> Optional[str]:
@@ -503,7 +515,7 @@ def process_extra(extras: dict, extra: str) -> Optional[str]:
         except IndexError:
             return extra_type
 
-    if extra_type == 'instrumental':
+    if extra_type in ('instrumental', 'acoustic'):
         extras[extra_type] = True
     elif extra_type == 'remix' and extra.lower() == 'remix':
         extras[extra_type] = True
@@ -530,6 +542,8 @@ def classify_extra(text: str) -> Optional[str]:
         return 'version'
     elif lc_text.startswith(('inst.', 'instrumental')):
         return 'instrumental'
+    elif lc_text.startswith('acoustic'):
+        return 'acoustic'
     elif any(val in lc_text for val in (' ed.', 'edition')):
         return 'edition'
 

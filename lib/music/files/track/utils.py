@@ -34,18 +34,18 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'album_artist': {'mp4': 'aART', 'mp3': 'TPE2', 'flac': 'ALBUMARTIST'},
     'track': {'mp4': 'trkn', 'mp3': 'TRCK', 'flac': 'TRACKNUMBER'},
     'disk': {'mp4': 'disk', 'mp3': 'TPOS', 'flac': 'DISCNUMBER'},
-    'grouping': {'mp4': '\xa9grp', 'mp3': 'TIT1'},
-    'album_sort_order': {'mp4': 'soal', 'mp3': 'TSOA'},
-    'track_sort_order': {'mp4': 'sonm', 'mp3': 'TSOT'},
-    'album_artist_sort_order': {'mp4': 'soaa', 'mp3': 'TSO2'},
-    'track_artist_sort_order': {'mp4': 'soar', 'mp3': 'TSOP'},
-    'isrc': {'mp4': '----:com.apple.iTunes:ISRC', 'mp3': 'TSRC'},   # International Standard Recording Code
-    'compilation': {'mp4': 'cpil', 'mp3': 'TCMP'},
-    'podcast': {'mp4': 'pcst', 'mp3': 'PCST'},
-    'bpm': {'mp4': 'tmpo', 'mp3': 'TBPM'},
-    'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN'},
-    'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT'},
-    # 'name': {'mp4': '', 'mp3': ''},
+    'grouping': {'mp4': '\xa9grp', 'mp3': 'TIT1', 'flac': 'GROUPING'},
+    'album_sort_order': {'mp4': 'soal', 'mp3': 'TSOA', 'flac': 'ALBUMSORT'},
+    'track_sort_order': {'mp4': 'sonm', 'mp3': 'TSOT', 'flac': 'TITLESORT'},
+    'album_artist_sort_order': {'mp4': 'soaa', 'mp3': 'TSO2', 'flac': 'ALBUMARTISTSORT'},
+    'track_artist_sort_order': {'mp4': 'soar', 'mp3': 'TSOP', 'flac': 'ARTISTSORT'},
+    'isrc': {'mp4': '----:com.apple.iTunes:ISRC', 'mp3': 'TSRC', 'flac': 'ISRC'},  # International Standard Recording Code
+    'compilation': {'mp4': 'cpil', 'mp3': 'TCMP', 'flac': 'COMPILATION'},
+    'podcast': {'mp4': 'pcst', 'mp3': 'PCST'},  # flac: None
+    'bpm': {'mp4': 'tmpo', 'mp3': 'TBPM', 'flac': 'BPM'},
+    'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN', 'flac': 'LANGUAGE'},
+    'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
+    # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
 # Translate whitespace characters (such as \n, \r, etc.) to their escape sequences
 WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-8') for c in string.whitespace})

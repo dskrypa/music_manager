@@ -11,11 +11,25 @@ from ds_tools.core import Paths
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
 from ..constants import tag_name_map
-from ..files.track import tag_repr
-from ..files.utils import iter_music_files
+from ..files import iter_album_dirs, iter_music_files, tag_repr
 
-__all__ = ['print_track_info', 'table_song_tags', 'table_unique_tag_values', 'table_tag_type_counts']
+__all__ = [
+    'print_track_info', 'table_song_tags', 'table_unique_tag_values', 'table_tag_type_counts', 'print_processed_info'
+]
 log = logging.getLogger(__name__)
+
+
+def print_processed_info(paths: Paths, expand=0):
+    for album_dir in iter_album_dirs(paths):
+        uprint(f'- Album: {album_dir}')
+        try:
+            artists = album_dir.artists
+        except Exception as e:
+            log.error(f'    Artists: {e}', extra={'color': 'red'})
+        else:
+            uprint(f'    Artists ({len(artists)}):')
+            for artist in artists:
+                uprint(f'      - {artist} ')
 
 
 def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):

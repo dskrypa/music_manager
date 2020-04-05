@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.files.utils import split_artists
+from music.files import split_artists
 from music.text.name import Name
 from music.test_common import NameTestCaseBase, main
 
@@ -98,6 +98,10 @@ class FileArtistParsingTest(NameTestCaseBase):
         names = set(split_artists('MOBB <MINO (from WINNER) × BOBBY (from iKON)>'))
         expected = {Name('MOBB', extra={'Members': [Name('MINO (from WINNER)'), Name('BOBBY (from iKON)')]})}
         self.assertSetEqual(names, expected)
+
+    def test_no_space_mix_eng(self):
+        names = set(split_artists('화사(Hwa Sa), WOOGIE'))
+        self.assertSetEqual(names, {Name('Hwa Sa', '화사'), Name('WOOGIE')})
 
 
 if __name__ == '__main__':

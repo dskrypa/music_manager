@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from music.text.extraction import partition_enclosed, split_enclosed
+from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
@@ -20,6 +20,21 @@ class _CustomTestCase(unittest.TestCase):
 
     def tearDown(self):
         maybe_print()
+
+
+class MiscExtractionTestCase(_CustomTestCase):
+    def test_has_unpaired(self):
+        cases = {
+            '()': False, ')(': True,
+            '(a)': False, ')a(': True,
+            'a()': False, '()a': False,
+            'a)(': True, ')(a': True,
+            '())': True, '(()': True,
+            '(())': False,
+            '(a)b [(c)d-e]': False
+        }
+        for text, unpaired in cases.items():
+            self.assertIs(has_unpaired(text), unpaired, f'Failed for {text=!r}')
 
 
 class ExtractEnclosedTestCase(_CustomTestCase):
@@ -147,7 +162,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     init_logging(args.verbose, log_path=None, names=None)
 
-    test_classes = ()
+    test_classes = _CustomTestCase.__subclasses__()
     argv = [sys.argv[0]]
     if args.include:
         names = {m: f'{cls.__name__}.{m}' for cls in test_classes for m in dir(cls)}

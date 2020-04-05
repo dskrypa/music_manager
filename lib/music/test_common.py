@@ -18,10 +18,10 @@ def main(*test_classes):
     parser = ArgumentParser('Name Parsing Unit Tests')
     parser.add_argument('--include', '-i', nargs='+', help='Names of test functions to include (default: all)')
     parser.add_argument('--verbose', '-v', action='count', default=0, help='Logging verbosity (can be specified multiple times to increase verbosity)')
-    args = parser.parse_args()
+    args, argv = parser.parse_known_args()
     init_logging(args.verbose, log_path=None, names=None)
 
-    argv = [sys.argv[0]]
+    argv.insert(0, sys.argv[0])
     if args.include:
         names = {m: f'{cls.__name__}.{m}' for cls in test_classes for m in dir(cls)}
         for method_name in args.include:

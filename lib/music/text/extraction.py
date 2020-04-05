@@ -7,11 +7,15 @@ from collections import defaultdict
 from itertools import chain
 from typing import Tuple, Optional
 
-__all__ = ['parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed']
+__all__ = [
+    'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired'
+]
 log = logging.getLogger(__name__)
 
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-<'
 CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’->'
+DASH_CHARS = '~‐-'
+
 
 class _CharMatcher:
     __slots__ = ('openers', 'closers', 'opener_to_closer')
@@ -44,6 +48,35 @@ class _CharMatcher:
 
 OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
+
+
+def has_unpaired(text: str, reverse=True) -> bool:
+    if reverse:
+        o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
+        text = text[::-1]
+    else:
+        o2c, c2o = OPENER_TO_CLOSER, CLOSER_TO_OPENER
+
+    opened = defaultdict(int)
+    closed = defaultdict(int)
+    for i, c in enumerate(text):
+        if c in o2c:
+            if c in c2o:
+                for k in c2o[c]:
+                    if opened[k] > closed[k]:
+                        closed[k] += 1
+            opened[c] += 1
+        elif c in c2o:
+            for k in c2o[c]:
+                if opened[k] > closed[k]:
+                    closed[k] += 1
+                elif k not in DASH_CHARS:
+                    return True
+
+    for c, num_open in opened.items():
+        if closed[c] != num_open and c not in DASH_CHARS:
+            return True
+    return False
 
 
 def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str]:

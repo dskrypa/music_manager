@@ -14,7 +14,9 @@ from ds_tools.logging import init_logging
 
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
 from music.files import apply_mutagen_patches
-from music.manager.file_info import print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values
+from music.manager.file_info import (
+    print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
+)
 from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags
 from music.manager.wiki_info import show_wiki_entity
 from music.manager.wiki_match import show_matches
@@ -24,7 +26,8 @@ log = logging.getLogger(__name__)
 apply_mutagen_patches()
 SHOW_ARGS = {
     'info': 'Show track title, length, tag version, and tags', 'meta': 'Show track title, length, and tag version',
-    'count': 'Count tracks by tag', 'table': 'Show tags in a table', 'unique': 'Count tracks with unique tag values'
+    'count': 'Count tracks by tag', 'table': 'Show tags in a table', 'unique': 'Count tracks with unique tag values',
+    'processed': 'Show processed album info'
 }
 
 
@@ -40,6 +43,8 @@ def parser():
             _parser.add_argument('--tags', '-t', nargs='+', help='The tags to display', required=(name == 'unique'))
         if name == 'info':
             _parser.add_argument('--no_trim', '-T', action='store_true', help='Do not trim tag IDs')
+        if name == 'processed':
+            _parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
 
     p2t_parser = parser.add_subparser('action', 'path2tag', help='Update tags based on the path to each file')
     p2t_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -102,6 +107,8 @@ def main():
             table_unique_tag_values(args.path, args.tags)
         elif sub_action == 'table':
             table_song_tags(args.path, args.tags)
+        elif sub_action == 'processed':
+            print_processed_info(args.path, args.expand)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'wiki':

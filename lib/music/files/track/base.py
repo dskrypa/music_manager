@@ -7,7 +7,7 @@ from datetime import datetime, date
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, Iterator, Tuple, Any, Set
+from typing import Optional, Union, Iterator, Tuple, Set, Mapping, Sequence, Any
 
 import mutagen
 import mutagen.id3._frames
@@ -32,11 +32,11 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
     __instances = {}
     tags = MusicFileProperty('tags')
-    filename = __fspath__ = MusicFileProperty('filename')
-    length = MusicFileProperty('info.length')               # float: The length of this song in seconds
-    tag_artist = TextTagProperty('artist', default=None)
-    tag_album_artist = TextTagProperty('album_artist', default=None)
-    tag_title = TextTagProperty('title', default=None)
+    filename = __fspath__ = MusicFileProperty('filename')               # type: str
+    length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
+    tag_artist = TextTagProperty('artist', default=None)                # type: Optional[str]
+    tag_album_artist = TextTagProperty('album_artist', default=None)    # type: Optional[str]
+    tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]
     date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())     # type: date
 
     def __new__(cls, file_path: Union[Path, str], *args, **kwargs):

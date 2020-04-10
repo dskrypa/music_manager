@@ -4,7 +4,6 @@
 
 import logging
 import os
-import re
 from concurrent import futures
 from datetime import date
 from itertools import chain
@@ -81,9 +80,9 @@ class AlbumDir(ClearableCachedPropertyMixin):
         dest_path = dest_path.expanduser().resolve()
 
         if not dest_path.parent.exists():
-            os.makedirs(dest_path.parent.as_posix())
+            dest_path.parent.mkdir(parents=True)
         if dest_path.exists():
-            raise ValueError('Destination for {} already exists: {!r}'.format(self, dest_path.as_posix()))
+            raise ValueError(f'Destination for {self} already exists: {dest_path}')
 
         self.path.rename(dest_path)
         self.path = dest_path
@@ -98,15 +97,16 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return songs
 
     @cached_property
-    def name(self) -> str:
-        album = self.path.name
-        m = re.match('^\[\d{4}[0-9.]*\] (.*)$', album)  # Begins with date
-        if m:
-            album = m.group(1).strip()
-        m = re.match('(.*)\s*\[.*Album\]', album)  # Ends with Xth Album
-        if m:
-            album = m.group(1).strip()
-        return album
+    def title(self) -> Optional[str]:
+        titles = {f.album_name_cleaned_plus_and_part[0] for f in self.songs}
+        title = None
+        if len(titles) == 1:
+            title = titles.pop()
+        elif len(titles) > 1:
+            log.warning('Conflicting album titles were found for {}: {}'.format(self, ', '.join(map(str, titles))))
+        elif not titles:
+            log.warning('No album titles were found for {}'.format(self))
+        return title
 
     @cached_property
     def artists(self) -> Set[Name]:
@@ -117,29 +117,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
         if (artists := self.artists) and len(artists) == 1:
             return next(iter(artists))
         return None
-
-    @cached_property
-    def artist_path(self) -> Optional[Path]:
-        bad = (
-            'album', 'single', 'soundtrack', 'collaboration', 'solo', 'christmas', 'download', 'compilation',
-            'unknown_fixme'
-        )
-        artist_path = self.path.parent
-        lc_name = artist_path.name.lower()
-        if not any(i in lc_name for i in bad):
-            return artist_path
-
-        artist_path = artist_path.parent
-        lc_name = artist_path.name.lower()
-        if not any(i in lc_name for i in bad):
-            return artist_path
-        log.error('Unable to determine artist path for {}'.format(self))
-        return None
-
-    @cached_property
-    def _type_path(self) -> Optional[Path]:
-        """Not accurate if not already sorted"""
-        return self.path.parent
 
     @property
     def length(self) -> int:
@@ -161,22 +138,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return length
 
     @cached_property
-    def _is_full_ost(self) -> bool:
-        return all(f._is_full_ost for f in self.songs)
-
-    @cached_property
-    def title(self) -> Optional[str]:
-        titles = {f.album_name_cleaned_plus_and_part[0] for f in self.songs}
-        title = None
-        if len(titles) == 1:
-            title = titles.pop()
-        elif len(titles) > 1:
-            log.warning('Conflicting album titles were found for {}: {}'.format(self, ', '.join(map(str, titles))))
-        elif not titles:
-            log.warning('No album titles were found for {}'.format(self))
-        return title
-
-    @cached_property
     def disk_num(self) -> Optional[int]:
         nums = {f.disk_num for f in self.songs}
         if len(nums) == 1:
@@ -186,15 +147,21 @@ class AlbumDir(ClearableCachedPropertyMixin):
             return None
 
     @cached_property
-    def tag_release_date(self) -> Optional[date]:
+    def date(self) -> Optional[date]:
         try:
             dates = {f.date for f in self.songs}
         except Exception as e:
-            pass
+            log.debug(f'Error processing date for {self}: {e}')
         else:
             if len(dates) == 1:
                 return dates.pop()
+            elif len(dates) > 1:
+                log.debug('Multiple dates found in {}: {}'.format(self, ', '.join(sorted(map(str, dates)))))
         return None
+
+    @cached_property
+    def _is_full_ost(self) -> bool:
+        return all(f._is_full_ost for f in self.songs)
 
     def fix_song_tags(self, dry_run=False, add_bpm=False):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
@@ -239,6 +206,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             except KeyError as e:
                 raise TypeError(f'Unhandled tag type: {music_file.tag_type}') from e
 
+            # noinspection PyArgumentList
             to_remove = {
                 tag: val if isinstance(val, list) else [val]
                 for tag, val in sorted(music_file.tags.items()) if rm_tag_match(tag) and tag not in KEEP_TAGS
@@ -259,10 +227,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
                     music_file.save()
                 i += 1
             else:
-                log.debug('{}: Did not have the tags specified for removal'.format(music_file.filename))
+                log.debug(f'{music_file.filename}: Did not have the tags specified for removal')
 
         if not i:
-            log.debug('None of the songs in {} had any tags that needed to be removed'.format(self))
+            log.debug(f'None of the songs in {self} had any tags that needed to be removed')
 
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:

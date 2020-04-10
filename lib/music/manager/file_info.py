@@ -11,7 +11,7 @@ from ds_tools.core import Paths
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
 from ..constants import tag_name_map
-from ..files import iter_album_dirs, iter_music_files, tag_repr
+from ..files import iter_album_dirs, iter_music_files, tag_repr, AlbumDir
 
 __all__ = [
     'print_track_info', 'table_song_tags', 'table_unique_tag_values', 'table_tag_type_counts', 'print_processed_info'
@@ -21,15 +21,25 @@ log = logging.getLogger(__name__)
 
 def print_processed_info(paths: Paths, expand=0):
     for album_dir in iter_album_dirs(paths):
-        uprint(f'- Album: {album_dir}')
-        try:
-            artists = album_dir.artists
-        except Exception as e:
-            log.error(f'    Artists: {e}', extra={'color': 'red'})
+        uprint(f'- Directory: {album_dir}')
+        _print_one_or_set(album_dir, 'names', 'Album')
+        _print_one_or_set(album_dir, 'artists', 'Artist', lambda a: a.artist_str())
+
+
+def _print_one_or_set(album_dir: AlbumDir, attr: str, singular: str, str_fn=str):
+    plural = singular + 's'
+    try:
+        objs = getattr(album_dir, attr)
+    except Exception as e:
+        log.error(f'    {plural:12s}: {e}', extra={'color': 'red'}, exc_info=True)
+    else:
+        if len(objs) == 1:
+            uprint(f'    {singular:12s}: {str_fn(next(iter(objs)))}')
         else:
-            uprint(f'    Artists ({len(artists)}):')
-            for artist in artists:
-                uprint(f'      - {artist.artist_str()} ')
+            text = f'{plural} ({len(objs)})'
+            uprint(f'    {text:12s}:')
+            for obj in objs:
+                uprint(f'      - {str_fn(obj)} ')
 
 
 def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):

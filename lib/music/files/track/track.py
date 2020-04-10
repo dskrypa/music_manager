@@ -44,27 +44,19 @@ class SongFile(BaseSongFile):
     @cached_property
     def album_from_dir(self):
         album = self.path.parent.name
-        tag_artist = self.tag_artist
-        if album.lower().startswith(tag_artist.lower()):
+        if (tag_artist := self.tag_artist) and album.lower().startswith(tag_artist.lower()):
             album = album[len(tag_artist):].strip()
         if album.startswith('- '):
             album = album[1:].strip()
         for re_func, on_match_func in ALBUM_DIR_CLEANUP_RE_FUNCS:
-            m = re_func(album)
-            if m:
+            if m := re_func(album):
                 album = on_match_func(m)
         return album
 
     @cached_property
     def in_competition_album(self):
-        try:
-            album_artist = self.tag_text('album_artist')
-        except Exception:
-            return False
-        else:
-            if album_artist.lower().startswith('produce'):
-                if album_artist.split()[-1].isdigit():
-                    return True
+        if album_artist := self.tag_album_artist:
+            return album_artist.lower().startswith('produce') and album_artist.split()[-1].isdigit()
         return False
 
     @cached_property
@@ -79,8 +71,7 @@ class SongFile(BaseSongFile):
 
     @cached_property
     def album_name_cleaned(self):
-        cleaned = cleanup_album_name(self.tag_album, self.tag_artist)
-        return cleaned if cleaned else self.tag_album
+        return cleanup_album_name(self.tag_album, self.tag_artist) or self.tag_album
 
     @cached_property
     def album_name_cleaned_plus_and_part(self):
@@ -106,9 +97,8 @@ class SongFile(BaseSongFile):
         prefix, upd_msg = ('[DRY RUN] ', 'Would update') if dry_run else ('', 'Updating')
         changes = 0
         tag_type = self.tag_type
-        lyrics = self.tags_named('lyrics')
         new_lyrics = []
-        for lyric_tag in lyrics:
+        for lyric_tag in self.tags_named('lyrics'):
             lyric = lyric_tag.text if tag_type == 'mp3' else lyric_tag
             if m := LYRIC_URL_MATCH(lyric):
                 new_lyric = m.group(1).strip() + '\r\n'
@@ -138,9 +128,7 @@ class SongFile(BaseSongFile):
             bpm = int(self.tag_text('bpm'))
         except TagException:
             if calculate:
-                if self._bpm:
-                    bpm = self._bpm
-                else:
+                if not (bpm := self._bpm):
                     bpm = self._bpm = get_bpm(self.path)
                 if save:
                     self.set_text_tag('bpm', bpm)

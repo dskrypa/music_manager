@@ -21,7 +21,7 @@ from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 from ...text import Name
 from ..exceptions import *
-from .parsing import split_artists
+from .parsing import split_artists, AlbumName
 from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet
 
 __all__ = ['BaseSongFile']
@@ -262,6 +262,12 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def artist(self) -> Optional[Name]:
         if (artists := self.artists) and len(artists) == 1:
             return next(iter(artists))
+        return None
+
+    @cached_property
+    def album(self) -> Optional[AlbumName]:
+        if album := self.tag_album:
+            return AlbumName.parse(album)
         return None
 
     @cached_property

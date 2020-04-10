@@ -44,14 +44,12 @@ def compiled_fnmatch_patterns(patterns):
 
 def cleanup_album_name(album, artist=None):
     for re_func, on_match_func in ALBUM_CLEANUP_RE_FUNCS:
-        m = re_func(album)
-        if m:
+        if m := re_func(album):
             album = on_match_func(m)
 
     if artist:
         for re_func in GROUP_TITLE_MATCH_FUNCS:
-            m = re_func(album)
-            if m:
+            if m := re_func(album):
                 group, title = m.groups()
                 if group in artist:
                     album = title

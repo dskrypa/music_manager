@@ -106,6 +106,10 @@ class Name(ClearableCachedPropertyMixin):
     def __lt__(self, other: 'Name'):
         return (self.english, self.non_eng) < (other.english, other.non_eng)
 
+    @cached_property
+    def __parts(self):
+        return tuple(getattr(self, part) for part in self._parts if part not in ('versions', 'extra'))
+
     def __eq__(self, other: 'Name'):
         for part in self._parts:
             try:
@@ -116,7 +120,7 @@ class Name(ClearableCachedPropertyMixin):
         return True
 
     def __hash__(self):
-        return hash((self._english, self.non_eng))
+        return hash(self.__parts)
 
     def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True):
         if isinstance(other, str):

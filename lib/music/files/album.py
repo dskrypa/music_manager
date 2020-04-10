@@ -18,7 +18,7 @@ from ds_tools.core import iter_paths, FnMatcher, Paths
 from tz_aware_dt import format_duration
 from ..text import Name
 from .exceptions import *
-from .track import BaseSongFile, SongFile, tag_repr
+from .track import BaseSongFile, SongFile, tag_repr, AlbumName
 from .utils import iter_music_files
 
 __all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs']
@@ -116,6 +116,16 @@ class AlbumDir(ClearableCachedPropertyMixin):
     def artist(self) -> Optional[Name]:
         if (artists := self.artists) and len(artists) == 1:
             return next(iter(artists))
+        return None
+
+    @cached_property
+    def names(self) -> Set[AlbumName]:
+        return {music_file.album for music_file in self.songs}
+
+    @cached_property
+    def name(self) -> Optional[AlbumName]:
+        if (names := self.names) and len(names) == 1:
+            return next(iter(names))
         return None
 
     @property

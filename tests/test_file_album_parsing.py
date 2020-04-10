@@ -43,8 +43,8 @@ ALBUM_TEST_CASES = {
     'Kissing You (Rhythmer Remix Vol.1)': AlbumName('Kissing You', remix='Rhythmer Remix Vol.1'),
     'I Feel You (CHN Ver.)': AlbumName('I Feel You', version='CHN Ver.'),
 
-    'Make It Right (feat. Lauv) (EDM Remix)': AlbumName('Make It Right', feat=['Lauv'], remix='EDM Remix'),
-    'Wannabe (Feat. San E)': AlbumName('Wannabe', feat=['San E']),
+    'Make It Right (feat. Lauv) (EDM Remix)': AlbumName('Make It Right', feat=('Lauv',), remix='EDM Remix'),
+    'Wannabe (Feat. San E)': AlbumName('Wannabe', feat=('San E',)),
 
     "2019 월간 윤종신 5월호 '별책부록' (Monthly Project 2019 May Yoon Jong Shin with TAEYEON)": AlbumName(('2019 월간 윤종신 5월호', '별책부록', 'Monthly Project 2019 May Yoon Jong Shin with TAEYEON')),
     '임재범 30주년 기념 앨범 Project 1': AlbumName('임재범 30주년 기념 앨범 Project 1'),
@@ -127,7 +127,7 @@ OST_TEST_CASES = {
     'Let It Go (겨울왕국 OST 효린 버전)': AlbumName('겨울왕국', ost=True, song_name=Name('Let It Go'), version='효린 버전'),
     'A Brand New Day (BTS WORLD OST Part.2)': AlbumName('BTS WORLD', ost=True, song_name=Name('A Brand New Day'), part=2),
     'OST Best - Flash Back': AlbumName('OST Best - Flash Back'),
-    '"개 같은 하루 (with TTG)" OST': AlbumName('개 같은 하루', ost=True, feat=['TTG']),
+    '"개 같은 하루 (with TTG)" OST': AlbumName('개 같은 하루', ost=True, feat=('TTG',)),
 }
 
 # OST_EDGE_CASES = {

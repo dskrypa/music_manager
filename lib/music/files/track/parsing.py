@@ -4,8 +4,9 @@
 
 import logging
 import re
-from typing import Tuple, Optional, List, Iterator, Sequence, Union
+from typing import Tuple, Optional, List, Iterator, Sequence, Union, Type
 
+from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
 from ...text import Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired
 
@@ -31,33 +32,49 @@ UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE)
 
 
 class AlbumName:
-    alb_type, alb_num, sm_station, edition, remix, version, ost, part = None, None, None, None, None, None, False, None
-    network_info, name, part_name, feat, song_name = None, None, None, None, None
+    __attrs = (
+        'alb_type', 'alb_num', 'sm_station', 'edition', 'remix', 'version', 'ost', 'part', 'network_info', 'part_name',
+        'feat', 'song_name', 'name'
+    )
+
+    def __new__(cls: Type['AlbumName'], *args, **kwargs) -> 'AlbumName':
+        self = super().__new__(cls)
+        self.__dict__.update(((attr, None) for attr in cls.__attrs))
+        return self
 
     def __init__(self, name_parts, **kwargs):
-        if isinstance(name_parts, str):
-            self.name = Name(name_parts)
-        else:
-            self.name = Name(*sort_name_parts(name_parts))
-        self.__dict__.update(kwargs)
+        self.name = Name(name_parts) if isinstance(name_parts, str) else Name(*sort_name_parts(name_parts))
+        for key, val in kwargs.items():
+            if key in self.__attrs:
+                setattr(self, key, val)
+            else:
+                raise SyntaxError(f'Invalid keyword argument for {self.__class__.__name__}: {key!r}')
 
     def __repr__(self):
         # parts = ', '.join(sorted(
         #     f'{ATTR_NAMES.get(k, k)}={v!r}' for k, v in self.__dict__.items() if v and k != 'name'
         # ))
-        parts = ', '.join(sorted(f'{k}={v!r}' for k, v in self.__dict__.items() if v and k != 'name'))
+        parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(self.__attrs, self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
         # return f'<{self.__class__.__name__}[name={self.name!r}{parts}]>'
+        # noinspection PyUnresolvedReferences
         return f'{self.__class__.__name__}({self.name!r}{parts})'
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
         # log.debug(f'Comparing self={self.__dict__} to other={other.__dict__}')
-        return self.__dict__ == other.__dict__
+        return self.__parts == other.__parts
+
+    @cached_property
+    def __parts(self):
+        return tuple(getattr(self, attr) for attr in self.__attrs)
+
+    def __hash__(self):
+        return hash(self.__parts)
 
     @classmethod
-    def parse(cls, name):
+    def parse(cls, name: str) -> 'AlbumName':
         self = cls.__new__(cls)
         if m := ALB_TYPE_DASH_SUFFIX_MATCH(name):
             name, alb_type = map(clean, m.groups())
@@ -146,7 +163,7 @@ class AlbumName:
                     name_parts.append(part)
 
         if feat:
-            self.feat = feat
+            self.feat = tuple(feat)
 
         if real_album:
             if name_parts:

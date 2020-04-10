@@ -37,6 +37,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_artist = TextTagProperty('artist', default=None)                # type: Optional[str]
     tag_album_artist = TextTagProperty('album_artist', default=None)    # type: Optional[str]
     tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]
+    tag_album = TextTagProperty('album', default=None)                  # type: Optional[str]
     date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())     # type: date
 
     def __new__(cls, file_path: Union[Path, str], *args, **kwargs):

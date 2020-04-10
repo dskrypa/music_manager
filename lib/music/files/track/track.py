@@ -5,9 +5,10 @@
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import mutagen.id3._frames as id3_frames
+from plexapi.audio import Track
 
 from ds_tools.compat import cached_property
 # from ...text.name import Name
@@ -29,7 +30,7 @@ class SongFile(BaseSongFile):
     _bpm = None
 
     @classmethod
-    def for_plex_track(cls, track, root):
+    def for_plex_track(cls, track: Track, root: Union[str, Path]):
         return cls(Path(root).joinpath(track.media[0].parts[0].file).resolve())
 
     @cached_property
@@ -78,28 +79,18 @@ class SongFile(BaseSongFile):
 
     @cached_property
     def album_name_cleaned(self):
-        cleaned = cleanup_album_name(self.tag_text('album'), self.tag_artist)
-        return cleaned if cleaned else self.tag_text('album')
-
-    def _extract_album_part(self, title):
-        part = None
-        m = EXTRACT_PART_MATCH(title)
-        if m:
-            title, part = map(str.strip, m.groups())
-        if title.endswith(' -'):
-            title = title[:-1].strip()
-        return title, part
+        cleaned = cleanup_album_name(self.tag_album, self.tag_artist)
+        return cleaned if cleaned else self.tag_album
 
     @cached_property
     def album_name_cleaned_plus_and_part(self):
         """Tuple of title, part"""
-        return self._extract_album_part(self.album_name_cleaned)
+        return _extract_album_part(self.album_name_cleaned)
 
     @cached_property
     def album_name_cleaner(self):
         album = self.album_name_cleaned
-        m = ALBUM_VOLUME_MATCH(album)
-        if m:
+        if m := ALBUM_VOLUME_MATCH(album):
             album = m.group(1)
         return album
 
@@ -109,29 +100,7 @@ class SongFile(BaseSongFile):
 
     @cached_property
     def dir_name_cleaned_plus_and_part(self):
-        return self._extract_album_part(self.dir_name_cleaned)
-
-    @cached_property
-    def _artist_path(self):
-        bad = (
-            'album', 'single', 'soundtrack', 'collaboration', 'solo', 'christmas', 'download', 'compilation',
-            'unknown_fixme', 'mixtape'
-        )
-        artist_path = self.path.parents[1]
-        lc_name = artist_path.name.lower()
-        if not any(i in lc_name for i in bad):
-            return artist_path
-
-        artist_path = artist_path.parent
-        lc_name = artist_path.name.lower()
-        if not any(i in lc_name for i in bad):
-            return artist_path
-        log.debug('Unable to determine artist path for {}'.format(self))
-        return None
-
-    @cached_property
-    def album_type_dir(self):
-        return self.path.parents[1].name
+        return _extract_album_part(self.dir_name_cleaned)
 
     def cleanup_lyrics(self, dry_run=False):
         prefix, upd_msg = ('[DRY RUN] ', 'Would update') if dry_run else ('', 'Updating')
@@ -264,6 +233,15 @@ class SongFile(BaseSongFile):
                 self.save()
         else:
             log.log(19, f'Nothing to change for {self.filename}')
+
+
+def _extract_album_part(title):
+    part = None
+    if m := EXTRACT_PART_MATCH(title):
+        title, part = map(str.strip, m.groups())
+    if title.endswith(' -'):
+        title = title[:-1].strip()
+    return title, part
 
 
 if __name__ == '__main__':

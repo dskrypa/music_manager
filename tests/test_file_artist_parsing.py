@@ -5,54 +5,11 @@ import sys
 from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.files import split_artists
+from music.files.track.parsing import split_artists
 from music.text.name import Name
 from music.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
-
-"""
-TODO:
-- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/super_junior/Girls_ Generation, Super Junior - SEOUL - Single')>
-    Artists: Unexpected str list format for text="소녀시대 (Girls' Generation), 슈퍼주니어 (Super Junior)" -
-processed=[]
-processing=["소녀시대 (Girls' Generation)", ',', ' 슈퍼주니어 (Super Junior)']
-
-- Album: <AlbumDir("C:/Users/dougs/etc/kpop/sorting/snsd_sort_later/GIRLS' GENERATION - Sailing - 0805 (SM STATION Single)")>
-    Artists: Unexpected str list format for text="소녀시대 (GIRLS' GENERATION)" -
-processed=[]
-processing=["소녀시대 (GIRLS' GENERATION)"]
-
-- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/snsd_members/YoonA - Deoksugung Stonewall Walkway (Feat. 10cm)')>
-    Artists: Unexpected str list format for text="윤아 (소녀시대) [YoonA (Girls' Generation)]" -
-processed=[]
-processing=["윤아 (소녀시대) [YoonA (Girls' Generation)]"]
-
-- Album: <AlbumDir("C:/Users/dougs/etc/kpop/sorting/snsd/GIRL'S GENERATION - The Best (New Edition)")>
-    Artists: Unexpected str list format for text="少女時代 (GIRL'S GENERATION)" -
-processed=[]
-processing=["少女時代 (GIRL'S GENERATION)"]
-
-- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/omg/Collaborations/White [with HAHA + M.TySON]')>
-    Artists: Unexpected str list format for text='스컬, 타린 (' -
-processed=['스컬']
-processing=[' 타린 (']
-
-- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/girls_day/Solo/Minah - I am a Woman too')>
-    Artists: Unexpected str list format for text="민아 (걸스데이) [MinAh (Girl's Day)]" -
-processed=[]
-processing=["민아 (걸스데이) [MinAh (Girl's Day)]"]
-
-- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/girls_day/Solo/Sojin - DEUX 20th Anniversary Tribute Album Part.1')>
-    Artists: Unexpected str list format for text="소진 (Sojin of Girl's Day)" -
-processed=[]
-processing=["소진 (Sojin of Girl's Day)"]
-
-- Album: <AlbumDir('C:/Users/dougs/etc/kpop/sorting/brown_eyed_girls_members/JeA (Brown Eyed Girls) - Just For One Day')>
-    Artists: Unexpected str list format for text='제아 (JeA (Brown Eyed Girls)' -
-processed=[]
-processing=['제아 (JeA (Brown Eyed Girls)']
-"""
 
 
 class FileArtistParsingTest(NameTestCaseBase):
@@ -63,7 +20,8 @@ class FileArtistParsingTest(NameTestCaseBase):
     def test_zip_mix(self):
         names = set(split_artists('기희현, 전소미, 최유정, 김청하 (Heehyun (DIA), Somi, Yoo Jung, Chungha)'))
         expected = {
-            Name('Heehyun (DIA)', '기희현'), Name('Somi', '전소미'), Name('Yoo Jung', '최유정'), Name('Chungha', '김청하')
+            Name('Heehyun', '기희현', extra={'group': Name('DIA')}), Name('Somi', '전소미'),
+            Name('Yoo Jung', '최유정'), Name('Chungha', '김청하')
         }
         self.assertSetEqual(names, expected)
 
@@ -73,7 +31,7 @@ class FileArtistParsingTest(NameTestCaseBase):
 
     def test_mix_with_group(self):
         names = set(split_artists('지민 [Jimin (AOA)]'))
-        self.assertSetEqual(names, {Name('Jimin (AOA)', '지민')})
+        self.assertSetEqual(names, {Name('Jimin', '지민', extra={'group': Name('AOA')})})
 
     def test_zip_ampersand(self):
         names = set(split_artists('딘딘 & 민아 (DinDin & Minah)'))
@@ -81,7 +39,10 @@ class FileArtistParsingTest(NameTestCaseBase):
 
     def test_zip_x(self):
         names = set(split_artists('손동운 (하이라이트) X 서령 (공원소녀) [Son Dongwoon (Highlight) X Seoryoung (GWSN)]'))
-        expected = {Name('Son Dongwoon (Highlight)', '손동운 (하이라이트)'), Name('Seoryoung (GWSN)', '서령 (공원소녀)')}
+        expected = {
+            Name('Son Dongwoon', '손동운', extra={'group': Name('Highlight', '하이라이트')}),
+            Name('Seoryoung', '서령', extra={'group': Name('GWSN', '공원소녀')})
+        }
         self.assertSetEqual(names, expected)
 
     def test_zip_with_space(self):
@@ -90,11 +51,11 @@ class FileArtistParsingTest(NameTestCaseBase):
 
     def test_member_mix_keep_x(self):
         names = set(split_artists('주헌 (몬스타엑스) (JooHeon (MONSTA X))'))
-        self.assertSetEqual(names, {Name('JooHeon (MONSTA X)', '주헌 (몬스타엑스)')})
+        self.assertSetEqual(names, {Name('JooHeon', '주헌', extra={'group': Name('MONSTA X', '몬스타엑스')})})
 
     def test_member_eng_keep_x(self):
         names = set(split_artists('JooHeon (MONSTA X)'))
-        self.assertSetEqual(names, {Name('JooHeon (MONSTA X)')})
+        self.assertSetEqual(names, {Name('JooHeon', extra={'group': Name('MONSTA X')})})
 
     def test_keep_x_mix(self):
         names = set(split_artists('몬스타엑스 (MONSTA X)'))
@@ -147,6 +108,35 @@ class FileArtistParsingTest(NameTestCaseBase):
     def test_no_space_mix_eng(self):
         names = set(split_artists('화사(Hwa Sa), WOOGIE'))
         self.assertSetEqual(names, {Name('Hwa Sa', '화사'), Name('WOOGIE')})
+
+    def test_trailing_apostrophe(self):
+        names = set(split_artists("소녀시대 (Girls' Generation), 슈퍼주니어 (Super Junior)"))
+        expected = {Name("Girls' Generation", '소녀시대'), Name('Super Junior', '슈퍼주니어')}
+        self.assertSetEqual(names, expected)
+
+    def test_trailing_apostrophe_standalone(self):
+        names = set(split_artists("소녀시대 (GIRLS' GENERATION)"))
+        self.assertSetEqual(names, {Name("GIRLS' GENERATION", '소녀시대')})
+
+    def test_trailing_apostrophe_standalone_alt_lang(self):
+        names = set(split_artists("少女時代 (GIRLS' GENERATION)"))
+        self.assertSetEqual(names, {Name("GIRLS' GENERATION", '少女時代')})
+
+    def test_apostrophe_of_group(self):
+        names = set(split_artists("소진 (Sojin of Girl's Day)"))
+        self.assertSetEqual(names, {Name('Sojin', '소진', extra={'group': Name("Girl's Day")})})
+
+    def test_mix_group_with_apostrophe_1(self):
+        names = set(split_artists("민아 (걸스데이) [MinAh (Girl's Day)]"))
+        self.assertSetEqual(names, {Name('MinAh', '민아', extra={'group': Name("Girl's Day", '걸스데이')})})
+
+    def test_mix_group_with_apostrophe_2(self):
+        names = set(split_artists("윤아 (소녀시대) [YoonA (Girls' Generation)]"))
+        self.assertSetEqual(names, {Name('YoonA', '윤아', extra={'group': Name("Girls' Generation", '소녀시대')})})
+
+    def test_unpaired_paren_with_group(self):
+        names = set(split_artists('제아 (JeA (Brown Eyed Girls)'))
+        self.assertSetEqual(names, {Name('JeA', '제아', extra={'group': Name('Brown Eyed Girls')})})
 
 
 if __name__ == '__main__':

@@ -8,13 +8,15 @@ from itertools import chain
 from typing import Tuple, Optional
 
 __all__ = [
-    'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired'
+    'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
+    'get_unpaired'
 ]
 log = logging.getLogger(__name__)
 
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-<'
 CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’->'
 DASH_CHARS = '~‐-'
+_NotSet = object()
 
 
 class _CharMatcher:
@@ -50,7 +52,12 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def has_unpaired(text: str, reverse=True) -> bool:
+def has_unpaired(text: str, reverse=True, exclude=_NotSet) -> bool:
+    return bool(get_unpaired(text, reverse, exclude))
+
+
+def get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[str]:
+    exclude = DASH_CHARS if exclude is _NotSet else '' if exclude is None else exclude
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
         text = text[::-1]
@@ -70,13 +77,13 @@ def has_unpaired(text: str, reverse=True) -> bool:
             for k in c2o[c]:
                 if opened[k] > closed[k]:
                     closed[k] += 1
-                elif k not in DASH_CHARS:
-                    return True
+                elif k not in exclude:
+                    return c
 
     for c, num_open in opened.items():
-        if closed[c] != num_open and c not in DASH_CHARS:
-            return True
-    return False
+        if closed[c] != num_open and c not in exclude:
+            return c
+    return None
 
 
 def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str]:

@@ -21,9 +21,8 @@ from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 from ...text import Name
 from ..exceptions import *
-from .utils import (
-    FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, split_artists
-)
+from .parsing import split_artists
+from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)

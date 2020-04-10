@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from ds_tools.logging import init_logging
-from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired
+from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired, get_unpaired
 
 log = logging.getLogger(__name__)
 maybe_print = lambda: None
@@ -35,6 +35,32 @@ class MiscExtractionTestCase(_CustomTestCase):
         }
         for text, unpaired in cases.items():
             self.assertIs(has_unpaired(text), unpaired, f'Failed for {text=!r}')
+
+    def test_get_unpaired_reverse(self):
+        cases = {
+            '()': None, ')(': '(',
+            '(a)': None, ')a(': '(',
+            'a()': None, '()a': None,
+            'a)(': '(', ')(a': '(',
+            '())': ')', '(()': '(',
+            '(())': None,
+            '(a)b [(c)d-e]': None
+        }
+        for text, unpaired in cases.items():
+            self.assertEqual(get_unpaired(text, True), unpaired, f'Failed for {text=!r}')
+
+    def test_get_unpaired_forward(self):
+        cases = {
+            '()': None, ')(': ')',
+            '(a)': None, ')a(': ')',
+            'a()': None, '()a': None,
+            'a)(': ')', ')(a': ')',
+            '())': ')', '(()': '(',
+            '(())': None,
+            '(a)b [(c)d-e]': None
+        }
+        for text, unpaired in cases.items():
+            self.assertEqual(get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
 
 
 class ExtractEnclosedTestCase(_CustomTestCase):

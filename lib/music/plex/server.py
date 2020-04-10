@@ -11,8 +11,12 @@ from configparser import NoSectionError
 from functools import partialmethod
 from getpass import getpass
 from pathlib import Path
+from typing import Optional, Collection, TypeVar, Dict, Iterable
 
 from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
+from plexapi.audio import Track, Artist, Album
+from plexapi.base import PlexPartialObject
+from plexapi.library import MusicSection
 from plexapi.myplex import MyPlexAccount
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
@@ -30,6 +34,7 @@ from .utils import stars
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
+PlexObj = TypeVar('PlexObj', bound=PlexPartialObject)
 
 disable_urllib3_warnings()
 apply_plex_patches()
@@ -104,16 +109,16 @@ class LocalPlexServer:
             self._config.write(f)
 
     @cached_property
-    def _session(self):
+    def _session(self) -> PlexServer:
         session = Session()
         session.verify = False
         return PlexServer(self.url, self._token, session=session)
 
     @cached_property
-    def music(self):
+    def music(self) -> MusicSection:
         return self._session.library.section(self.music_library)
 
-    def _ekey(self, search_type):
+    def _ekey(self, search_type: str) -> str:
         return '/library/sections/1/all?type={}'.format(SEARCHTYPES[search_type])
 
     def find_songs_by_rating_gte(self, rating, **kwargs):
@@ -124,24 +129,26 @@ class LocalPlexServer:
         # noinspection PyCallingNonCallable
         return self.get_tracks(userRating__gte=rating, **kwargs)
 
-    def find_song(self, path):
+    def find_song_by_path(self, path: str) -> Optional[Track]:
+        # noinspection PyCallingNonCallable
         return self.get_track(media__part__file=path)
 
-    def get_artists(self, name, mode='contains', **kwargs):
+    def get_artists(self, name, mode='contains', **kwargs) -> Collection[Artist]:
         kwargs.setdefault('title__{}'.format(mode), name)
         return self.find_objects('artist', **kwargs)
 
-    def get_albums(self, name, mode='contains', **kwargs):
+    def get_albums(self, name, mode='contains', **kwargs) -> Collection[Album]:
         kwargs.setdefault('title__{}'.format(mode), name)
         return self.find_objects('album', **kwargs)
 
-    def find_object(self, obj_type, **kwargs):
+    def find_object(self, obj_type, **kwargs) -> Optional[PlexObj]:
         ekey = self._ekey(obj_type)
         for kwargs in self._updated_filters(obj_type, kwargs):
             _show_filters(kwargs)
             return self.music.fetchItem(ekey, **kwargs)
+        return None
 
-    def find_objects(self, obj_type, **kwargs):
+    def find_objects(self, obj_type, **kwargs) -> Collection[PlexObj]:
         ekey = self._ekey(obj_type)
         if obj_type == 'track':
             results = set()
@@ -155,37 +162,37 @@ class LocalPlexServer:
             return self.music.fetchItems(ekey, **kwargs)
 
     get_track = partialmethod(find_object, 'track')
+    get_track.__annotations__ = {'return': Optional[Track]}
     get_tracks = partialmethod(find_objects, 'track')
+    get_tracks.__annotations__ = {'return': Collection[Track]}
 
     @property
-    def playlists(self):
+    def playlists(self) -> Dict[str, Playlist]:
         return {p.title: p for p in self._session.playlists()}
 
-    def create_playlist(self, name, items):
+    def create_playlist(self, name: str, items: Iterable[Track]) -> Playlist:
         if not items:
             raise ValueError('An iterable containing one or more tracks/items must be provided')
+        elif not isinstance(items, (Track, list, tuple)):   # Workaround overly strict type checking by Playlist._create
+            items = list(items)
         return Playlist.create(self._session, name, items)
 
-    def sync_playlist(self, name, **criteria):
+    def sync_playlist(self, name: str, **criteria):
+        # noinspection PyCallingNonCallable
         expected = self.get_tracks(**criteria)
-        playlists = self.playlists
-        add_fmt = 'Adding {:,d} tracks to playlist {} ({:,d} tracks => {:,d}):'
-        rm_fmt = 'Removing {:,d} tracks from playlist {} ({:,d} tracks => {:,d}):'
-        if name not in playlists:
+        try:
+            plist = self.playlists[name]
+        except KeyError:
             log.info('Creating playlist {} with {:,d} tracks'.format(name, len(expected)), extra={'color': 10})
             log.debug('Creating playlist {} with tracks: {}'.format(name, expected))
             plist = self.create_playlist(name, expected)
         else:
-            plist = playlists[name]
             plist_items = plist.items()
             size = len(plist_items)
 
-            to_rm = []
-            for track in plist_items:
-                if track not in expected:
-                    to_rm.append(track)
-
+            to_rm = [track for track in plist_items if track not in expected]
             if to_rm:
+                rm_fmt = 'Removing {:,d} tracks from playlist {} ({:,d} tracks => {:,d}):'
                 log.info(rm_fmt.format(len(to_rm), name, size, size - len(to_rm)), extra={'color': 13})
                 print(bullet_list(to_rm))
                 size -= len(to_rm)
@@ -195,12 +202,9 @@ class LocalPlexServer:
             else:
                 log.log(19, 'Playlist {} does not contain any tracks that should be removed'.format(name))
 
-            to_add = []
-            for track in expected:
-                if track not in plist_items:
-                    to_add.append(track)
-
+            to_add = [track for track in expected if track not in plist_items]
             if to_add:
+                add_fmt = 'Adding {:,d} tracks to playlist {} ({:,d} tracks => {:,d}):'
                 log.info(add_fmt.format(len(to_add), name, size, size + len(to_add)), extra={'color': 14})
                 print(bullet_list(to_add))
                 plist.addItems(to_add)
@@ -245,6 +249,7 @@ class LocalPlexServer:
             raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
         prefix = '[DRY RUN] Would update' if dry_run else 'Updating'
         kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
+        # noinspection PyCallingNonCallable
         for track in self.get_tracks(**kwargs):
             file = SongFile.for_plex_track(track, self.server_root)
             file_stars = file.star_rating_10

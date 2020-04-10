@@ -45,6 +45,7 @@ def parser():
             _parser.add_argument('--no_trim', '-T', action='store_true', help='Do not trim tag IDs')
         if name == 'processed':
             _parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
+            _parser.add_argument('--only_errors', '-E', action='store_true', help='Only print entries with processing errors')
 
     p2t_parser = parser.add_subparser('action', 'path2tag', help='Update tags based on the path to each file')
     p2t_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -108,7 +109,7 @@ def main():
         elif sub_action == 'table':
             table_song_tags(args.path, args.tags)
         elif sub_action == 'processed':
-            print_processed_info(args.path, args.expand)
+            print_processed_info(args.path, args.expand, args.only_errors)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'wiki':

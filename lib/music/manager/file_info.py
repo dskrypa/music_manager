@@ -19,27 +19,31 @@ __all__ = [
 log = logging.getLogger(__name__)
 
 
-def print_processed_info(paths: Paths, expand=0):
+def print_processed_info(paths: Paths, expand=0, only_errors=False):
     for album_dir in iter_album_dirs(paths):
-        uprint(f'- Directory: {album_dir}')
-        _print_one_or_set(album_dir, 'names', 'Album')
-        _print_one_or_set(album_dir, 'artists', 'Artist', lambda a: a.artist_str())
+        if not only_errors:
+            uprint(f'- Directory: {album_dir}')
+        _print_one_or_set(album_dir, 'names', 'Album', only_errors=only_errors)
+        _print_one_or_set(album_dir, 'artists', 'Artist', lambda a: a.artist_str(), only_errors)
 
 
-def _print_one_or_set(album_dir: AlbumDir, attr: str, singular: str, str_fn=str):
+def _print_one_or_set(album_dir: AlbumDir, attr: str, singular: str, str_fn=str, only_errors=False):
     plural = singular + 's'
     try:
         objs = getattr(album_dir, attr)
     except Exception as e:
+        if only_errors:
+            uprint(f'- Directory: {album_dir}')
         log.error(f'    {plural:12s}: {e}', extra={'color': 'red'}, exc_info=True)
     else:
-        if len(objs) == 1:
-            uprint(f'    {singular:12s}: {str_fn(next(iter(objs)))}')
-        else:
-            text = f'{plural} ({len(objs)})'
-            uprint(f'    {text:12s}:')
-            for obj in objs:
-                uprint(f'      - {str_fn(obj)} ')
+        if not only_errors:
+            if len(objs) == 1:
+                uprint(f'    {singular:12s}: {str_fn(next(iter(objs)))}')
+            else:
+                text = f'{plural} ({len(objs)})'
+                uprint(f'    {text:12s}:')
+                for obj in objs:
+                    uprint(f'      - {str_fn(obj)} ')
 
 
 def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):

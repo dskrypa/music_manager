@@ -4,7 +4,7 @@
 
 import logging
 import re
-from typing import Tuple, Optional, List, Iterator, Sequence, Union, Type, Hashable
+from typing import Tuple, List, Iterator, Sequence, Union, Type, Hashable, MutableSequence
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
@@ -336,7 +336,7 @@ def _unzipped_list_pairs(text: str):
     return None
 
 
-def _balance_unzipped_parts(parts, a, b) -> Tuple[str, str]:
+def _balance_unzipped_parts(parts: MutableSequence[str], a: str, b: str) -> Iterator[Tuple[str, str]]:
     group_a, a_members = split_enclosed(a, True, maxsplit=1)
     members = list(reversed(tuple(split_str_list(a_members))))
     while members and (mem_x := members.pop()):

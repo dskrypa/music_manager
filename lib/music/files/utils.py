@@ -25,7 +25,7 @@ def iter_music_files(paths: Paths) -> Iterator[SongFile]:
             yield music_file
         else:
             if file_path.suffix not in NON_MUSIC_EXTS:
-                log.debug('Not a music file: {}'.format(file_path))
+                log.log(5, 'Not a music file: {}'.format(file_path))
 
 
 def sanitize_path(text: str) -> str:

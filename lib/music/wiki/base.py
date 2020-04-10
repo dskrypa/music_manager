@@ -5,12 +5,13 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
-from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type, Tuple
+from collections import defaultdict
+from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type, Tuple, List
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
 from wiki_nodes.nodes import Link
-from .exceptions import EntityTypeError, NoPagesFoundError, NoLinkTarget, NoLinkSite
+from .exceptions import EntityTypeError, NoPagesFoundError, NoLinkTarget, NoLinkSite, AmbiguousPageError
 from .utils import site_titles_map
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
@@ -83,6 +84,8 @@ class WikiEntity:
     def _by_category(
             cls: Type[WE], name: str, obj: Union[WikiPage, Any], page_cats: Iterable[str], *args, **kwargs
     ) -> WE:
+        if any('disambiguation' in cat for cat in page_cats):
+            raise AmbiguousPageError(name, obj)
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
         for cls_cat, cat_cls in cls._category_classes.items():
@@ -130,6 +133,39 @@ class WikiEntity:
             obj._add_pages(ipages)
             return obj
         raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
+
+    @classmethod
+    def from_titles(
+            cls: Type[WE], titles: Iterable[str], sites: Optional[Iterable[str]] = None, search=True
+    ) -> Tuple[Dict[str, WE], Dict[str, List[Exception]]]:
+        if isinstance(sites, str):
+            sites = [sites]
+        sites = sites or DEFAULT_WIKIS
+        title_entity_map = {}
+        errors = defaultdict(list)
+        query_map = {site: titles for site in sites}
+        log.debug(f'Submitting queries: {query_map}')
+        results, _errors = MediaWikiClient.get_multi_site_pages(query_map, search=search)
+        for title, error in _errors.items():
+            log.error(f'Error processing {title=!r}: {error}', extra={'color': 9})
+        for site, pages in results.items():
+            # log.debug('Found {} results from site={} for titles={}'.format(len(pages), site, ', '.join(sorted(pages))))
+            for title, page in pages.items():
+                if any('disambiguation' in cat for cat in page.categories):
+                    errors[title].append(AmbiguousPageError(title, page))
+                else:
+                    try:
+                        entity = cls.from_page(page)                    # Always done to perform category validation
+                    except (EntityTypeError, AmbiguousPageError) as e:
+                        errors[title].append(e)
+                        log.debug(f'Error processing {title=}: {e}')
+                    else:
+                        try:
+                            title_entity_map[title]._add_page(page)
+                        except KeyError:
+                            title_entity_map[title] = entity
+
+        return title_entity_map, errors
 
     @classmethod
     def from_url(cls: Type[WE], url: str) -> WE:

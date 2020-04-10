@@ -124,8 +124,7 @@ class Group(Artist):
             titles = []
             if isinstance(content, Table):
                 for row in content:
-                    name = row.get('Name', row.get('name'))
-                    if name:
+                    if name := row.get('Name', row.get('name')):
                         if isinstance(name, Link):
                             titles.append(name.title)
                         elif isinstance(name, String):
@@ -137,8 +136,7 @@ class Group(Artist):
                     if isinstance(entry, Link):
                         titles.append(entry.title)
                     elif isinstance(entry, CompoundNode):
-                        link = next(entry.find_all(Link, True), None)
-                        if link:
+                        if link := next(entry.find_all(Link, True), None):
                             titles.append(link.title)
                     elif isinstance(entry, String):
                         titles.append(entry.value)
@@ -146,8 +144,7 @@ class Group(Artist):
                         log.warning(f'Unexpected name type: {entry!r}')
 
             if titles:
-                client = MediaWikiClient(site)
-                pages = client.get_pages(titles)
+                pages = MediaWikiClient(site).get_pages(titles)
                 return [Singer.from_page(member) for member in pages.values()]
         return []
 

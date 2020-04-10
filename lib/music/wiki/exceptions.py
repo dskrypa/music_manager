@@ -2,11 +2,43 @@
 :author: Doug Skrypa
 """
 
-__all__ = ['MusicWikiException', 'EntityTypeError', 'NoPagesFoundError', 'BadLinkError', 'NoLinkTarget', 'NoLinkSite']
+from wiki_nodes.nodes import List, Link
+from wiki_nodes.page import WikiPage
+
+__all__ = [
+    'MusicWikiException', 'EntityTypeError', 'NoPagesFoundError', 'BadLinkError', 'NoLinkTarget', 'NoLinkSite',
+    'AmbiguousPageError'
+]
 
 
 class MusicWikiException(Exception):
     """Base Music Manager Wiki exception class"""
+
+
+class AmbiguousPageError(MusicWikiException):
+    """The provided title/link pointed to a disambiguation page"""
+    def __init__(self, name, obj):
+        self.name = name
+        self.obj = obj
+        self.links = None
+        if isinstance(obj, WikiPage):
+            self.links = []
+            for section in obj:
+                if isinstance(section.content, List):
+                    for entry in section.content.iter_flat():
+                        if isinstance(entry[0], Link):
+                            self.links.append(entry[0])
+                else:
+                    for link_list in section.content.find_all(List):
+                        for entry in link_list.iter_flat():
+                            if isinstance(entry[0], Link):
+                                self.links.append(entry[0])
+
+    def __str__(self):
+        if self.links:
+            return '{} is a disambiguation page - links:\n - {}'.format(self.obj, '\n - '.join(map(str, self.links)))
+        else:
+            return f'The WikiEntity with name={self.name!r} obj={self.obj} is a disambiguation page'
 
 
 class EntityTypeError(MusicWikiException, TypeError):

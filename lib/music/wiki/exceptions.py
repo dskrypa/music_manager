@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from typing import List as ListType
+
 from wiki_nodes.nodes import List, Link
 from wiki_nodes.page import WikiPage
 
@@ -22,7 +24,7 @@ class AmbiguousPageError(MusicWikiException):
         self.obj = obj
         self.links = None
         if isinstance(obj, WikiPage):
-            self.links = []
+            self.links = []             # type: ListType[Link]
             for section in obj:
                 if isinstance(section.content, List):
                     for entry in section.content.iter_flat():

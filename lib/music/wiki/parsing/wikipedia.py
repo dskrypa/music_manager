@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
 from wiki_nodes.nodes import Node, Template
 from wiki_nodes.page import WikiPage
@@ -62,4 +62,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError

@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import datetime
 from traceback import format_exc
-from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any
+from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
@@ -42,7 +42,13 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         else:
             raise RuntimeError(f'Unexpected intro on {artist_page}:\n{artist_page.intro}')
 
-        name = first_string[:first_string.rindex(')') + 1]
+        try:
+            name = first_string[:first_string.rindex(')') + 1]
+        except ValueError:
+            log.error(f'Unable to find name in {artist_page} - {first_string=!r}', extra={'color': 'red'})
+            log.debug(f'Categories for {artist_page}: {artist_page.categories}')
+            raise
+
         # log.debug(f'Found name: {name}')
         first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         if '; ' in paren_part:
@@ -388,6 +394,43 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         entry_page.sections.processed()                     # Necessary to populate the Information section
         info = entry_page.sections['Information'].content
         return find_ordinal(info.raw.string)
+
+    @classmethod
+    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+        try:
+            members_section = entry_page.sections.find('Members')
+        except (KeyError, AttributeError):
+            log.debug(f'Members section not found for {entry_page}')
+            return {}
+
+        members = {'current': []}
+        for member in members_section.content.iter_flat():
+            if title := _get_artist_title(member, entry_page):
+                members['current'].append(title)
+
+        if former_members := members_section.find('Former Members'):
+            members['former'] = []
+            for member in former_members.content.iter_flat():
+                if title := _get_artist_title(member, entry_page):
+                    members['former'].append(title)
+
+        if sub_units := members_section.find('Sub-Units'):
+            members['sub_units'] = []
+            for member in sub_units.content.iter_flat():
+                if title := _get_artist_title(member, entry_page):
+                    members['sub_units'].append(title)
+
+        return members
+
+
+def _get_artist_title(node, entry_page):
+    if isinstance(node, Link):
+        return node.title
+    elif isinstance(node, CompoundNode) and isinstance(node[0], Link):
+        return node[0].title
+    else:
+        log.debug(f'Unexpected member format on page={entry_page}: {node}')
+        return None
 
 
 def find_language(node: Node, lang: str, langs: Set[str]) -> Optional[str]:

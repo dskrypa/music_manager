@@ -4,7 +4,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.nodes import Node
@@ -62,6 +62,11 @@ class WikiParser(ABC):
     @classmethod
     @abstractmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError
 
     @classmethod

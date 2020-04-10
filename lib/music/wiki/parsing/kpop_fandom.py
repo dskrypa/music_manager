@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime
 from traceback import format_exc
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
 from wiki_nodes.nodes import Node, Link, String, CompoundNode
 from wiki_nodes.page import WikiPage
@@ -112,4 +112,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError

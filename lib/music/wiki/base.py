@@ -6,8 +6,11 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 
 import logging
 from collections import defaultdict
+from functools import partial
 from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type, Tuple, List
 
+from ds_tools.core import get_input, parse_with_func
+from ds_tools.output import colored
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
 from wiki_nodes.nodes import Link
@@ -85,7 +88,7 @@ class WikiEntity:
             cls: Type[WE], name: str, obj: Union[WikiPage, Any], page_cats: Iterable[str], *args, **kwargs
     ) -> WE:
         if any('disambiguation' in cat for cat in page_cats):
-            raise AmbiguousPageError(name, obj)
+            return cls._resolve_ambiguous(AmbiguousPageError(name, obj))
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
         for cls_cat, cat_cls in cls._category_classes.items():
@@ -152,7 +155,15 @@ class WikiEntity:
             # log.debug('Found {} results from site={} for titles={}'.format(len(pages), site, ', '.join(sorted(pages))))
             for title, page in pages.items():
                 if any('disambiguation' in cat for cat in page.categories):
-                    errors[title].append(AmbiguousPageError(title, page))
+                    try:
+                        entity = cls._resolve_ambiguous(AmbiguousPageError(title, page))
+                    except AmbiguousPageError as e:
+                        errors[title].append(e)
+                    else:
+                        try:
+                            title_entity_map[title]._add_pages(entity._pages.values())  # Only one, but easier this way
+                        except KeyError:
+                            title_entity_map[title] = entity
                 else:
                     try:
                         entity = cls.from_page(page)                    # Always done to perform category validation
@@ -166,6 +177,39 @@ class WikiEntity:
                             title_entity_map[title] = entity
 
         return title_entity_map, errors
+
+    @classmethod
+    def _resolve_ambiguous(cls: Type[WE], e: AmbiguousPageError) -> WE:
+        if not e.links:
+            raise e
+
+        client, title_link_map = next(iter(site_titles_map(e.links).items()))   # type: MediaWikiClient, Dict[str, Link]
+        pages = client.get_pages(title_link_map)
+        candidates = {}
+        for title, page in pages.items():
+            link = title_link_map[title]
+            try:
+                candidates[link] = cls.from_page(page)
+            except EntityTypeError:
+                pass
+
+        if len(candidates) == 1:
+            return next(iter(candidates.values()))
+        else:
+            e.links = links = list(candidates)
+            log.debug(f'Ambiguous title={e.name!r} on site={client.host} has too many candidates: {len(candidates)}')
+            log.info(f'\nFound multiple candidate links for ambiguous title={e.name!r} on {client.host}:')
+            for i, link in enumerate(links):
+                log.info(f'{i}: {link}')
+            prompt = colored('Which link should be used [specify the number]?', 14)
+            choice = get_input(prompt, parser=partial(parse_with_func, int))
+            try:
+                link = links[choice]
+            except IndexError as e:
+                log.error(f'Invalid link index - must be a value from 0 to {len(links)}', extra={'color': 9})
+                raise e
+            else:
+                return candidates[link]
 
     @classmethod
     def from_url(cls: Type[WE], url: str) -> WE:

@@ -95,6 +95,7 @@ def parser():
 def main():
     args = parser().parse_args()
     init_logging(args.verbose, log_path=None, names=None)
+    # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
 
     action, sub_action = args.action, getattr(args, 'sub_action', None)
     if action == 'show':

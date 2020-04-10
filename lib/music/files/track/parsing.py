@@ -4,7 +4,7 @@
 
 import logging
 import re
-from typing import Tuple, Optional, List, Iterator, Sequence, Union, Type
+from typing import Tuple, Optional, List, Iterator, Sequence, Union, Type, Hashable
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
@@ -46,24 +46,20 @@ class AlbumName:
         self.name = Name(name_parts) if isinstance(name_parts, str) else Name(*sort_name_parts(name_parts))
         for key, val in kwargs.items():
             if key in self.__attrs:
+                if not isinstance(val, Hashable):
+                    raise ValueError(f'Unable to set {self.__class__.__name__}.{key}={val!r} - values must be hashable')
                 setattr(self, key, val)
             else:
                 raise SyntaxError(f'Invalid keyword argument for {self.__class__.__name__}: {key!r}')
 
     def __repr__(self):
-        # parts = ', '.join(sorted(
-        #     f'{ATTR_NAMES.get(k, k)}={v!r}' for k, v in self.__dict__.items() if v and k != 'name'
-        # ))
         parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(self.__attrs, self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
-        # return f'<{self.__class__.__name__}[name={self.name!r}{parts}]>'
-        # noinspection PyUnresolvedReferences
         return f'{self.__class__.__name__}({self.name!r}{parts})'
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        # log.debug(f'Comparing self={self.__dict__} to other={other.__dict__}')
         return self.__parts == other.__parts
 
     @cached_property
@@ -255,9 +251,8 @@ def split_artists(text: str) -> List[Name]:
 
 def _split_artists(text: str) -> List[Name]:
     artists = []
-    if parts := _unzipped_list_parts(text):
-        # log.debug(f'Split {parts=}')
-        for pair in zip(*map(split_str_list, parts)):
+    if pairs := _unzipped_list_pairs(text):
+        for pair in pairs:
             # log.debug(f'Found {pair=!r}')
             artists.append(_artist_name(pair))
     else:
@@ -308,14 +303,54 @@ def _artist_name(part: Union[str, Sequence[str]]) -> Name:
     return name
 
 
-def _unzipped_list_parts(text: str) -> Optional[Tuple[str, str]]:
+def _unzipped_list_pairs(text: str):
     if UNZIPPED_LIST_MATCH(text):
         parts = split_enclosed(text, True, maxsplit=1)
+        # log.debug(f'Found unzipped list:\n > a = {parts[0]!r}\n > b = {parts[1]!r}')
         if parts[0].count(',') == parts[1].count(','):
-            # noinspection PyTypeChecker
-            return parts
+            # log.debug(f'Split {parts=}')
+            return zip(*map(split_str_list, parts))
+        elif CONTAINS_DELIM(parts[1]):
+            # log.debug(f' > Delimiter counts did not match')
+            pairs = []
+            parts_a, parts_b = map(list, map(reversed, map(tuple, map(split_str_list, parts))))
+            while parts_a and parts_b:
+                a = parts_a.pop()
+                b = parts_b.pop()
+                if a == b:
+                    pairs.append((a,))
+                elif all(ends_with_enclosed(p) for p in (a, b)):
+                    try:
+                        if CONTAINS_DELIM(a):
+                            pairs.extend(_balance_unzipped_parts(parts_b, a, b))
+                        elif CONTAINS_DELIM(b):
+                            pairs.extend(_balance_unzipped_parts(parts_a, b, a))
+                        else:
+                            pairs.append((a, b))
+                    except UnexpectedListLength:
+                        log.debug(f'Unexpected end of unbalanced unzipped list for {parts=}')
+                        return None
+                else:
+                    pairs.append((a, b))
+            return pairs
     return None
+
+
+def _balance_unzipped_parts(parts, a, b) -> Tuple[str, str]:
+    group_a, a_members = split_enclosed(a, True, maxsplit=1)
+    members = list(reversed(tuple(split_str_list(a_members))))
+    while members and (mem_x := members.pop()):
+        if b is None:
+            raise UnexpectedListLength()
+        mem_y, group_b = split_enclosed(b, True, maxsplit=1)
+        # noinspection PyUnboundLocalVariable
+        yield f'{mem_x} ({mem_y})', f'of {group_a} ({group_b})'
+        b = parts.pop() if members and parts else None
 
 
 class UnexpectedListFormat(ValueError):
     """Exception to be raised when an unexpected str list format is encountered"""
+
+
+class UnexpectedListLength(ValueError):
+    """Exception to be raised when an unexpected number of elements are in an unbalanced unzipped list"""

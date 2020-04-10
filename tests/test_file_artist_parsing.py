@@ -152,6 +152,21 @@ class FileArtistParsingTest(NameTestCaseBase):
         names = set(split_artists('제아 (JeA (Brown Eyed Girls)'))
         self.assertArtistsEqual(names, {Name('JeA', '제아', extra={'group': Name('Brown Eyed Girls')})})
 
+    def test_group_members(self):
+        names = set(split_artists('BTOB (Eunkwang & Changsub)'))
+        self.assertArtistsEqual(names, {Name('BTOB', extra={'members': [Name('Eunkwang'), Name('Changsub')]})})
+
+    def test_unbalanced_unzipped(self):
+        names = set(split_artists('B1A4, 서은광 (비투비) , 이창섭 (비투비), 허영지 (카라), A-JAX, 에이프릴, 오마이걸, 케이시  (B1A4, BTOB (Eunkwang & Changsub), Youngji (KARA), A-JAX, APRIL, Oh My Girl, Kassy)'))
+        expected = {
+            Name('B1A4'),
+            Name('Eunkwang', '서은광', extra={'group': Name('BTOB', '비투비')}),
+            Name('Changsub', '이창섭', extra={'group': Name('BTOB', '비투비')}),
+            Name('Youngji', '허영지', extra={'group': Name('KARA', '카라')}),
+            Name('A-JAX'), Name('APRIL', '에이프릴'), Name('Oh My Girl', '오마이걸'), Name('Kassy', '케이시'),
+        }
+        self.assertArtistsEqual(names, expected)
+
 
 if __name__ == '__main__':
     main(FileArtistParsingTest)

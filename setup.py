@@ -19,7 +19,7 @@ optional_dependencies = {
 
 setup(
     name='music_manager',
-    version='2020.04.10-2',
+    version='2020.04.10-3',
     author='Doug Skrypa',
     author_email='dskrypa@gmail.com',
     description='Music Manager',

@@ -24,7 +24,7 @@ NTH_ALB_TYPE_MATCH = re.compile(
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
 
-DELIMS_PAT = re.compile('(?:[;,&]| [x×] )', re.IGNORECASE)
+DELIMS_PAT = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE)
 CONTAINS_DELIM = DELIMS_PAT.search
 DELIM_FINDITER = DELIMS_PAT.finditer
 UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search

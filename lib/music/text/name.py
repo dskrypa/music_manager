@@ -95,7 +95,7 @@ class Name(ClearableCachedPropertyMixin):
                 parts.append(f'({_group})')
             if members and (_members := extra.get('members')):
                 # noinspection PyUnboundLocalVariable
-                parts.append('({})'.format(', '.join(map(str, _members))))
+                parts.append('({})'.format(', '.join(m.artist_str() for m in _members)))
             return ' '.join(parts)
         else:
             return str(self)

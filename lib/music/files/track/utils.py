@@ -220,7 +220,7 @@ def split_artists(text: str) -> List[Name]:
             elif len(parts) == 2 and parts[1].startswith('from '):
                 # log.debug(f'Split soloist/group {parts=}')
                 name = Name.from_enclosed(parts[0])
-                name.extra = {'group': Name.from_enclosed(parts[1])}
+                name.extra = {'group': Name.from_enclosed(parts[1].split(maxsplit=1)[1])}
             else:
                 # log.debug(f'No custom action for {parts=}')
                 name = Name.from_enclosed(part)

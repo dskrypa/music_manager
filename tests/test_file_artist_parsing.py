@@ -106,7 +106,7 @@ class FileArtistParsingTest(NameTestCaseBase):
 
     def test_member_from_group(self):
         names = set(split_artists('G-DRAGON (from BIGBANG)'))
-        self.assertSetEqual(names, {Name('G-DRAGON', extra={'group': 'BIGBANG'})})
+        self.assertSetEqual(names, {Name('G-DRAGON', extra={'group': Name('BIGBANG')})})
 
     def test_keep_parentheses_1(self):
         names = set(split_artists('f(x)'))
@@ -130,16 +130,18 @@ class FileArtistParsingTest(NameTestCaseBase):
 
     def test_no_eng(self):
         names = set(split_artists('국.슈 (국프의 핫이슈)'))
-        self.assertSetEqual(names, {Name(None, '국.슈 (국프의 핫이슈)')})
+        self.assertSetEqual(names, {Name(non_eng='국.슈 (국프의 핫이슈)')})
 
     def test_unbalanced_comma(self):
         names = set(split_artists('Homme (창민, 이현)'))
-        expected = {Name('Homme', extra={'members': [Name(None, '창민'), Name(None, '이현')]})}
+        expected = {Name('Homme', extra={'members': [Name(non_eng='창민'), Name(non_eng='이현')]})}
         self.assertSetEqual(names, expected)
 
     def test_collab_group_with_members(self):
         names = set(split_artists('MOBB <MINO (from WINNER) × BOBBY (from iKON)>'))
-        expected = {Name('MOBB', extra={'Members': [Name('MINO (from WINNER)'), Name('BOBBY (from iKON)')]})}
+        expected = {Name('MOBB', extra={'members': [
+            Name('MINO', extra={'group': Name('WINNER')}), Name('BOBBY', extra={'group': Name('iKON')})
+        ]})}
         self.assertSetEqual(names, expected)
 
     def test_no_space_mix_eng(self):

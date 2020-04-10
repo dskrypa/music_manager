@@ -94,10 +94,13 @@ class Name(ClearableCachedPropertyMixin):
         return (self.english, self.non_eng) < (other.english, other.non_eng)
 
     def __eq__(self, other: 'Name'):
-        try:
-            return self._english == other._english and self.non_eng == other.non_eng
-        except AttributeError:
-            return False
+        for part in self._parts:
+            try:
+                if getattr(self, part) != getattr(other, part):
+                    return False
+            except AttributeError:
+                return False
+        return True
 
     def __hash__(self):
         return hash((self._english, self.non_eng))

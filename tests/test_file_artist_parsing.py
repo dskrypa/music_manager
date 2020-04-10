@@ -33,6 +33,10 @@ class FileArtistParsingTest(NameTestCaseBase):
         names = set(split_artists('지민 [Jimin (AOA)]'))
         self.assertSetEqual(names, {Name('Jimin', '지민', extra={'group': Name('AOA')})})
 
+    def test_split_mix_group(self):
+        names = set(split_artists('Jimin (지민) (AOA)'))
+        self.assertSetEqual(names, {Name('Jimin', '지민', extra={'group': Name('AOA')})})
+
     def test_zip_ampersand(self):
         names = set(split_artists('딘딘 & 민아 (DinDin & Minah)'))
         self.assertSetEqual(names, {Name('DinDin', '딘딘'), Name('Minah', '민아')})

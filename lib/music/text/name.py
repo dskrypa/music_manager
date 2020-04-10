@@ -87,6 +87,19 @@ class Name(ClearableCachedPropertyMixin):
             return f'{eng} ({non_eng})'
         return eng or non_eng
 
+    def artist_str(self, group=True, members=True):
+        if extra := self.extra:
+            parts = [str(self)]
+            if group and (_group := extra.get('group')):
+                # noinspection PyUnboundLocalVariable
+                parts.append(f'({_group})')
+            if members and (_members := extra.get('members')):
+                # noinspection PyUnboundLocalVariable
+                parts.append('({})'.format(', '.join(map(str, _members))))
+            return ' '.join(parts)
+        else:
+            return str(self)
+
     def __bool__(self):
         return bool(self._english or self.non_eng or self.romanized or self.lit_translation)
 

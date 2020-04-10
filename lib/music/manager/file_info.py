@@ -29,7 +29,7 @@ def print_processed_info(paths: Paths, expand=0):
         else:
             uprint(f'    Artists ({len(artists)}):')
             for artist in artists:
-                uprint(f'      - {artist} ')
+                uprint(f'      - {artist.artist_str()} ')
 
 
 def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):

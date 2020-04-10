@@ -272,6 +272,10 @@ def _artist_name(part: Union[str, Sequence[str]]) -> Name:
 
         name = Name.from_parts((artist_a, artist_b))
         name.extra = {'group': Name.from_parts((group_a, group_b))}
+    elif part_count == 2 and ends_with_enclosed(parts[0]) and LangCat.categorize(parts[0]) == LangCat.MIX:
+        artist_a, artist_b = split_enclosed(parts[0], True, maxsplit=1)
+        name = Name.from_parts((artist_a, artist_b))
+        name.extra = {'group': Name.from_enclosed(parts[1])}
     else:
         # log.debug(f'No custom action for {parts=}')
         name = Name.from_enclosed(part) if isinstance(part, str) else Name.from_parts(parts)

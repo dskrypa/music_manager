@@ -3,8 +3,7 @@
 """
 
 import logging
-from collections import defaultdict
-from typing import List, Union
+from typing import List
 
 from ds_tools.core import Paths
 from ds_tools.output import uprint
@@ -29,13 +28,13 @@ def show_matches(paths: Paths):
             if len(artists) == 1:
                 artist = artists[0]
                 try:
-                    uprint(f'    - Artist: {artist} / {artist.name}')
+                    uprint(f'    - Artist: {artist} / {artist.names}')
                 except Exception:
                     log.error(f'    - Artist: Error parsing name:', extra={'color': 'red'}, exc_info=True)
             else:
                 uprint(f'    - Artists ({len(artists)}):')
                 for artist in artists:
-                    uprint(f'        - {artist}')
+                    uprint(f'        - {artist} / {artist.names}')
 
             # if errors:
             #     uprint(f'    - Artist Errors ({len(errors)}):')
@@ -46,41 +45,24 @@ def show_matches(paths: Paths):
 
 
 def find_artists(album_dir: AlbumDir) -> List[Artist]:
-    if artists := album_dir.artists:
+    if artists := album_dir.all_artists:
         log.debug(f'Processing {artists=}', extra={'color': 14})
         remaining = set(artists)
         artist_objs = []
-
-        groups = defaultdict(set)
-        for artist in artists:
-            if extra := artist.extra:
-                if (group := extra.get('group')) and group.english:
-                    groups[group.english].add(artist)
-
-        if group_names := set(groups):
-            log.debug(f'Retrieving {group_names=}', extra={'color': 14})
-            group_obj_dict = Group.from_titles(group_names, search=True)
-
-            for title, group_obj in group_obj_dict.items():
+        if groups := album_dir._groups:
+            for title, group_obj in Group.from_titles(set(groups), search=True).items():
                 log.debug(f'Found {group_obj=}', extra={'color': 10})
                 for name in groups[title]:
-                    log.debug(f'Looking for a singer that matches {name=!r}', extra={'color': 2})
-                    for singer in group_obj.members:
-                        log.debug(f'Comparing {singer=} to {name=}')
-                        if singer.name.matches(name):
-                            log.debug(f'Found {singer=!r} == {name=!r}', extra={'color': 10})
-                            artist_objs.append(singer)
-                            remaining.discard(name)
-                            break
+                    if singer := group_obj.find_member(name):
+                        artist_objs.append(singer)
+                        remaining.discard(name)
                     else:
                         log.warning(f'No match found for {name.artist_str()}', extra={'color': 11})
 
         if remaining:
-            log.debug(f'Retrieving {remaining=}', extra={'color': 14})
+            log.debug(f'Processing {remaining=}', extra={'color': 14})
             if artist_names := {a.english for a in artists if a.english and a.english != 'Various Artists'}:
-                artist_obj_dict = Artist.from_titles(artist_names, search=True)
-                for title, artist_obj in artist_obj_dict.items():
-                    artist_objs.append(artist_obj)
+                artist_objs.extend(Artist.from_titles(artist_names, search=True).values())
 
         return artist_objs
 

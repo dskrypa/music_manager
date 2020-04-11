@@ -6,7 +6,7 @@ Artist wiki pages.
 
 import logging
 from itertools import chain
-from typing import MutableSet, List, Optional
+from typing import MutableSet, List, Optional, Union
 
 from ordered_set import OrderedSet
 
@@ -95,6 +95,7 @@ class Singer(Artist):
 
 class Group(Artist):
     _categories = ('group',)
+    _not_categories = ('group processes', 'belief', 'single')
 
     @cached_property
     def members(self) -> Optional[List[Singer]]:
@@ -113,3 +114,18 @@ class Group(Artist):
                 groups = Group.from_titles(sub_units, sites=page.site, search=False, strict=False)
                 return list(groups.values())
         return None
+
+    def _find_member(self, mem_type: str, name: Union[Name, str]) -> Union[Singer, 'Group', None]:
+        if members := getattr(self, mem_type + 's'):
+            for member in members:
+                log.debug(f'Comparing {mem_type}={member} to {name=}')
+                if member.name.matches(name):
+                    log.debug(f'Found {mem_type}={member} == {name=!r}', extra={'color': 10})
+                    return member
+        return None
+
+    def find_member(self, name: Union[Name, str]) -> Optional[Singer]:
+        return self._find_member('member', name)
+
+    def find_sub_unit(self, name: Union[Name, str]) -> Optional['Group']:
+        return self._find_member('sub_unit', name)

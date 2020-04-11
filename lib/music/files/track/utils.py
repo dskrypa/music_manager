@@ -113,6 +113,7 @@ class TextTagProperty(ClearableCachedProperty):
         if instance is None:
             return self
         value = instance.tag_text(self.tag_name, default=self.default)
+        value = value.replace('\xa0', ' ')
         if self.cast_func is not None:
             value = self.cast_func(value)
         instance.__dict__[self.name] = value

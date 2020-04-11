@@ -4,11 +4,12 @@
 
 import logging
 import os
+from collections import defaultdict
 from concurrent import futures
 from datetime import date
 from itertools import chain
 from pathlib import Path
-from typing import Iterator, List, Union, Optional, Set
+from typing import Iterator, List, Union, Optional, Set, Dict
 
 from mutagen.id3 import TDRC
 
@@ -109,8 +110,31 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return title
 
     @cached_property
+    def all_artists(self) -> Set[Name]:
+        return set(chain.from_iterable(music_file.all_artists for music_file in self.songs))
+
+    @cached_property
+    def album_artists(self) -> Set[Name]:
+        return set(chain.from_iterable(music_file.album_artists for music_file in self.songs))
+
+    @cached_property
     def artists(self) -> Set[Name]:
         return set(chain.from_iterable(music_file.artists for music_file in self.songs))
+
+    @cached_property
+    def _groups(self) -> Dict[str, Set[Name]]:
+        groups = defaultdict(set)
+        for artist in self.all_artists:
+            # noinspection PyUnboundLocalVariable
+            if (extra := artist.extra) and (group := extra.get('group')) and group.english:
+                groups[group.english].add(artist)
+        return groups
+
+    @cached_property
+    def album_artist(self) -> Optional[Name]:
+        if (artists := self.album_artists) and len(artists) == 1:
+            return next(iter(artists))
+        return None
 
     @cached_property
     def artist(self) -> Optional[Name]:

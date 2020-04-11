@@ -24,26 +24,44 @@ def print_processed_info(paths: Paths, expand=0, only_errors=False):
         if not only_errors:
             uprint(f'- Directory: {album_dir}')
         _print_one_or_set(album_dir, 'names', 'Album', only_errors=only_errors)
-        _print_one_or_set(album_dir, 'artists', 'Artist', lambda a: a.artist_str(), only_errors)
+        single_artist = len(album_dir.all_artists) == 1
+        if not expand or single_artist:
+            _print_one_or_set(album_dir, 'artists', 'Artist', lambda a: a.artist_str(), only_errors)
+        if expand:
+            print_tracks(album_dir, expand)
 
 
-def _print_one_or_set(album_dir: AlbumDir, attr: str, singular: str, str_fn=str, only_errors=False):
-    plural = singular + 's'
+def print_tracks(album_dir: AlbumDir, expand=0):
+    single_artist = len(album_dir.all_artists) == 1
+    uprint(f'    - Tracks ({len(album_dir)}):')
+    for track in album_dir.songs:
+        uprint(f'      - {track.path.name}:')
+        uprint(f'         - Title       : {track.tag_title!r}')
+        if not single_artist or expand > 1:
+            uprint(f'         - Artist      : {track.tag_artist!r} =>')
+            _print_one_or_set(track, 'artists', 'Processed', lambda a: repr(a.artist_str()), indent=11)
+            uprint(f'         - Album Artist: {track.tag_album_artist!r} =>')
+            _print_one_or_set(track, 'album_artists', 'Processed', lambda a: repr(a.artist_str()), indent=11)
+
+
+def _print_one_or_set(obj, attr: str, singular: str, str_fn=str, only_errors=False, indent=4):
+    prefix = ' ' * indent
+    plural = singular if singular == 'Processed' else singular + 's'
     try:
-        objs = getattr(album_dir, attr)
+        objs = getattr(obj, attr)
     except Exception as e:
         if only_errors:
-            uprint(f'- Directory: {album_dir}')
-        log.error(f'    {plural:12s}: {e}', extra={'color': 'red'}, exc_info=True)
+            uprint(f'- Directory: {obj}')
+        log.error(f'{prefix}{plural:12s}: {e}', extra={'color': 'red'}, exc_info=True)
     else:
         if not only_errors:
             if len(objs) == 1:
-                uprint(f'    {singular:12s}: {str_fn(next(iter(objs)))}')
+                uprint(f'{prefix}{singular:12s}: {str_fn(next(iter(objs)))}')
             else:
                 text = f'{plural} ({len(objs)})'
-                uprint(f'    {text:12s}:')
+                uprint(f'{prefix}{text:12s}:')
                 for obj in objs:
-                    uprint(f'      - {str_fn(obj)} ')
+                    uprint(f'{prefix}  - {str_fn(obj)} ')
 
 
 def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):

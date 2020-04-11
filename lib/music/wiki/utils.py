@@ -4,9 +4,9 @@
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Dict, Optional, Tuple, List as ListType
+from typing import Iterable, Dict, Optional, Tuple, List as ListType, Iterator
 
-from wiki_nodes import MediaWikiClient, WikiPage, Node, Link, String, Template, CompoundNode, List
+from wiki_nodes import MediaWikiClient, WikiPage, Node, Link, String, Template, CompoundNode, List, Section
 from .exceptions import NoLinkSite, NoLinkTarget
 
 __all__ = ['node_to_link_dict', 'site_titles_map', 'link_client_and_title', 'disambiguation_links', 'page_name']
@@ -98,17 +98,37 @@ def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:
 def disambiguation_links(page: WikiPage) -> ListType[Link]:
     links = []
     for section in page:
-        if isinstance(section.content, List):
-            for entry in section.content.iter_flat():
-                if isinstance(entry[0], Link):
-                    links.append(entry[0])
-        else:
-            for link_list in section.content.find_all(List):
-                for entry in link_list.iter_flat():
-                    if isinstance(entry[0], Link):
-                        links.append(entry[0])
-
+        try:
+            for link in _disambiguation_links(section):
+                if link.title and 'disambiguation' not in link.title:
+                    links.append(link)
+        except Exception as e:
+            raise ValueError(f'Unexpected section content on {page=} in {section=}') from e
+        # raise ValueError(f'Unexpected section content on {page=} in {section=}:\n{content.pformat()}')
     return links
+
+
+def _disambiguation_links(section: Section) -> Iterator[Link]:
+    content = section.content
+    if isinstance(content, List):
+        for entry in content.iter_flat():
+            if isinstance(entry, Link):
+                yield entry
+            elif isinstance(entry, CompoundNode):
+                if isinstance(entry[0], Link):
+                    yield entry[0]
+    elif isinstance(content, CompoundNode):
+        for link_list in content.find_all(List):
+            for entry in link_list.iter_flat():
+                if isinstance(entry, Link):
+                    yield entry
+                elif isinstance(entry, CompoundNode):
+                    if isinstance(entry[0], Link):
+                        yield entry[0]
+
+    if section.children:
+        for child in section:
+            yield from _disambiguation_links(child)
 
 
 def page_name(page: WikiPage) -> str:

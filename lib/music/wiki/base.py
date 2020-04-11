@@ -136,6 +136,8 @@ class WikiEntity:
         candidates = {}
         for title, _page in pages.items():
             link = title_link_map[title]
+            if _page.title != link.title:  # In case of redirects
+                link = Link(f'[[{_page.title}]]', link.root)
             try:
                 candidates[link] = cls._validate(_page)
             except EntityTypeError:
@@ -186,7 +188,7 @@ class WikiEntity:
         :return dict: Mapping of {title: WikiEntity} for the given titles
         """
         query_map = {site: titles for site in _sites(sites)}
-        log.debug(f'Submitting queries: {query_map}')
+        log.debug(f'Retrieving {cls.__name__}s: {query_map}', extra={'color': 14})
         results, _errors = MediaWikiClient.get_multi_site_pages(query_map, search=search)
         for title, error in _errors.items():
             log.error(f'Error processing {title=!r}: {error}', extra={'color': 9})

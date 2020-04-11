@@ -250,13 +250,26 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             yield tag[:4], value
 
     @cached_property
-    def artists(self) -> Set[Name]:
-        artists = set()
-        if artist := self.tag_artist:
-            artists.update(split_artists(artist))
+    def all_artists(self) -> Set[Name]:
+        return self.album_artists.union(self.artists)
+
+    @cached_property
+    def album_artists(self) -> Set[Name]:
         if album_artist := self.tag_album_artist:
-            artists.update(split_artists(album_artist))
-        return artists
+            return set(split_artists(album_artist))
+        return set()
+
+    @cached_property
+    def artists(self) -> Set[Name]:
+        if artist := self.tag_artist:
+            return set(split_artists(artist))
+        return set()
+
+    @cached_property
+    def album_artist(self) -> Optional[Name]:
+        if (artists := self.album_artists) and len(artists) == 1:
+            return next(iter(artists))
+        return None
 
     @cached_property
     def artist(self) -> Optional[Name]:

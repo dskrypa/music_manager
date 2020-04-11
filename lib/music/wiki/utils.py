@@ -4,12 +4,16 @@
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Dict, Optional, Tuple, List as ListType, Iterator
+from typing import Iterable, Dict, Optional, Tuple, List, Union
 
-from wiki_nodes import MediaWikiClient, WikiPage, Node, Link, String, Template, CompoundNode, List, Section
+from wiki_nodes import MediaWikiClient, WikiPage, Node, Link, String, Template, CompoundNode
+from ..text import Name
 from .exceptions import NoLinkSite, NoLinkTarget
 
-__all__ = ['node_to_link_dict', 'site_titles_map', 'link_client_and_title', 'disambiguation_links', 'page_name']
+__all__ = [
+    'node_to_link_dict', 'site_titles_map', 'link_client_and_title', 'page_name', 'titles_and_title_name_map',
+    'multi_site_page_map'
+]
 log = logging.getLogger(__name__)
 
 
@@ -32,6 +36,14 @@ def site_titles_map(links: Iterable[Link]) -> Dict[MediaWikiClient, Dict[str, Li
         mw_client, title = link_client_and_title(link)
         site_map[mw_client][title] = link
     return site_map
+
+
+def multi_site_page_map(get_multi_site_pages_results) -> Dict[str, List[WikiPage]]:
+    title_page_map = defaultdict(list)
+    for site, pages in get_multi_site_pages_results.items():
+        for title, page in pages.items():
+            title_page_map[title].append(page)
+    return title_page_map
 
 
 def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:
@@ -95,42 +107,6 @@ def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:
     return as_dict
 
 
-def disambiguation_links(page: WikiPage) -> ListType[Link]:
-    links = []
-    for section in page:
-        try:
-            for link in _disambiguation_links(section):
-                if link.title and 'disambiguation' not in link.title:
-                    links.append(link)
-        except Exception as e:
-            raise ValueError(f'Unexpected section content on {page=} in {section=}') from e
-        # raise ValueError(f'Unexpected section content on {page=} in {section=}:\n{content.pformat()}')
-    return links
-
-
-def _disambiguation_links(section: Section) -> Iterator[Link]:
-    content = section.content
-    if isinstance(content, List):
-        for entry in content.iter_flat():
-            if isinstance(entry, Link):
-                yield entry
-            elif isinstance(entry, CompoundNode):
-                if isinstance(entry[0], Link):
-                    yield entry[0]
-    elif isinstance(content, CompoundNode):
-        for link_list in content.find_all(List):
-            for entry in link_list.iter_flat():
-                if isinstance(entry, Link):
-                    yield entry
-                elif isinstance(entry, CompoundNode):
-                    if isinstance(entry[0], Link):
-                        yield entry[0]
-
-    if section.children:
-        for child in section:
-            yield from _disambiguation_links(child)
-
-
 def page_name(page: WikiPage) -> str:
     name = page.title
     if page.infobox:
@@ -139,3 +115,19 @@ def page_name(page: WikiPage) -> str:
         except KeyError:
             pass
     return name
+
+
+def titles_and_title_name_map(titles: Iterable[Union[str, Name]]) -> Tuple[List[str], Dict[str, Name]]:
+    title_name_map = {}
+    _titles = []
+    for title in titles:
+        if isinstance(title, Name):
+            if _title := title.english or title.non_eng:
+                _titles.append(_title)
+                title_name_map[_title] = title
+            else:
+                raise ValueError(f'Invalid {title=}')
+        else:
+            _titles.append(title)
+
+    return _titles, title_name_map

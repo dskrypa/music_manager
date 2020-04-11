@@ -7,7 +7,7 @@ from datetime import datetime, date
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, Iterator, Tuple, Set, Mapping, Sequence, Any
+from typing import Optional, Union, Iterator, Tuple, Set, Any
 
 import mutagen
 import mutagen.id3._frames

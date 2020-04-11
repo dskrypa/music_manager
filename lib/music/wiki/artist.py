@@ -101,7 +101,7 @@ class Group(Artist):
         for page, parser in self.page_parsers():
             members_dict = parser.parse_group_members(page)
             names = set(chain.from_iterable((titles for key, titles in members_dict.items() if titles != 'sub_units')))
-            singers, errors = Singer.from_titles(names, sites=page.site, search=False)
+            singers = Singer.from_titles(names, sites=page.site, search=False, strict=False)
             return list(singers.values())
         return None
 
@@ -110,6 +110,6 @@ class Group(Artist):
         for page, parser in self.page_parsers():
             members_dict = parser.parse_group_members(page)
             if sub_units := members_dict.get('sub_units'):
-                groups, errors = Group.from_titles(sub_units, sites=page.site, search=False)
+                groups = Group.from_titles(sub_units, sites=page.site, search=False, strict=False)
                 return list(groups.values())
         return None

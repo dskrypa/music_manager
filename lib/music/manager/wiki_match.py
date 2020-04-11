@@ -59,11 +59,7 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
 
         if group_names := set(groups):
             log.debug(f'Retrieving {group_names=}', extra={'color': 14})
-            group_obj_dict, errors = Group.from_titles(group_names, search=True)
-
-            for title, title_errors in errors.items():
-                for error in title_errors:
-                    log.error(f'Error processing Group for {title=!r}: {error}', extra={'color': 13})
+            group_obj_dict = Group.from_titles(group_names, search=True)
 
             for title, group_obj in group_obj_dict.items():
                 log.debug(f'Found {group_obj=}', extra={'color': 10})
@@ -82,10 +78,7 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
         if remaining:
             log.debug(f'Retrieving {remaining=}', extra={'color': 14})
             if artist_names := {a.english for a in artists if a.english and a.english != 'Various Artists'}:
-                artist_obj_dict, errors = Artist.from_titles(artist_names, search=True)
-                for title, title_errors in errors.items():
-                    for error in title_errors:
-                        log.error(f'Error processing Artist for {title=!r}: {error}', extra={'color': 13})
+                artist_obj_dict = Artist.from_titles(artist_names, search=True)
                 for title, artist_obj in artist_obj_dict.items():
                     artist_objs.append(artist_obj)
 

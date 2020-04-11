@@ -92,9 +92,10 @@ class WikiEntity:
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
         :return tuple: Tuple of (WikiEntity subclass, page/entry)
         """
-        page_cats = obj.categories
-        if isinstance(obj, WikiPage) and any('disambiguation' in cat for cat in page_cats):
+        if isinstance(obj, WikiPage) and obj.is_disambiguation:
+            log.debug(f'{cls.__name__}._validate found a disambiguation page: {obj}')
             return cls._resolve_ambiguous(obj)
+        page_cats = obj.categories
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
         for cls_cat, cat_cls in cls._category_classes.items():
@@ -122,17 +123,19 @@ class WikiEntity:
         client, title_link_map = next(iter(site_titles_map(links).items()))     # type: MediaWikiClient, Dict[str, Link]
         pages = client.get_pages(title_link_map)
         candidates = {}
-        for title, page in pages.items():
+        for title, _page in pages.items():
             link = title_link_map[title]
             try:
-                candidates[link] = cls._validate(page)
+                candidates[link] = cls._validate(_page)
             except EntityTypeError:
                 pass
 
         if not candidates:
             raise AmbiguousPageError(page_name(page), page, links)
         elif len(candidates) == 1:
-            return next(iter(candidates.values()))
+            cat_cls, resolved_page = next(iter(candidates.values()))
+            log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
+            return cat_cls, resolved_page
         else:
             # TODO: If there were results from other sites, compare names
             name = page_name(page)
@@ -175,7 +178,7 @@ class WikiEntity:
         raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
 
     @classmethod
-    def from_titles(cls: Type[WE], titles: Iterable[str], sites: StrOrStrs = None, search=True) -> Dict[str, WE]:
+    def from_titles(cls: Type[WE], titles: Iterable[str], sites: StrOrStrs = None, search=True, strict=True) -> Dict[str, WE]:
         query_map = {site: titles for site in _sites(sites)}
         log.debug(f'Submitting queries: {query_map}')
         results, _errors = MediaWikiClient.get_multi_site_pages(query_map, search=search)
@@ -187,7 +190,15 @@ class WikiEntity:
             for title, page in pages.items():
                 title_page_map[title].append(page)
 
-        return {title: cls._from_multi_site_pages(pages) for title, pages in title_page_map.items()}
+        title_entity_map = {}
+        for title, pages in title_page_map.items():
+            try:
+                title_entity_map[title] = cls._from_multi_site_pages(pages)
+            except EntityTypeError:
+                if strict:
+                    raise
+
+        return title_entity_map
 
     @classmethod
     def from_url(cls: Type[WE], url: str) -> WE:

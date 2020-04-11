@@ -15,6 +15,7 @@ from wiki_nodes.nodes import Node, Link, List as ListNode
 from wiki_nodes.page import WikiPage
 from ..text import combine_with_parens, Name
 from .base import WikiEntity, Pages
+from .disco_entry import DiscoEntry, DiscoEntryType
 from .exceptions import EntityTypeError, BadLinkError
 
 __all__ = [
@@ -131,10 +132,9 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     @classmethod
     def from_disco_entry(cls, disco_entry: 'DiscoEntry') -> 'DiscographyEntry':
-        categories = disco_entry.categories
         # log.debug(f'Creating {cls.__name__} from {disco_entry} with categories={categories}')
         try:
-            return cls._by_category(disco_entry.title, disco_entry, categories, disco_entry=disco_entry)
+            return cls._by_category(disco_entry, disco_entry=disco_entry)
         except EntityTypeError as e:
             err_msg = f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}'
             log.error(err_msg, extra={'color': 'red'})
@@ -306,6 +306,5 @@ class SoundtrackPart(DiscographyEntryPart):
 
 # Down here due to circular dependency
 from .artist import Artist
-from .disco_entry import DiscoEntry, DiscoEntryType
 from .parsing import WikiParser
 from .track import Track

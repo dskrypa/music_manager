@@ -2,9 +2,9 @@
 :author: Doug Skrypa
 """
 
-from typing import List as ListType
+from typing import Optional, List
 
-from wiki_nodes.nodes import List, Link
+from wiki_nodes.nodes import Link
 from wiki_nodes.page import WikiPage
 
 __all__ = [
@@ -19,28 +19,16 @@ class MusicWikiException(Exception):
 
 class AmbiguousPageError(MusicWikiException):
     """The provided title/link pointed to a disambiguation page"""
-    def __init__(self, name, obj):
+    def __init__(self, name: str, page: WikiPage, links: Optional[List[Link]] = None):
         self.name = name
-        self.obj = obj
-        self.links = None
-        if isinstance(obj, WikiPage):
-            self.links = []             # type: ListType[Link]
-            for section in obj:
-                if isinstance(section.content, List):
-                    for entry in section.content.iter_flat():
-                        if isinstance(entry[0], Link):
-                            self.links.append(entry[0])
-                else:
-                    for link_list in section.content.find_all(List):
-                        for entry in link_list.iter_flat():
-                            if isinstance(entry[0], Link):
-                                self.links.append(entry[0])
+        self.page = page
+        self.links = links
 
     def __str__(self):
         if self.links:
-            return '{} is a disambiguation page - links:\n - {}'.format(self.obj, '\n - '.join(map(str, self.links)))
+            return '{} is a disambiguation page - links:\n - {}'.format(self.page, '\n - '.join(map(str, self.links)))
         else:
-            return f'The WikiEntity with name={self.name!r} obj={self.obj} is a disambiguation page'
+            return f'{self.page} is a disambiguation page, but no links to valid candidates were found'
 
 
 class EntityTypeError(MusicWikiException, TypeError):

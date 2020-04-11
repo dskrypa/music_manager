@@ -2,11 +2,9 @@
 :author: Doug Skrypa
 """
 
-import logging
 from datetime import datetime, date
 
 __all__ = ['parse_date']
-log = logging.getLogger(__name__)
 DATE_FORMATS = ('%Y-%b-%d', '%Y-%m-%d', '%Y.%m.%d', '%B %d, %Y', '%d %B %Y')
 
 

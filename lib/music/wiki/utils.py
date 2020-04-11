@@ -4,28 +4,34 @@
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Dict, Optional
+from typing import Iterable, Dict, Optional, Tuple, List as ListType
 
 from wiki_nodes.http import MediaWikiClient
-from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode
+from wiki_nodes.page import WikiPage
+from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode, List
 from .exceptions import NoLinkSite, NoLinkTarget
 
-__all__ = ['node_to_link_dict', 'site_titles_map']
+__all__ = ['node_to_link_dict', 'site_titles_map', 'link_client_and_title', 'disambiguation_links', 'page_name']
 log = logging.getLogger(__name__)
+
+
+def link_client_and_title(link: Link) -> Tuple[MediaWikiClient, str]:
+    if not link.source_site:
+        raise NoLinkSite(link)
+    mw_client = MediaWikiClient(link.source_site)
+    title = link.title
+    if link.interwiki:
+        iw_key, title = link.iw_key_title
+        mw_client = mw_client.interwiki_client(iw_key)
+    elif not title:
+        raise NoLinkTarget(link)
+    return mw_client, title
 
 
 def site_titles_map(links: Iterable[Link]) -> Dict[MediaWikiClient, Dict[str, Link]]:
     site_map = defaultdict(dict)
     for link in links:
-        if not link.source_site:
-            raise NoLinkSite(link)
-        mw_client = MediaWikiClient(link.source_site)
-        title = link.title
-        if link.interwiki:
-            iw_key, title = link.iw_key_title
-            mw_client = mw_client.interwiki_client(iw_key)
-        elif not title:
-            raise NoLinkTarget(link)
+        mw_client, title = link_client_and_title(link)
         site_map[mw_client][title] = link
     return site_map
 
@@ -89,3 +95,29 @@ def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:
             del as_dict[to_rm]
 
     return as_dict
+
+
+def disambiguation_links(page: WikiPage) -> ListType[Link]:
+    links = []
+    for section in page:
+        if isinstance(section.content, List):
+            for entry in section.content.iter_flat():
+                if isinstance(entry[0], Link):
+                    links.append(entry[0])
+        else:
+            for link_list in section.content.find_all(List):
+                for entry in link_list.iter_flat():
+                    if isinstance(entry[0], Link):
+                        links.append(entry[0])
+
+    return links
+
+
+def page_name(page: WikiPage) -> str:
+    name = page.title
+    if page.infobox:
+        try:
+            return page.infobox['name'].value
+        except KeyError:
+            pass
+    return name

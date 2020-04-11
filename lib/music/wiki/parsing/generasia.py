@@ -12,9 +12,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
-from ...text.extraction import parenthesized, split_enclosed, ends_with_enclosed
-from ...text.name import Name
-from ...text.spellcheck import is_english
+from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntryType, DiscoEntry
 from .abc import WikiParser, EditionIterator

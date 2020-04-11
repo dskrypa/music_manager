@@ -125,9 +125,9 @@ class AlbumDir(ClearableCachedPropertyMixin):
     def _groups(self) -> Dict[str, Set[Name]]:
         groups = defaultdict(set)
         for artist in self.all_artists:
-            # noinspection PyUnboundLocalVariable
-            if (extra := artist.extra) and (group := extra.get('group')) and group.english:
-                groups[group.english].add(artist)
+            if (extra := artist.extra) and (group := extra.get('group')):
+                # noinspection PyUnboundLocalVariable
+                groups[group].add(artist)
         return groups
 
     @cached_property

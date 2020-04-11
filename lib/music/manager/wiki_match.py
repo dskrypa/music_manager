@@ -9,6 +9,7 @@ from ds_tools.core import Paths
 from ds_tools.output import uprint
 from ..files import AlbumDir, iter_album_dirs
 from ..wiki.artist import Artist, Group
+from ..wiki.exceptions import AmbiguousPageError
 from .exceptions import NoArtistFoundException
 
 __all__ = ['show_matches']
@@ -46,11 +47,11 @@ def show_matches(paths: Paths):
 
 def find_artists(album_dir: AlbumDir) -> List[Artist]:
     if artists := album_dir.all_artists:
-        log.debug(f'Processing {artists=}', extra={'color': 14})
+        log.debug(f'Processing {artists=}')
         remaining = set(artists)
         artist_objs = []
         if groups := album_dir._groups:
-            for title, group_obj in Group.from_titles(set(groups), search=True).items():
+            for title, group_obj in Group.from_titles(set(groups), search=True, strict=1).items():
                 log.debug(f'Found {group_obj=}', extra={'color': 10})
                 for name in groups[title]:
                     if singer := group_obj.find_member(name):
@@ -61,8 +62,13 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
 
         if remaining:
             log.debug(f'Processing {remaining=}', extra={'color': 14})
-            if artist_names := {a.english for a in artists if a.english and a.english != 'Various Artists'}:
-                artist_objs.extend(Artist.from_titles(artist_names, search=True).values())
+            if artist_names := {a for a in artists if a.english != 'Various Artists'}:
+                for name, artist in Artist.from_titles(artist_names, search=True, strict=1).items():
+                    artist_objs.append(artist)
+                    remaining.discard(name)
+
+        for name in remaining:
+            artist_objs.append(Artist(name.artist_str()))
 
         return artist_objs
 

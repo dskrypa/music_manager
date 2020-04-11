@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .base import WikiEntity
     from .disco_entry import DiscoEntry
 
-__all__ = ['WE', 'Pages', 'PageEntry', 'StrOrStrs']
+__all__ = ['WE', 'Pages', 'PageEntry', 'StrOrStrs', 'Candidates']
 log = logging.getLogger(__name__)
 
 WE = TypeVar('WE', bound='WikiEntity')

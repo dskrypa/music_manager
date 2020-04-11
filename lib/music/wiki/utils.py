@@ -41,6 +41,7 @@ def site_titles_map(links: Iterable[Link]) -> Dict[MediaWikiClient, Dict[str, Li
 def multi_site_page_map(get_multi_site_pages_results) -> Dict[str, List[WikiPage]]:
     title_page_map = defaultdict(list)
     for site, pages in get_multi_site_pages_results.items():
+        log.debug(f'Found {len(pages)} pages from {site=!r}: {", ".join(sorted(pages))}')
         for title, page in pages.items():
             title_page_map[title].append(page)
     return title_page_map
@@ -130,4 +131,4 @@ def titles_and_title_name_map(titles: Iterable[Union[str, Name]]) -> Tuple[List[
         else:
             _titles.append(title)
 
-    return _titles, title_name_map
+    return sorted(_titles), title_name_map

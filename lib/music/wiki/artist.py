@@ -49,7 +49,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
             #     names.add(name)
 
         if not names:
-            names.add(Name(self._name))
+            names.add(Name.from_enclosed(self._name))
         return names
 
     def _finder_with_entries(self) -> DiscographyEntryFinder:
@@ -102,7 +102,7 @@ class Group(Artist):
         for page, parser in self.page_parsers():
             members_dict = parser.parse_group_members(page)
             names = set(chain.from_iterable((titles for key, titles in members_dict.items() if titles != 'sub_units')))
-            singers = Singer.from_titles(names, sites=page.site, search=False, strict=False)
+            singers = Singer.from_titles(names, sites=page.site, search=False, strict=0)
             return list(singers.values())
         return None
 
@@ -111,7 +111,7 @@ class Group(Artist):
         for page, parser in self.page_parsers():
             members_dict = parser.parse_group_members(page)
             if sub_units := members_dict.get('sub_units'):
-                groups = Group.from_titles(sub_units, sites=page.site, search=False, strict=False)
+                groups = Group.from_titles(sub_units, sites=page.site, search=False, strict=0)
                 return list(groups.values())
         return None
 

@@ -25,6 +25,8 @@ log = logging.getLogger(__name__)
 
 DATE_PAT_MATCH = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$').match
 OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
+MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \(.*?\))').search
+MEMBER_TYPE_SECTIONS = {'former': 'Former Members', 'hiatus': 'Hiatus', 'sub_units': 'Sub-Units'}
 
 
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
@@ -39,41 +41,44 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         else:
             raise RuntimeError(f'Unexpected intro on {artist_page}:\n{artist_page.intro}')
 
-        try:
-            name = first_string[:first_string.rindex(')') + 1]
-        except ValueError:
-            log.error(f'Unable to find name in {artist_page} - {first_string=!r}', extra={'color': 'red'})
-            log.debug(f'Categories for {artist_page}: {artist_page.categories}')
-            raise
-
-        # log.debug(f'Found name: {name}')
-        first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
-        if '; ' in paren_part:
-            yield Name.from_parts((first_part, paren_part.split('; ', 1)[0]))
+        if m := MULTI_LANG_NAME_SEARCH(first_string):
+            yield Name.from_enclosed(m.group(1))
         else:
-            try:
-                parts = tuple(map(str.strip, paren_part.split(', and')))
-            except Exception:
-                yield Name.from_parts((first_part, paren_part))
+            # try:
+            name = first_string[:first_string.rindex(')') + 1]
+            # except ValueError:
+            #     log.error(f'Unable to find name in {artist_page} - {first_string=!r}', extra={'color': 'red'})
+            #     log.debug(f'Categories for {artist_page}: {artist_page.categories}')
+            #     raise
+
+            # log.debug(f'Found name: {name}')
+            first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
+            if '; ' in paren_part:
+                yield Name.from_parts((first_part, paren_part.split('; ', 1)[0]))
             else:
-                if len(parts) == 1:
+                try:
+                    parts = tuple(map(str.strip, paren_part.split(', and')))
+                except Exception:
                     yield Name.from_parts((first_part, paren_part))
                 else:
-                    for part in parts:
-                        try:
-                            part = part[:part.rindex(')') + 1]
-                        except ValueError:
-                            log.error(f'Error splitting part={part!r}')
-                            raise
-                        else:
-                            part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
+                    if len(parts) == 1:
+                        yield Name.from_parts((first_part, paren_part))
+                    else:
+                        for part in parts:
                             try:
-                                romanized, alias = part_b.split(' or ')
+                                part = part[:part.rindex(')') + 1]
                             except ValueError:
-                                yield Name.from_parts((first_part, part_a, part_b))
+                                log.error(f'Error splitting part={part!r}')
+                                raise
                             else:
-                                yield Name.from_parts((first_part, part_a, romanized))
-                                yield Name.from_parts((alias, part_a, romanized))
+                                part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
+                                try:
+                                    romanized, alias = part_b.split(' or ')
+                                except ValueError:
+                                    yield Name.from_parts((first_part, part_a, part_b))
+                                else:
+                                    yield Name.from_parts((first_part, part_a, romanized))
+                                    yield Name.from_parts((alias, part_a, romanized))
 
         # From profile =========================================================================================
         try:
@@ -82,11 +87,20 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             pass
         else:
             profile = section.content.as_mapping(multiline=False)
-            for key in ('Stage Name', 'Real Name'):
+            for key in ('Stage Name', 'Real Name', 'Korean Name'):
                 try:
-                    value = profile[key].value
+                    value = profile[key]
+                    if isinstance(value, CompoundNode):
+                        value = value[0]
+                    if isinstance(value, String):
+                        value = value.value
+                    else:
+                        raise ValueError(f'Unexpected {value=}')
                 except KeyError:
                     pass
+                except Exception:
+                    log.error(f'Error processing profile from {artist_page}:\n{profile.pformat()}', extra={'color': 9})
+                    raise
                 else:
                     yield Name.from_enclosed(value)
 
@@ -164,6 +178,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
                     # log.debug(f'Split title -> a={a!r} (eng: {is_english(a)}), b={b!r} (eng: {is_english(b)})')
                     if name.has_romanization(a):
+                        # noinspection PyUnresolvedReferences
                         if _node.root and _node.root.title == title:
                             name.set_eng_or_rom(a, value=title)
                             name.non_eng = title.replace(a, non_eng)
@@ -181,6 +196,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         else:
                             name._english = b
                     else:
+                        # noinspection PyUnresolvedReferences
                         if _node.root and _node.root.title == title:
                             name._english = title
                         else:
@@ -405,17 +421,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if title := _get_artist_title(member, entry_page):
                 members['current'].append(title)
 
-        if former_members := members_section.find('Former Members'):
-            members['former'] = []
-            for member in former_members.content.iter_flat():
-                if title := _get_artist_title(member, entry_page):
-                    members['former'].append(title)
-
-        if sub_units := members_section.find('Sub-Units'):
-            members['sub_units'] = []
-            for member in sub_units.content.iter_flat():
-                if title := _get_artist_title(member, entry_page):
-                    members['sub_units'].append(title)
+        for key, section_name in MEMBER_TYPE_SECTIONS.items():
+            if section_members := members_section.find(section_name, None):
+                members[key] = []
+                for member in section_members.content.iter_flat():
+                    if title := _get_artist_title(member, entry_page):
+                        members[key].append(title)
 
         return members
 

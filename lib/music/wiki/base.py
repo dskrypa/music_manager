@@ -5,14 +5,14 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
-from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List
+from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection
 
 from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, WikiPage, Link
 from ..text import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError
+from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, link_client_and_title, page_name, titles_and_title_name_map, multi_site_page_map
 
@@ -81,7 +81,7 @@ class WikiEntity:
             try:
                 parser = WikiParser.for_site(site)
             except KeyError:
-                log.debug(f'No parser is configured for {page}')
+                log.log(9, f'No parser is configured for {page}')
             else:
                 yield page, parser
 
@@ -151,23 +151,48 @@ class WikiEntity:
         return handle_disambiguation_candidates(page, client, links, candidates, existing, name, prompt)
 
     @classmethod
-    def _by_category(cls: Type[WE], obj: PageEntry, *args, **kwargs) -> WE:
-        cat_cls, obj = cls._validate(obj)
-        name = obj.title if isinstance(obj, DiscoEntry) else page_name(obj)
-        return cat_cls(name, obj, *args, **kwargs)
+    def _by_category(cls: Type[WE], obj: PageEntry, name: Optional[Name] = None, *args, **kwargs) -> WE:
+        cat_cls, obj = cls._validate(obj, name=name)
+        entity_name = obj.title if isinstance(obj, DiscoEntry) else page_name(obj)
+        return cat_cls(entity_name, obj, *args, **kwargs)
 
     @classmethod
     def from_page(cls: Type[WE], page: WikiPage, *args, **kwargs) -> WE:
         return cls._by_category(page, *args, **kwargs)
 
     @classmethod
-    def _from_multi_site_pages(cls: Type[WE], pages: Iterable[WikiPage]) -> WE:
-        ipages = iter(sorted(pages))            # Sort so disambiguation pages are handled after proper matches
-        entity = cls._by_category(next(ipages))
-        for page in ipages:
-            cat_cls, page = cls._validate(page, entity)
-            entity._add_page(page)
-        return entity
+    def _from_multi_site_pages(cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2) -> WE:
+        log.debug(f'Processing {len(pages)} multi-site pages')
+        entity = None
+        page_link_map = {}
+        type_errors = 0
+        for page in sorted(pages):      # Sort so disambiguation pages are handled after proper matches
+            try:
+                cat_cls, page = cls._validate(page, entity, name)
+            except AmbiguousPageError as e:
+                page_link_map[page] = e.links
+            except EntityTypeError as e:
+                if strict > 1:
+                    raise
+                else:
+                    type_errors += 1
+                    log.log(logging.WARNING if strict else logging.DEBUG, e, extra={'color': 9})
+            else:
+                if entity is None:
+                    entity = cat_cls(page_name(page), page)
+                else:
+                    entity._add_page(page)
+
+        if entity is None:
+            name = name or page_name(next(iter(page_link_map)))
+            if page_link_map:
+                raise AmbiguousPagesError(name, page_link_map)
+            elif type_errors:
+                raise EntityTypeError(f'Encountered {type_errors} type errors and found no valid pages for {name=!r}')
+            else:
+                raise ValueError(f'No pages found for {name=!r}')
+        else:
+            return entity
 
     @classmethod
     def from_title(cls: Type[WE], title: str, sites: StrOrStrs = None, search=True) -> WE:
@@ -184,32 +209,35 @@ class WikiEntity:
 
     @classmethod
     def from_titles(
-            cls: Type[WE], titles: Iterable[Union[str, Name]], sites: StrOrStrs = None, search=True, strict=True
-    ) -> Dict[str, WE]:
+            cls: Type[WE], titles: Iterable[Union[str, Name]], sites: StrOrStrs = None, search=True, strict=2
+    ) -> Dict[Union[str, Name], WE]:
         """
         :param Iterable titles: Page titles to retrieve
         :param str|Iterable sites: Sites from which to retrieve them
         :param bool search: Resolve titles that may not be exact matches
-        :param bool strict: Enable strict type checking; if disabled, log EntityTypeErrors instead of letting them
-          propagate
+        :param int strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
+          EntityTypeError and AmbiguousPageError as a warning.  If 0, log those errors on debug level.
         :return dict: Mapping of {title: WikiEntity} for the given titles
         """
         titles, title_name_map = titles_and_title_name_map(titles)
+        # log.debug(f'{title_name_map=}')
         query_map = {site: titles for site in _sites(sites)}
-        log.debug(f'Retrieving {cls.__name__}s: {query_map}', extra={'color': 14})
+        # log.debug(f'Retrieving {cls.__name__}s: {query_map}', extra={'color': 14})
+        log.debug(f'Retrieving {cls.__name__}s from sites={sorted(query_map)} with {titles=}')
         results, _errors = MediaWikiClient.get_multi_site_pages(query_map, search=search)
         for title, error in _errors.items():
             log.error(f'Error processing {title=!r}: {error}', extra={'color': 9})
 
         title_entity_map = {}
         for title, pages in multi_site_page_map(results).items():
+            name = title_name_map.get(title)
             try:
-                title_entity_map[title] = cls._from_multi_site_pages(pages)
-            except EntityTypeError as e:
-                if strict:
+                title_entity_map[name or title] = cls._from_multi_site_pages(pages, name, strict)
+            except (EntityTypeError, AmbiguousPageError) as e:
+                if strict > 1:
                     raise
                 else:
-                    log.debug(e)
+                    log.log(logging.WARNING if strict else logging.DEBUG, e, extra={'color': 9})
 
         return title_entity_map
 

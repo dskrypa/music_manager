@@ -20,22 +20,29 @@ def handle_disambiguation_candidates(
         page: WikiPage, client: MediaWikiClient, links: Optional[List[Link]], candidates: Candidates,
         existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True
 ) -> Tuple[Type[WE], WikiPage]:
+    # log.debug(f'handle_disambiguation_candidates({page=}, len(candidates)={len(candidates)}, {existing=}, {name=})')
     if len(candidates) == 1:
         cat_cls, resolved_page = next(iter(candidates.values()))
         log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
         return cat_cls, resolved_page
     elif not candidates or (not existing and not prompt):
-        raise AmbiguousPageError(page_name(page), page, links)
+        raise AmbiguousPageError(page_name(page), page, list(candidates))
     elif existing:
         matches = _filtered_candidates(existing.name, candidates, existing)
+        # log.debug(f'Using {existing=}, filtered {candidates=} to {matches=}')
         return handle_disambiguation_candidates(page, client, links, matches, name=name, prompt=prompt)
     elif name:
-        matches = _filtered_candidates(existing.name, candidates, existing)
+        matches = _filtered_candidates(name, candidates, existing)
+        # log.debug(f'Using {name=}, filtered {candidates=} to {matches=}')
+        if len(matches) > 1 and name.english and name.non_eng:
+            name = Name(non_eng=name.non_eng)
+            matches = _filtered_candidates(name, candidates, existing)
+            # log.debug(f'Using {name=}, filtered {candidates=} to {matches=}')
         return handle_disambiguation_candidates(page, client, links, matches, prompt=prompt)
     else:
         p_name = page_name(page)
         links = list(candidates)
-        log.debug(f'Ambiguous title={p_name!r} on site={client.host} has too many candidates: {len(candidates)}')
+        # log.debug(f'Ambiguous title={p_name!r} on site={client.host} has too many candidates: {len(candidates)}')
         source = f'for ambiguous title={p_name!r} on {client.host}'
         link = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
         return candidates[link]
@@ -52,7 +59,7 @@ def _filtered_candidates(name: Name, candidates: Candidates, existing: Optional[
                 log.debug(f'Matched disambiguation entry={_page} / {po_name!r} to {name!r}')
             matches[link] = (cat_cls, _page)
     if not matches:
-        log.debug(f'No disambiguation entry matches found for {existing or name}')
+        log.debug(f'No disambiguation entry matches found for {existing or name!r}')
     return matches
 
 

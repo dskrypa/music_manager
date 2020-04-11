@@ -6,13 +6,11 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Type, Tuple, List
+from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Type, Tuple, List, Mapping
 
 from ds_tools.compat import cached_property
 from ds_tools.input import choose_item
-from wiki_nodes.http import MediaWikiClient
-from wiki_nodes.page import WikiPage
-from wiki_nodes.nodes import Link
+from wiki_nodes import MediaWikiClient, WikiPage, Link
 from ..text import Name
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError
@@ -143,34 +141,7 @@ class WikiEntity:
             except EntityTypeError:
                 pass
 
-        return cls._handle_candidates(page, client, links, candidates, existing)
-
-    @classmethod
-    def _handle_candidates(cls, page, client, links, candidates, existing=None):
-        if not candidates:
-            raise AmbiguousPageError(page_name(page), page, links)
-        elif len(candidates) == 1:
-            cat_cls, resolved_page = next(iter(candidates.values()))
-            log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
-            return cat_cls, resolved_page
-        elif existing:
-            ex_name = existing.name
-            matches = {}
-            for link, (cat_cls, _page) in candidates.items():
-                po_name = cat_cls(page_name(_page), _page).name
-                if ex_name.matches(po_name):
-                    log.debug(f'Matched disambiguation entry={_page} / {ex_name!r} to {existing} / {po_name!r}')
-                    matches[link] = (cat_cls, _page)
-            if not matches:
-                log.debug(f'No disambiguation entry matches found for {existing}')
-            return cls._handle_candidates(page, client, links, matches)
-        else:
-            name = page_name(page)
-            links = list(candidates)
-            log.debug(f'Ambiguous title={name!r} on site={client.host} has too many candidates: {len(candidates)}')
-            source = f'for ambiguous title={name!r} on {client.host}'
-            link = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
-            return candidates[link]
+        return _handle_candidates(page, client, links, candidates, existing)
 
     @classmethod
     def _by_category(cls: Type[WE], obj: PageEntry, *args, **kwargs) -> WE:
@@ -317,6 +288,36 @@ def _sites(sites: StrOrStrs) -> List[str]:
     if isinstance(sites, str):
         sites = [sites]
     return sites or DEFAULT_WIKIS
+
+
+def _handle_candidates(
+        page: WikiPage, client: MediaWikiClient, links: Optional[List[Link]],
+        candidates: Mapping[Link, Tuple[Type[WE], PageEntry]], existing: Optional[WE] = None
+) -> Tuple[Type[WE], PageEntry]:
+    if not candidates:
+        raise AmbiguousPageError(page_name(page), page, links)
+    elif len(candidates) == 1:
+        cat_cls, resolved_page = next(iter(candidates.values()))
+        log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
+        return cat_cls, resolved_page
+    elif existing:
+        ex_name = existing.name
+        matches = {}
+        for link, (cat_cls, _page) in candidates.items():
+            po_name = cat_cls(page_name(_page), _page).name
+            if ex_name.matches(po_name):
+                log.debug(f'Matched disambiguation entry={_page} / {ex_name!r} to {existing} / {po_name!r}')
+                matches[link] = (cat_cls, _page)
+        if not matches:
+            log.debug(f'No disambiguation entry matches found for {existing}')
+        return _handle_candidates(page, client, links, matches)
+    else:
+        name = page_name(page)
+        links = list(candidates)
+        log.debug(f'Ambiguous title={name!r} on site={client.host} has too many candidates: {len(candidates)}')
+        source = f'for ambiguous title={name!r} on {client.host}'
+        link = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
+        return candidates[link]
 
 
 # Down here due to circular dependency

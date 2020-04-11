@@ -9,8 +9,7 @@ from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
-from wiki_nodes.nodes import Node, Link, String, CompoundNode, MappingNode
-from wiki_nodes.page import WikiPage
+from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode
 from wiki_nodes.utils import strip_style
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition

@@ -7,7 +7,7 @@ from functools import partialmethod
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from ds_tools.compat import cached_property
-from wiki_nodes.nodes import CompoundNode, String, Link
+from wiki_nodes import CompoundNode, String, Link
 from ..text import Name, combine_with_parens
 from .artist import Artist
 

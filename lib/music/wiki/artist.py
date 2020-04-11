@@ -11,8 +11,8 @@ from typing import MutableSet, List, Optional
 from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
-from wiki_nodes.nodes import Link, String
-from ..text.name import Name
+from wiki_nodes import Link, String
+from ..text import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, DiscographyMixin
 

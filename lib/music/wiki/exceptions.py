@@ -4,8 +4,7 @@
 
 from typing import Optional, List
 
-from wiki_nodes.nodes import Link
-from wiki_nodes.page import WikiPage
+from wiki_nodes import WikiPage, Link
 
 __all__ = [
     'MusicWikiException', 'EntityTypeError', 'NoPagesFoundError', 'BadLinkError', 'NoLinkTarget', 'NoLinkSite',

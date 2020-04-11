@@ -5,9 +5,8 @@
 import logging
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes.nodes import Node, Template
-from wiki_nodes.page import WikiPage
-from ...text.name import Name
+from wiki_nodes import WikiPage, Node, Template
+from ...text import Name
 from ..album import DiscographyEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator

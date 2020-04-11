@@ -6,9 +6,7 @@ import logging
 from collections import defaultdict
 from typing import Iterable, Dict, Optional, Tuple, List as ListType
 
-from wiki_nodes.http import MediaWikiClient
-from wiki_nodes.page import WikiPage
-from wiki_nodes.nodes import Node, Link, String, Template, CompoundNode, List
+from wiki_nodes import MediaWikiClient, WikiPage, Node, Link, String, Template, CompoundNode, List
 from .exceptions import NoLinkSite, NoLinkTarget
 
 __all__ = ['node_to_link_dict', 'site_titles_map', 'link_client_and_title', 'disambiguation_links', 'page_name']

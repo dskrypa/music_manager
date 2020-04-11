@@ -6,9 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes.http import MediaWikiClient
-from wiki_nodes.nodes import Node
-from wiki_nodes.page import WikiPage
+from wiki_nodes import MediaWikiClient, Node, WikiPage
 from ...text.name import Name
 
 if TYPE_CHECKING:

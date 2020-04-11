@@ -7,9 +7,8 @@ from datetime import datetime
 from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes.nodes import Node, Link, String, CompoundNode
-from wiki_nodes.page import WikiPage
-from ...text.name import Name
+from wiki_nodes import WikiPage, Node, Link, String, CompoundNode
+from ...text import Name
 from ..album import DiscographyEntry
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator

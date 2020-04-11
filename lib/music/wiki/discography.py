@@ -9,8 +9,7 @@ from traceback import format_exc
 from typing import Dict, List
 
 from ds_tools.compat import cached_property
-from wiki_nodes.http import MediaWikiClient
-from wiki_nodes.nodes import Link, String, CompoundNode, TableSeparator, Template
+from wiki_nodes import MediaWikiClient, Link, String, CompoundNode, TableSeparator, Template
 from .album import DiscographyEntry
 from .base import WikiEntity
 from .disco_entry import DiscoEntry

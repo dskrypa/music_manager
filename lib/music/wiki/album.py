@@ -11,8 +11,7 @@ from typing import List, Optional, Tuple, Sequence, Iterator
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
-from wiki_nodes.nodes import Node, Link, List as ListNode
-from wiki_nodes.page import WikiPage
+from wiki_nodes import WikiPage, Node, Link, List as ListNode
 from ..text import combine_with_parens, Name
 from .base import WikiEntity, Pages
 from .disco_entry import DiscoEntry, DiscoEntryType

@@ -8,10 +8,12 @@ import logging
 from collections import defaultdict
 from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Type, Tuple, List
 
+from ds_tools.compat import cached_property
 from ds_tools.input import choose_item
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
 from wiki_nodes.nodes import Link
+from ..text import Name
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError
 from .utils import site_titles_map, link_client_and_title, disambiguation_links, page_name
@@ -47,7 +49,6 @@ class WikiEntity:
         :param WikiPage|DiscoEntry|dict|iterable pages: One or more WikiPage objects
         """
         self._name = name
-        self.alt_names = None
         if isinstance(pages, Dict):
             self._pages = pages         # type: Dict[str, WikiPage]
         else:
@@ -65,6 +66,10 @@ class WikiEntity:
 
     def __repr__(self):
         return f'<{self.__class__.__name__}({self._name!r})[pages: {len(self._pages)}]>'
+
+    @cached_property
+    def name(self) -> Name:
+        return Name.from_enclosed(self._name)
 
     def _add_page(self, page: WikiPage):
         self._pages[page.site] = page
@@ -87,14 +92,16 @@ class WikiEntity:
                 yield page, parser
 
     @classmethod
-    def _validate(cls: Type[WE], obj: PageEntry) -> Tuple[Type[WE], PageEntry]:
+    def _validate(cls: Type[WE], obj: PageEntry, existing: Optional[WE] = None) -> Tuple[Type[WE], PageEntry]:
         """
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
+        :param WikiEntity existing: An existing WikiEntity that the given page/entry will be added to; used to filter
+          disambiguation page links, if the given page is a disambiguation page
         :return tuple: Tuple of (WikiEntity subclass, page/entry)
         """
         if isinstance(obj, WikiPage) and obj.is_disambiguation:
             log.debug(f'{cls.__name__}._validate found a disambiguation page: {obj}')
-            return cls._resolve_ambiguous(obj)
+            return cls._resolve_ambiguous(obj, existing)
         page_cats = obj.categories
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
@@ -115,7 +122,13 @@ class WikiEntity:
         return cls, obj
 
     @classmethod
-    def _resolve_ambiguous(cls: Type[WE], page: WikiPage) -> Tuple[Type[WE], PageEntry]:
+    def _resolve_ambiguous(cls: Type[WE], page: WikiPage, existing: Optional[WE] = None) -> Tuple[Type[WE], PageEntry]:
+        """
+        :param WikiPage page: A disambiguation page
+        :param WikiEntity existing: An existing WikiEntity that the resolved page will be added to; used to filter
+          disambiguation page links
+        :return tuple: Tuple of (WikiEntity subclass, WikiPage)
+        """
         links = disambiguation_links(page)
         if not links:
             raise AmbiguousPageError(page_name(page), page)
@@ -130,14 +143,28 @@ class WikiEntity:
             except EntityTypeError:
                 pass
 
+        return cls._handle_candidates(page, client, links, candidates, existing)
+
+    @classmethod
+    def _handle_candidates(cls, page, client, links, candidates, existing=None):
         if not candidates:
             raise AmbiguousPageError(page_name(page), page, links)
         elif len(candidates) == 1:
             cat_cls, resolved_page = next(iter(candidates.values()))
             log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
             return cat_cls, resolved_page
+        elif existing:
+            ex_name = existing.name
+            matches = {}
+            for link, (cat_cls, _page) in candidates.items():
+                po_name = cat_cls(page_name(_page), _page).name
+                if ex_name.matches(po_name):
+                    log.debug(f'Matched disambiguation entry={_page} / {ex_name!r} to {existing} / {po_name!r}')
+                    matches[link] = (cat_cls, _page)
+            if not matches:
+                log.debug(f'No disambiguation entry matches found for {existing}')
+            return cls._handle_candidates(page, client, links, matches)
         else:
-            # TODO: If there were results from other sites, compare names
             name = page_name(page)
             links = list(candidates)
             log.debug(f'Ambiguous title={name!r} on site={client.host} has too many candidates: {len(candidates)}')
@@ -157,10 +184,10 @@ class WikiEntity:
 
     @classmethod
     def _from_multi_site_pages(cls: Type[WE], pages: Iterable[WikiPage]) -> WE:
-        ipages = iter(pages)
+        ipages = iter(sorted(pages))            # Sort so disambiguation pages are handled after proper matches
         entity = cls.from_page(next(ipages))
         for page in ipages:
-            cat_cls, page = cls._validate(page)
+            cat_cls, page = cls._validate(page, entity)
             entity._add_page(page)
         return entity
 
@@ -179,6 +206,14 @@ class WikiEntity:
 
     @classmethod
     def from_titles(cls: Type[WE], titles: Iterable[str], sites: StrOrStrs = None, search=True, strict=True) -> Dict[str, WE]:
+        """
+        :param Iterable titles: Page titles to retrieve
+        :param str|Iterable sites: Sites from which to retrieve them
+        :param bool search: Resolve titles that may not be exact matches
+        :param bool strict: Enable strict type checking; if disabled, log EntityTypeErrors instead of letting them
+          propagate
+        :return dict: Mapping of {title: WikiEntity} for the given titles
+        """
         query_map = {site: titles for site in _sites(sites)}
         log.debug(f'Submitting queries: {query_map}')
         results, _errors = MediaWikiClient.get_multi_site_pages(query_map, search=search)
@@ -194,9 +229,11 @@ class WikiEntity:
         for title, pages in title_page_map.items():
             try:
                 title_entity_map[title] = cls._from_multi_site_pages(pages)
-            except EntityTypeError:
+            except EntityTypeError as e:
                 if strict:
                     raise
+                else:
+                    log.debug(e)
 
         return title_entity_map
 

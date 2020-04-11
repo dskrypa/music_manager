@@ -8,7 +8,8 @@ from fnmatch import translate as fnmatch_to_regex_str
 
 from mutagen.id3 import ID3
 
-from ds_tools.core import get_input, Paths
+from ds_tools.core import Paths
+from ds_tools.input import get_input
 from ..files import iter_album_dirs, iter_music_files, TagException
 
 __all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags']

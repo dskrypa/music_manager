@@ -4,11 +4,11 @@
 
 import logging
 from collections import defaultdict, Counter
-from functools import partial
 from pathlib import Path
 from typing import Union, Optional, Dict, Any
 
-from ds_tools.core import Paths, get_input, parse_with_func
+from ds_tools.core import Paths
+from ds_tools.input import choose_item
 from ds_tools.output import colored
 from ..files import iter_album_dirs, AlbumDir, SafePath
 from ..files.track import SongFile, print_tag_changes
@@ -143,29 +143,13 @@ def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_m
 
 def _get_disco_part(entry: DiscoObj) -> DiscographyEntryPart:
     if isinstance(entry, DiscographyEntry):
-        entry = _get_choice(entry, entry.editions, 'edition')
+        entry = choose_item(entry.editions, 'edition', entry)
     if isinstance(entry, DiscographyEntryEdition):
-        entry = _get_choice(entry, entry.parts, 'part')
+        entry = choose_item(entry.parts, 'part', entry)
     if isinstance(entry, DiscographyEntryPart):
         return entry
     else:
         raise TypeError(f'Expected a DiscographyEntryPart, but {entry=} is a {type(entry).__name__}')
-
-
-def _get_choice(source, values, name):
-    if not values:
-        raise ValueError(f'No {name}s found for {source}')
-    elif len(values) > 1:
-        log.info(f'Found multiple {name}s for {source}:')
-        for i, value in enumerate(values):
-            log.info(f'{i}: {value}')
-        choice = get_input(f'Which {name} should be used [specify the number]?', parser=partial(parse_with_func, int))
-        try:
-            return values[choice]
-        except IndexError as e:
-            raise ValueError(f'Invalid {name} index - must be a value from 0 to {len(values)}') from e
-    else:
-        return next(iter(values))
 
 
 def _album_format(date, num):

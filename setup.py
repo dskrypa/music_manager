@@ -13,13 +13,13 @@ with project_root.joinpath('readme.rst').open('r', encoding='utf-8') as f:
 optional_dependencies = {
     'bpm': [                    # Used for BPM calculation; on Win10 with Python 3.8, requires VS 2019 build tools:
         'aubio',                # https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019
-        'ffmpeg-python'         # Also requires: https://ffmpeg.org/download.html
+        'ffmpeg-python'         # Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
     ],
 }
 
 setup(
     name='music_manager',
-    version='2020.04.10-10',
+    version='2020.04.11',
     author='Doug Skrypa',
     author_email='dskrypa@gmail.com',
     description='Music Manager',

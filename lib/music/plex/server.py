@@ -25,7 +25,7 @@ from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ds_tools.compat import cached_property
-from ds_tools.core import get_input
+from ds_tools.input import get_input
 from ds_tools.unicode import LangCat
 from ds_tools.output import short_repr, bullet_list
 from ..files.track.track import SongFile

@@ -9,7 +9,7 @@ from collections import defaultdict
 from functools import partial
 from typing import Iterable, Optional, Union, Dict, Iterator, TypeVar, Any, Type, Tuple, List
 
-from ds_tools.core import get_input, parse_with_func
+from ds_tools.input import choose_item
 from ds_tools.output import colored
 from wiki_nodes.http import MediaWikiClient
 from wiki_nodes.page import WikiPage
@@ -196,20 +196,11 @@ class WikiEntity:
         if len(candidates) == 1:
             return next(iter(candidates.values()))
         else:
+            # TODO: If there were results from other sites, compare names
             e.links = links = list(candidates)
             log.debug(f'Ambiguous title={e.name!r} on site={client.host} has too many candidates: {len(candidates)}')
-            log.info(f'\nFound multiple candidate links for ambiguous title={e.name!r} on {client.host}:')
-            for i, link in enumerate(links):
-                log.info(f'{i}: {link}')
-            prompt = colored('Which link should be used [specify the number]?', 14)
-            choice = get_input(prompt, parser=partial(parse_with_func, int))
-            try:
-                link = links[choice]
-            except IndexError as e:
-                log.error(f'Invalid link index - must be a value from 0 to {len(links)}', extra={'color': 9})
-                raise e
-            else:
-                return candidates[link]
+            source = f'for ambiguous title={e.name!r} on {client.host}'
+            return choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
 
     @classmethod
     def from_url(cls: Type[WE], url: str) -> WE:

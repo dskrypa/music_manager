@@ -9,10 +9,11 @@ from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
-from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode
+from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode, Template
 from wiki_nodes.utils import strip_style
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
+from ..base import TemplateEntity
 from ..disco_entry import DiscoEntryType, DiscoEntry
 from .abc import WikiParser, EditionIterator
 from .utils import LANG_ABBREV_MAP, find_ordinal
@@ -429,6 +430,28 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         members[key].append(title)
 
         return members
+
+    @classmethod
+    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+        if external_links := entry_page.sections.find('External Links'):
+            if isinstance(external_links.content, CompoundNode):
+                for node in external_links.content:
+                    if isinstance(node, Template):
+                        tmpl = TemplateEntity.from_name(node.name, entry_page.site)
+                        if tmpl.group:
+                            yield next(iter(tmpl.group.pages)).as_link
+        """
+        links = []
+        member_str_index = None
+        for i, node in enumerate(page.intro):
+            if isinstance(node, String) and 'is a member of' in node.value:
+                member_str_index = i
+            elif member_str_index is not None:
+                if isinstance(node, Link):
+                    yield node
+                if i - member_str_index > 3:
+                    break
+        """
 
 
 def _get_artist_title(node, entry_page):

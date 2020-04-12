@@ -11,7 +11,6 @@ from typing import MutableSet, List, Optional, Union
 from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
-from wiki_nodes import Link, String
 from ..text import Name
 from .base import PersonOrGroup
 from .discography import DiscographyEntryFinder, DiscographyMixin
@@ -22,6 +21,9 @@ log = logging.getLogger(__name__)
 
 class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}({self.name.artist_str()!r})[pages: {len(self._pages)}]>'
 
     @cached_property
     def name(self) -> Name:
@@ -60,36 +62,15 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
 
 class Singer(Artist):
-    _categories = ('singer', 'actor', 'actress', 'member', 'rapper')
+    _categories = ('singer', 'actor', 'actress', 'member', 'rapper', 'lyricist')
 
     @cached_property
-    def groups(self):
+    def groups(self) -> List['Group']:
         groups = []
-        for site, page in self._pages.items():
-            if site == 'kpop.fandom.com':
-                pass
-            elif site == 'en.wikipedia.org':
-                pass
-            elif site == 'www.generasia.com':
-                # group_list = page.sections['Profile'].content.as_mapping()['Groups']
-                links = []
-                member_str_index = None
-                for i, node in enumerate(page.intro):
-                    if isinstance(node, String) and 'is a member of' in node.value:
-                        member_str_index = i
-                    elif member_str_index is not None:
-                        if isinstance(node, Link):
-                            links.append(node)
-                        if i - member_str_index > 3:
-                            break
-
-                if links:
-                    groups.append(Artist.find_from_links(links))
-            elif site == 'wiki.d-addicts.com':
-                pass
-            else:
-                log.debug(f'No groups extraction is configured for {page}')
-
+        for page, parser in self.page_parsers():
+            links = list(parser.parse_member_of(page))
+            log.debug(f'Found group links for {self}: {links}')
+            groups.extend(Group.from_links(links).values())
         return groups
 
 

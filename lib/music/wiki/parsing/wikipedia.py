@@ -5,7 +5,7 @@
 import logging
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes import WikiPage, Node, Template
+from wiki_nodes import WikiPage, Node, Template, Link
 from ...text import Name
 from ..album import DiscographyEntry
 from ..discography import Discography
@@ -65,4 +65,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError

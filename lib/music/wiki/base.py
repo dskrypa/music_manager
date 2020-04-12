@@ -5,10 +5,10 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
-from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection
+from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping
 
 from ds_tools.compat import cached_property
-from wiki_nodes import MediaWikiClient, WikiPage, Link
+from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template
 from ..text import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
@@ -16,7 +16,7 @@ from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, 
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, link_client_and_title, page_name, titles_and_title_name_map, multi_site_page_map
 
-__all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries']
+__all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
@@ -59,7 +59,7 @@ class WikiEntity:
                     raise ValueError(f'Unexpected pages value: {pages!r}')
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}({self._name!r})[pages: {len(self._pages)}]>'
+        return f'<{self.__class__.__name__}({self.name!r})[pages: {len(self._pages)}]>'
 
     @cached_property
     def name(self) -> Name:
@@ -93,9 +93,14 @@ class WikiEntity:
         :param bool prompt: Attempt to interactively resolve disambiguation pages if unable to do so automatically
         :return tuple: Tuple of (WikiEntity subclass, page/entry)
         """
-        if isinstance(obj, WikiPage) and obj.is_disambiguation:
-            log.debug(f'{cls.__name__}._validate found a disambiguation page: {obj}')
-            return cls._resolve_ambiguous(obj, existing, name, prompt)
+        if isinstance(obj, WikiPage):
+            if obj.is_disambiguation:
+                log.debug(f'{cls.__name__}._validate found a disambiguation page: {obj}')
+                return cls._resolve_ambiguous(obj, existing, name, prompt)
+            elif obj.is_template:
+                if cls in (WikiEntity, TemplateEntity):
+                    return TemplateEntity, obj
+                raise EntityTypeError(f'{obj} is a Template page, which is not compatible with {cls.__name__}')
         page_cats = obj.categories
         err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
         error = None
@@ -162,15 +167,18 @@ class WikiEntity:
         entity = None
         page_link_map = {}
         type_errors = 0
+        _name = name
         for page in sorted(pages):      # Sort so disambiguation pages are handled after proper matches
             try:
                 cat_cls, page = cls._validate(page, entity, name)
             except AmbiguousPageError as e:
                 page_link_map[page] = e.links
+                _name = _name or page_name(page)
             except EntityTypeError as e:
                 if strict > 1:
                     raise
                 else:
+                    _name = _name or page_name(page)
                     type_errors += 1
                     log.log(logging.WARNING if strict else logging.DEBUG, e, extra={'color': 9})
             else:
@@ -180,7 +188,7 @@ class WikiEntity:
                     entity._add_page(page)
 
         if entity is None:
-            name = name or page_name(next(iter(page_link_map)))
+            name = _name
             if page_link_map:
                 raise AmbiguousPagesError(name, page_link_map)
             elif type_errors:
@@ -224,7 +232,15 @@ class WikiEntity:
         query_map = {site: titles for site in _sites(sites)}
         # log.debug(f'Retrieving {cls.__name__}s: {query_map}', extra={'color': 14})
         log.debug(f'Retrieving {cls.__name__}s from sites={sorted(query_map)} with {titles=}')
-        results, _errors = MediaWikiClient.get_multi_site_pages(query_map, search=search)
+        return cls._from_site_title_map(query_map, search, strict, title_name_map)
+
+    @classmethod
+    def _from_site_title_map(
+            cls: Type[WE], site_title_map: Mapping[Union[str, MediaWikiClient], Iterable[str]], search=False, strict=2,
+            title_name_map=None
+    ) -> Dict[Union[str, Name], WE]:
+        title_name_map = title_name_map or {}
+        results, _errors = MediaWikiClient.get_multi_site_pages(site_title_map, search=search)
         for title, error in _errors.items():
             log.error(f'Error processing {title=!r}: {error}', extra={'color': 9})
 
@@ -271,19 +287,14 @@ class WikiEntity:
         raise ValueError(f'No pages were found')
 
     @classmethod
-    def from_links(cls: Type[WE], links: Iterable[Link]) -> Dict[Link, WE]:
+    def from_links(cls: Type[WE], links: Iterable[Link], strict=2) -> Dict[Link, WE]:
         link_entity_map = {}
         site_title_link_map = site_titles_map(links)
-        results, errors = MediaWikiClient.get_multi_site_pages(site_title_link_map)
-        for site, pages in results.items():
-            title_link_map = site_title_link_map[MediaWikiClient(site)]
-            for title, page in pages.items():
-                link = title_link_map[title]
-                try:
-                    link_entity_map[link] = cls._by_category(page)
-                except EntityTypeError as e:
-                    log.debug(f'Error processing {link=}: {e}')
-
+        title_entity_map = cls._from_site_title_map(site_title_link_map, False, strict)
+        for title, entity in title_entity_map.items():
+            for site, page in entity._pages.items():
+                link = site_title_link_map[MediaWikiClient(site)][title]
+                link_entity_map[link] = entity
         return link_entity_map
 
 
@@ -315,6 +326,25 @@ class SpecialEvent(WikiEntity):
 
 class TVSeries(WikiEntity):
     _categories = ('television program', 'television series', 'drama')
+
+
+class TemplateEntity(WikiEntity):
+    _categories = ()
+
+    @classmethod
+    def from_name(cls, name: str, site: str) -> 'TemplateEntity':
+        page = MediaWikiClient(site).get_page(f'Template:{name}')
+        return cls._by_category(page)
+
+    @cached_property
+    def group(self):
+        page_content = next(iter(self.pages)).sections.content
+        if isinstance(page_content, Template) and isinstance(page_content.value, MappingNode):
+            if (title := page_content.value.get('title')) and isinstance(title, Link):
+                entity = WikiEntity.from_link(title)
+                if entity._categories == ('group',):    # Since Group can't be imported here
+                    return entity
+        return None
 
 
 def _sites(sites: StrOrStrs) -> List[str]:

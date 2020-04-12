@@ -9,7 +9,6 @@ from ds_tools.core import Paths
 from ds_tools.output import uprint
 from ..files import AlbumDir, iter_album_dirs
 from ..wiki.artist import Artist, Group
-from ..wiki.exceptions import AmbiguousPageError
 from .exceptions import NoArtistFoundException
 
 __all__ = ['show_matches']

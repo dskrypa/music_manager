@@ -116,3 +116,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError
+
+    @classmethod
+    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError

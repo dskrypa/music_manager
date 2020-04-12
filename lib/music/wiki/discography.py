@@ -54,24 +54,6 @@ class DiscographyMixin(ABC):
         return merged
 
 
-class Discography(WikiEntity, DiscographyMixin):
-    """A discography page; not a collection of album objects."""
-    _categories = ('discography', 'discographies')
-
-    def _finder_with_entries(self) -> 'DiscographyEntryFinder':
-        finder = DiscographyEntryFinder()
-        self._process_entries(finder)
-        return finder
-
-    def _process_entries(self, finder: 'DiscographyEntryFinder'):
-        """
-        Allows :meth:`Artist.discography_entries<.artist.Artist.discography_entries>` to add this page's entries to
-        its own discovered discography entries
-        """
-        for page, parser in self.page_parsers():
-            parser.parse_disco_page_entries(page, finder)
-
-
 class DiscographyEntryFinder:
     """Internal-use class that handles common discography entry page discovery; used by Discography and Artist"""
     def __init__(self):
@@ -157,3 +139,21 @@ class DiscographyEntryFinder:
                     site_discography.append(DiscographyEntry.from_disco_entry(disco_entry))
                     self.created_entry[disco_entry] = True
         return discography
+
+
+class Discography(WikiEntity, DiscographyMixin):
+    """A discography page; not a collection of album objects."""
+    _categories = ('discography', 'discographies')
+
+    def _finder_with_entries(self) -> DiscographyEntryFinder:
+        finder = DiscographyEntryFinder()
+        self._process_entries(finder)
+        return finder
+
+    def _process_entries(self, finder: DiscographyEntryFinder):
+        """
+        Allows :meth:`Artist.discography_entries<.artist.Artist.discography_entries>` to add this page's entries to
+        its own discovered discography entries
+        """
+        for page, parser in self.page_parsers():
+            parser.parse_disco_page_entries(page, finder)

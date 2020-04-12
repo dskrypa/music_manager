@@ -5,15 +5,15 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
-from traceback import format_exc
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
 from ds_tools.compat import cached_property
-from wiki_nodes import MediaWikiClient, Link, String, CompoundNode, TableSeparator, Template
+from wiki_nodes import MediaWikiClient, Link
 from .album import DiscographyEntry
 from .base import WikiEntity
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError
+from .utils import link_client_and_title
 
 __all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
 log = logging.getLogger(__name__)
@@ -54,14 +54,6 @@ class DiscographyMixin(ABC):
         return merged
 
 
-def short_repr(obj, max_len=100):
-    obj_repr = repr(obj)
-    if len(obj_repr) <= max_len:
-        return obj_repr
-    pos = max_len // 2
-    return f'{obj_repr[:pos]}...{obj_repr[-pos:]}'
-
-
 class Discography(WikiEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
@@ -71,97 +63,13 @@ class Discography(WikiEntity, DiscographyMixin):
         self._process_entries(finder)
         return finder
 
-    def _process_entries(self, finder):
+    def _process_entries(self, finder: 'DiscographyEntryFinder'):
         """
         Allows :meth:`Artist.discography_entries<.artist.Artist.discography_entries>` to add this page's entries to
         its own discovered discography entries
         """
-        for site, disco_page in self._pages.items():
-            client = MediaWikiClient(site)
-            if site == 'en.wikipedia.org':
-                blacklist = {
-                    'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums'
-                }
-                sections = []
-                for section in disco_page.sections:
-                    if section.title.lower() in blacklist:
-                        break
-                    elif section.depth == 1:
-                        sections.extend(section)
-                    else:
-                        sections.append(section)
-
-                alb_types = []
-                last_depth = -1
-                for section in sections:
-                    if section.depth <= last_depth:
-                        alb_types.pop()
-                    last_depth = section.depth
-                    alb_types.append(section.title)
-                    lang = None
-                    try:
-                        for row in section.content:
-                            try:
-                                # log.debug(f'Processing alb_type={alb_type} row={row}')
-                                if isinstance(row, TableSeparator):
-                                    try:
-                                        lang = row.value.value
-                                    except AttributeError:      # Usually caused by a footnote about the table
-                                        pass
-                                else:
-                                    self._process_wikipedia_row(client, disco_page, finder, row, alb_types, lang)
-                            except Exception as e:
-                                # log.error(f'Unexpected error processing section={section} row={short_repr(row)}: {e}')
-                                log.error(f'Unexpected error processing section={section} row={short_repr(row)}:\n{format_exc()}', extra={'color': 'red'})
-                    except Exception as e:
-                        log.error(f'Unexpected error processing section={section}: {format_exc()}', extra={'color': 'red'})
-
-    def _process_wikipedia_row(self, client, disco_page, finder, row, alb_types, lang):
-        # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
-        title = row['Title']
-        track_data = None
-        details = next((row[key] for key in ('Details', 'Album details') if key in row), None)
-        if details is not None:
-            track_list = details.find_one(Template, name='hidden')
-            if track_list is not None:
-                try:
-                    if track_list[0].value.lower() == 'track listing':
-                        track_data = track_list[1]
-                except Exception as e:
-                    log.debug(f'Unexpected error extracting track list from disco row={row}: {e}')
-
-            if type(details) is CompoundNode:
-                details = details[0]
-            details = details.as_dict(multiline=False)
-            date = details.get('Released', details.get('To be released'))
-            if date is not None:
-                if isinstance(date, String):
-                    date = date.value
-                elif type(date) is CompoundNode and isinstance(date[0], String):
-                    date = date[0].value
-
-                if '(' in date:
-                    date = date.split('(', maxsplit=1)[0].strip()
-        else:
-            date = None
-
-        year = int(row.get('Year').value) if 'Year' in row else None
-        disco_entry = DiscoEntry(
-            disco_page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data,
-            from_albums=row.get('Album')
-        )
-        if isinstance(title, Link):
-            finder.add_entry_link(client, title, disco_entry)
-        elif isinstance(title, String):
-            disco_entry.title = title.value             # TODO: cleanup templates, etc
-            finder.add_entry(disco_entry, row, False)
-        else:
-            links = list(title.find_all(Link, True))
-            if not finder.add_entry_links(client, links, disco_entry):
-                expected = type(title) is CompoundNode and isinstance(title[0], String)
-                if expected:
-                    disco_entry.title = title[0].value
-                finder.add_entry(disco_entry, row, not expected)
+        for page, parser in self.page_parsers():
+            parser.parse_disco_page_entries(page, finder)
 
 
 class DiscographyEntryFinder:
@@ -172,10 +80,8 @@ class DiscographyEntryFinder:
         self.entries_by_site = defaultdict(dict)
         self.no_link_entries = defaultdict(list)
 
-    def add_entry_links(self, client, links, disco_entry):
+    def add_entry_links(self, links: Iterable[Link], disco_entry: DiscoEntry):
         """
-        :param MediaWikiClient client: The :class:`MediaWikiClient<ds_tools.wiki.http.MediaWikiClient>` associated with
-          the source of the given disco_entry
         :param iterable links: List or other iterable that yields :class:`Link<ds_tools.wiki.nodes.Link>` objects
         :param DiscoEntry disco_entry: The :class:`DiscoEntry<.music_manager.wiki.shared.DiscoEntry>` object for which
           links are being processed
@@ -184,21 +90,17 @@ class DiscographyEntryFinder:
         """
         if links:
             for link in links:
-                self.add_entry_link(client, link, disco_entry)
+                self.add_entry_link(link, disco_entry)
             return True
         return False
 
-    def add_entry_link(self, client, link, disco_entry):
+    def add_entry_link(self, link: Link, disco_entry: DiscoEntry):
         disco_entry.links.append(link)
         self.remaining[disco_entry] += 1
-        if link.interwiki:
-            iw_key, iw_title = link.iw_key_title
-            iw_client = client.interwiki_client(iw_key)
-            self.entries_by_site[iw_client or client][iw_title if iw_client else link.title] = (disco_entry, link)
-        else:
-            self.entries_by_site[client][link.title] = (disco_entry, link)
+        mw_client, title = link_client_and_title(link)
+        self.entries_by_site[mw_client][title] = (disco_entry, link)
 
-    def add_entry(self, disco_entry, content, unexpected=True):
+    def add_entry(self, disco_entry: DiscoEntry, content, unexpected=True):
         self.no_link_entries[content.root.site].append(disco_entry)
         if unexpected:
             log.log(9, f'Unexpected entry content from {content.root}: {content!r}')
@@ -214,8 +116,7 @@ class DiscographyEntryFinder:
                 try:
                     disco_entry, link = title_entry_map.pop(title)
                 except KeyError:
-                    msg = f'No disco entry was found for title={title!r} from site={site}'
-                    log.error(msg, extra={'color': 'red'})
+                    log.error(f'No disco entry was found for {title=!r} from {site=}', extra={'color': 9})
                     continue
                 src_site = disco_entry.source.site
                 try:
@@ -224,7 +125,7 @@ class DiscographyEntryFinder:
                 except EntityTypeError as e:
                     self.remaining[disco_entry] -= 1
                     if self.created_entry[disco_entry]:
-                        log.log(9, f'Type mismatch for additional link={link} associated with {disco_entry}: {e}')
+                        log.log(9, f'Type mismatch for additional {link=} associated with {disco_entry}: {e}')
                     elif self.remaining[disco_entry]:
                         log.log(9, f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
                     else:
@@ -234,8 +135,8 @@ class DiscographyEntryFinder:
                         self.created_entry[disco_entry] = True
                 except Exception as e:
                     self.remaining[disco_entry] -= 1
-                    msg = f'Unexpected error processing page={title!r} for disco_entry={disco_entry}: {format_exc()}'
-                    log.error(msg, extra={'color': 'red'})
+                    msg = f'Unexpected error processing page={title!r} for {disco_entry=}:'
+                    log.error(msg, exc_info=True, extra={'color': 9})
                 else:
                     self.remaining[disco_entry] -= 1
                     self.created_entry[disco_entry] = True
@@ -243,7 +144,7 @@ class DiscographyEntryFinder:
 
             for title, (disco_entry, link) in title_entry_map.items():
                 if not self.created_entry[disco_entry]:
-                    log.log(9, f'No page found for title={title!r} / link={link} / entry={disco_entry}')
+                    log.log(9, f'No page found for {title=!r} / {link=} / entry={disco_entry}')
                     # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
                     discography[disco_entry.source.site].append(DiscographyEntry.from_disco_entry(disco_entry))
                     self.created_entry[disco_entry] = True

@@ -47,7 +47,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             year = datetime.strptime(entry[-1].value.split()[-1], '(%Y)').year
             disco_entry = DiscoEntry(artist_page, entry, type_='Soundtrack', year=year)
             links = list(entry.find_all(Link, True))
-            if not finder.add_entry_links(cls.client, links, disco_entry):
+            if not finder.add_entry_links(links, disco_entry):
                 if isinstance(entry[-2], String):
                     disco_entry.title = entry[-2].value
                 finder.add_entry(disco_entry, entry)
@@ -62,4 +62,8 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     @classmethod
     def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         raise NotImplementedError

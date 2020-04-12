@@ -303,7 +303,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title
         )
         if entry_link:
-            finder.add_entry_link(cls.client, entry_link, disco_entry)
+            finder.add_entry_link(entry_link, disco_entry)
         else:
             if isinstance(entry[1], String):
                 disco_entry.title = entry[1].value
@@ -452,6 +452,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 if i - member_str_index > 3:
                     break
         """
+
+    @classmethod
+    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+        raise NotImplementedError
 
 
 def _get_artist_title(node, entry_page):

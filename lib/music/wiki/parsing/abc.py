@@ -73,6 +73,11 @@ class WikiParser(ABC):
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
+    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+        raise NotImplementedError
+
+    @classmethod
     def _check_type(cls, node, index, clz):
         try:
             return isinstance(node[index], clz)

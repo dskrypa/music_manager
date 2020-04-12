@@ -7,7 +7,7 @@ from datetime import datetime
 from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes import WikiPage, Node, Link, String, CompoundNode
+from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, Section
 from ...text import Name
 from ..album import DiscographyEntry
 from ..disco_entry import DiscoEntry
@@ -64,7 +64,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             log.warning(f'Unexpected section depth: {section.depth}')
 
     @classmethod
-    def _process_disco_section(cls, artist_page, finder, section, alb_type, lang=None):
+    def _process_disco_section(
+            cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', section: Section, alb_type: str,
+            lang: Optional[str] = None
+    ) -> None:
         content = section.content
         if type(content) is CompoundNode:  # A template for splitting the discography into
             content = content[0]  # columns follows the list of albums in this section
@@ -100,7 +103,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
                 if links:
                     for link in links:
-                        finder.add_entry_link(cls.client, link, disco_entry)
+                        finder.add_entry_link(link, disco_entry)
                 else:
                     finder.add_entry(disco_entry, entry)
             elif isinstance(entry, String):
@@ -119,4 +122,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         raise NotImplementedError

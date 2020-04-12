@@ -14,9 +14,10 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import WikiPage, Node, Link, List as ListNode
+from ..common import DiscoEntryType
 from ..text import combine_with_parens, Name
 from .base import EntertainmentEntity, Pages
-from .disco_entry import DiscoEntry, DiscoEntryType
+from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, BadLinkError
 
 __all__ = [

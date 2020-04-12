@@ -7,8 +7,8 @@ from typing import Optional, Iterable, Set
 
 from ds_tools.output import uprint
 from wiki_nodes.http import URL_MATCH
+from ..common import DiscoEntryType
 from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart
-from ..wiki.disco_entry import DiscoEntryType
 
 __all__ = ['show_wiki_entity']
 AlbTypes = Optional[Set[DiscoEntryType]]

@@ -12,10 +12,11 @@ from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, Lis
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode, Template, ListEntry
 from wiki_nodes.utils import strip_style
+from ...common import DiscoEntryType
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..base import TemplateEntity
-from ..disco_entry import DiscoEntryType, DiscoEntry
+from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 from .utils import LANG_ABBREV_MAP, find_ordinal
 

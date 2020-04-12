@@ -3,12 +3,9 @@
 import logging
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from wiki_nodes.nodes import as_node
 from wiki_nodes.page import WikiPage
-from music.wiki.disco_entry import DiscoEntryType
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.test_common import NameTestCaseBase, main
 

@@ -68,10 +68,6 @@ class WikiEntity:
     def _add_page(self, page: WikiPage):
         self._pages[page.site] = page
 
-    def _add_pages(self, pages: Iterable[WikiPage]):
-        for page in pages:
-            self._pages[page.site] = page
-
     @property
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
@@ -148,7 +144,7 @@ class WikiEntity:
             except EntityTypeError:
                 pass
 
-        return handle_disambiguation_candidates(page, client, links, candidates, existing, name, prompt)
+        return handle_disambiguation_candidates(page, client, candidates, existing, name, prompt)
 
     @classmethod
     def _by_category(cls: Type[WE], obj: PageEntry, name: Optional[Name] = None, *args, **kwargs) -> WE:

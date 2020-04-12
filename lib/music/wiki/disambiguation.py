@@ -17,28 +17,41 @@ log = logging.getLogger(__name__)
 
 
 def handle_disambiguation_candidates(
-        page: WikiPage, client: MediaWikiClient, links: Optional[List[Link]], candidates: Candidates,
-        existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True
+        page: WikiPage, client: MediaWikiClient, candidates: Candidates, existing: Optional[WE] = None,
+        name: Optional[Name] = None, prompt=True
 ) -> Tuple[Type[WE], WikiPage]:
+    """
+    Given a disambiguation page and the pages it links to that match the chosen WikiEntity subclass, filter candidates
+    based on the name of an existing WikiEntity and/or the original Name for which a search was performed.
+
+    :param WikiPage page: A disambiguation page
+    :param MediaWikiClient client: The wiki http client for the disambiguation page being processed
+    :param candidates: Mapping of {Link: (WikiEntity subclass, WikiPage)}
+    :param WikiEntity existing: An existing WikiEntity representing the same actual entity as the intended page that
+      should be found; used to filter links/candidates.
+    :param Name name: The Name that was searched for
+    :param bool prompt: Prompt to interactively resolve ambiguous candidates after filtering
+    :return tuple: Tuple of (WikiEntity subclass, WikiPage)
+    """
     # log.debug(f'handle_disambiguation_candidates({page=}, len(candidates)={len(candidates)}, {existing=}, {name=})')
     if len(candidates) == 1:
         cat_cls, resolved_page = next(iter(candidates.values()))
         log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
         return cat_cls, resolved_page
-    elif not candidates or (not existing and not prompt):
-        raise AmbiguousPageError(page_name(page), page, list(candidates))
-    elif existing:
+    elif existing and candidates:
         matches = _filtered_candidates(existing.name, candidates, existing)
         # log.debug(f'Using {existing=}, filtered {candidates=} to {matches=}')
-        return handle_disambiguation_candidates(page, client, links, matches, name=name, prompt=prompt)
-    elif name:
+        return handle_disambiguation_candidates(page, client, matches, name=name, prompt=prompt)
+    elif name and candidates:
         matches = _filtered_candidates(name, candidates, existing)
         # log.debug(f'Using {name=}, filtered {candidates=} to {matches=}')
         if len(matches) > 1 and name.english and name.non_eng:
             name = Name(non_eng=name.non_eng)
             matches = _filtered_candidates(name, candidates, existing)
             # log.debug(f'Using {name=}, filtered {candidates=} to {matches=}')
-        return handle_disambiguation_candidates(page, client, links, matches, prompt=prompt)
+        return handle_disambiguation_candidates(page, client, matches, prompt=prompt)
+    elif not candidates or not prompt:
+        raise AmbiguousPageError(page_name(page), page, list(candidates))
     else:
         p_name = page_name(page)
         links = list(candidates)

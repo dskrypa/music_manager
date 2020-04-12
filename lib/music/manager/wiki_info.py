@@ -5,13 +5,17 @@
 from itertools import count
 
 from ds_tools.output import uprint
+from wiki_nodes.http import URL_MATCH
 from ..wiki import WikiEntity, DiscographyEntry, Artist, DiscographyEntryPart
 
 __all__ = ['show_wiki_entity']
 
 
-def show_wiki_entity(url, expand=0, limit=0):
-    entity = WikiEntity.from_url(url)
+def show_wiki_entity(identifier: str, expand=0, limit=0):
+    if URL_MATCH(identifier):
+        entity = WikiEntity.from_url(identifier)
+    else:
+        entity = WikiEntity.from_title(identifier, search=True)
     uprint(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):

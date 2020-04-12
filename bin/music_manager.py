@@ -67,7 +67,7 @@ def parser():
     wiki_parser = parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions')
 
     url_parser = wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL')
-    url_parser.add_argument('url', help='A wiki URL')
+    url_parser.add_argument('identifier', help='A wiki URL or title/name')
     url_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
     url_parser.add_argument('--limit', '-L', type=int, default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
 
@@ -115,7 +115,7 @@ def main():
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'wiki':
         if sub_action == 'show':
-            show_wiki_entity(args.url, args.expand, args.limit)
+            show_wiki_entity(args.identifier, args.expand, args.limit)
         elif sub_action == 'update':
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(

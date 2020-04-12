@@ -66,7 +66,7 @@ class Singer(Artist):
 
     @cached_property
     def groups(self) -> List['Group']:
-        links = list(chain.from_iterable(parser.parse_member_of(page) for page, parser in self.page_parsers()))
+        links = set(chain.from_iterable(parser.parse_member_of(page) for page, parser in self.page_parsers()))
         log.debug(f'Found group links for {self}: {links}')
         return list(Group.from_links(links).values())
 

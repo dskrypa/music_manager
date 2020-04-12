@@ -5,11 +5,12 @@
 import logging
 import re
 from datetime import datetime
+from os.path import commonprefix
 from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
-from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode, Template
+from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode, Template, ListEntry
 from wiki_nodes.utils import strip_style
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
 from ..album import DiscographyEntry, DiscographyEntryEdition
@@ -28,6 +29,7 @@ DATE_PAT_MATCH = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$').match
 OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
 MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \(.*?\))').search
 MEMBER_TYPE_SECTIONS = {'former': 'Former Members', 'hiatus': 'Hiatus', 'sub_units': 'Sub-Units'}
+RELEASE_CATEGORY_LANGS = {'k-': 'Korean', 'j-': 'Japanese', 'mandopop': 'Mandarin'}
 
 
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
@@ -315,12 +317,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         langs = set()
         for cat in entry_page.categories:
             if cat.endswith('(releases)'):
-                if cat.startswith('k-'):
-                    langs.add('Korean')
-                elif cat.startswith('j-'):
-                    langs.add('Japanese')
-                elif cat.startswith('mandopop'):
-                    langs.add('Mandarin')
+                for prefix, lang in RELEASE_CATEGORY_LANGS.items():
+                    if cat.startswith(prefix):
+                        langs.add(lang)
+                        break
                 else:
                     log.debug(f'Unrecognized release category: {cat!r}')
 
@@ -329,8 +329,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if isinstance(node, MappingNode) and 'Artist' in node:
                 try:
                     yield from cls._process_album_edition(entry, entry_page, node, langs, repackage)
-                except Exception as e:
-                    log.error(f'Error processing edition node={node}: {e}', exc_info=True)
+                except Exception:
+                    log.error(f'Error processing edition on {entry_page=} {node=}', exc_info=True, extra={'color': 9})
                 else:
                     repackage = True
 
@@ -345,6 +345,17 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         if isinstance(album_name_node, String):
             album_name = album_name_node.value
+        elif album_name_node is None:
+            album_name_node = node[name_key]
+            if isinstance(album_name_node, ListEntry) and album_name_node.children:
+                names = [c.value.value for c in album_name_node.children]
+                if prefix := clean_common_prefix(names):
+                    log.debug(f'Using album={prefix!r} for {album_name_node} on {entry_page=}')
+                    album_name = prefix
+                else:
+                    raise ValueError(f'Unexpected album_name_node={node[name_key]}')
+            else:
+                raise ValueError(f'Unexpected album_name_node={node[name_key]}')
         else:
             album_name = album_name_node[0].value
             if album_name.endswith('('):
@@ -386,7 +397,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     else:
                         release_dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d').date())
             else:
-                release_dates = [datetime.strptime(release_dates_node.value.value, '%Y.%m.%d').date()]
+                value = release_dates_node.value
+                if isinstance(value, CompoundNode):
+                    value = value[0]
+                value = value.value
+                try:
+                    release_dates = [datetime.strptime(value[:10], '%Y.%m.%d').date()]
+                except Exception:
+                    log.error(f'Error processing dates from {release_dates_node.value!r}', extra={'color': 9})
+                    raise
 
         for key, value in node.items():
             lc_key = key.lower().strip()
@@ -458,6 +477,13 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         raise NotImplementedError
 
 
+def clean_common_prefix(strs) -> str:
+    prefix = commonprefix(strs).strip()     # type: str
+    if prefix.endswith(('~', '-', '(')):
+        prefix = prefix[:-1]
+    return prefix.strip()
+
+
 def _get_artist_title(node, entry_page):
     if isinstance(node, Link):
         return node.title
@@ -471,7 +497,7 @@ def _get_artist_title(node, entry_page):
 def find_language(node: Node, lang: str, langs: Set[str]) -> Optional[str]:
     if lang:
         return lang
-    else:
+    elif node:
         if len(langs) == 1:
             return next(iter(langs))
         else:

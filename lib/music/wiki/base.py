@@ -16,7 +16,7 @@ from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, 
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, link_client_and_title, page_name, titles_and_title_name_map, multi_site_page_map
 
-__all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity']
+__all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
@@ -42,6 +42,8 @@ class WikiEntity:
         :param str|None name: The name of this entity
         :param WikiPage|DiscoEntry|dict|iterable pages: One or more WikiPage objects
         """
+        if name is not None and not isinstance(name, str):
+            raise TypeError(f'Unexpected {name=!r} with {pages=}')
         self._name = name
         if isinstance(pages, Dict):
             self._pages = pages         # type: Dict[str, WikiPage]
@@ -298,7 +300,12 @@ class WikiEntity:
         return link_entity_map
 
 
-class PersonOrGroup(WikiEntity):
+class EntertainmentEntity(WikiEntity):
+    """An entity that may be related to the entertainment industry in some way.  Used to filter out irrelevant pages."""
+    _categories = ()
+
+
+class PersonOrGroup(EntertainmentEntity):
     _categories = ()
 
     @classmethod
@@ -320,11 +327,11 @@ class Agency(PersonOrGroup):
     _categories = ('agency', 'agencies', 'record label')
 
 
-class SpecialEvent(WikiEntity):
+class SpecialEvent(EntertainmentEntity):
     _categories = ('competition',)
 
 
-class TVSeries(WikiEntity):
+class TVSeries(EntertainmentEntity):
     _categories = ('television program', 'television series', 'drama')
 
 

@@ -3,40 +3,47 @@
 """
 
 from itertools import count
+from typing import Optional, Iterable, Set
 
 from ds_tools.output import uprint
 from wiki_nodes.http import URL_MATCH
-from ..wiki import WikiEntity, DiscographyEntry, Artist, DiscographyEntryPart
+from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart
+from ..wiki.disco_entry import DiscoEntryType
 
 __all__ = ['show_wiki_entity']
+AlbTypes = Optional[Set[DiscoEntryType]]
 
 
-def show_wiki_entity(identifier: str, expand=0, limit=0):
+def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None):
+    alb_types = _album_types(alb_types)
     if URL_MATCH(identifier):
-        entity = WikiEntity.from_url(identifier)
+        entity = EntertainmentEntity.from_url(identifier)
     else:
-        entity = WikiEntity.from_title(identifier, search=True)
+        entity = EntertainmentEntity.from_title(identifier, search=True)
     uprint(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):
         print_disco_entry(entity, 2, expand > 0, limit, expand > 1)
     elif isinstance(entity, Artist):
-        print_artist(entity, 2, expand > 0, expand > 1, expand > 2)
+        print_artist(entity, 2, expand > 0, expand > 1, expand > 2, alb_types)
     else:
         uprint(f'  - No additional information is configured for {entity.__class__.__name__} entities')
 
 
-def print_artist(artist: Artist, indent=0, expand_disco=False, editions=False, track_info=False):
+def print_artist(
+        artist: Artist, indent=0, expand_disco=False, editions=False, track_info=False, alb_types: AlbTypes = None
+):
     prefix = ' ' * indent
     uprint(f'{prefix}- {artist.name}:')
     discography = artist.discography
     if discography:
         uprint(f'{prefix}  Discography:')
         for disco_entry in sorted(discography):
-            if expand_disco:
-                print_disco_entry(disco_entry, indent + 6, editions, track_info=track_info)
-            else:
-                uprint(f'{prefix}    - {disco_entry}')
+            if not alb_types or disco_entry.type in alb_types:
+                if expand_disco:
+                    print_disco_entry(disco_entry, indent + 6, editions, track_info=track_info)
+                else:
+                    uprint(f'{prefix}    - {disco_entry}')
     else:
         uprint(f'{prefix}  Discography: [Unavailable]')
 
@@ -76,3 +83,7 @@ def print_de_part(part: DiscographyEntryPart, indent=0, track_info=False):
                 uprint(f'{prefix}          Full name: {track.full_name()!r}')
     else:
         uprint(f'{prefix}- {part}: [Track info unavailable]')
+
+
+def _album_types(alb_types: Optional[Iterable[str]]) -> AlbTypes:
+    return {DiscoEntryType.for_name(t) for t in alb_types} if alb_types else None

@@ -6,14 +6,16 @@ import logging
 import re
 from datetime import datetime, date
 from traceback import format_stack
-from typing import List, Optional, Tuple, Sequence, Iterator
+from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet
+
+from ordered_set import OrderedSet
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import WikiPage, Node, Link, List as ListNode
 from ..text import combine_with_parens, Name
-from .base import WikiEntity, Pages
+from .base import EntertainmentEntity, Pages
 from .disco_entry import DiscoEntry, DiscoEntryType
 from .exceptions import EntityTypeError, BadLinkError
 
@@ -25,7 +27,7 @@ log = logging.getLogger(__name__)
 OST_MATCH = re.compile(r'^(.*? OST) (PART.?\s?\d+)$').match
 
 
-class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
+class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
     """
     A page or set of pages for any item in an artist's top-level discography, i.e., albums, soundtracks, singles,
     collaborations.
@@ -54,11 +56,24 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
 
     @cached_property
     def name(self) -> Name:
-        # TODO: Provide full name
+        if names := self.names:
+            return next(iter(names))
         return Name(self._name)
 
+    @cached_property
+    def names(self) -> MutableSet[Name]:
+        names = OrderedSet()
+        for edition in self.editions:
+            names.add(Name(edition._name))
+        return names
+
+    @cached_property
+    def names_str(self):
+        names = self.names or [self.name]
+        return ' / '.join(map(str, names))
+
     def __repr__(self):
-        return f'<[{self.date_str}]{self.__class__.__name__}({self._name!r})[pages: {len(self._pages)}]>'
+        return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[pages: {len(self._pages)}]>'
 
     def __lt__(self, other: 'DiscographyEntry'):
         return self._sort_key < other._sort_key
@@ -87,6 +102,10 @@ class DiscographyEntry(WikiEntity, ClearableCachedPropertyMixin):
             if edition.type:
                 return edition.type
         return None
+
+    @cached_property
+    def cls_type_name(self):
+        return self.type.name if self.type else self.__class__.__name__
 
     @cached_property
     def _sort_key(self) -> Tuple[int, date, str]:
@@ -177,7 +196,7 @@ class DiscographyEntryEdition:
             artist: Optional[Node], release_dates: Sequence[date], tracks: ListNode,  edition: Optional[str] = None,
             lang: Optional[str] = None, repackage=False
     ):
-        self.name = name                        # type: Optional[str]
+        self._name = name                       # type: Optional[str]
         self.page = page                        # type: WikiPage
         self.entry = entry                      # type: DiscographyEntry
         self.type = entry_type                  # type: DiscoEntryType
@@ -194,7 +213,7 @@ class DiscographyEntryEdition:
         alb_type = f'[type={_type}]' if _type else ''
         edition = f'[edition={self.edition!r}]' if self.edition else ''
         lang = f'[lang={self.lang!r}]' if self.lang else ''
-        return f'<[{_date}]{self.__class__.__name__}[{self.name!r} @ {self.page}]{alb_type}{edition}{lang}>'
+        return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
         return iter(self.parts)
@@ -203,7 +222,19 @@ class DiscographyEntryEdition:
         return bool(self.parts)
 
     def __lt__(self, other: 'DiscographyEntryEdition') -> bool:
-        return (self.artist, self.date, self.name, self.edition) < (other.artist, other.date, other.name, other.edition)
+        return (self.artist, self.date, self._name, self.edition) < (other.artist, other.date, other._name, other.edition)
+
+    @cached_property
+    def name(self):
+        return Name(self.full_name())
+
+    def full_name(self, hide_edition=False):
+        parts = (self._name, self.edition if not hide_edition else None)
+        return combine_with_parens(tuple(filter(None, parts)))
+
+    @cached_property
+    def cls_type_name(self):
+        return self.entry.cls_type_name + 'Edition'
 
     @cached_property
     def artist(self) -> Optional['Artist']:
@@ -256,7 +287,7 @@ class DiscographyEntryPart:
     _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
     def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: ListNode):
-        self.name = name                                # type: Optional[str]
+        self._name = name                               # type: Optional[str]
         self.edition = edition                          # type: DiscographyEntryEdition
         self._tracks = tracks                           # type: ListNode
         m = self._disc_match(name) if name else None
@@ -266,11 +297,11 @@ class DiscographyEntryPart:
         ed = self.edition
         date = ed.release_dates[0].strftime('%Y-%m-%d')
         edition = f'[edition={ed.edition!r}]' if ed.edition else ''
-        name = f'[{self.name}]' if self.name else ''
-        return f'<[{date}]{self.__class__.__name__}[{ed.name!r} @ {ed.page}]{edition}{name}>'
+        name = f'[{self._name}]' if self._name else ''
+        return f'<[{date}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}>'
 
     def __lt__(self, other: 'DiscographyEntryPart') -> bool:
-        return (self.edition, self.name) < (other.edition, other.name)
+        return (self.edition, self._name) < (other.edition, other._name)
 
     def __iter__(self) -> Iterator['Track']:
         return iter(self.tracks)
@@ -278,9 +309,17 @@ class DiscographyEntryPart:
     def __bool__(self):
         return bool(self.tracks)
 
+    @cached_property
+    def name(self):
+        return Name(self.full_name())
+
+    @cached_property
+    def cls_type_name(self):
+        return self.edition.entry.cls_type_name + 'Part'
+
     def full_name(self, hide_edition=False):
         edition = self.edition
-        parts = (edition.name, self.name, edition.edition if not hide_edition else None)
+        parts = (edition._name, self._name, edition.edition if not hide_edition else None)
         return combine_with_parens(tuple(filter(None, parts)))
 
     @cached_property

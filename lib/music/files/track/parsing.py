@@ -8,6 +8,7 @@ from typing import Tuple, List, Iterator, Sequence, Union, Type, Hashable, Mutab
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
+from ...common import DiscoEntryType
 from ...text import Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired
 
 __all__ = ['AlbumName', 'split_artists', 'UnexpectedListFormat']
@@ -31,6 +32,7 @@ DELIM_FINDITER = DELIMS_PAT.finditer
 UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search
 
 
+# noinspection PyUnresolvedReferences
 class AlbumName:
     __attrs = (
         'alb_type', 'alb_num', 'sm_station', 'edition', 'remix', 'version', 'ost', 'part', 'network_info', 'part_name',
@@ -55,12 +57,15 @@ class AlbumName:
     def __repr__(self):
         parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(self.__attrs, self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
-        return f'{self.__class__.__name__}({self.name!r}{parts})'
+        return f'{self.__class__.__name__}[{self.type.name}]({self.name!r}{parts})'
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
         return self.__parts == other.__parts
+
+    def __dir__(self):
+        return sorted(set(dir(self.__class__)).union(self.__attrs))
 
     @cached_property
     def __parts(self):
@@ -68,6 +73,17 @@ class AlbumName:
 
     def __hash__(self):
         return hash(self.__parts)
+
+    @cached_property
+    def type(self) -> DiscoEntryType:
+        if self.ost:
+            return DiscoEntryType.Soundtrack
+        if alb_type := self.alb_type:
+            try:
+                return DiscoEntryType.for_name(alb_type)
+            except Exception as e:
+                log.debug(f'Error determining DiscoEntryType for {alb_type=!r}: {e}')
+        return DiscoEntryType.UNKNOWN
 
     @classmethod
     def parse(cls, name: str) -> 'AlbumName':

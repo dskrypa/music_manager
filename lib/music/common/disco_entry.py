@@ -34,6 +34,9 @@ class DiscoEntryType(Enum):
     def __repr__(self):
         return f'<{type(self).__name__}: {self.value[0]!r}>'
 
+    def __bool__(self):
+        return self is not DiscoEntryType.UNKNOWN
+
     @classmethod
     def for_name(cls, name):
         if name:

@@ -17,6 +17,7 @@ from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.core import iter_paths, FnMatcher, Paths
 from tz_aware_dt import format_duration
+from ..common import DiscoEntryType
 from ..text import Name
 from .exceptions import *
 from .track import BaseSongFile, SongFile, tag_repr, AlbumName
@@ -151,6 +152,12 @@ class AlbumDir(ClearableCachedPropertyMixin):
         if (names := self.names) and len(names) == 1:
             return next(iter(names))
         return None
+
+    @cached_property
+    def type(self) -> DiscoEntryType:
+        if name := self.name:
+            return name.type
+        return DiscoEntryType.UNKNOWN
 
     @property
     def length(self) -> int:

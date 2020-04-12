@@ -3,13 +3,16 @@
 """
 
 import logging
-from typing import List
+from typing import List, Iterable, Optional
 
 from ds_tools.core import Paths
+from ds_tools.input import choose_item
 from ds_tools.output import uprint
 from ..files import AlbumDir, iter_album_dirs
+from ..wiki.album import DiscographyEntryPart
 from ..wiki.artist import Artist, Group
 from .exceptions import NoArtistFoundException
+from .wiki_info import print_de_part
 
 __all__ = ['show_matches']
 log = logging.getLogger(__name__)
@@ -36,12 +39,12 @@ def show_matches(paths: Paths):
                 for artist in artists:
                     uprint(f'        - {artist} / {artist.names}')
 
-            # if errors:
-            #     uprint(f'    - Artist Errors ({len(errors)}):')
-            #     for error_list in errors.values():
-            #         for error in error_list:
-            #             err_str = '\n          '.join(str(error).splitlines())
-            #             log.error(f'        - {err_str}', extra={'color': 'red'})
+            try:
+                album = find_album(album_dir, artists)
+            except Exception as e:
+                log.error(f'    - Album: {e}', extra={'color': 'red'}, exc_info=True)
+            else:
+                print_de_part(album, 4)
 
 
 def find_artists(album_dir: AlbumDir) -> List[Artist]:
@@ -72,3 +75,26 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
         return artist_objs
 
     raise NoArtistFoundException(album_dir)
+
+
+def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]]) -> DiscographyEntryPart:
+    album_type = album_dir.type
+    album_name = album_dir.name
+    if not album_name:
+        raise ValueError(f'Directories with multiple album names are not currently handled.')
+
+    before = f'Found multiple possible matches for {album_name}'
+    candidates = []
+    artists = artists or find_artists(album_dir)
+    for artist in artists:
+        for disco_entry in artist.discography:
+            if not album_type or album_type == disco_entry.type:
+                if album_name.name.matches(disco_entry.name):
+                    if parts := list(disco_entry.parts()):
+                        if len(parts) == 1:
+                            candidates.append(parts[0])
+                        else:
+                            part = choose_item(parts, 'part', before=before)
+                            candidates.append(part)
+
+    return choose_item(candidates, 'candidate', before=before)

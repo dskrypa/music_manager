@@ -14,6 +14,7 @@ from ..files.track import SongFile, print_tag_changes
 from ..wiki import Track, Singer, DiscographyEntry, DiscographyEntryPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from .enums import CollabMode as CM
+from .wiki_match import find_album
 from .wiki_utils import get_disco_part, DiscoObj
 
 __all__ = ['update_tracks']
@@ -37,11 +38,25 @@ def update_tracks(
             raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
 
         entry = DiscographyEntry.from_url(url)
-        return _update_album_from_disco_entry(
+        _update_album_from_disco_entry(
             album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, add_bpm, dest_base_dir
         )
     else:
-        raise NotImplementedError('Automatic matching is not yet implemented')
+        for album_dir in iter_album_dirs(paths):
+            # TODO: When multiple versions of a track name are found, pick the one that more sites agree on -
+            #  e.g., for "Luv U" (사랑해) on I Trust by (G)I-DLE, Wikipedia + kpop.fandom use "Luv U" while generasia
+            #  uses "I Love You" - use "Luv U".
+
+            # TODO: Prefer title case over only capitalizing the first letter of the first word
+            try:
+                album = find_album(album_dir)
+            except Exception as e:
+                log.error(f'Error finding an album match for {album_dir}: {e}', extra={'color': 9})
+                log.debug(f'Error finding an album match for {album_dir}:', exc_info=True)
+            else:
+                _update_album_from_disco_entry(
+                    album_dir, album, dry_run, soloist, hide_edition, collab_mode, add_bpm, dest_base_dir
+                )
 
 
 def _update_album_from_disco_entry(

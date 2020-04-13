@@ -14,7 +14,7 @@ from ..wiki.artist import Artist, Group
 from .exceptions import NoArtistFoundException
 from .wiki_info import print_de_part
 
-__all__ = ['show_matches']
+__all__ = ['show_matches', 'find_artists', 'find_album']
 log = logging.getLogger(__name__)
 
 
@@ -77,7 +77,7 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
     raise NoArtistFoundException(album_dir)
 
 
-def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]]) -> DiscographyEntryPart:
+def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) -> DiscographyEntryPart:
     album_type = album_dir.type
     album_name = album_dir.name
     if not album_name:

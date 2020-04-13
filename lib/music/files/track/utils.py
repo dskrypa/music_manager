@@ -127,8 +127,8 @@ class TextTagProperty(ClearableCachedProperty):
 
 
 def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run, color=None):
-    name_width = max(len(tag_name) for tag_name in changes)
-    orig_width = max(max(len(r), mono_width(r)) for r in (repr(orig) for orig, _ in changes.values()))
+    name_width = max(len(tag_name) for tag_name in changes) if changes else 0
+    orig_width = max(max(len(r), mono_width(r)) for r in (repr(orig) for orig, _ in changes.values())) if changes else 0
     _fmt = '  - {{:<{}s}}{}{{:>{}s}}{}{{}}'
     uprint(colored('{} {} by changing...'.format('[DRY RUN] Would update' if dry_run else 'Updating', obj), color))
     for tag_name, (orig_val, new_val) in changes.items():

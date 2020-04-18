@@ -7,11 +7,12 @@ import re
 from typing import Optional, Iterator
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode
+from wiki_nodes import WikiPage, CompoundNode, Link, Node
 from ...text import split_enclosed, Name, has_unpaired
 
 __all__ = [
-    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'artist_name_from_intro'
+    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'artist_name_from_intro',
+    'get_artist_title'
 ]
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,16 @@ def find_ordinal(text: str) -> Optional[int]:
     if m := ORDINAL_SEARCH(text):
         return ORDINAL_TO_INT[m.group(1)]
     return None
+
+
+def get_artist_title(node: Node, entry_page: WikiPage):
+    if isinstance(node, Link):
+        return node.title
+    elif isinstance(node, CompoundNode) and isinstance(node[0], Link):
+        return node[0].title
+    else:
+        log.debug(f'Unexpected member format on page={entry_page}: {node}')
+        return None
 
 
 def rm_lang_prefix(text: str) -> str:

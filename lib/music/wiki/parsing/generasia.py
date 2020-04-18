@@ -18,7 +18,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..base import TemplateEntity
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import LANG_ABBREV_MAP, find_ordinal, artist_name_from_intro
+from .utils import LANG_ABBREV_MAP, find_ordinal, artist_name_from_intro, get_artist_title
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -392,14 +392,14 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         members = {'current': []}
         for member in members_section.content.iter_flat():
-            if title := _get_artist_title(member, entry_page):
+            if title := get_artist_title(member, entry_page):
                 members['current'].append(title)
 
         for key, section_name in MEMBER_TYPE_SECTIONS.items():
             if section_members := members_section.find(section_name, None):
                 members[key] = []
                 for member in section_members.content.iter_flat():
-                    if title := _get_artist_title(member, entry_page):
+                    if title := get_artist_title(member, entry_page):
                         members[key].append(title)
 
         return members
@@ -428,7 +428,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
-        raise NotImplementedError
+        # This site does not use discography pages.
+        return None
 
 
 def clean_common_prefix(strs) -> str:
@@ -436,16 +437,6 @@ def clean_common_prefix(strs) -> str:
     if prefix.endswith(('~', '-', '(')):
         prefix = prefix[:-1]
     return prefix.strip()
-
-
-def _get_artist_title(node, entry_page):
-    if isinstance(node, Link):
-        return node.title
-    elif isinstance(node, CompoundNode) and isinstance(node[0], Link):
-        return node[0].title
-    else:
-        log.debug(f'Unexpected member format on page={entry_page}: {node}')
-        return None
 
 
 def find_language(node: Node, lang: str, langs: Set[str]) -> Optional[str]:

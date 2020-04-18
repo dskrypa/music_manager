@@ -7,18 +7,20 @@ from datetime import datetime
 from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, Section
+from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator
 from ...text import Name
 from ..album import DiscographyEntry
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import artist_name_from_intro
+from .utils import artist_name_from_intro, find_ordinal, get_artist_title
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
 
 __all__ = ['KpopFandomParser']
 log = logging.getLogger(__name__)
+
+MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 
 
 class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
@@ -29,7 +31,14 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             log.debug(f'Found infobox for {artist_page}')
             infobox = _infobox.value
             if birth_name := infobox.get('birth_name'):
-                yield Name.from_enclosed(birth_name.value)
+                if isinstance(birth_name, String):
+                    yield Name.from_enclosed(birth_name.value)
+                elif isinstance(birth_name, CompoundNode):
+                    for line in birth_name:
+                        if isinstance(line, String):
+                            yield Name.from_enclosed(line.value)
+                else:
+                    raise ValueError(f'Unexpected format for birth_name={birth_name.pformat()}')
             else:
                 eng = eng.value if (eng := infobox.get('name')) else None
                 non_eng_map = {
@@ -48,7 +57,9 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
-        raise NotImplementedError
+        if intro := entry_page.intro:
+            return find_ordinal(intro.raw.string)
+        return None
 
     @classmethod
     def parse_track_name(cls, node: Node) -> Name:
@@ -135,7 +146,30 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
-        raise NotImplementedError
+        try:
+            members_section = entry_page.sections.find('Members')
+        except (KeyError, AttributeError):
+            log.debug(f'Members section not found for {entry_page}')
+            return {}
+
+        members = {'current': []}
+        section = 'current'
+        if isinstance(members_section.content, Table):
+            for row in members_section.content:
+                if isinstance(row, MappingNode) and (title := get_artist_title(row['Name'], entry_page)):
+                    # noinspection PyUnboundLocalVariable
+                    members[section].append(title)
+                elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
+                    section = row.value.value
+                    members[section] = []
+
+        if sub_units := entry_page.sections.find('Sub-units', None):
+            members['sub_units'] = []
+            for sub_unit in sub_units.content.iter_flat():
+                if title := get_artist_title(sub_unit, entry_page):
+                    members['sub_units'].append(title)
+
+        return members
 
     @classmethod
     def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
@@ -143,4 +177,5 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
-        raise NotImplementedError
+        # This site does not use discography pages.
+        return None

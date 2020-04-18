@@ -47,15 +47,18 @@ class Artist(PersonOrGroup, DiscographyMixin):
         names = OrderedSet()                                                # type: MutableSet[Name]
         for artist_page, parser in self.page_parsers('parse_artist_name'):
             # log.debug(f'Processing names from {artist_page}')
-            for name in parser.parse_artist_name(artist_page):
-                # log.debug(f'Found name from {artist_page}: {name}')
-                for _name in names:
-                    if _name.is_compatible_with(name):
-                        # log.debug(f'Combining {_name} with {name}')
-                        _name += name
-                        break
-                else:
-                    names.add(name)
+            try:
+                for name in parser.parse_artist_name(artist_page):
+                    # log.debug(f'Found name from {artist_page}: {name}')
+                    for _name in names:
+                        if _name.is_compatible_with(name):
+                            # log.debug(f'Combining {_name} with {name}')
+                            _name += name
+                            break
+                    else:
+                        names.add(name)
+            except Exception as e:
+                log.error(f'Error processing names on {artist_page=}: {e}', exc_info=True)
 
         if not names:
             names.add(Name.from_enclosed(self._name))

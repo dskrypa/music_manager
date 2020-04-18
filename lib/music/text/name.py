@@ -4,8 +4,9 @@
 
 import logging
 import re
+from copy import deepcopy
 from typing import (
-    Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Tuple, Collection, Mapping, TypeVar
+    Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Tuple, Collection, Mapping, TypeVar, Dict
 )
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -178,6 +179,47 @@ class Name(ClearableCachedPropertyMixin):
             else:
                 raise ValueError(f'Invalid name part: {key!r}')
 
+    def is_version_of(self, other: 'Name') -> bool:
+        if (s_eng := self.english) and (o_eng := other.english) and (s_ne := self.non_eng) and (o_ne := other.non_eng):
+            # noinspection PyUnboundLocalVariable
+            return (s_eng == o_eng and s_ne != o_ne) or (s_ne == o_ne and s_eng != o_eng)
+        return False
+
+    def is_compatible_with(self, other: 'Name') -> bool:
+        if self.is_version_of(other):
+            return True
+        s_eng, o_eng, s_ne, o_ne = self.english, other.english, self.non_eng, other.non_eng
+        eng_match = s_eng and o_eng and s_eng == o_eng and xor(s_ne, o_ne)
+        non_eng_match = xor(s_eng, o_eng) and s_ne and o_ne and s_ne == o_ne
+        return eng_match or non_eng_match
+
+    def _combined(self, other: 'Name') -> Dict[str, Any]:
+        if self.is_version_of(other):
+            combined = {attr: getattr(self, attr) for attr in self._parts}
+            combined['versions'].append(other)
+        else:
+            combined = {}
+            for attr in self._parts:
+                s_value = getattr(self, attr)
+                o_value = getattr(other, attr)
+                if attr == 'versions':
+                    combined[attr] = s_value + o_value
+                elif attr == 'extra' and s_value and o_value:
+                    combined[attr] = combo_value = deepcopy(s_value)
+                    combo_value.update(o_value)
+                else:
+                    combined[attr] = s_value or o_value
+        return combined
+
+    def __add__(self, other: 'Name') -> 'Name':
+        combined = self.__class__()
+        combined.update(**self._combined(other))
+        return combined
+
+    def __iadd__(self, other: 'Name') -> 'Name':
+        self.update(**self._combined(other))
+        return self
+
     @cached_property
     def english(self) -> Optional[str]:
         eng = self._english or self.lit_translation
@@ -337,3 +379,7 @@ class _NamePart:
 
 def sort_name_parts(parts: Iterable[str]) -> Tuple[str, ...]:
     return tuple(p.value for p in sorted(_NamePart(i, part) for i, part in enumerate(parts)))
+
+
+def xor(a, b):
+    return bool(a) ^ bool(b)

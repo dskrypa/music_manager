@@ -5,6 +5,7 @@ Artist wiki pages.
 """
 
 import logging
+from collections import defaultdict
 from itertools import chain
 from typing import MutableSet, List, Optional, Union
 
@@ -44,13 +45,19 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
     @cached_property
     def names(self) -> MutableSet[Name]:
-        names = OrderedSet()
+        names = OrderedSet()                                                # type: MutableSet[Name]
         for artist_page, parser in self.page_parsers('parse_artist_name'):
             # log.debug(f'Processing names from {artist_page}')
-            names.update(parser.parse_artist_name(artist_page))
-            # for name in parser.parse_artist_name(artist_page):
-            #     log.debug(f'Found name from {artist_page}: {name}')
-            #     names.add(name)
+            # names.update(parser.parse_artist_name(artist_page))
+            for name in parser.parse_artist_name(artist_page):
+                # log.debug(f'Found name from {artist_page}: {name}')
+                for _name in names:
+                    if _name.is_compatible_with(name):
+                        # log.debug(f'Combining {_name} with {name}')
+                        _name += name
+                        break
+                else:
+                    names.add(name)
 
         if not names:
             names.add(Name.from_enclosed(self._name))

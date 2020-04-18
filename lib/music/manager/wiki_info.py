@@ -39,6 +39,9 @@ def print_artist(
         uprint(f'{prefix}  Names:')
         for name in names:
             uprint(f'{prefix}    - {name}')
+            if name.versions:
+                for version in name.versions:
+                    uprint(f'{prefix}       - {version}')
 
     if discography := artist.discography:
         uprint(f'{prefix}  Discography:')

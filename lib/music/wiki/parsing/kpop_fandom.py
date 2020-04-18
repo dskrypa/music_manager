@@ -37,7 +37,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     if (node := infobox.get(script))
                 }
                 if eng or non_eng_map:
-                    non_eng = non_eng_map.pop('hangul', None) or non_eng_map.popitem()[1]
+                    non_eng = non_eng_map.pop('hangul', None) or non_eng_map.popitem()[1] if non_eng_map else None
                     yield Name(eng, non_eng, versions=[Name(eng, val) for val in non_eng_map.values()])
         else:
             log.debug(f'No infobox found for {artist_page}')

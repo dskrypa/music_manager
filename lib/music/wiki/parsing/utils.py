@@ -23,7 +23,7 @@ LANG_ABBREV_MAP = {
     'spanish': 'Spanish',
     'mandarin': 'Mandarin'
 }
-MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \(.*?\))').search
+MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
 NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}
 ORDINAL_TO_INT = {
     '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8, '9th': 9, '10th': 10,

@@ -13,7 +13,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ..text import Name
-from .base import PersonOrGroup
+from .base import PersonOrGroup, GROUP_CATEGORIES
 from .discography import DiscographyEntryFinder, DiscographyMixin
 
 __all__ = ['Artist', 'Singer', 'Group']
@@ -84,7 +84,7 @@ class Singer(Artist):
 
 
 class Group(Artist):
-    _categories = ('group',)
+    _categories = GROUP_CATEGORIES
     _not_categories = ('group processes', 'belief', 'single')
 
     @cached_property

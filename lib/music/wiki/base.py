@@ -19,6 +19,7 @@ from .utils import site_titles_map, link_client_and_title, page_name, titles_and
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
+GROUP_CATEGORIES = ('group', 'subunits')
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
 
@@ -178,7 +179,7 @@ class WikiEntity:
 
     @classmethod
     def _from_multi_site_pages(cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2) -> WE:
-        log.debug(f'Processing {len(pages)} multi-site pages')
+        # log.debug(f'Processing {len(pages)} multi-site pages')
         entity = None
         page_link_map = {}
         type_errors = 0
@@ -362,7 +363,7 @@ class TemplateEntity(WikiEntity):
         if isinstance(page_content, Template) and isinstance(page_content.value, MappingNode):
             if (title := page_content.value.get('title')) and isinstance(title, Link):
                 entity = WikiEntity.from_link(title)
-                if entity._categories == ('group',):    # Since Group can't be imported here
+                if entity._categories == GROUP_CATEGORIES:  # Since Group can't be imported here
                     return entity
         return None
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator
 from ...text import Name
 from ..album import DiscographyEntry
+from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 from .utils import artist_name_from_intro, find_ordinal, get_artist_title
@@ -162,6 +163,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                 elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
                     section = row.value.value
                     members[section] = []
+        else:
+            for member in members_section.content.iter_flat():
+                if title := get_artist_title(member, entry_page):
+                    members['current'].append(title)
 
         if sub_units := entry_page.sections.find('Sub-units', None):
             members['sub_units'] = []
@@ -173,7 +178,13 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
-        raise NotImplementedError
+        if intro := entry_page.intro:
+            for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True)).items():
+                # noinspection PyUnresolvedReferences
+                if entity._categories == GROUP_CATEGORIES and (members := entity.members):
+                    # noinspection PyUnboundLocalVariable
+                    if any(entry_page == page for m in members for page in m.pages):
+                        yield link
 
     @classmethod
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:

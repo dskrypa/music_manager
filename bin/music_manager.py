@@ -6,13 +6,22 @@ Manage music files
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
+
+venv_path = Path(__file__).resolve().parents[1].joinpath('venv')
+if not os.environ.get('VIRTUAL_ENV') and venv_path.exists():
+    from subprocess import Popen
+    os.environ.update(PYTHONHOME='', VIRTUAL_ENV=venv_path.as_posix())
+    os.environ['PATH'] = '{}:{}'.format(venv_path.joinpath('Scripts').as_posix(), os.environ['PATH'])
+    sys.exit(Popen([venv_path.joinpath('Scripts', 'python.exe').as_posix()] + sys.argv, env=os.environ).wait())
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.logging import init_logging
 
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
+from music.__version__ import __author_email__, __version__
 from music.files import apply_mutagen_patches
 from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info

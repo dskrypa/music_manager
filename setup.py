@@ -10,6 +10,10 @@ with project_root.joinpath('requirements.txt').open('r', encoding='utf-8') as f:
 with project_root.joinpath('readme.rst').open('r', encoding='utf-8') as f:
     long_description = f.read()
 
+about = {}
+with project_root.joinpath('lib', 'music', '__version__.py').open('r', encoding='utf-8') as f:
+    exec(f.read(), about)
+
 optional_dependencies = {
     'bpm': [                    # Used for BPM calculation; on Win10 with Python 3.8, requires VS 2019 build tools:
         'aubio',                # https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019
@@ -18,13 +22,14 @@ optional_dependencies = {
 }
 
 setup(
-    name='music_manager',
-    version='2020.04.13',
-    author='Doug Skrypa',
-    author_email='dskrypa@gmail.com',
-    description='Music Manager',
+    name=about['__title__'],
+    version=about['__version__'],
+    author=about['__author__'],
+    author_email=about['__author_email__'],
+    description=about['__description__'],
     long_description=long_description,
-    url='https://github.com/dskrypa/music_manager',
+    url=about['__url__'],
+    project_urls={'Source': about['__url__']},
     packages=['lib/music_manager'],
     classifiers=[
         'Programming Language :: Python :: 3',

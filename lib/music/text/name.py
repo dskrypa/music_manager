@@ -124,7 +124,7 @@ class Name(ClearableCachedPropertyMixin):
 
     def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True):
         if isinstance(other, str):
-            other = Name(other)
+            other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
         scores = []
         if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
             scores.append(revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace))
@@ -145,12 +145,15 @@ class Name(ClearableCachedPropertyMixin):
                 for version in o_versions:
                     scores.extend(self._score(version, romanization_match=romanization_match, other_versions=False))
 
+        # log.debug(f'{self!r}.matches({other!r}) {scores=}')
         return scores
 
-    def matches(self, other: Union['Name', str], threshold=80, agg_func: Callable = max, romanization_match=95):
+    def matches(self, other: Union['Name', str], threshold=90, agg_func: Callable = max, romanization_match=95):
         scores = self._score(other, romanization_match)
         if scores:
-            return agg_func(scores) >= threshold
+            score = agg_func(scores)
+            # log.debug(f'{self!r}.matches({other!r}) {score=}')
+            return score >= threshold
         return False
 
     def set_eng_or_rom(self, text: str, probability: Optional[float] = None, value: Optional[str] = None):

@@ -169,4 +169,4 @@ class FileArtistParsingTest(NameTestCaseBase):
 
 
 if __name__ == '__main__':
-    main(FileArtistParsingTest)
+    main()

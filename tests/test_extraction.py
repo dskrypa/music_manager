@@ -2,27 +2,17 @@
 
 import logging
 import sys
-import unittest
-from argparse import ArgumentParser
 from pathlib import Path
 
+from ds_tools.test_common import main, TestCaseBase
+
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from ds_tools.logging import init_logging
 from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired, get_unpaired
 
 log = logging.getLogger(__name__)
-maybe_print = lambda: None
 
 
-class _CustomTestCase(unittest.TestCase):
-    def setUp(self):
-        maybe_print()
-
-    def tearDown(self):
-        maybe_print()
-
-
-class MiscExtractionTestCase(_CustomTestCase):
+class MiscExtractionTestCase(TestCaseBase):
     def test_has_unpaired(self):
         cases = {
             '()': False, ')(': True,
@@ -63,7 +53,7 @@ class MiscExtractionTestCase(_CustomTestCase):
             self.assertEqual(get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
 
 
-class ExtractEnclosedTestCase(_CustomTestCase):
+class ExtractEnclosedTestCase(TestCaseBase):
     def test_partition_enclosed(self):
         cases = {
             'a (b) c': ('a', 'b', 'c'),
@@ -182,23 +172,4 @@ class ExtractEnclosedTestCase(_CustomTestCase):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser('Unit Tests')
-    parser.add_argument('--include', '-i', nargs='+', help='Names of test functions to include (default: all)')
-    parser.add_argument('--verbose', '-v', action='count', default=0, help='Logging verbosity (can be specified multiple times to increase verbosity)')
-    args = parser.parse_args()
-    init_logging(args.verbose, log_path=None, names=None)
-
-    test_classes = _CustomTestCase.__subclasses__()
-    argv = [sys.argv[0]]
-    if args.include:
-        names = {m: f'{cls.__name__}.{m}' for cls in test_classes for m in dir(cls)}
-        for method_name in args.include:
-            argv.append(names.get(method_name, method_name))
-
-    if args.verbose:
-        maybe_print = lambda: print()
-
-    try:
-        unittest.main(warnings='ignore', verbosity=2, exit=False, argv=argv)
-    except KeyboardInterrupt:
-        print()
+    main()

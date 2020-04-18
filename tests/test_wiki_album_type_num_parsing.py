@@ -4,10 +4,11 @@ import logging
 import sys
 from pathlib import Path
 
+from ds_tools.test_common import main, TestCaseBase
+
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.page import WikiPage
 from music.wiki.parsing.generasia import GenerasiaParser
-from music.test_common import NameTestCaseBase, main
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def page_with_info(info):
     return WikiPage('test', 'www.generasia.com', f'=Information=\n{info}', [])
 
 
-class GenerasiaAlbumTypeParsingTest(NameTestCaseBase):
+class GenerasiaAlbumTypeParsingTest(TestCaseBase):
     def test_album_with_repackage_1(self):
         page = page_with_info("""
         ''Perfect Velvet'' is the second full-length album released by [[Red Velvet]]. The song "[[Peek-A-Boo]]" was used as the lead track
@@ -76,4 +77,4 @@ class GenerasiaAlbumTypeParsingTest(NameTestCaseBase):
 
 
 if __name__ == '__main__':
-    main(GenerasiaAlbumTypeParsingTest)
+    main()

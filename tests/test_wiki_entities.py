@@ -2,11 +2,11 @@
 
 import logging
 import sys
-import unittest
 from pathlib import Path
 
+from ds_tools.test_common import main, TestCaseBase
+
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from ds_tools.logging import init_logging
 from wiki_nodes.page import WikiPage
 from music.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
 from music.wiki.artist import Artist, Singer, Group
@@ -32,12 +32,14 @@ CATEGORY_COMPATIBLE_TYPE_MAP = {
 }
 
 
-class WikiEntityCompatibilityTest(unittest.TestCase):
+class WikiEntityCompatibilityTest(TestCaseBase):
     def setUp(self):
+        super().setUp()
         self.n = 0
         self.expected = 0
 
     def tearDown(self):
+        super().tearDown()
         sys.stdout.write(f'[{self.n}/{self.expected}] ')
         sys.stdout.flush()
 
@@ -79,8 +81,4 @@ class WikiEntityCompatibilityTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    init_logging(0, log_path=None)
-    try:
-        unittest.main(warnings='ignore', verbosity=2, exit=False)
-    except KeyboardInterrupt:
-        print()
+    main()

@@ -162,4 +162,4 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
 
 
 if __name__ == '__main__':
-    main(GenerasiaTrackNameParsingTest, GenerasiaTrackNameReprTest)
+    main()

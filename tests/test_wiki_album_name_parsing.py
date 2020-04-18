@@ -258,4 +258,4 @@ class GenerasiaAlbumNameParsingTest(NameTestCaseBase):
 
 
 if __name__ == '__main__':
-    main(GenerasiaAlbumNameParsingTest)
+    main()

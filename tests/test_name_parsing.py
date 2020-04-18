@@ -44,4 +44,4 @@ class NameParsingTest(NameTestCaseBase):
 
 
 if __name__ == '__main__':
-    main(NameParsingTest)
+    main()

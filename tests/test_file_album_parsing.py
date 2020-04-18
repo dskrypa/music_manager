@@ -2,12 +2,11 @@
 
 import logging
 import sys
-import unittest
-from argparse import ArgumentParser
 from pathlib import Path
 
+from ds_tools.test_common import main, TestCaseBase
+
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from ds_tools.logging import init_logging
 # from music_manager.files.track.patterns import cleanup_album_name
 from music.files.track.parsing import AlbumName
 from music.text.name import Name, sort_name_parts
@@ -142,13 +141,7 @@ OST_TEST_CASES = {
 # }
 
 
-class FileAlbumParsingTestCase(unittest.TestCase):
-    def setUp(self):
-        print()
-
-    def tearDown(self):
-        print()
-
+class FileAlbumParsingTestCase(TestCaseBase):
     def test_non_osts(self):
         self._test_cases(ALBUM_TEST_CASES)
 
@@ -185,20 +178,4 @@ class FileAlbumParsingTestCase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser('Album Name Parsing Unit Tests')
-    parser.add_argument('--include', '-i', nargs='+', help='Names of test functions to include (default: all)')
-    parser.add_argument('--verbose', '-v', action='count', default=0, help='Logging verbosity (can be specified multiple times to increase verbosity)')
-    args = parser.parse_args()
-    init_logging(args.verbose, log_path=None, names=None)
-
-    test_classes = (FileAlbumParsingTestCase,)
-    argv = [sys.argv[0]]
-    if args.include:
-        names = {m: f'{cls.__name__}.{m}' for cls in test_classes for m in dir(cls)}
-        for method_name in args.include:
-            argv.append(names.get(method_name, method_name))
-
-    try:
-        unittest.main(warnings='ignore', verbosity=2, exit=False, argv=argv)
-    except KeyboardInterrupt:
-        print()
+    main()

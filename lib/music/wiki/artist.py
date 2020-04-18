@@ -28,10 +28,9 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
     @cached_property
     def name(self) -> Name:
-        names = self.names
-        if not names:
+        if not (names := self.names):
             raise AttributeError(f'This {self.__class__.__name__} has no \'name\' attribute')
-        if len(names) == 1:
+        elif len(names) == 1:
             return next(iter(names))
         _name = self._name.lower()
         candidate = None
@@ -48,7 +47,6 @@ class Artist(PersonOrGroup, DiscographyMixin):
         names = OrderedSet()                                                # type: MutableSet[Name]
         for artist_page, parser in self.page_parsers('parse_artist_name'):
             # log.debug(f'Processing names from {artist_page}')
-            # names.update(parser.parse_artist_name(artist_page))
             for name in parser.parse_artist_name(artist_page):
                 # log.debug(f'Found name from {artist_page}: {name}')
                 for _name in names:

@@ -32,3 +32,17 @@ class NameTestCaseBase(TestCaseBase):
         args = (english, _english, non_eng, korean, japanese, cjk, romanized, lit_translation, extra)
         for attr, expected in zip(attrs, args):
             self.assertIsOrEqual(name, attr, expected)
+
+    def assertNamesEqual(self, found, expected):
+        found = set(found) if not isinstance(found, set) else found
+        expected = set(expected) if not isinstance(expected, set) else expected
+        try:
+            self.assertSetEqual(found, expected)
+        except AssertionError:
+            error_parts = [
+                '',
+                colored('Expected: {}'.format('\n'.join(n._full_repr() for n in expected)), 11),
+                '~' * 80,
+                colored('Found: {}'.format('\n'.join(n._full_repr() for n in found)), 9)
+            ]
+            raise AssertionError('\n'.join(error_parts)) from None

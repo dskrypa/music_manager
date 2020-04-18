@@ -74,11 +74,11 @@ class Name(ClearableCachedPropertyMixin):
         parts = ', '.join(map(repr, filter(None, parts)))
         return f'<{type(self).__name__}({parts})>'
 
-    def _full_repr(self):
-        var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang')
-        vars = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra, self.non_eng_lang)
+    def _full_repr(self, include_no_val=False):
+        var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang', 'versions')
+        vars = (getattr(self, attr) for attr in var_names)
         indent = ' ' * 4
-        parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, vars))
+        parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, vars) if v or include_no_val)
         return f'<{type(self).__name__}(\n{parts}\n)>'
 
     def __str__(self):

@@ -6,8 +6,9 @@ import logging
 import re
 from typing import Optional, Iterator
 
+from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode
-from ...text import split_enclosed, Name
+from ...text import split_enclosed, Name, has_unpaired
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'artist_name_from_intro'
@@ -24,6 +25,7 @@ LANG_ABBREV_MAP = {
     'mandarin': 'Mandarin'
 }
 MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
+LANG_PREFIX_SUB = re.compile(r'(?:{}):'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
 NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}
 ORDINAL_TO_INT = {
     '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8, '9th': 9, '10th': 10,
@@ -39,6 +41,10 @@ def find_ordinal(text: str) -> Optional[int]:
     return None
 
 
+def rm_lang_prefix(text: str) -> str:
+    return LANG_PREFIX_SUB('', text).strip()
+
+
 def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
     intro = artist_page.intro
     if isinstance(intro, CompoundNode):
@@ -46,43 +52,60 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
     if intro:
         first_string = intro.value
     else:
-        raise RuntimeError(f'Unexpected intro on {artist_page}:\n{artist_page.intro}')
+        raise ValueError(f'Unexpected intro on {artist_page}:\n{artist_page.intro.pformat()}')
 
-    if m := MULTI_LANG_NAME_SEARCH(first_string):
-        yield Name.from_enclosed(m.group(1))
+    if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
+        log.debug(f'Found multi-lang name match: {m}')
+        # noinspection PyUnboundLocalVariable
+        cleaned = rm_lang_prefix(m_str)
+        log.debug(f'Without lang prefix: {cleaned!r}')
+        if delim := next((c for c in ';,' if c in cleaned), None):
+            cleaned = cleaned.split(delim, 1)[0].strip() + ')'
+        log.debug(f'Cleaned name: {cleaned!r}')
+        yield Name.from_enclosed(cleaned)
     else:
-        # try:
-        name = first_string[:first_string.rindex(')') + 1]
-        # except ValueError:
-        #     log.error(f'Unable to find name in {artist_page} - {first_string=!r}', extra={'color': 'red'})
-        #     log.debug(f'Categories for {artist_page}: {artist_page.categories}')
-        #     raise
-
-        # log.debug(f'Found name: {name}')
-        first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
-        if '; ' in paren_part:
-            yield Name.from_parts((first_part, paren_part.split('; ', 1)[0]))
-        else:
-            try:
-                parts = tuple(map(str.strip, paren_part.split(', and')))
-            except Exception:
-                yield Name.from_parts((first_part, paren_part))
+        log.debug(f'Found {first_string=!r}')
+        try:
+            name = first_string[:first_string.rindex(')') + 1]
+        except ValueError:
+            if '(' in first_string:
+                name = first_string + ')'
             else:
-                if len(parts) == 1:
-                    yield Name.from_parts((first_part, paren_part))
-                else:
-                    for part in parts:
+                name = first_string
+
+        log.debug(f'Found {name=!r}')
+        try:
+            first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
+        except ValueError:
+            yield Name(name)
+        else:
+            if '; ' in paren_part:
+                log.debug('Found ;')
+                first_part_lang = LangCat.categorize(first_part)
+                for part in map(rm_lang_prefix, paren_part.split('; ')):
+                    if LangCat.categorize(part) != first_part_lang and not part.startswith('stylized '):
+                        yield Name.from_parts((first_part, part))
+            elif ', and' in paren_part:
+
+                log.debug('Found ", and"')
+                for part in map(str.strip, paren_part.split(', and')):
+                    try:
+                        part = part[:part.rindex(')') + 1]
+                    except ValueError:
+                        log.error(f'Error splitting part={part!r}')
+                        raise
+                    else:
+                        part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
                         try:
-                            part = part[:part.rindex(')') + 1]
+                            romanized, alias = part_b.split(' or ')
                         except ValueError:
-                            log.error(f'Error splitting part={part!r}')
-                            raise
+                            yield Name.from_parts((first_part, part_a, part_b))
                         else:
-                            part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
-                            try:
-                                romanized, alias = part_b.split(' or ')
-                            except ValueError:
-                                yield Name.from_parts((first_part, part_a, part_b))
-                            else:
-                                yield Name.from_parts((first_part, part_a, romanized))
-                                yield Name.from_parts((alias, part_a, romanized))
+                            yield Name.from_parts((first_part, part_a, romanized))
+                            yield Name.from_parts((alias, part_a, romanized))
+            else:
+                log.debug('No ;/and')
+                if LangCat.categorize(first_part) == LangCat.categorize(paren_part):
+                    yield Name.from_enclosed(first_part)
+                else:
+                    yield Name.from_parts((first_part, paren_part))

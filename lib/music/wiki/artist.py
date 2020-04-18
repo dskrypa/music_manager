@@ -45,9 +45,11 @@ class Artist(PersonOrGroup, DiscographyMixin):
     @cached_property
     def names(self) -> MutableSet[Name]:
         names = OrderedSet()
-        for artist_page, parser in self.page_parsers():
+        for artist_page, parser in self.page_parsers('parse_artist_name'):
+            # log.debug(f'Processing names from {artist_page}')
             names.update(parser.parse_artist_name(artist_page))
             # for name in parser.parse_artist_name(artist_page):
+            #     log.debug(f'Found name from {artist_page}: {name}')
             #     names.add(name)
 
         if not names:
@@ -56,7 +58,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
     def _finder_with_entries(self) -> DiscographyEntryFinder:
         finder = DiscographyEntryFinder()
-        for artist_page, parser in self.page_parsers():
+        for artist_page, parser in self.page_parsers('process_disco_sections'):
             parser.process_disco_sections(artist_page, finder)
         return finder
 
@@ -66,7 +68,9 @@ class Singer(Artist):
 
     @cached_property
     def groups(self) -> List['Group']:
-        links = set(chain.from_iterable(parser.parse_member_of(page) for page, parser in self.page_parsers()))
+        links = set(chain.from_iterable(
+            parser.parse_member_of(page) for page, parser in self.page_parsers('parse_member_of')
+        ))
         log.debug(f'Found group links for {self}: {links}')
         return list(Group.from_links(links).values())
 
@@ -77,7 +81,7 @@ class Group(Artist):
 
     @cached_property
     def members(self) -> Optional[List[Singer]]:
-        for page, parser in self.page_parsers():
+        for page, parser in self.page_parsers('parse_group_members'):
             members_dict = parser.parse_group_members(page)
             names = set(chain.from_iterable((titles for key, titles in members_dict.items() if titles != 'sub_units')))
             singers = Singer.from_titles(names, sites=page.site, search=False, strict=0)
@@ -86,7 +90,7 @@ class Group(Artist):
 
     @cached_property
     def sub_units(self) -> Optional[List['Group']]:
-        for page, parser in self.page_parsers():
+        for page, parser in self.page_parsers('parse_group_members'):
             members_dict = parser.parse_group_members(page)
             if sub_units := members_dict.get('sub_units'):
                 groups = Group.from_titles(sub_units, sites=page.site, search=False, strict=0)

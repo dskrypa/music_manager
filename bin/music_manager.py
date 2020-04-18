@@ -1,11 +1,5 @@
 #!/usr/bin/env python
-"""
-Manage music files
 
-:author: Doug Skrypa
-"""
-
-import logging
 import os
 import sys
 from pathlib import Path
@@ -16,6 +10,8 @@ if not os.environ.get('VIRTUAL_ENV') and venv_path.exists():
     os.environ.update(PYTHONHOME='', VIRTUAL_ENV=venv_path.as_posix())
     os.environ['PATH'] = '{}:{}'.format(venv_path.joinpath('Scripts').as_posix(), os.environ['PATH'])
     sys.exit(Popen([venv_path.joinpath('Scripts', 'python.exe').as_posix()] + sys.argv, env=os.environ).wait())
+
+import logging
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.logging import init_logging

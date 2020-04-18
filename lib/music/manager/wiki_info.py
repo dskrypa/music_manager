@@ -35,8 +35,12 @@ def print_artist(
 ):
     prefix = ' ' * indent
     uprint(f'{prefix}- {artist.name}:')
-    discography = artist.discography
-    if discography:
+    if names := artist.names:
+        uprint(f'{prefix}  Names:')
+        for name in names:
+            uprint(f'{prefix}    - {name}')
+
+    if discography := artist.discography:
         uprint(f'{prefix}  Discography:')
         for disco_entry in sorted(discography):
             if not alb_types or disco_entry.type in alb_types:

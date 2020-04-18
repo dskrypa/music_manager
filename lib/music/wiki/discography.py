@@ -155,5 +155,5 @@ class Discography(WikiEntity, DiscographyMixin):
         Allows :meth:`Artist.discography_entries<.artist.Artist.discography_entries>` to add this page's entries to
         its own discovered discography entries
         """
-        for page, parser in self.page_parsers():
+        for page, parser in self.page_parsers('parse_disco_page_entries'):
             parser.parse_disco_page_entries(page, finder)

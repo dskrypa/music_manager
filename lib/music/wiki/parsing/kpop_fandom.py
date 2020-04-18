@@ -12,6 +12,7 @@ from ...text import Name
 from ..album import DiscographyEntry
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
+from .utils import artist_name_from_intro
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -23,7 +24,23 @@ log = logging.getLogger(__name__)
 class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        raise NotImplementedError
+        yield from artist_name_from_intro(artist_page)
+        if _infobox := artist_page.infobox:
+            log.debug(f'Found infobox for {artist_page}')
+            infobox = _infobox.value
+            if birth_name := infobox.get('birth_name'):
+                yield Name.from_enclosed(birth_name.value)
+            else:
+                eng = eng.value if (eng := infobox.get('name')) else None
+                non_eng_map = {
+                    script: node.value for script in ('hangul', 'hanja', 'hiragana', 'kanji')
+                    if (node := infobox.get(script))
+                }
+                if eng or non_eng_map:
+                    non_eng = non_eng_map.pop('hangul', None) or non_eng_map.popitem()[1]
+                    yield Name(eng, non_eng, versions=[Name(eng, val) for val in non_eng_map.values()])
+        else:
+            log.debug(f'No infobox found for {artist_page}')
 
     @classmethod
     def parse_album_name(cls, node: Node) -> Name:

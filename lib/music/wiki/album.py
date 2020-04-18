@@ -161,7 +161,7 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
     @cached_property
     def editions(self) -> List['DiscographyEntryEdition']:
         editions = []
-        for entry_page, parser in self.page_parsers():
+        for entry_page, parser in self.page_parsers('process_album_editions'):
             editions.extend(parser.process_album_editions(self, entry_page))
         return editions
 
@@ -171,7 +171,7 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
 
     @cached_property
     def number(self) -> Optional[int]:
-        for page, parser in self.page_parsers():
+        for page, parser in self.page_parsers('parse_album_number'):
             return parser.parse_album_number(page)
         return None
 

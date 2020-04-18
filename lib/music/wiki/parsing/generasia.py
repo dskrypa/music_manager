@@ -18,7 +18,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..base import TemplateEntity
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import LANG_ABBREV_MAP, find_ordinal
+from .utils import LANG_ABBREV_MAP, find_ordinal, artist_name_from_intro
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 DATE_PAT_MATCH = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$').match
 OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
-MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \(.*?\))').search
+
 MEMBER_TYPE_SECTIONS = {'former': 'Former Members', 'hiatus': 'Hiatus', 'sub_units': 'Sub-Units'}
 RELEASE_CATEGORY_LANGS = {'k-': 'Korean', 'j-': 'Japanese', 'mandopop': 'Mandarin'}
 
@@ -36,55 +36,8 @@ RELEASE_CATEGORY_LANGS = {'k-': 'Korean', 'j-': 'Japanese', 'mandopop': 'Mandari
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        # From intro ===========================================================================================
-        intro = artist_page.intro
-        if isinstance(intro, CompoundNode):
-            intro = intro[0]
-        if intro:
-            first_string = intro.value
-        else:
-            raise RuntimeError(f'Unexpected intro on {artist_page}:\n{artist_page.intro}')
+        yield from artist_name_from_intro(artist_page)
 
-        if m := MULTI_LANG_NAME_SEARCH(first_string):
-            yield Name.from_enclosed(m.group(1))
-        else:
-            # try:
-            name = first_string[:first_string.rindex(')') + 1]
-            # except ValueError:
-            #     log.error(f'Unable to find name in {artist_page} - {first_string=!r}', extra={'color': 'red'})
-            #     log.debug(f'Categories for {artist_page}: {artist_page.categories}')
-            #     raise
-
-            # log.debug(f'Found name: {name}')
-            first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
-            if '; ' in paren_part:
-                yield Name.from_parts((first_part, paren_part.split('; ', 1)[0]))
-            else:
-                try:
-                    parts = tuple(map(str.strip, paren_part.split(', and')))
-                except Exception:
-                    yield Name.from_parts((first_part, paren_part))
-                else:
-                    if len(parts) == 1:
-                        yield Name.from_parts((first_part, paren_part))
-                    else:
-                        for part in parts:
-                            try:
-                                part = part[:part.rindex(')') + 1]
-                            except ValueError:
-                                log.error(f'Error splitting part={part!r}')
-                                raise
-                            else:
-                                part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
-                                try:
-                                    romanized, alias = part_b.split(' or ')
-                                except ValueError:
-                                    yield Name.from_parts((first_part, part_a, part_b))
-                                else:
-                                    yield Name.from_parts((first_part, part_a, romanized))
-                                    yield Name.from_parts((alias, part_a, romanized))
-
-        # From profile =========================================================================================
         try:
             section = artist_page.sections.find('Profile')
         except KeyError:

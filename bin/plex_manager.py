@@ -1,9 +1,18 @@
 #!/usr/bin/env python
 
-import argparse
-import logging
+import os
 import sys
 from pathlib import Path
+
+venv_path = Path(__file__).resolve().parents[1].joinpath('venv')
+if not os.environ.get('VIRTUAL_ENV') and venv_path.exists():
+    from subprocess import Popen
+    os.environ.update(PYTHONHOME='', VIRTUAL_ENV=venv_path.as_posix())
+    os.environ['PATH'] = '{}:{}'.format(venv_path.joinpath('Scripts').as_posix(), os.environ['PATH'])
+    sys.exit(Popen([venv_path.joinpath('Scripts', 'python.exe').as_posix()] + sys.argv, env=os.environ).wait())
+
+import argparse
+import logging
 
 from plexapi import DEFAULT_CONFIG_PATH
 from plexapi.base import OPERATORS
@@ -14,6 +23,7 @@ from ds_tools.logging import init_logging
 from ds_tools.output import bullet_list, Printer
 
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
+from music.__version__ import __author_email__, __version__
 from music.plex import LocalPlexServer, stars
 from music.files.patches import apply_mutagen_patches
 

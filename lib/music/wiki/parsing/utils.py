@@ -55,16 +55,17 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
         raise ValueError(f'Unexpected intro on {artist_page}:\n{artist_page.intro.pformat()}')
 
     if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
-        log.debug(f'Found multi-lang name match: {m}')
+        # log.debug(f'Found multi-lang name match: {m}')
         # noinspection PyUnboundLocalVariable
         cleaned = rm_lang_prefix(m_str)
-        log.debug(f'Without lang prefix: {cleaned!r}')
+        # log.debug(f'Without lang prefix: {cleaned!r}')
         if delim := next((c for c in ';,' if c in cleaned), None):
             cleaned = cleaned.split(delim, 1)[0].strip() + ')'
-        log.debug(f'Cleaned name: {cleaned!r}')
+        # log.debug(f'Cleaned name: {cleaned!r}')
         yield Name.from_enclosed(cleaned)
     else:
-        log.debug(f'Found {first_string=!r}')
+        # Girls' Generation (소녀시대 (''So Nyeo Si Dae'' or ''SNSD'') in Korea, and 少女時代 (''Shoujo Jidai'') in Japan)
+        # log.debug(f'Found {first_string=!r}')
         try:
             name = first_string[:first_string.rindex(')') + 1]
         except ValueError:
@@ -73,21 +74,20 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             else:
                 name = first_string
 
-        log.debug(f'Found {name=!r}')
+        # log.debug(f'Found {name=!r}')
         try:
             first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         except ValueError:
             yield Name(name)
         else:
             if '; ' in paren_part:
-                log.debug('Found ;')
+                # log.debug('Found ;')
                 first_part_lang = LangCat.categorize(first_part)
                 for part in map(rm_lang_prefix, paren_part.split('; ')):
                     if LangCat.categorize(part) != first_part_lang and not part.startswith('stylized '):
                         yield Name.from_parts((first_part, part))
             elif ', and' in paren_part:
-
-                log.debug('Found ", and"')
+                # log.debug('Found ", and"')
                 for part in map(str.strip, paren_part.split(', and')):
                     try:
                         part = part[:part.rindex(')') + 1]
@@ -99,12 +99,17 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
                         try:
                             romanized, alias = part_b.split(' or ')
                         except ValueError:
-                            yield Name.from_parts((first_part, part_a, part_b))
+                            name_1 = Name.from_parts((first_part, part_a))
+                            name_1.update(romanized=part_b)
+                            yield name_1
                         else:
-                            yield Name.from_parts((first_part, part_a, romanized))
-                            yield Name.from_parts((alias, part_a, romanized))
+                            name_1 = Name.from_parts((first_part, part_a))
+                            name_2 = Name.from_parts((alias, part_a))
+                            name_2.update(romanized=romanized)
+                            name_1.update(romanized=romanized, versions=[name_2])
+                            yield name_1
             else:
-                log.debug('No ;/and')
+                # log.debug('No ;/and')
                 if LangCat.categorize(first_part) == LangCat.categorize(paren_part):
                     yield Name.from_enclosed(first_part)
                 else:

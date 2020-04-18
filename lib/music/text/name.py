@@ -69,7 +69,6 @@ class Name(ClearableCachedPropertyMixin):
         self.__clear = True
 
     def __repr__(self):
-        # parts = (self._english, self.non_eng, self.romanized, self.lit_translation, self.extra)
         parts = (self.english, self.non_eng, self.extra)
         parts = ', '.join(map(repr, filter(None, parts)))
         return f'<{type(self).__name__}({parts})>'

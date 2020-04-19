@@ -210,8 +210,8 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
     def test_track_7(self):
         entry = as_node(""""Dope (超ヤベー!)" - 4:17 <small>(Japanese version)</small>""", root=self.root)
         name = parse_kf_track_name(entry)
-        eng, han = 'Dope', '超ヤベー!'
-        self.assertAll(name, eng, eng, han, han, extra={'length': '4:17', 'version': 'Japanese version'})
+        eng, non_eng = 'Dope', '超ヤベー!'
+        self.assertAll(name, eng, eng, non_eng, japanese=non_eng, extra={'length': '4:17', 'version': 'Japanese version'})
 
     def test_track_8(self):
         entry = as_node(""""Epilogue: Young Forever" - 2:53 <small>(Japanese version)</small>""", root=self.root)

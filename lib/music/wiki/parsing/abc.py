@@ -6,7 +6,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes import MediaWikiClient, Node, WikiPage, Link
+from wiki_nodes import MediaWikiClient, WikiPage, Link
+from wiki_nodes.nodes import N
 from ...text.name import Name
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
-    def parse_album_name(cls, node: Node) -> Name:
+    def parse_album_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod
@@ -56,7 +57,7 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
-    def parse_track_name(cls, node: Node) -> Name:
+    def parse_track_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod

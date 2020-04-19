@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Any, Tupl
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import (
-    WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, List as ListNode
+    WikiPage, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List as ListNode
 )
+from wiki_nodes.nodes import N
 from ...common import DiscoEntryType
 from ...text import Name, split_enclosed, ends_with_enclosed
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -60,7 +61,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             log.debug(f'No infobox found for {artist_page}')
 
     @classmethod
-    def parse_album_name(cls, node: Node) -> Name:
+    def parse_album_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod
@@ -209,49 +210,23 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             log.warning(f'Unexpected type for {edition!r}._tracks: {tracks!r}')
 
     @classmethod
-    def parse_track_name(cls, node: Node) -> Name:
-        extra = {}
+    def parse_track_name(cls, node: N) -> Name:
         if isinstance(node, String):
-            if m := DURATION_MATCH(node.value):
-                text, duration, after = map(str.strip, m.groups())    # type: str, str, str
-                extra['length'] = duration
-                if after:
-                    extra.update(_process_track_extras(after))
+            return _process_track_string(node.value)
+        elif node.__class__ is CompoundNode:
+            if len(node) == 2 and isinstance(node[0], String) and is_node_with(node[1], Tag, String, name='small'):
+                return _process_track_string(node[0].value, node[1].value.value)
+            elif node.only_basic and not node.find_one(Link, recurse=True):
+                log.info(f'Link in {node!r}: {node.find_one(Link, recurse=True)}')
+                return _process_track_string(' '.join(str(n.show if isinstance(n, Link) else n.value) for n in node))
+
+            log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
+            if isinstance(node[0], String) and node[0].value == '"':    # node[1] likely a Link
+                pass
             else:
-                text = node.value
-
-            parts = split_enclosed(text)
-            part_count = len(parts)
-            if part_count == 1:
-                _parts = split_enclosed(parts[0])
-            elif part_count > 1 and text.startswith('"'):
-                _parts = split_enclosed(parts[0])
-                for part in parts[1:]:
-                    extra.update(_process_track_extras(part))
-            else:
-                _parts = parts
-
-            tmp_parts = []
-            for part in _parts:
-                extra_type, part = _classify_track_part(part)
-                if extra_type:
-                    extra[extra_type] = part
-                else:
-                    tmp_parts.append(part)
-
-            name_parts = []
-            last_lang = None
-            for part in tmp_parts:
-                lang = LangCat.categorize(part)
-                if last_lang is not None and (lang == last_lang or last_lang == LangCat.NUL):
-                    name_parts[-1] = f'{name_parts[-1]} ({part})'
-                else:
-                    name_parts.append(part)
-                last_lang = lang
-
-            return Name.from_parts(name_parts, extra=extra or None)
+                pass
         else:
-            log.debug(f'parse_track_name has no handling for {node=!r} yet')
+            log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
@@ -305,6 +280,53 @@ class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
     pass
 
 
+def is_node_with(obj, cls, val_cls, **kwargs):
+    if not isinstance(obj, cls):
+        return False
+    if not isinstance(obj.value, val_cls):
+        return False
+    if kwargs:
+        return all(getattr(obj, k) == v for k, v in kwargs.items())
+    return True
+
+
+def _process_track_string(text: str, extra_content: Optional[str] = None) -> Name:
+    extra = {}
+    if extra_content:
+        extra.update(_process_track_extras(extra_content))
+    if m := DURATION_MATCH(text):
+        text, extra['length'], after = map(str.strip, m.groups())
+        if after:
+            extra.update(_process_track_extras(after))
+
+    parts = split_enclosed(text)
+    if (part_count := len(parts)) == 1:
+        parts = split_enclosed(parts[0])
+    elif part_count > 1 and text.startswith('"'):
+        for part in parts[1:]:
+            extra.update(_process_track_extras(part))
+        parts = split_enclosed(parts[0])
+
+    tmp_parts = []
+    for part in parts:
+        extra_type, part = _classify_track_part(part)
+        if extra_type:
+            extra[extra_type] = part
+        else:
+            tmp_parts.append(part)
+
+    name_parts = []
+    last_lang, lang = None, None
+    for part in tmp_parts:
+        last_lang, lang = lang, LangCat.categorize(part)
+        if last_lang is not None and (lang == last_lang or last_lang == LangCat.NUL):
+            name_parts[-1] = f'{name_parts[-1]} ({part})'
+        else:
+            name_parts.append(part)
+
+    return Name.from_parts(name_parts, extra=extra or None)
+
+
 def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:
     text = text.replace(' : ', ': ')
     lc_text = text.lower()
@@ -322,6 +344,8 @@ def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:
         return 'remix', text
     elif lc_text == 'extended play':
         return 'misc', text
+    elif lc_text.endswith('only'):
+        return 'availability', text
     else:
         return None, text
 

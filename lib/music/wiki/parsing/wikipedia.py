@@ -7,7 +7,8 @@ from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence
 
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes import WikiPage, Node, Template, Link, TableSeparator, CompoundNode, String
+from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String
+from wiki_nodes.nodes import N
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..disco_entry import DiscoEntry
@@ -29,7 +30,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         raise NotImplementedError
 
     @classmethod
-    def parse_album_name(cls, node: Node) -> Name:
+    def parse_album_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod
@@ -37,7 +38,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         raise NotImplementedError
 
     @classmethod
-    def parse_track_name(cls, node: Node) -> Name:
+    def parse_track_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod

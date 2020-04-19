@@ -30,6 +30,8 @@ class NameTestCaseBase(TestCaseBase):
             self, name, english=None, _english=None, non_eng=None, korean=None, japanese=None, cjk=None, romanized=None,
             lit_translation=None, extra=None
     ):
+        if japanese and not cjk:
+            cjk = japanese
         attrs = ('english', '_english', 'non_eng', 'korean', 'japanese', 'cjk', 'romanized', 'lit_translation', 'extra')
         args = (english, _english, non_eng, korean, japanese, cjk, romanized, lit_translation, extra)
         # try:

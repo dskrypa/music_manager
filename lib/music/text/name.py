@@ -75,9 +75,9 @@ class Name(ClearableCachedPropertyMixin):
 
     def _full_repr(self, include_no_val=False):
         var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang', 'versions')
-        vars = (getattr(self, attr) for attr in var_names)
+        var_vals = (getattr(self, attr) for attr in var_names)
         indent = ' ' * 4
-        parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, vars) if v or include_no_val)
+        parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
         return f'<{type(self).__name__}(\n{parts}\n)>'
 
     def __str__(self):

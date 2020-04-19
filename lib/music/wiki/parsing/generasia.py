@@ -10,7 +10,8 @@ from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
-from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode, Template, ListEntry
+from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Template, ListEntry
+from wiki_nodes.nodes import N
 from wiki_nodes.utils import strip_style
 from ...common import DiscoEntryType
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
@@ -62,7 +63,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     yield Name.from_enclosed(value)
 
     @classmethod
-    def parse_album_name(cls, node: Node) -> Name:
+    def parse_album_name(cls, node: N) -> Name:
         # log.debug(f'Processing node: {node}')
         _node = node
         if not isinstance(node, list) and type(node) is not CompoundNode:
@@ -454,7 +455,7 @@ def is_extra(text: str) -> bool:
 
 
 def _split_name_parts(
-        title: str, node: Optional[Node]
+        title: str, node: Optional[N]
 ) -> Tuple[str, Optional[str], Optional[str], Dict[str, Any], Optional[str]]:
     """
     :param str title: The title
@@ -507,7 +508,7 @@ def _split_non_eng_lit(name_parts_str: str):
     return non_eng, lit_translation
 
 
-def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter: Iterator[Node]) -> CompoundNode:
+def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter: Iterator[N]) -> CompoundNode:
     nodes = []
     for node in node_iter:
         if isinstance(node, String):

@@ -6,7 +6,8 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
-from wiki_nodes import WikiPage, Node, Link, String
+from wiki_nodes import WikiPage, Link, String
+from wiki_nodes.nodes import N
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..disco_entry import DiscoEntry
@@ -25,7 +26,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         raise NotImplementedError
 
     @classmethod
-    def parse_album_name(cls, node: Node) -> Name:
+    def parse_album_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod
@@ -33,7 +34,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         raise NotImplementedError
 
     @classmethod
-    def parse_track_name(cls, node: Node) -> Name:
+    def parse_track_name(cls, node: N) -> Name:
         raise NotImplementedError
 
     @classmethod

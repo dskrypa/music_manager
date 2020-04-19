@@ -7,6 +7,8 @@ import logging
 from ds_tools.test_common import TestCaseBase, main
 from ds_tools.output import colored
 
+from .text import Name
+
 __all__ = ['NameTestCaseBase', 'main', 'TestCaseBase']
 log = logging.getLogger(__name__)
 
@@ -30,8 +32,18 @@ class NameTestCaseBase(TestCaseBase):
     ):
         attrs = ('english', '_english', 'non_eng', 'korean', 'japanese', 'cjk', 'romanized', 'lit_translation', 'extra')
         args = (english, _english, non_eng, korean, japanese, cjk, romanized, lit_translation, extra)
+        # try:
         for attr, expected in zip(attrs, args):
             self.assertIsOrEqual(name, attr, expected)
+        # except AssertionError:
+        #     attrs = ('eng', 'non_eng', 'romanized', 'lit_translation', 'extra')
+        #     args = (_english, non_eng, romanized, lit_translation, extra)
+        #     expected = Name(**dict(zip(attrs, args)))
+        #     error_parts = [
+        #         '', colored(f'Expected: {expected._full_repr()}', 11), '~' * 80,
+        #         colored(f'Found: {name._full_repr()}', 9)
+        #     ]
+        #     raise AssertionError('\n'.join(error_parts)) from None
 
     def assertNamesEqual(self, found, expected):
         found = set(found) if not isinstance(found, set) else found

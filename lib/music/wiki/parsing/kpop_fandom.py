@@ -6,8 +6,9 @@ import logging
 import re
 from datetime import datetime, date
 from traceback import format_exc
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Union
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Any, Tuple, Union
 
+from ds_tools.unicode import LangCat
 from wiki_nodes import (
     WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, List as ListNode
 )
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 __all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
 
+DURATION_MATCH = re.compile(r'^(.+?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
 
@@ -208,7 +210,48 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_track_name(cls, node: Node) -> Name:
-        raise NotImplementedError
+        extra = {}
+        if isinstance(node, String):
+            if m := DURATION_MATCH(node.value):
+                text, duration, after = map(str.strip, m.groups())    # type: str, str, str
+                extra['length'] = duration
+                if after:
+                    extra.update(_process_track_extras(after))
+            else:
+                text = node.value
+
+            parts = split_enclosed(text)
+            part_count = len(parts)
+            if part_count == 1:
+                _parts = split_enclosed(parts[0])
+            elif part_count > 1 and text.startswith('"'):
+                _parts = split_enclosed(parts[0])
+                for part in parts[1:]:
+                    extra.update(_process_track_extras(part))
+            else:
+                _parts = parts
+
+            tmp_parts = []
+            for part in _parts:
+                extra_type, part = _classify_track_part(part)
+                if extra_type:
+                    extra[extra_type] = part
+                else:
+                    tmp_parts.append(part)
+
+            name_parts = []
+            last_lang = None
+            for part in tmp_parts:
+                lang = LangCat.categorize(part)
+                if last_lang is not None and (lang == last_lang or last_lang == LangCat.NUL):
+                    name_parts[-1] = f'{name_parts[-1]} ({part})'
+                else:
+                    name_parts.append(part)
+                last_lang = lang
+
+            return Name.from_parts(name_parts, extra=extra or None)
+        else:
+            log.debug(f'parse_track_name has no handling for {node=!r} yet')
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
@@ -260,6 +303,33 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 # noinspection PyAbstractClass
 class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
     pass
+
+
+def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:
+    text = text.replace(' : ', ': ')
+    lc_text = text.lower()
+    if lc_text.startswith(('inst.', 'instrumental')):
+        return 'instrumental', True
+    elif lc_text.startswith('acoustic'):
+        return 'acoustic', True
+    elif lc_text.endswith(('version', 'ver.')):
+        return 'version', text
+    elif lc_text.endswith(' ost'):
+        return 'album', text
+    elif lc_text.startswith(('feat.', 'featuring')):
+        return 'feat', text.split(maxsplit=1)[1]
+    elif lc_text.endswith('remix'):
+        return 'remix', text
+    elif lc_text == 'extended play':
+        return 'misc', text
+    else:
+        return None, text
+
+
+def _process_track_extras(text: str) -> Iterator[Tuple[str, Any]]:
+    for part in split_enclosed(text):
+        extra_type, part = _classify_track_part(part)
+        yield extra_type or 'misc', part
 
 
 def _process_album_version(title: str):

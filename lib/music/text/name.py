@@ -314,15 +314,15 @@ class Name(ClearableCachedPropertyMixin):
         return []
 
     @classmethod
-    def from_enclosed(cls, name: str) -> 'Name':
+    def from_enclosed(cls, name: str, **kwargs) -> 'Name':
         if LangCat.categorize(name) == LangCat.MIX:
             parts = split_enclosed(name, reverse=True, maxsplit=1)
         else:
             parts = (name,)
-        return cls.from_parts(parts)
+        return cls.from_parts(parts, **kwargs)
 
     @classmethod
-    def from_parts(cls, parts: Iterable[str]) -> 'Name':
+    def from_parts(cls, parts: Iterable[str], **kwargs) -> 'Name':
         eng = None
         non_eng = None
         extra = []
@@ -335,7 +335,7 @@ class Name(ClearableCachedPropertyMixin):
             elif not eng and LangCat.contains_any(part, LangCat.ENG):
                 eng = part
             elif eng and non_eng and LangCat.categorize(part) == LangCat.ENG:
-                name = cls(eng, non_eng)
+                name = cls(eng, non_eng, **kwargs)
                 if name.has_romanization(part):
                     name.romanized = part
                 elif name.has_romanization(eng) and not is_english(eng) and is_english(part):
@@ -347,12 +347,20 @@ class Name(ClearableCachedPropertyMixin):
             else:
                 extra.append(part)
 
-        if name is None and eng or non_eng:
-            name = cls(eng, non_eng)
         if name is None:
-            raise ValueError(f'Unable to find any valid name parts from {parts!r}')
+            if eng or non_eng:
+                name = cls(eng, non_eng, **kwargs)
+            elif extra and len(extra) == 1:
+                name = cls(extra[0], **kwargs)
+                extra = None
+        if name is None:
+            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {extra=!r}')
         if extra:
-            name.extra = {'unknown': extra}
+            if name.extra:
+                # noinspection PyTypeChecker
+                name.extra['unknown'] = extra
+            else:
+                name.extra = {'unknown': extra}
         return name
 
 

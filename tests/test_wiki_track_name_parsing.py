@@ -50,8 +50,8 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
     def test_multi_enclosed_in_quotes(self):
         entry = as_node(""""I Like It! Pt.2 ~In That Place~ (いいね! Pt.2 ～あの場所で～)" - 3:55""", root=self.root)
         name = parse_kf_track_name(entry)
-        eng, non_eng = 'I Like It! Pt.2 ~In That Place~', 'いいね! Pt.2 ～あの場所で～'
-        self.assertAll(name, eng, eng, non_eng, japanese=non_eng, extra={'length': '3:55'})
+        eng, non_eng = 'I Like It! Pt.2 (In That Place)', 'いいね! Pt.2 ～あの場所で～'
+        self.assertAll(name, eng, eng, non_eng, cjk=non_eng, japanese=non_eng, extra={'length': '3:55'})
 
     def test_duet_links(self):
         entry = as_node(""""Moonlight (월광)" ([[Baekhyun]] & [[D.O.]] duet) - 4:26""", root=self.root)
@@ -147,7 +147,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Jamais Vu" - 3:46""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Jamais Vu', None
-        self.assertAll(name, eng, eng, han, han, extra={'length': '3:36'})
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:46'})
 
     def test_feat_singer_of_group(self):
         entry = as_node(""""거짓말" (feat. [[Lee Hae Ri]] of [[Davichi]])""", root=self.root)

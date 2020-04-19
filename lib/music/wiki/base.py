@@ -19,7 +19,7 @@ from .utils import site_titles_map, link_client_and_title, page_name, titles_and
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
-GROUP_CATEGORIES = ('group', 'subunits')
+GROUP_CATEGORIES = ('group', 'subunits', 'duos')
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
 

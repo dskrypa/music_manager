@@ -8,7 +8,7 @@ from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode, Link, Node
-from ...text import split_enclosed, Name, has_unpaired
+from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'artist_name_from_intro',
@@ -75,7 +75,6 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
         # log.debug(f'Cleaned name: {cleaned!r}')
         yield Name.from_enclosed(cleaned)
     else:
-        # Girls' Generation (소녀시대 (''So Nyeo Si Dae'' or ''SNSD'') in Korea, and 少女時代 (''Shoujo Jidai'') in Japan)
         # log.debug(f'Found {first_string=!r}')
         try:
             name = first_string[:first_string.rindex(')') + 1]
@@ -121,10 +120,19 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
                             yield name_1
             else:
                 # log.debug('No ;/and')
-                if LangCat.categorize(first_part) == LangCat.categorize(paren_part):
-                    yield Name.from_enclosed(first_part)
+                if paren_part.startswith('also known as'):
+                    paren_part = paren_part[13:].strip()
+                    if ends_with_enclosed(paren_part):
+                        eng_2, non_eng = split_enclosed(paren_part, reverse=True, maxsplit=1)
+                        yield Name.from_parts((first_part, non_eng))
+                        yield Name.from_parts((eng_2, non_eng))
+                    else:
+                        yield Name.from_parts((first_part, paren_part))
                 else:
-                    yield Name.from_parts((first_part, paren_part))
+                    if LangCat.categorize(first_part) == LangCat.categorize(paren_part):
+                        yield Name.from_enclosed(first_part)
+                    else:
+                        yield Name.from_parts((first_part, paren_part))
 
 
 def find_language(node: Node, lang: Optional[str], langs: Set[str]) -> Optional[str]:

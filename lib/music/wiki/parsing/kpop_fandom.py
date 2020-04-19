@@ -22,7 +22,7 @@ from .utils import artist_name_from_intro, find_ordinal, get_artist_title, LANG_
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
 
-__all__ = ['KpopFandomParser']
+__all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
 
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
@@ -66,10 +66,6 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         if intro := entry_page.intro:
             return find_ordinal(intro.raw.string)
         return None
-
-    @classmethod
-    def parse_track_name(cls, node: Node) -> Name:
-        raise NotImplementedError
 
     @classmethod
     def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
@@ -201,11 +197,18 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
-        if edition._tracks[0].children:
-            for node in edition._tracks:
-                yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
+        tracks = edition._tracks
+        if isinstance(tracks, ListNode):
+            yield DiscographyEntryPart(None, edition, tracks)
+        elif isinstance(tracks, list):
+            for i, track_node in enumerate(tracks):
+                yield DiscographyEntryPart(f'CD{i + 1}', edition, track_node)
         else:
-            yield DiscographyEntryPart(None, edition, edition._tracks)
+            log.warning(f'Unexpected type for {edition!r}._tracks: {tracks!r}')
+
+    @classmethod
+    def parse_track_name(cls, node: Node) -> Name:
+        raise NotImplementedError
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
@@ -252,6 +255,11 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         # This site does not use discography pages.
         return None
+
+
+# noinspection PyAbstractClass
+class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
+    pass
 
 
 def _process_album_version(title: str):

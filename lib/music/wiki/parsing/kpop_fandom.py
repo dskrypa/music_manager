@@ -14,7 +14,7 @@ from wiki_nodes import (
 )
 from wiki_nodes.nodes import N
 from ...common import DiscoEntryType
-from ...text import Name, split_enclosed, ends_with_enclosed
+from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
@@ -308,23 +308,31 @@ def _process_track_string(text: str, extra_content: Optional[str] = None) -> Nam
         parts = split_enclosed(parts[0])
 
     tmp_parts = []
+    non_eng = []
     for part in parts:
         extra_type, part = _classify_track_part(part)
         if extra_type:
             extra[extra_type] = part
         else:
-            tmp_parts.append(part)
+            if LangCat.contains_any(part, LangCat.non_eng_cats):
+                non_eng.append(part)
+            else:
+                tmp_parts.append(part)
 
-    name_parts = []
-    last_lang, lang = None, None
-    for part in tmp_parts:
-        last_lang, lang = lang, LangCat.categorize(part)
-        if last_lang is not None and (lang == last_lang or last_lang == LangCat.NUL):
-            name_parts[-1] = f'{name_parts[-1]} ({part})'
-        else:
-            name_parts.append(part)
-
-    return Name.from_parts(name_parts, extra=extra or None)
+    name = Name(non_eng=combine_with_parens(non_eng) if non_eng else None, extra=extra or None)
+    if tmp_parts:
+        if (part_count := len(tmp_parts)) == 1:
+            name.update(_english=tmp_parts[0])
+        elif part_count > 1:
+            name_parts = []
+            for part in tmp_parts:
+                if name.has_romanization(part):
+                    name.update(romanized=part)
+                else:
+                    name_parts.append(part)
+            if name_parts:
+                name.update(_english=combine_with_parens(name_parts))
+    return name
 
 
 def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:

@@ -90,7 +90,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         name = parse_kf_track_name(entry)
         eng, non_eng, rom = 'Remember Me', '花火', 'Hanabi'
         self.assertAll(
-            name, eng, eng, non_eng, japanese=non_eng, romanized=rom,
+            name, eng, eng, non_eng, cjk=non_eng, romanized=rom,
             extra={'length': '3:14', 'version': 'Japanese ver.'}
         )
 

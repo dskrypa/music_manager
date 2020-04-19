@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
 from wiki_nodes import WikiPage, Node, Link, String
 from ...text import Name
-from ..album import DiscographyEntry
+from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 
@@ -57,11 +57,11 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         raise NotImplementedError
 
     @classmethod
-    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError
 
     @classmethod
-    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
     @classmethod

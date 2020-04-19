@@ -4,6 +4,7 @@
 
 import logging
 from enum import Enum
+from typing import Iterable, Optional, Union
 
 from ds_tools.compat import cached_property
 
@@ -38,15 +39,23 @@ class DiscoEntryType(Enum):
         return self is not DiscoEntryType.UNKNOWN
 
     @classmethod
-    def for_name(cls, name):
+    def _for_category(cls, category: str) -> Optional['DiscoEntryType']:
+        _category = category.lower().strip().replace('-', ' ').replace('_', ' ')
+        for album_type in cls:
+            if any(cat in _category for cat in album_type.categories):
+                # log.debug(f'{category!r} => {album_type}')
+                return album_type
+        return None
+
+    @classmethod
+    def for_name(cls, name: Union[str, Iterable[str], None]) -> 'DiscoEntryType':
         if name:
             if isinstance(name, str):
-                name = [name]
-            for _name in name:
-                _name = _name.lower().strip().replace('-', ' ').replace('_', ' ')
-                for album_type in cls:
-                    if any(cat in _name for cat in album_type.categories):
-                        # log.debug(f'{name!r} => {album_type}')
+                if album_type := cls._for_category(name):
+                    return album_type
+            else:
+                for _name in name:
+                    if album_type := cls._for_category(_name):
                         return album_type
             log.debug(f'No DiscoEntryType exists for name={name!r}')
         return cls.UNKNOWN

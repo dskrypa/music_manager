@@ -3,17 +3,21 @@
 """
 
 import logging
-from datetime import datetime
+import re
+from datetime import datetime, date
 from traceback import format_exc
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Union
 
-from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator
+from wiki_nodes import (
+    WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, List as WikiList
+)
+from ...common import DiscoEntryType
 from ...text import Name
-from ..album import DiscographyEntry
+from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import artist_name_from_intro, find_ordinal, get_artist_title
+from .utils import artist_name_from_intro, find_ordinal, get_artist_title, LANG_ABBREV_MAP, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -22,6 +26,7 @@ __all__ = ['KpopFandomParser']
 log = logging.getLogger(__name__)
 
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
+RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
 
 
 class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
@@ -143,21 +148,81 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
-        raise NotImplementedError
+        infobox = entry_page.infobox
+        name = infobox['name'].value
+        repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
+        entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
+        artists = cls._find_artist_links(infobox, entry_page)
+        dates = cls._find_release_dates(infobox)
+
+        langs = set()
+        for cat in entry_page.categories:
+            if cat.endswith('releases'):
+                for word in cat.split():
+                    if lang := LANG_ABBREV_MAP.get(word):
+                        langs.add(lang)
+                        break
+
+        if track_list_section := entry_page.sections.find('Track list', None):
+            track_section_content = track_list_section.processed(False, False, False, False, True)
+            if track_section_content:
+                yield DiscographyEntryEdition(  # edition or version = None
+                    name, entry_page, entry, entry_type, artists, dates, track_section_content, None,
+                    find_language(track_section_content, None, langs), repackage_page
+                )
+            for section in track_list_section:
+                pass
+                # yield cls._process_album_edition(entry, entry_page, section.content, section.title)
+        else:
+            # May be a single with only one track
+            pass
 
     @classmethod
-    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+    def _find_release_dates(cls, infobox: Template) -> List[date]:
+        dates = []
+        if released := infobox.value.get('released'):
+            for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
+                dates.append(datetime.strptime(dt_str, '%B %d, %Y').date())
+        return dates
+
+    @classmethod
+    def _find_artist_links(cls, infobox: Template, entry_page: WikiPage) -> Set[Link]:
+        all_links = {link.title: link for link in entry_page.find_all(Link)}
+        artist_links = set()
+        if artists := infobox.value.get('artist'):
+            if isinstance(artists, String):
+                artists_str = artists.value
+                if artists_str.lower() not in ('various', 'various artists'):
+                    for artist in artists_str.split(', '):
+                        artist = artist.strip()
+                        if artist.startswith('& '):
+                            artist = artist[1:].strip()
+                        if artist_link := all_links.get(artist):
+                            artist_links.add(artist_link)
+            elif isinstance(artists, Link):
+                artist_links.add(artists)
+            elif isinstance(artists, CompoundNode):
+                for artist in artists:
+                    if isinstance(artist, Link):
+                        artist_links.add(artist)
+                    elif isinstance(artist, String):
+                        if artist_link := all_links.get(artist.value):
+                            artist_links.add(artist_link)
+        return artist_links
+
+    @classmethod
+    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
         try:
-            members_section = entry_page.sections.find('Members')
+            members_section = artist_page.sections.find('Members')
         except (KeyError, AttributeError):
-            log.debug(f'Members section not found for {entry_page}')
+            log.debug(f'Members section not found for {artist_page}')
             return {}
 
         members = {'current': []}
         section = 'current'
         if isinstance(members_section.content, Table):
             for row in members_section.content:
-                if isinstance(row, MappingNode) and (title := get_artist_title(row['Name'], entry_page)):
+                if isinstance(row, MappingNode) and (title := get_artist_title(row['Name'], artist_page)):
                     # noinspection PyUnboundLocalVariable
                     members[section].append(title)
                 elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
@@ -165,25 +230,25 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     members[section] = []
         else:
             for member in members_section.content.iter_flat():
-                if title := get_artist_title(member, entry_page):
+                if title := get_artist_title(member, artist_page):
                     members['current'].append(title)
 
-        if sub_units := entry_page.sections.find('Sub-units', None):
+        if sub_units := artist_page.sections.find('Sub-units', None):
             members['sub_units'] = []
             for sub_unit in sub_units.content.iter_flat():
-                if title := get_artist_title(sub_unit, entry_page):
+                if title := get_artist_title(sub_unit, artist_page):
                     members['sub_units'].append(title)
 
         return members
 
     @classmethod
-    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
-        if intro := entry_page.intro:
+    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+        if intro := artist_page.intro:
             for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True)).items():
                 # noinspection PyUnresolvedReferences
                 if entity._categories == GROUP_CATEGORIES and (members := entity.members):
                     # noinspection PyUnboundLocalVariable
-                    if any(entry_page == page for m in members for page in m.pages):
+                    if any(artist_page == page for m in members for page in m.pages):
                         yield link
 
     @classmethod

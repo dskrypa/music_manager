@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes import WikiPage, Node, Template, Link, TableSeparator, CompoundNode, String
 from ...text import Name
-from ..album import DiscographyEntry
+from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
@@ -69,11 +69,11 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         raise NotImplementedError
 
     @classmethod
-    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError
 
     @classmethod
-    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
     @classmethod

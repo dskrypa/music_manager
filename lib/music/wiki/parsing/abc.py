@@ -64,12 +64,12 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
-    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
     @classmethod

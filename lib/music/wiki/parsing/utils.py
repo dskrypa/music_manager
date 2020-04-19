@@ -4,7 +4,7 @@
 
 import logging
 import re
-from typing import Optional, Iterator
+from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode, Link, Node
@@ -12,7 +12,7 @@ from ...text import split_enclosed, Name, has_unpaired
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'artist_name_from_intro',
-    'get_artist_title'
+    'get_artist_title', 'find_language'
 ]
 log = logging.getLogger(__name__)
 
@@ -125,3 +125,21 @@ def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
                     yield Name.from_enclosed(first_part)
                 else:
                     yield Name.from_parts((first_part, paren_part))
+
+
+def find_language(node: Node, lang: Optional[str], langs: Set[str]) -> Optional[str]:
+    if lang:
+        return lang
+    elif node:
+        if len(langs) == 1:
+            return next(iter(langs))
+        else:
+            lang_cats = LangCat.categorize(node.raw.string, True)
+            non_eng = [lc.full_name for lc in lang_cats.difference((LangCat.ENG,))]
+            if len(non_eng) == 1:
+                return non_eng[0]
+            elif non_eng and langs:
+                matching_langs = langs.intersection(non_eng)
+                if len(matching_langs) == 1:
+                    return next(iter(matching_langs))
+    return None

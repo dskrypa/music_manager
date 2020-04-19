@@ -18,7 +18,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition
 from ..base import TemplateEntity
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import LANG_ABBREV_MAP, find_ordinal, artist_name_from_intro, get_artist_title
+from .utils import LANG_ABBREV_MAP, find_ordinal, artist_name_from_intro, get_artist_title, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -291,7 +291,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def _process_album_edition(
             cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set, repackage=False
-    ):
+    ) -> EditionIterator:
         artist_link = node['Artist'].value
         name_key = list(node.keys())[1]  # Works because of insertion order being maintained
         entry_type = DiscoEntryType.for_name(name_key)
@@ -362,6 +362,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     raise
 
         for key, value in node.items():
+            # Traverse the dl of Artist/Album/Tracklist/etc; may have multiple Tracklist entries for editions
+            # `value` is the List node containing track info
             lc_key = key.lower().strip()
             if 'tracklist' in lc_key and not lc_key.startswith('dvd '):
                 if lc_key != 'tracklist':
@@ -383,34 +385,34 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         return find_ordinal(info.raw.string)
 
     @classmethod
-    def parse_group_members(cls, entry_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
         try:
-            members_section = entry_page.sections.find('Members')
+            members_section = artist_page.sections.find('Members')
         except (KeyError, AttributeError):
-            log.debug(f'Members section not found for {entry_page}')
+            log.debug(f'Members section not found for {artist_page}')
             return {}
 
         members = {'current': []}
         for member in members_section.content.iter_flat():
-            if title := get_artist_title(member, entry_page):
+            if title := get_artist_title(member, artist_page):
                 members['current'].append(title)
 
         for key, section_name in MEMBER_TYPE_SECTIONS.items():
             if section_members := members_section.find(section_name, None):
                 members[key] = []
                 for member in section_members.content.iter_flat():
-                    if title := get_artist_title(member, entry_page):
+                    if title := get_artist_title(member, artist_page):
                         members[key].append(title)
 
         return members
 
     @classmethod
-    def parse_member_of(cls, entry_page: WikiPage) -> Iterator[Link]:
-        if external_links := entry_page.sections.find('External Links'):
+    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+        if external_links := artist_page.sections.find('External Links'):
             if isinstance(external_links.content, CompoundNode):
                 for node in external_links.content:
                     if isinstance(node, Template):
-                        tmpl = TemplateEntity.from_name(node.name, entry_page.site)
+                        tmpl = TemplateEntity.from_name(node.name, artist_page.site)
                         if tmpl.group:
                             yield next(iter(tmpl.group.pages)).as_link
         """
@@ -437,24 +439,6 @@ def clean_common_prefix(strs) -> str:
     if prefix.endswith(('~', '-', '(')):
         prefix = prefix[:-1]
     return prefix.strip()
-
-
-def find_language(node: Node, lang: str, langs: Set[str]) -> Optional[str]:
-    if lang:
-        return lang
-    elif node:
-        if len(langs) == 1:
-            return next(iter(langs))
-        else:
-            lang_cats = LangCat.categorize(node.raw.string, True)
-            non_eng = [lc.full_name for lc in lang_cats.difference((LangCat.ENG,))]
-            if len(non_eng) == 1:
-                return non_eng[0]
-            elif non_eng and langs:
-                matching_langs = langs.intersection(non_eng)
-                if len(matching_langs) == 1:
-                    return next(iter(matching_langs))
-    return None
 
 
 def is_extra(text: str) -> bool:

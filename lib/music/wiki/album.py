@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import datetime, date
 from traceback import format_stack
-from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet
+from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable
 
 from ordered_set import OrderedSet
 
@@ -194,14 +194,14 @@ class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
             self, name: Optional[str], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
-            artist: Optional[Node], release_dates: Sequence[date], tracks: ListNode,  edition: Optional[str] = None,
-            lang: Optional[str] = None, repackage=False
+            artist: Union[Node, Iterable[Node], None], release_dates: Sequence[date], tracks: ListNode,
+            edition: Optional[str] = None, lang: Optional[str] = None, repackage=False
     ):
         self._name = name                       # type: Optional[str]
         self.page = page                        # type: WikiPage
         self.entry = entry                      # type: DiscographyEntry
         self.type = entry_type                  # type: DiscoEntryType
-        self._artist = artist                   # type: Optional[Node]
+        self._artist = artist                   # type: Union[Node, Iterable[Node], None]
         self.release_dates = release_dates      # type: Sequence[date]
         self._tracks = tracks                   # type: ListNode
         self.edition = edition                  # type: Optional[str]
@@ -236,6 +236,10 @@ class DiscographyEntryEdition:
     @cached_property
     def cls_type_name(self):
         return self.entry.cls_type_name + 'Edition'
+
+    @cached_property
+    def artists(self) -> Optional[Set['Artist']]:
+        return None
 
     @cached_property
     def artist(self) -> Optional['Artist']:

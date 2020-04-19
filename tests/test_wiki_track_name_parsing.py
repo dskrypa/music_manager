@@ -9,31 +9,414 @@ sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
 from music.test_common import NameTestCaseBase, main
 from music.wiki.parsing.generasia import GenerasiaParser
+from music.wiki.parsing.kpop_fandom import KpopFandomParser
 from music.wiki.track import Track
 
 log = logging.getLogger(__name__)
 
 parse_generasia_track_name = GenerasiaParser.parse_track_name
+parse_kf_track_name = KpopFandomParser.parse_track_name
+
+
+class KpopFandomTrackNameParsingTest(NameTestCaseBase):
+    root = MagicMock(site='kpop.fandom.com')
+
+    def test_link_title(self):
+        entry = as_node(""""[[Black Swan]]" - 3:18""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Black Swan', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:18'})
+
+    def test_time_in_title(self):
+        entry = as_node(""""00:00 (Zero O'Clock)" - 4:10""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = '00:00 (Zero O\'Clock)', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:10'})
+
+    def test_lang_ver_in_quotes(self):
+        entry = as_node(""""Jump (Japanese ver.)" - 3:57""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Jump', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:57', 'version': 'Japanese ver.'})
+
+    def test_multi_meta_in_quotes(self):
+        entry = as_node(""""Just One Day (Japanese ver.) (Extended play)" - 5:33""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Just One Day', None
+        self.assertAll(
+            name, eng, eng, han, han, extra={'length': '5:33', 'version': 'Japanese ver.', 'misc': 'Extended play'}
+        )
+
+    def test_multi_enclosed_in_quotes(self):
+        entry = as_node(""""I Like It! Pt.2 ~In That Place~ (いいね! Pt.2 ～あの場所で～)" - 3:55""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, non_eng = 'I Like It! Pt.2 ~In That Place~', 'いいね! Pt.2 ～あの場所で～'
+        self.assertAll(name, eng, eng, non_eng, japanese=non_eng, extra={'length': '3:55'})
+
+    def test_duet_links(self):
+        entry = as_node(""""Moonlight (월광)" ([[Baekhyun]] & [[D.O.]] duet) - 4:26""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Moonlight', '월광'
+        artists = as_node("""[[Baekhyun]] & [[D.O.]] duet""")
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:26', 'artists': artists})
+
+    def test_feat_no_link(self):
+        entry = as_node(""""BTS Cypher Pt.3: Killer" (feat. Supreme Boi) - 4:28""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'BTS Cypher Pt.3: Killer', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:28', 'feat': 'Supreme Boi'})
+
+    def test_numeric_title(self):
+        entry = as_node(""""134340" - 3:49""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = '134340', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:49'})
+
+    def test_sung_by_list(self):
+        entry = as_node(""""Hair in the Air" (Sung By [[Yeri (Red Velvet)|Yeri]], [[Renjun]], [[Jeno]], [[Jaemin]]) - 2:47""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Hair in the Air', None
+        artists = as_node("""Sung By [[Yeri (Red Velvet)|Yeri]], [[Renjun]], [[Jeno]], [[Jaemin]]""")
+        self.assertAll(name, eng, eng, han, han, extra={'length': '2:47', 'artists': artists})
+
+    def test_inst_eng(self):
+        entry = as_node(""""Wow Thing (Inst.)" - 2:52""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Wow Thing', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '2:52', 'instrumental': True})
+
+    def test_multi_enclosed_with_lang(self):
+        entry = as_node(""""Hanabi (Remember Me) (花火)" <small>(Japanese ver.)</small> - 3:14""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, non_eng, rom = 'Remember Me', '花火', 'Hanabi'
+        self.assertAll(
+            name, eng, eng, non_eng, japanese=non_eng, romanized=rom,
+            extra={'length': '3:14', 'version': 'Japanese ver.'}
+        )
+
+    def test_artist_link_list_feat_no_link(self):
+        entry = as_node(""""White (화이트)" <small>([[OH MY GIRL]], [[Haha]] feat. M.TySON)</small> - 3:35""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'White', '화이트'
+        artists = as_node("""[[OH MY GIRL]], [[Haha]]""")
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:35', 'artists': artists, 'feat': 'M.TySON'})
+
+    def test_nested_enclosed(self):
+        entry = as_node(""""Face to Face (After Looking At You) (마주보기 (바라보기 그 후))" - 3:23""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Face to Face (After Looking At You)', '마주보기 (바라보기 그 후)'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:23'})
+
+    def test_acoustic_ver(self):
+        entry = as_node(""""Lost Child (미아) (Acoustic Ver.)" - 3:47""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Lost Child', '미아'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:47', 'acoustic': True})
+
+    def test_rock_ver(self):
+        entry = as_node(""""You Know (있잖 아) (Rock Ver.)" - 3:10""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'You Know', '있잖 아'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:10', 'version': 'Rock Ver.'})
+
+    def test_inst_mix(self):
+        entry = as_node(""""Pitiful (가여워) (Inst.)" - 3:20""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Pitiful', '가여워'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:20', 'instrumental': True})
+
+    def test_parenthetical_mix(self):
+        entry = as_node(""""Between the Lips (50cm) (입술 사이)" - 2:50""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Between the Lips (50cm)', '입술 사이'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '2:50'})
+
+    def test_from_ost(self):
+        entry = as_node(""""Pastel Crayon (크레파스)" (Bel Ami OST) - 3:13""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Pastel Crayon', '크레파스'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:13', 'album': 'Bel Ami OST'})
+
+    def test_non_eng_non_romanization_eng(self):
+        entry = as_node('''"Dlwlrma (이 지금)"''', root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Dlwlrma', '이 지금'
+        self.assertAll(name, eng, eng, han, han)
+
+    def test_french_eng(self):
+        entry = as_node(""""Jamais Vu" - 3:46""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Jamais Vu', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:36'})
+
+    def test_feat_singer_of_group(self):
+        entry = as_node(""""거짓말" (feat. [[Lee Hae Ri]] of [[Davichi]])""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = None, '거짓말'
+        feat = as_node("""[[Lee Hae Ri]] of [[Davichi]]""")
+        self.assertAll(name, eng, eng, han, han, extra={'feat': feat})
+
+    def test_feat_interwiki(self):
+        entry = as_node(""""Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Lost Without You', '우리집을 못 찾겠군요'
+        feat = as_node("""[[w:c:kindie:Bolbbalgan4|Bolbbalgan4]]""")
+        self.assertAll(name, eng, eng, han, han, extra={'feat': feat})
+
+    def test_remix_feat_no_link(self):
+        entry = as_node(""""나쁜 피 (Common Cold Remix)" (feat. Justhis)""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = None, '나쁜 피'
+        self.assertAll(name, eng, eng, han, han, extra={'remix': 'Common Cold Remix', 'feat': 'Justhis'})
+
+    def test_track_1(self):
+        entry = as_node(""""Intro : Persona" - 2:54""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Intro: Persona', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '2:54'})
+
+    def test_track_2(self):
+        entry = as_node(""""Boy With Luv (작은 것들을 위한 시)" (feat. [[wikipedia:Halsey (singer)|Halsey]]) - 3:49""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Boy With Luv', '작은 것들을 위한 시'
+        feat = as_node("""[[wikipedia:Halsey (singer)|Halsey]]""")
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:49', 'feat': feat})
+
+    def test_track_3(self):
+        entry = as_node(""""My Time (시차)" - 3:54""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'My Time', '시차'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:54'})
+
+    def test_track_4(self):
+        entry = as_node(""""Ugh! (욱)" - 3:45""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Ugh!', '욱'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:45'})
+
+    def test_track_5(self):
+        entry = as_node(""""On" (feat. [[Wikipedia:Sia (musician)|Sia]]) - 4:06 {{small| 1 = ('''Digital only''')}}""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'On', None
+        feat = as_node("""[[Wikipedia:Sia (musician)|Sia]]""")
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:06', 'feat': feat, 'availability': 'Digital only'})
+
+    def test_track_6(self):
+        entry = as_node(""""Run" - 3:57 <small>(Japanese version)</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Run', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:57', 'version': 'Japanese version'})
+
+    def test_track_7(self):
+        entry = as_node(""""Dope (超ヤベー!)" - 4:17 <small>(Japanese version)</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Dope', '超ヤベー!'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:17', 'version': 'Japanese version'})
+
+    def test_track_8(self):
+        entry = as_node(""""Epilogue: Young Forever" - 2:53 <small>(Japanese version)</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Epilogue: Young Forever', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '2:53', 'version': 'Japanese version'})
+
+    def test_track_9(self):
+        entry = as_node(""""N.O (Japanese ver.)" - 3:31""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'N.O', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:31', 'version': 'Japanese ver.'})
+
+    def test_track_10(self):
+        entry = as_node(""""Baby Don't Cry (인어의 눈물)" - 3:55""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Baby Don\'t Cry', '인어의 눈물'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:55'})
+
+    def test_track_11(self):
+        entry = as_node(""""Black Pearl" - 3:08""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Black Pearl', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:08'})
+
+    def test_track_12(self):
+        entry = as_node(""""3.6.5" - 3:07""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = '3.6.5', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:07'})
+
+    def test_track_13(self):
+        entry = as_node(""""Wolf (늑대와 미녀)" (EXO-K ver.) - 3:52""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Wolf', '늑대와 미녀'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:52', 'version': 'EXO-K ver.'})
+
+    def test_track_14(self):
+        entry = as_node(""""Wolf (狼与美女)" (Mandarin ver.) - 3:52""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, non_eng = 'Wolf', '狼与美女'
+        self.assertAll(name, eng, eng, non_eng, cjk=non_eng, extra={'length': '3:52', 'version': 'Mandarin ver.'})
+
+    def test_track_15(self):
+        entry = as_node(""""Wolf (狼与美女)" - 3:52""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, non_eng = 'Wolf', '狼与美女'
+        self.assertAll(name, eng, eng, non_eng, cjk=non_eng, extra={'length': '3:52'})
+
+    def test_track_16(self):
+        entry = as_node(""""Wolf (늑대와 미녀)" (Korean ver.) - 3:52""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Wolf', '늑대와 미녀'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:52', 'version': 'Korean ver.'})
+
+    def test_track_17(self):
+        entry = as_node(""""Love, Love, Love" - 3:55""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Love, Love, Love', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:55'})
+
+    def test_track_18(self):
+        entry = as_node(""""Overdose (중독)" (EXO version) - 3:25 <small>('''CD only''')</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Overdose', '중독'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:25', 'version': 'EXO version', 'availability': 'CD only'})
+
+    def test_track_20(self):
+        entry = as_node(""""Oh My God" <small>(English ver.)</small> - 3:15""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Oh My God', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:15', 'version': 'English ver.'})
+
+    def test_track_21(self):
+        entry = as_node('''"Seoul"''', root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Seoul', None
+        self.assertAll(name, eng, eng, han, han)
+
+    def test_track_22(self):
+        entry = as_node(""""Bad Bye" (with [[eAeon]])""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Bad Bye', None
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[eAeon]]""")})
+
+    def test_track_23(self):
+        entry = as_node(""""Everythingoes (지나가)"  (with [[Nell]])""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Everythingoes', '지나가'
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Nell]]""")})
+
+    def test_track_24(self):
+        entry = as_node(""""Coloring Book" <small>(Japanese ver.)</small> - 3:07""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Coloring Book', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:07', 'version': 'Japanese ver.'})
+
+    def test_track_25(self):
+        entry = as_node(""""Remember Me (불꽃놀이)" - 3:14 <small>('''Regular / Limited edition only''')</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Remember Me', '불꽃놀이'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:14', 'availability': 'Regular / Limited edition only'})
+
+    def test_track_26(self):
+        entry = as_node(""""Windy Day" - 4:09 <small>('''Limited edition only''')</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Windy Day', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:09', 'availability': 'Limited edition only'})
+
+    def test_track_27(self):
+        entry = as_node(""""Always Winter (언제나 겨울)" <small>([[Skull (singer)|Skull]])</small> - 3:11""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Always Winter', '언제나 겨울'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:11', 'artists': as_node("""[[Skull (singer)|Skull]]""")})
+
+    def test_track_28(self):
+        entry = as_node(""""You Know (있잖 아)" (Feat. [[Mario]]) - 3:21""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'You Know', '있잖 아'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:21', 'feat': as_node("""[[Mario]]""")})
+
+    def test_track_29(self):
+        entry = as_node(""""Voice Mail (Korean ver.)" (Bonus track) - 4:06""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Voice Mail', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '4:06', 'version': 'Korean ver.', 'misc': 'Bonus track'})
+
+    def test_track_30(self):
+        entry = as_node(""""[[Can't Love You Anymore]] (사랑이 잘)" (with [[w:c:kindie:Oh Hyuk|Oh Hyuk]])""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Can\'t Love You Anymore', '사랑이 잘'
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[w:c:kindie:Oh Hyuk|Oh Hyuk]]""")})
+
+    def test_track_31(self):
+        entry = as_node('''"Jam Jam (잼잼)"''', root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Jam Jam', '잼잼'
+        self.assertAll(name, eng, eng, han, han)
+
+    def test_track_32(self):
+        entry = as_node('''"Full Stop (마침표)"''', root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Full Stop', '마침표'
+        self.assertAll(name, eng, eng, han, han)
+
+    def test_track_33(self):
+        entry = as_node('''"[[Through the Night]] (밤편지)"''', root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Through the Night', '밤편지'
+        self.assertAll(name, eng, eng, han, han)
+
+    def test_track_34(self):
+        entry = as_node(""""Zezé" - 3:10""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Zezé', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:10'})
+
+    def test_track_35(self):
+        entry = as_node(""""Heart (마음)" <small>('''CD only''')</small> - 2:47""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Heart', '마음'
+        self.assertAll(name, eng, eng, han, han, extra={'length': '2:47', 'availability': 'CD only'})
+
+    def test_track_36(self):
+        entry = as_node(""""Twenty Three" <small>('''CD only''')</small> - 3:30""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Twenty Three', None
+        self.assertAll(name, eng, eng, han, han, extra={'length': '3:30', 'availability': 'CD only'})
+
+    def test_track_37(self):
+        entry = as_node(""""Only I Didn't Know (나만 몰랐던 이야기)" <small>(with [[Kim Kwang Min]])</small>""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Only I Didn\'t Know', '나만 몰랐던 이야기'
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Kim Kwang Min]]""")})
+
+
+class KpopFandomTrackNameReprTest(NameTestCaseBase):
+    root = MagicMock(site='kpop.fandom.com')
+
+    def test_feat_interwiki(self):
+        entry = as_node(""""Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root)
+        track = Track(3, parse_kf_track_name(entry), None)
+        self.assertEqual(track.full_name(collabs=True), 'Lost Without You (우리집을 못 찾겠군요) (feat. BOL4 (볼빨간사춘기))')
 
 
 class GenerasiaTrackNameReprTest(NameTestCaseBase):
+    root = MagicMock(site='www.generasia.com')
     # These feat tests are not ideal because they need to pull info from the wiki to look up the artist names, rather
     # than being fully self-contained.
+
     def test_feat_solo_of_group(self):
-        root = MagicMock(site='www.generasia.com')
-        entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]]) """, root=root)
+        entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]]) """, root=self.root)
         track = Track(6, parse_generasia_track_name(entry), None)
         self.assertEqual(track.full_name(collabs=True), 'SELFISH (feat. Seulgi (슬기) of Red Velvet (레드벨벳))')
 
     def test_feat_solo_paren_group(self):
-        root = MagicMock(site='www.generasia.com')
-        entry = as_node("""[[Hwaseongin Baireoseu (Boys & Girls)]] (feat. [[Key]] ([[SHINee]])) (화성인 바이러스; ''Martian Virus'')""", root=root)
+        entry = as_node("""[[Hwaseongin Baireoseu (Boys & Girls)]] (feat. [[Key]] ([[SHINee]])) (화성인 바이러스; ''Martian Virus'')""", root=self.root)
         track = Track(9, parse_generasia_track_name(entry), None)
         expected = 'Boys & Girls (화성인 바이러스) (feat. Key (키) (SHINee (샤이니)))'
         self.assertEqual(track.full_name(collabs=True), expected)
 
 
 class GenerasiaTrackNameParsingTest(NameTestCaseBase):
+    root = MagicMock(site='www.generasia.com')
+
     def test_lit_slash_eng(self):
         entry = as_node("""[[Neona Hae]] (너나 해; ''You Do It'' / ''Egotistic'')""")
         name = parse_generasia_track_name(entry)

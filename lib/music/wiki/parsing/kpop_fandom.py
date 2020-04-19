@@ -27,9 +27,10 @@ if TYPE_CHECKING:
 __all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
 
-DURATION_MATCH = re.compile(r'^(.+?)-\s*(\d+:\d{2})(.*)$').match
+DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
+REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
 
 
 class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
@@ -214,17 +215,15 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         if isinstance(node, String):
             return _process_track_string(node.value)
         elif node.__class__ is CompoundNode:
-            if len(node) == 2 and isinstance(node[0], String) and is_node_with(node[1], Tag, String, name='small'):
+            if has_item_types(node, String, Tag) and is_node_with(node[1], Tag, String, name='small'):
                 return _process_track_string(node[0].value, node[1].value.value)
+            elif has_item_types(node, String, Link, String) and node[0].value == '"':
+                return _process_track_string(f'"{node[1].show}{node[2].value}')
             elif node.only_basic and not node.find_one(Link, recurse=True):
                 log.info(f'Link in {node!r}: {node.find_one(Link, recurse=True)}')
                 return _process_track_string(' '.join(str(n.show if isinstance(n, Link) else n.value) for n in node))
-
-            log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
-            if isinstance(node[0], String) and node[0].value == '"':    # node[1] likely a Link
-                pass
             else:
-                pass
+                return _process_track_complex(node)
         else:
             log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
 
@@ -288,6 +287,107 @@ def is_node_with(obj, cls, val_cls, **kwargs):
     if kwargs:
         return all(getattr(obj, k) == v for k, v in kwargs.items())
     return True
+
+
+def has_item_types(node, *types):
+    if len(node) != len(types):
+        return False
+    return all(isinstance(item, cls) for item, cls in zip(node, types))
+
+
+def _process_track_complex(orig_node: CompoundNode) -> Name:
+    nodes = list(orig_node)
+    node = nodes.pop(0)
+    remainder = None
+    if isinstance(node, String):
+        if node.value == '"':
+            node = nodes.pop(0)
+            if isinstance(node, Link):
+                base_name = node.show
+                node = nodes.pop(0)
+                if isinstance(node, String):
+                    remainder = node.value
+                    if remainder.count('"') == 1:
+                        name_part, remainder = map(str.strip, remainder.split('"', 1))
+                        base_name = f'{base_name} {name_part}'
+                else:
+                    raise TypeError(f'Unexpected third node type for track={orig_node!r} {node=!r}')
+            else:
+                raise ValueError(f'Unexpected second node value for track={orig_node!r} {node=!r}')
+        else:
+            split_name = split_enclosed(node.value, maxsplit=1)
+            if len(split_name) == 1:
+                base_name = split_name[0]
+            else:
+                base_name, remainder = split_name
+    elif isinstance(node, Link):
+        base_name = node.show
+    else:
+        raise TypeError(f'Unexpected first node type for track={orig_node!r} {node=!r}')
+
+    if not remainder and nodes:
+        node = nodes.pop(0)
+        if is_node_with(node, Tag, CompoundNode, name='small'):
+            nodes = list(node.value) + nodes
+            node = nodes.pop(0)
+            if isinstance(node, String):
+                remainder = node.value
+            else:
+                raise TypeError(f'Unexpected tag value node type for track={orig_node!r} {node=!r}')
+        elif isinstance(node, String):
+            remainder = node.value
+        else:
+            raise TypeError(f'Unexpected node type after track name for track={orig_node!r} {node=!r}')
+
+    extra = {}
+    if remainder:
+        if extra_type := REMAINDER_ARTIST_EXTRA_TYPE_MAP.get(remainder.lower()):
+            remainder = None
+            artists = []
+            while nodes:
+                node = nodes.pop(0)
+                if isinstance(node, Link):
+                    artists.append(node)
+                elif isinstance(node, String):
+                    if start_str := next((val for val in (')', 'duet)') if node.value.startswith(val)), None):
+                        if len(artists) == 1:
+                            extra[extra_type] = artists[0]
+                        else:
+                            extra[extra_type] = CompoundNode.from_nodes(artists, root=orig_node.root, delim=' ')
+                        remainder = node.value[len(start_str):].strip()
+                        break
+                    elif node.value.startswith('feat.') and node.value.endswith(')'):
+                        if len(artists) == 1:
+                            extra[extra_type] = artists[0]
+                        else:
+                            extra[extra_type] = CompoundNode.from_nodes(artists, root=orig_node.root, delim=' ')
+                        extra['feat'] = node.value[5:-1].strip()
+                        break
+                    else:
+                        artists.append(node)
+                else:
+                    raise TypeError(f'Unexpected artist node type for track={orig_node!r} {node=!r}')
+
+    remainder = remainder or ''
+    if nodes:
+        remainder_parts = [remainder]
+        for node in nodes:
+            if is_node_with(node, Template, MappingNode, name='small'):
+                node = node.value['1']
+            remainder_parts.append(str(node.show if isinstance(node, Link) else node.value))
+        remainder = ' '.join(remainder_parts)
+
+    # log.debug(f'Checking {remainder=!r} for a duration...')
+    if m := DURATION_MATCH(remainder):
+        before, extra['length'], after = map(str.strip, m.groups())
+        for part in (before, after):
+            if part:
+                extra.update(_process_track_extras(part))
+
+    # log.debug(f'orig_node={orig_node.pformat()} => {base_name=!r} + {extra=!r}')
+    name = Name.from_enclosed(base_name, extra=extra or None)
+    # log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
+    return name
 
 
 def _process_track_string(text: str, extra_content: Optional[str] = None) -> Name:

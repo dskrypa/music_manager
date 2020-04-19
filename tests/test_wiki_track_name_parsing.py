@@ -57,7 +57,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Moonlight (월광)" ([[Baekhyun]] & [[D.O.]] duet) - 4:26""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Moonlight', '월광'
-        artists = as_node("""[[Baekhyun]] & [[D.O.]] duet""")
+        artists = as_node("""[[Baekhyun]] & [[D.O.]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'length': '4:26', 'artists': artists})
 
     def test_feat_no_link(self):
@@ -76,7 +76,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Hair in the Air" (Sung By [[Yeri (Red Velvet)|Yeri]], [[Renjun]], [[Jeno]], [[Jaemin]]) - 2:47""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Hair in the Air', None
-        artists = as_node("""Sung By [[Yeri (Red Velvet)|Yeri]], [[Renjun]], [[Jeno]], [[Jaemin]]""")
+        artists = as_node("""[[Yeri (Red Velvet)|Yeri]] , [[Renjun]] , [[Jeno]] , [[Jaemin]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'length': '2:47', 'artists': artists})
 
     def test_inst_eng(self):
@@ -98,7 +98,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""White (화이트)" <small>([[OH MY GIRL]], [[Haha]] feat. M.TySON)</small> - 3:35""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'White', '화이트'
-        artists = as_node("""[[OH MY GIRL]], [[Haha]]""")
+        artists = as_node("""[[OH MY GIRL]] , [[Haha]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'length': '3:35', 'artists': artists, 'feat': 'M.TySON'})
 
     def test_nested_enclosed(self):
@@ -153,14 +153,14 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""거짓말" (feat. [[Lee Hae Ri]] of [[Davichi]])""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = None, '거짓말'
-        feat = as_node("""[[Lee Hae Ri]] of [[Davichi]]""")
+        feat = as_node("""[[Lee Hae Ri]] of [[Davichi]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'feat': feat})
 
     def test_feat_interwiki(self):
         entry = as_node(""""Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Lost Without You', '우리집을 못 찾겠군요'
-        feat = as_node("""[[w:c:kindie:Bolbbalgan4|Bolbbalgan4]]""")
+        feat = as_node("""[[w:c:kindie:Bolbbalgan4|Bolbbalgan4]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'feat': feat})
 
     def test_remix_feat_no_link(self):
@@ -179,7 +179,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Boy With Luv (작은 것들을 위한 시)" (feat. [[wikipedia:Halsey (singer)|Halsey]]) - 3:49""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Boy With Luv', '작은 것들을 위한 시'
-        feat = as_node("""[[wikipedia:Halsey (singer)|Halsey]]""")
+        feat = as_node("""[[wikipedia:Halsey (singer)|Halsey]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'length': '3:49', 'feat': feat})
 
     def test_track_3(self):
@@ -198,7 +198,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""On" (feat. [[Wikipedia:Sia (musician)|Sia]]) - 4:06 {{small| 1 = ('''Digital only''')}}""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'On', None
-        feat = as_node("""[[Wikipedia:Sia (musician)|Sia]]""")
+        feat = as_node("""[[Wikipedia:Sia (musician)|Sia]]""", root=self.root)
         self.assertAll(name, eng, eng, han, han, extra={'length': '4:06', 'feat': feat, 'availability': 'Digital only'})
 
     def test_track_6(self):
@@ -295,13 +295,13 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Bad Bye" (with [[eAeon]])""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Bad Bye', None
-        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[eAeon]]""")})
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[eAeon]]""", root=self.root)})
 
     def test_track_23(self):
         entry = as_node(""""Everythingoes (지나가)"  (with [[Nell]])""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Everythingoes', '지나가'
-        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Nell]]""")})
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Nell]]""", root=self.root)})
 
     def test_track_24(self):
         entry = as_node(""""Coloring Book" <small>(Japanese ver.)</small> - 3:07""", root=self.root)
@@ -325,25 +325,34 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Always Winter (언제나 겨울)" <small>([[Skull (singer)|Skull]])</small> - 3:11""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Always Winter', '언제나 겨울'
-        self.assertAll(name, eng, eng, han, han, extra={'length': '3:11', 'artists': as_node("""[[Skull (singer)|Skull]]""")})
+        self.assertAll(
+            name, eng, eng, han, han,
+            extra={'length': '3:11', 'artists': as_node("""[[Skull (singer)|Skull]]""", root=self.root)}
+        )
 
     def test_track_28(self):
         entry = as_node(""""You Know (있잖 아)" (Feat. [[Mario]]) - 3:21""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'You Know', '있잖 아'
-        self.assertAll(name, eng, eng, han, han, extra={'length': '3:21', 'feat': as_node("""[[Mario]]""")})
+        self.assertAll(
+            name, eng, eng, han, han, extra={'length': '3:21', 'feat': as_node("""[[Mario]]""", root=self.root)}
+        )
 
     def test_track_29(self):
         entry = as_node(""""Voice Mail (Korean ver.)" (Bonus track) - 4:06""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Voice Mail', None
-        self.assertAll(name, eng, eng, han, han, extra={'length': '4:06', 'version': 'Korean ver.', 'misc': 'Bonus track'})
+        self.assertAll(
+            name, eng, eng, han, han, extra={'length': '4:06', 'version': 'Korean ver.', 'misc': 'Bonus track'}
+        )
 
     def test_track_30(self):
         entry = as_node(""""[[Can't Love You Anymore]] (사랑이 잘)" (with [[w:c:kindie:Oh Hyuk|Oh Hyuk]])""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Can\'t Love You Anymore', '사랑이 잘'
-        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[w:c:kindie:Oh Hyuk|Oh Hyuk]]""")})
+        self.assertAll(
+            name, eng, eng, han, han, extra={'collabs': as_node("""[[w:c:kindie:Oh Hyuk|Oh Hyuk]]""", root=self.root)}
+        )
 
     def test_track_31(self):
         entry = as_node('''"Jam Jam (잼잼)"''', root=self.root)
@@ -385,7 +394,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         entry = as_node(""""Only I Didn't Know (나만 몰랐던 이야기)" <small>(with [[Kim Kwang Min]])</small>""", root=self.root)
         name = parse_kf_track_name(entry)
         eng, han = 'Only I Didn\'t Know', '나만 몰랐던 이야기'
-        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Kim Kwang Min]]""")})
+        self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Kim Kwang Min]]""", root=self.root)})
 
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):

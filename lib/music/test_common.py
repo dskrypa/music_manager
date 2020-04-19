@@ -7,6 +7,8 @@ import logging
 from ds_tools.test_common import TestCaseBase, main
 from ds_tools.output import colored
 
+from wiki_nodes import Node
+
 from .text import Name
 
 __all__ = ['NameTestCaseBase', 'main', 'TestCaseBase']
@@ -16,8 +18,15 @@ log = logging.getLogger(__name__)
 class NameTestCaseBase(TestCaseBase):
     def assertIsOrEqual(self, name, attr, expected):
         value = getattr(name, attr)
-        found = colored(f'{attr}={value!r}', 'cyan')
-        _expected = colored(f'expected={expected!r}', 13)
+        if isinstance(value, dict) and isinstance(expected, dict):
+            raw_found = {k: v.raw.string if isinstance(v, Node) else v for k, v in value.items()}
+            raw_expected = {k: v.raw.string if isinstance(v, Node) else v for k, v in expected.items()}
+            found = colored(f'{attr}={value!r}\n/ {raw_found}', 'cyan')
+            _expected = colored(f'\nexpected={expected!r}\n/ {raw_expected}', 13)
+        else:
+            found = colored(f'{attr}={value!r}', 'cyan')
+            _expected = colored(f'expected={expected!r}', 13)
+
         msg = f'\nFound Name.{found}; {_expected} - full name:\n{name._full_repr()}'
         if expected is None:
             self.assertIs(value, expected, msg)

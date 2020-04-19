@@ -10,12 +10,11 @@ from wiki_nodes import MediaWikiClient, Node, WikiPage, Link
 from ...text.name import Name
 
 if TYPE_CHECKING:
-    from ..album import DiscographyEntry, DiscographyEntryEdition
+    from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
     from ..discography import DiscographyEntryFinder
 
 __all__ = ['WikiParser']
 log = logging.getLogger(__name__)
-
 EditionIterator = Iterator['DiscographyEntryEdition']
 
 
@@ -29,8 +28,16 @@ class WikiParser(ABC):
         cls.client = MediaWikiClient(site)
 
     @classmethod
-    def for_site(cls, site: str) -> 'WikiParser':
-        return cls._site_parsers[site]
+    def for_site(cls, site: str, method: Optional[str] = None) -> Optional['WikiParser']:
+        if (parser := cls._site_parsers.get(site)) and method:
+            try:
+                co_names = getattr(parser, method).__code__.co_names
+            except AttributeError:
+                return parser
+            else:
+                if len(co_names) == 1 and 'NotImplementedError' in co_names:
+                    return None
+        return parser
 
     @classmethod
     @abstractmethod
@@ -60,6 +67,11 @@ class WikiParser(ABC):
     @classmethod
     @abstractmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
         raise NotImplementedError
 
     @classmethod

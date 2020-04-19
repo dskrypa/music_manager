@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
 
 from wiki_nodes import WikiPage, Node, Link, String
 from ...text import Name
-from ..album import DiscographyEntry, DiscographyEntryEdition
+from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 
@@ -54,6 +54,10 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @classmethod
+    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
         raise NotImplementedError
 
     @classmethod

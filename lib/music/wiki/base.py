@@ -77,22 +77,10 @@ class WikiEntity:
 
     def page_parsers(self, method: Optional[str] = None) -> Iterator[Tuple[WikiPage, 'WikiParser']]:
         for site, page in self._pages.items():
-            try:
-                parser = WikiParser.for_site(site)
-            except KeyError:
-                log.log(9, f'No parser is configured for {page}')
+            if parser := WikiParser.for_site(site, method):
+                yield page, parser
             else:
-                # yield page, parser
-                if method:              # TODO: Remove this after implementing all methods on all parsers
-                    try:
-                        co_names = getattr(parser, method).__code__.co_names
-                    except AttributeError:
-                        yield page, parser
-                    else:
-                        if len(co_names) != 1 or 'NotImplementedError' not in co_names:
-                            yield page, parser
-                else:
-                    yield page, parser
+                log.log(9, f'No parser is configured for {page}')
 
     @classmethod
     def _validate(

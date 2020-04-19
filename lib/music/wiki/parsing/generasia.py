@@ -14,7 +14,7 @@ from wiki_nodes import WikiPage, Node, Link, String, CompoundNode, MappingNode, 
 from wiki_nodes.utils import strip_style
 from ...common import DiscoEntryType
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english
-from ..album import DiscographyEntry, DiscographyEntryEdition
+from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TemplateEntity
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
@@ -377,6 +377,14 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     album_name, entry_page, entry, entry_type, artist_link, release_dates, value, edition or version,
                     find_language(value, lang, langs), repackage
                 )
+
+    @classmethod
+    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
+        if edition._tracks[0].children:
+            for node in edition._tracks:
+                yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
+        else:
+            yield DiscographyEntryPart(None, edition, edition._tracks)
 
     @classmethod
     def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes import WikiPage, Node, Template, Link, TableSeparator, CompoundNode, String
 from ...text import Name
-from ..album import DiscographyEntry, DiscographyEntryEdition
+from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
@@ -66,6 +66,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @classmethod
+    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
         raise NotImplementedError
 
     @classmethod

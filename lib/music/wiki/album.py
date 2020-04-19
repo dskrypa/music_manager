@@ -19,6 +19,7 @@ from ..text import combine_with_parens, Name
 from .base import EntertainmentEntity, Pages
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, BadLinkError
+from .parsing import WikiParser
 
 __all__ = [
     'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',
@@ -85,6 +86,15 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
 
     def __bool__(self):
         return bool(self.editions)
+
+    @cached_property
+    def artists(self) -> Set['Artist']:
+        artists = set()
+        if isinstance(self._artist, Artist):
+            artists.add(self._artist)
+        for edition in self.editions:
+            artists.update(edition.artists)
+        return artists
 
     @cached_property
     def artist(self) -> Optional['Artist']:
@@ -240,14 +250,25 @@ class DiscographyEntryEdition:
     @cached_property
     def artists(self) -> Set['Artist']:
         artists = set()
-        if isinstance(self._artist, set):
-            link_artist_map = Artist.from_links({link for link in self._artist if isinstance(link, Link)})
-            artists.update(link_artist_map.values())
+        if isinstance(self._artist, Artist):
+            artists.add(self._artist)
+        elif isinstance(self._artist, set):
+            artist_links, artist_strs = set(), set()
+            for artist in self._artist:
+                if isinstance(artist, Link):
+                    artist_links.add(artist)
+                else:
+                    artist_strs.add(artist)
+            if artist_strs:
+                log.debug(f'Found non-link artist values for {self!r}: {artist_strs}', extra={'color': 11})
+            artists.update(Artist.from_links(artist_links).values())
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))
             except BadLinkError as e:
                 log.debug(f'Error getting artist={self._artist} for {self}: {e}')
+        else:
+            log.debug(f'Found unexpected value for {self!r}._artist: {self._artist!r}', extra={'color': 11})
         return artists
 
     @cached_property
@@ -267,24 +288,11 @@ class DiscographyEntryEdition:
 
     @cached_property
     def parts(self) -> List['DiscographyEntryPart']:
-        # Example with multiple parts (disks): https://www.generasia.com/wiki/Love_Yourself_Gyeol_%27Answer%27
-        parts = []
-        site = self.page.site
-        if site == 'www.generasia.com':
-            if self._tracks[0].children:
-                for node in self._tracks:
-                    parts.append(DiscographyEntryPart(node.value.value, self, node.sub_list))
-            else:
-                parts.append(DiscographyEntryPart(None, self, self._tracks))
-        elif site == 'wiki.d-addicts.com':
-            pass
-        elif site == 'kpop.fandom.com':
-            pass
-        elif site == 'en.wikipedia.org':
-            pass
+        if parser := WikiParser.for_site(self.page.site, 'process_edition_parts'):
+            return list(parser.process_edition_parts(self))
         else:
             log.debug(f'No discography entry part extraction is configured for {self.page}')
-        return parts
+            return []
 
     @cached_property
     def numbered_type(self) -> Optional[str]:
@@ -340,13 +348,11 @@ class DiscographyEntryPart:
 
     @cached_property
     def track_names(self) -> List[Name]:
-        try:
-            parse_track_name = WikiParser.for_site(self.edition.page.site).parse_track_name
-        except KeyError:
+        if parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name'):
+            return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
+        else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')
             return []
-        else:
-            return [parse_track_name(node) for node in self._tracks.iter_flat()]
 
     @cached_property
     def tracks(self) -> List['Track']:
@@ -360,5 +366,4 @@ class SoundtrackPart(DiscographyEntryPart):
 
 # Down here due to circular dependency
 from .artist import Artist
-from .parsing import WikiParser
 from .track import Track

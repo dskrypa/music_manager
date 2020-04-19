@@ -182,7 +182,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         dates = []
         if released := infobox.value.get('released'):
             for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
-                dates.append(datetime.strptime(dt_str, '%B %d, %Y').date())
+                dates.append(datetime.strptime(dt_str.group(1), '%B %d, %Y').date())
         return dates
 
     @classmethod

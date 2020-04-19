@@ -238,16 +238,27 @@ class DiscographyEntryEdition:
         return self.entry.cls_type_name + 'Edition'
 
     @cached_property
-    def artists(self) -> Optional[Set['Artist']]:
-        return None
+    def artists(self) -> Set['Artist']:
+        artists = set()
+        if isinstance(self._artist, set):
+            link_artist_map = Artist.from_links({link for link in self._artist if isinstance(link, Link)})
+            artists.update(link_artist_map.values())
+        elif isinstance(self._artist, Link):
+            try:
+                artists.add(Artist.from_link(self._artist))
+            except BadLinkError as e:
+                log.debug(f'Error getting artist={self._artist} for {self}: {e}')
+        return artists
 
     @cached_property
     def artist(self) -> Optional['Artist']:
-        if isinstance(self._artist, Link):
-            try:
-                return Artist.from_link(self._artist)
-            except BadLinkError as e:
-                log.debug(f'Error getting artist={self._artist} for {self}: {e}')
+        if artists := self.artists:
+            if len(artists) == 1:
+                return next(iter(artists))
+            else:
+                log.debug(f'Multiple artists found for {self!r}: {artists}')
+        else:
+            log.debug(f'No artists found for {self!r}')
         return None
 
     @cached_property

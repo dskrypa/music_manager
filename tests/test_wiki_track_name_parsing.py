@@ -19,7 +19,7 @@ parse_kf_track_name = KpopFandomParser.parse_track_name
 
 
 class KpopFandomTrackNameParsingTest(NameTestCaseBase):
-    root = MagicMock(site='kpop.fandom.com')
+    root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})
 
     def test_link_title(self):
         entry = as_node(""""[[Black Swan]]" - 3:18""", root=self.root)
@@ -398,9 +398,9 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
 
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
-    root = MagicMock(site='kpop.fandom.com')
+    root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})
 
-    def test_feat_interwiki(self):
+    def test_feat_interwiki_repr(self):
         entry = as_node(""""Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root)
         track = Track(3, parse_kf_track_name(entry), None)
         self.assertEqual(track.full_name(collabs=True), 'Lost Without You (우리집을 못 찾겠군요) (feat. BOL4 (볼빨간사춘기))')

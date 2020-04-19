@@ -48,6 +48,14 @@ class Track:
             if feat := extras.get('feat'):
                 if isinstance(feat, CompoundNode):
                     feat = artist_string(feat)
+                elif isinstance(feat, Link):
+                    try:
+                        feat = Artist.from_link(feat)
+                    except Exception as e:
+                        log.debug(f'Error retrieving artist from link={feat!r}: {e}')
+                    else:
+                        feat = feat.name
+
                 parts.append(f'feat. {feat}')
             if collab := extras.get('collabs'):
                 if isinstance(collab, CompoundNode):

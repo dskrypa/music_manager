@@ -24,7 +24,11 @@ def link_client_and_title(link: Link) -> Tuple[MediaWikiClient, str]:
     title = link.title
     if link.interwiki:
         iw_key, title = link.iw_key_title
-        mw_client = mw_client.interwiki_client(iw_key)
+        if url := mw_client.interwiki_map.get(iw_key):
+            if '.fandom.' in url and iw_key == 'w' and title.startswith('c:') and title.count(':') >= 2:
+                community, title = title[2:].split(':', 1)
+                url = url.replace('community.fandom.', f'{community}.fandom.')
+        mw_client = MediaWikiClient(url, nopath=True)
     elif not title:
         raise NoLinkTarget(link)
     return mw_client, title

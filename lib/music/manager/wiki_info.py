@@ -6,12 +6,17 @@ from itertools import count
 from typing import Optional, Iterable, Set
 
 from ds_tools.output import uprint
-from wiki_nodes.http import URL_MATCH
+from wiki_nodes.http import URL_MATCH, MediaWikiClient
 from ..common import DiscoEntryType
 from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart
 
-__all__ = ['show_wiki_entity']
+__all__ = ['show_wiki_entity', 'pprint_wiki_page']
 AlbTypes = Optional[Set[DiscoEntryType]]
+
+
+def pprint_wiki_page(url: str, mode: str):
+    page = MediaWikiClient.page_for_article(url)
+    page.sections.pprint(mode)
 
 
 def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None):

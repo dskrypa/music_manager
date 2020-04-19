@@ -9,11 +9,11 @@ from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Union
 
 from wiki_nodes import (
-    WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, List as WikiList
+    WikiPage, Node, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, List as ListNode
 )
 from ...common import DiscoEntryType
-from ...text import Name
-from ..album import DiscographyEntry, DiscographyEntryEdition
+from ...text import Name, split_enclosed, ends_with_enclosed
+from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
@@ -152,16 +152,9 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         name = infobox['name'].value
         repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
         entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
-        artists = cls._find_artist_links(infobox, entry_page)
-        dates = cls._find_release_dates(infobox)
-
-        langs = set()
-        for cat in entry_page.categories:
-            if cat.endswith('releases'):
-                for word in cat.split():
-                    if lang := LANG_ABBREV_MAP.get(word):
-                        langs.add(lang)
-                        break
+        artists = _find_artist_links(infobox, entry_page)
+        dates = _find_release_dates(infobox)
+        langs = _find_page_languages(entry_page)
 
         if track_list_section := entry_page.sections.find('Track list', None):
             track_section_content = track_list_section.processed(False, False, False, False, True)
@@ -170,45 +163,49 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     name, entry_page, entry, entry_type, artists, dates, track_section_content, None,
                     find_language(track_section_content, None, langs), repackage_page
                 )
+
+            discs = []
             for section in track_list_section:
-                pass
-                # yield cls._process_album_edition(entry, entry_page, section.content, section.title)
+                title = section.title
+                lc_title = title.lower()
+                if lc_title == 'cd':
+                    yield DiscographyEntryEdition(  # edition or version = None
+                        name, entry_page, entry, entry_type, artists, dates, section.content, None,
+                        find_language(section.content, None, langs), repackage_page
+                    )
+                elif lc_title.startswith(('cd', 'disc', 'disk')):
+                    discs.append((section.content, find_language(section.content, None, langs)))
+                elif not lc_title.startswith('dvd'):
+                    edition, lang = _process_album_version(title)
+                    yield DiscographyEntryEdition(
+                        name, entry_page, entry, entry_type, artists, dates, section.content, edition,
+                        find_language(section.content, lang, langs), repackage_page
+                    )
+
+            if discs:
+                ed_lang = None
+                if ed_langs := set(filter(None, {disc[1] for disc in discs})):
+                    if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
+                        log.debug(f'Found multiple languages for {entry_page} discs: {ed_langs}')
+
+                yield DiscographyEntryEdition(  # edition or version = None
+                    name, entry_page, entry, entry_type, artists, dates, [d[0] for d in discs], None, ed_lang,
+                    repackage_page
+                )
         else:
-            # May be a single with only one track
-            pass
+            # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
+            yield DiscographyEntryEdition(
+                name, entry_page, entry, entry_type, artists, dates, None, None, find_language(entry_page, None, langs),
+                repackage_page
+            )
 
     @classmethod
-    def _find_release_dates(cls, infobox: Template) -> List[date]:
-        dates = []
-        if released := infobox.value.get('released'):
-            for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
-                dates.append(datetime.strptime(dt_str.group(1), '%B %d, %Y').date())
-        return dates
-
-    @classmethod
-    def _find_artist_links(cls, infobox: Template, entry_page: WikiPage) -> Set[Link]:
-        all_links = {link.title: link for link in entry_page.find_all(Link)}
-        artist_links = set()
-        if artists := infobox.value.get('artist'):
-            if isinstance(artists, String):
-                artists_str = artists.value
-                if artists_str.lower() not in ('various', 'various artists'):
-                    for artist in artists_str.split(', '):
-                        artist = artist.strip()
-                        if artist.startswith('& '):
-                            artist = artist[1:].strip()
-                        if artist_link := all_links.get(artist):
-                            artist_links.add(artist_link)
-            elif isinstance(artists, Link):
-                artist_links.add(artists)
-            elif isinstance(artists, CompoundNode):
-                for artist in artists:
-                    if isinstance(artist, Link):
-                        artist_links.add(artist)
-                    elif isinstance(artist, String):
-                        if artist_link := all_links.get(artist.value):
-                            artist_links.add(artist_link)
-        return artist_links
+    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
+        if edition._tracks[0].children:
+            for node in edition._tracks:
+                yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
+        else:
+            yield DiscographyEntryPart(None, edition, edition._tracks)
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
@@ -255,3 +252,63 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         # This site does not use discography pages.
         return None
+
+
+def _process_album_version(title: str):
+    if ends_with_enclosed(title):
+        _name, _ver = split_enclosed(title, reverse=True, maxsplit=1)
+        lc_ver = _ver.lower()
+        if 'ver' in lc_ver:
+            if lang := LANG_ABBREV_MAP.get(lc_ver.split(maxsplit=1)[0]):
+                return _name, lang
+    else:
+        lc_title = title.lower()
+        if 'ver' in lc_title:
+            if lang := LANG_ABBREV_MAP.get(lc_title.split(maxsplit=1)[0]):
+                return None, lang
+
+    return title, None
+
+
+def _find_page_languages(entry_page: WikiPage) -> Set[str]:
+    langs = set()
+    for cat in entry_page.categories:
+        if cat.endswith('releases'):
+            for word in cat.split():
+                if lang := LANG_ABBREV_MAP.get(word):
+                    langs.add(lang)
+                    break
+    return langs
+
+
+def _find_release_dates(infobox: Template) -> List[date]:
+    dates = []
+    if released := infobox.value.get('released'):
+        for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
+            dates.append(datetime.strptime(dt_str.group(1), '%B %d, %Y').date())
+    return dates
+
+
+def _find_artist_links(infobox: Template, entry_page: WikiPage) -> Set[Link]:
+    all_links = {link.title: link for link in entry_page.find_all(Link)}
+    artist_links = set()
+    if artists := infobox.value.get('artist'):
+        if isinstance(artists, String):
+            artists_str = artists.value
+            if artists_str.lower() not in ('various', 'various artists'):
+                for artist in artists_str.split(', '):
+                    artist = artist.strip()
+                    if artist.startswith('& '):
+                        artist = artist[1:].strip()
+                    if artist_link := all_links.get(artist):
+                        artist_links.add(artist_link)
+        elif isinstance(artists, Link):
+            artist_links.add(artists)
+        elif isinstance(artists, CompoundNode):
+            for artist in artists:
+                if isinstance(artist, Link):
+                    artist_links.add(artist)
+                elif isinstance(artist, String):
+                    if artist_link := all_links.get(artist.value):
+                        artist_links.add(artist_link)
+    return artist_links

@@ -100,9 +100,13 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
     def artist(self) -> Optional['Artist']:
         if isinstance(self._artist, Artist):
             return self._artist
-        for edition in self.editions:
-            if edition.artist:
-                return edition.artist
+        elif artists := self.artists:
+            if len(artists) == 1:
+                return next(iter(artists))
+            else:
+                log.debug(f'Multiple artists found for {self!r}: {artists}')
+        else:
+            log.debug(f'No artists found for {self!r}')
         return None
 
     @cached_property
@@ -204,8 +208,9 @@ class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
             self, name: Optional[str], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
-            artist: Union[Node, Iterable[Node], None], release_dates: Sequence[date], tracks: ListNode,
-            edition: Optional[str] = None, lang: Optional[str] = None, repackage=False
+            artist: Union[Node, Iterable[Node], None], release_dates: Sequence[date],
+            tracks: Union[ListNode, Iterable[ListNode], None], edition: Optional[str] = None,
+            lang: Optional[str] = None, repackage=False
     ):
         self._name = name                       # type: Optional[str]
         self.page = page                        # type: WikiPage
@@ -213,10 +218,17 @@ class DiscographyEntryEdition:
         self.type = entry_type                  # type: DiscoEntryType
         self._artist = artist                   # type: Union[Node, Iterable[Node], None]
         self.release_dates = release_dates      # type: Sequence[date]
-        self._tracks = tracks                   # type: ListNode
+        self._tracks = tracks                   # type: Union[ListNode, Iterable[ListNode], None]
         self.edition = edition                  # type: Optional[str]
         self.lang = lang                        # type: Optional[str]
         self.repackage = repackage
+        # TODO: Fix edition values here:
+        """
+            - <[2013-06-03]AlbumEdition['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][type=1st Chinese Album][edition='Kiss Edition - Hug Edition'][lang='Chinese']>:
+            Artist: <Group('EXO (also called EXO Planet)')[pages: 1]>
+            Parts:
+              - <[2013-06-03]AlbumPart['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][edition='Kiss Edition - Hug Edition']>:
+        """
 
     def __repr__(self) -> str:
         _date = self.release_dates[0].strftime('%Y-%m-%d')

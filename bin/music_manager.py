@@ -23,7 +23,7 @@ from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
 )
 from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags
-from music.manager.wiki_info import show_wiki_entity
+from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
 from music.manager.wiki_match import show_matches
 from music.manager.wiki_update import update_tracks
 
@@ -70,6 +70,10 @@ def parser():
 
     # region Wiki Actions
     wiki_parser = parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions')
+
+    pp_parser = wiki_parser.add_subparser('sub_action', 'pprint', help='Pretty-print the parsed page content')
+    pp_parser.add_argument('url', help='A wiki entity URL')
+    pp_parser.add_argument('--mode', '-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode (default: %(default)s)')
 
     ws_parser = wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL')
     ws_parser.add_argument('identifier', help='A wiki URL or title/name')
@@ -130,6 +134,8 @@ def main():
             )
         elif sub_action == 'match':
             show_matches(args.path)
+        elif sub_action == 'pprint':
+            pprint_wiki_page(args.url, args.mode)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':

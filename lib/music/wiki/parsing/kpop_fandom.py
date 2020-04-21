@@ -220,7 +220,6 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             elif has_item_types(node, String, Link, String) and node[0].value == '"':
                 return _process_track_string(f'"{node[1].show}{node[2].value}')
             elif node.only_basic and not node.find_one(Link, recurse=True):
-                log.info(f'Link in {node!r}: {node.find_one(Link, recurse=True)}')
                 return _process_track_string(' '.join(str(n.show if isinstance(n, Link) else n.value) for n in node))
             else:
                 return _process_track_complex(node)

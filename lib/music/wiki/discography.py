@@ -88,11 +88,10 @@ class DiscographyEntryFinder:
             log.log(9, f'Unexpected entry content from {content.root}: {content!r}')
 
     def process_entries(self) -> Dict[str, List[DiscographyEntry]]:
-        discography = {}
+        discography = defaultdict(list)
         pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(self.entries_by_site)
         for site_client, title_entry_map in self.entries_by_site.items():
             site = site_client.host
-            discography[site] = []
             for title, page in pages_by_site.get(site, {}).items():
                 # log.debug(f'Found page with title={title!r} from site={site}')
                 try:

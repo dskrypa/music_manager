@@ -49,18 +49,18 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.debug(f'No discography section found for {artist_page}')
             return
         try:
-            disco_page_link_tmpl = section.content[0]
+            disco_link_tmpl = section.content[0]
         except Exception as e:
             log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
             return
 
-        if isinstance(disco_page_link_tmpl, Template) and disco_page_link_tmpl.name.lower() == 'main':
+        if isinstance(disco_link_tmpl, Template) and disco_link_tmpl.name.lower() == 'main':
             try:
-                disco_page_title = disco_page_link_tmpl.value[0].value
+                disco_page_link = disco_link_tmpl.value
             except Exception as e:
-                log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
+                log.debug(f'Unexpected error finding the discography link on {artist_page} from {disco_link_tmpl}: {e}')
             else:
-                disco_entity = Discography.from_page(cls.client.get_page(disco_page_title))
+                disco_entity = Discography.from_link(disco_page_link)
                 disco_entity._process_entries(finder)
         else:
             log.debug(f'Unexpected discography section format on {artist_page}')

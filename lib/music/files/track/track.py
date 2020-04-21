@@ -3,6 +3,8 @@
 """
 
 import logging
+import os
+import platform
 import re
 from pathlib import Path
 from typing import Optional, Union
@@ -24,6 +26,7 @@ from .utils import print_tag_changes, tag_repr
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
 LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
+ON_WINDOWS = platform.system().lower() == 'windows'
 
 
 class SongFile(BaseSongFile):
@@ -31,7 +34,14 @@ class SongFile(BaseSongFile):
 
     @classmethod
     def for_plex_track(cls, track: Track, root: Union[str, Path]):
-        return cls(Path(root).joinpath(track.media[0].parts[0].file).resolve())
+        if ON_WINDOWS:
+            if isinstance(root, Path):                              # Path does not work for network shares in Windows
+                root = root.as_posix()
+            if root.startswith('/') and not root.startswith('//'):
+                root = '/' + root
+        rel_path = track.media[0].parts[0].file
+        path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
+        return cls(path)
 
     @cached_property
     def extended_repr(self):

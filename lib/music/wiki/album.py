@@ -125,7 +125,7 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
     @cached_property
     def _sort_key(self) -> Tuple[int, date, str]:
         date = self.date or datetime.fromtimestamp(0).date()
-        return self.year or date.year, date, self.name or ''
+        return self.year or date.year, date, self._name
 
     @cached_property
     def _merge_key(self) -> Tuple[Optional[int], str]:

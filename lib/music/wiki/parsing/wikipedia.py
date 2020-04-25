@@ -7,7 +7,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence
 
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String
+from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node
 from wiki_nodes.nodes import N
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -148,9 +148,14 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             date = None
 
         year = int(row.get('Year').value) if 'Year' in row else None
+        try:
+            from_albums = node_to_link_dict(row.get('Album'))
+        except ValueError as e:
+            log.debug(f'Error parsing album data for {row=}: {e}')
+            from_albums = None
         disco_entry = DiscoEntry(
             disco_page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data,
-            from_albums=row.get('Album')
+            from_albums=from_albums
         )
         if isinstance(title, Link):
             finder.add_entry_link(title, disco_entry)
@@ -164,3 +169,64 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                 if expected:
                     disco_entry.title = title[0].value
                 finder.add_entry(disco_entry, row, not expected)
+
+
+def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:
+    if not node:
+        return None
+    elif not isinstance(node, Node):
+        raise TypeError(f'Unexpected node type={node.__class__.__name__}')
+    elif isinstance(node, Template) and node.name.lower() == 'n/a':
+        return None
+
+    as_dict = {}
+    if isinstance(node, String):
+        as_dict[node.value] = None
+    elif isinstance(node, Link):
+        as_dict[node.show] = node
+    elif isinstance(node, CompoundNode):
+        if len(node) == 2:
+            a, b = node
+            if isinstance(a, Link) and isinstance(b, String):
+                if b.value == 'OST' or (b.value.startswith('OST') and 'part' in b.value.lower()):
+                    as_dict[f'{a.show} {b.value}'] = a
+                elif b.value.startswith('and '):
+                    as_dict[a.show] = a
+                    as_dict[b.value[4:].strip()] = None
+                else:
+                    raise ValueError(f'Unexpected content for {node=}')
+            elif isinstance(a, String) and isinstance(b, Link):
+                if a.value.endswith(' and'):
+                    as_dict[b.show] = b
+                    as_dict[a.value[:-4].strip()] = None
+                else:
+                    raise ValueError(f'Unexpected content for {node=}')
+        elif len(node) == 3:
+            a, b, c = node
+            if isinstance(a, Link) and isinstance(b, String) and isinstance(c, Link):
+                b = b.value
+                if b.startswith('OST '):
+                    as_dict[f'{a.show} OST'] = a
+                    b = b[4:].strip()
+                else:
+                    as_dict[a.show] = a
+                if b == 'and':
+                    as_dict[c.show] = c
+                else:
+                    raise ValueError(f'Unexpected content for {node=}')
+            elif isinstance(a, String) and isinstance(b, Link) and isinstance(c, String):
+                a, c = map(lambda n: n.value.strip("'"), (a, c))
+                if not a and c == 'OST':
+                    as_dict[f'{b.show} OST'] = b
+                else:
+                    raise ValueError(f'Unexpected content for {node=}')
+            else:
+                raise ValueError(f'Unexpected content for {node=}')
+    else:
+        raise ValueError(f'Unexpected content for {node=}')
+
+    for to_rm in ('Non-album single', 'Non-album singles'):
+        if to_rm in as_dict:
+            del as_dict[to_rm]
+
+    return as_dict

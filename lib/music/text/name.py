@@ -85,7 +85,7 @@ class Name(ClearableCachedPropertyMixin):
         non_eng = self.non_eng
         if eng and non_eng:
             return f'{eng} ({non_eng})'
-        return eng or non_eng
+        return eng or non_eng or self.romanized or self.lit_translation or ''
 
     def artist_str(self, group=True, members=True):
         if extra := self.extra:

@@ -4,7 +4,8 @@
 
 import logging
 import re
-from typing import Tuple, List, Iterator, Sequence, Union, Type, Hashable, MutableSequence
+from dataclasses import dataclass, InitVar, fields
+from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
@@ -32,30 +33,28 @@ DELIM_FINDITER = DELIMS_PAT.finditer
 UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search
 
 
-# noinspection PyUnresolvedReferences
+@dataclass
 class AlbumName:
-    __attrs = (
-        'alb_type', 'alb_num', 'sm_station', 'edition', 'remix', 'version', 'ost', 'part', 'network_info', 'part_name',
-        'feat', 'song_name', 'name'
-    )
+    name_parts: InitVar[Union[str, Iterable[str]]]
+    alb_type: str = None
+    alb_num: int = None
+    sm_station: bool = False
+    edition: str = None
+    remix: str = None
+    version: str = None
+    ost: bool = False
+    part: int = None
+    network_info: str = None
+    part_name: str = None
+    feat: Optional[Tuple[str, ...]] = None
+    song_name: str = None
+    name: Name = None
 
-    def __new__(cls: Type['AlbumName'], *args, **kwargs) -> 'AlbumName':
-        self = super().__new__(cls)
-        self.__dict__.update(((attr, None) for attr in cls.__attrs))
-        return self
-
-    def __init__(self, name_parts, **kwargs):
+    def __post_init__(self, name_parts):
         self.name = Name(name_parts) if isinstance(name_parts, str) else Name(*sort_name_parts(name_parts))
-        for key, val in kwargs.items():
-            if key in self.__attrs:
-                if not isinstance(val, Hashable):
-                    raise ValueError(f'Unable to set {self.__class__.__name__}.{key}={val!r} - values must be hashable')
-                setattr(self, key, val)
-            else:
-                raise SyntaxError(f'Invalid keyword argument for {self.__class__.__name__}: {key!r}')
 
     def __repr__(self):
-        parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(self.__attrs, self.__parts) if v and k != 'name'))
+        parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(_fields(self), self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
         return f'{self.__class__.__name__}[{self.type.name}]({self.name!r}{parts})'
 
@@ -65,11 +64,11 @@ class AlbumName:
         return self.__parts == other.__parts
 
     def __dir__(self):
-        return sorted(set(dir(self.__class__)).union(self.__attrs))
+        return sorted(set(dir(self.__class__)).union(_fields(self)))
 
     @cached_property
     def __parts(self):
-        return tuple(getattr(self, attr) for attr in self.__attrs)
+        return tuple(getattr(self, attr) for attr in _fields(self))
 
     def __hash__(self):
         return hash(self.__parts)
@@ -87,7 +86,7 @@ class AlbumName:
 
     @classmethod
     def parse(cls, name: str) -> 'AlbumName':
-        self = cls.__new__(cls)
+        self = cls.__new__(cls)                         # type: AlbumName
         if m := ALB_TYPE_DASH_SUFFIX_MATCH(name):
             name, alb_type = map(clean, m.groups())
             if 'station' in alb_type.lower():
@@ -186,6 +185,11 @@ class AlbumName:
 
         self.name = Name(*sort_name_parts(name_parts))
         return self
+
+
+def _fields(obj):
+    for field in fields(obj):
+        yield field.name
 
 
 def split_name(name_parts):

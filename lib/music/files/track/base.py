@@ -283,7 +283,12 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     @cached_property
     def artists(self) -> Set[Name]:
         if artist := self.tag_artist:
-            return set(split_artists(artist))
+            artists = set(split_artists(artist))
+            # noinspection PyUnresolvedReferences
+            if (album := self.album) and album.feat:
+                # noinspection PyUnresolvedReferences
+                artists.update(album.feat)
+            return artists
         return set()
 
     @cached_property

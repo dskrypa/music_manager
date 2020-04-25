@@ -218,7 +218,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', de_type: DiscoEntryType, entry: CompoundNode,
             lang: Optional[str]
     ):
-        log.debug(f'Processing {cls.parse_album_name(entry)!r}')
+        log.log(9, f'Processing {cls.parse_album_name(entry)!r}')
         entry_type = de_type  # Except for collabs with a different primary artist
         entry_link = next(entry.find_all(Link, True), None)  # Almost always the 1st link
         song_title = entry_link.show if entry_link else None
@@ -316,7 +316,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if album_name.endswith('('):
                 album_name = album_name[:-1].strip()
 
-        log.debug(f'Processing edition entry with {album_name=!r} {entry_type=!r} {artist_link=!r}')
+        log.log(9, f'Processing edition entry with {album_name=!r} {entry_type=!r} {artist_link=!r}')
         lang, version, edition = None, None, None
         lc_album_name = album_name.lower()
         if ver_ed_indicator := next((val for val in ('ver.', 'edition') if val in lc_album_name), None):

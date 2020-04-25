@@ -71,12 +71,14 @@ class DiscoEntry:
     def link(self):
         if self._link:
             return self._link
-        elif not self.links:
+        if links := self.links:
+            return links[0]
+        else:
             return None
 
     @property
     def title(self):
-        return self._title if self._title else (self.link.text or self.link.title) if self.link else None
+        return self._title if self._title else self.link.show if self.link else None
 
     @title.setter
     def title(self, value):

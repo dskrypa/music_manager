@@ -9,6 +9,7 @@ from ds_tools.output import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
 from ..common import DiscoEntryType
 from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart
+from ..wiki.discography import DiscographyMixin, Discography
 
 __all__ = ['show_wiki_entity', 'pprint_wiki_page']
 AlbTypes = Optional[Set[DiscoEntryType]]
@@ -31,6 +32,8 @@ def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Optional[Ite
         print_disco_entry(entity, 2, expand > 0, limit, expand > 1)
     elif isinstance(entity, Artist):
         print_artist(entity, 2, expand > 0, expand > 1, expand > 2, alb_types)
+    elif isinstance(entity, Discography):
+        print_discography(entity, 2, expand > 0, expand > 1, expand > 2, alb_types, True)
     else:
         uprint(f'  - No additional information is configured for {entity.__class__.__name__} entities')
 
@@ -48,7 +51,18 @@ def print_artist(
                 for version in name.versions:
                     uprint(f'{prefix}       - {version}')
 
-    if discography := artist.discography:
+    print_discography(artist, indent, expand_disco, editions, track_info, alb_types)
+
+
+def print_discography(
+        entity: DiscographyMixin, indent=0, expand_disco=False, editions=False, track_info=False,
+        alb_types: AlbTypes = None, header=False
+):
+    prefix = ' ' * indent
+    if header:
+        # noinspection PyUnresolvedReferences
+        uprint(f'{prefix}- {entity.name}:')
+    if discography := entity.discography:
         uprint(f'{prefix}  Discography:')
         for disco_entry in sorted(discography):
             if not alb_types or disco_entry.type in alb_types:

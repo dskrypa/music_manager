@@ -7,7 +7,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence, Iterable
 
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section
+from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode
 from wiki_nodes.nodes import N
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -21,7 +21,10 @@ if TYPE_CHECKING:
 __all__ = ['WikipediaParser']
 log = logging.getLogger(__name__)
 
-SECTION_BLACKLIST = {'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums'}
+SECTION_BLACKLIST = {
+    'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums', 'guest appearances',
+    'other charted songs'
+}
 short_repr = partial(_short_repr, containers_only=False)
 
 
@@ -65,6 +68,13 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                         f'Unexpected error finding the discography link on {artist_page} from {disco_link_tmpl}: {e}'
                     )
                 else:
+                    if not isinstance(disco_page_link, Link):
+                        if isinstance(disco_page_link, MappingNode):
+                            disco_page_link = Link.from_title(disco_page_link['1'].value, artist_page)
+                        else:
+                            log.debug(f'Unexpected {disco_page_link=} format on {artist_page}')
+                            return
+
                     disco_entity = Discography.from_link(disco_page_link)
                     disco_entity._process_entries(finder)
             else:
@@ -105,7 +115,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             try:
                 for row in section.content:
                     try:
-                        # log.debug(f'Processing alb_type={alb_type} row={row}')
+                        # log.debug(f'Processing alb_type={alb_types} row={row}')
                         if isinstance(row, TableSeparator):
                             try:
                                 lang = row.value.value
@@ -154,6 +164,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         except ValueError as e:
             log.debug(f'Error parsing album data for {row=}: {e}')
             from_albums = None
+
         disco_entry = DiscoEntry(
             page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data, from_albums=from_albums
         )

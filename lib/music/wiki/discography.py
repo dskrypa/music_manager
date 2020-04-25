@@ -10,7 +10,7 @@ from typing import Dict, List, Iterable
 from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, Link
 from .album import DiscographyEntry
-from .base import WikiEntity
+from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError
 from .utils import link_client_and_title
@@ -140,7 +140,7 @@ class DiscographyEntryFinder:
         return discography
 
 
-class Discography(WikiEntity, DiscographyMixin):
+class Discography(EntertainmentEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
 

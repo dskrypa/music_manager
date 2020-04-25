@@ -4,6 +4,7 @@
 
 import logging
 from datetime import datetime, date
+from tempfile import TemporaryDirectory
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -22,7 +23,9 @@ from tz_aware_dt import format_duration
 from ...text import Name
 from ..exceptions import *
 from .parsing import split_artists, AlbumName
-from .utils import FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet
+from .utils import (
+    FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, ON_WINDOWS
+)
 
 __all__ = ['BaseSongFile']
 log = logging.getLogger(__name__)
@@ -73,14 +76,31 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         old_path = self.path.as_posix()
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
-        dest_path = dest_path.expanduser().resolve()
+
+        dest_name = dest_path.name                      # on Windows, if the new path is only different by case,
+        dest_path = dest_path.expanduser().resolve()    # .resolve() discards the new case
+        dest_path = dest_path.with_name(dest_name)
+
         if not dest_path.parent.exists():
             dest_path.parent.mkdir(parents=True)
-        if dest_path.exists():
-            raise ValueError('Destination for {} already exists: {!r}'.format(self, dest_path.as_posix()))
 
-        self.path.rename(dest_path)
-        self.clear_cached_properties()
+        use_temp = False
+        if dest_path.exists():
+            if dest_path.samefile(self.path) and ON_WINDOWS and dest_name != self.path.name:
+                use_temp = True
+            else:
+                raise ValueError('Destination for {} already exists: {!r}'.format(self, dest_path.as_posix()))
+
+        if use_temp:
+            with TemporaryDirectory(dir=dest_path.parent.as_posix()) as tmp_dir:
+                tmp_path = Path(tmp_dir).joinpath(dest_path.name)
+                log.debug(f'Moving {self.path} to temp path={tmp_path} to work around case-insensitive fs')
+                self.path.rename(tmp_path)
+                tmp_path.rename(dest_path)
+        else:
+            self.path.rename(dest_path)
+
+        self.clear_cached_properties()          # trigger self.path descriptor update (via FileBasedObject)
         new_path = dest_path.as_posix()
         # noinspection PyAttributeOutsideInit
         self._f = mutagen.File(new_path)
@@ -154,7 +174,8 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             except AttributeError as e:
                 raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
             else:
-                tags[tag_id] = tag_cls(text=value)
+                # log.debug(f'{self}: Setting {tag_cls.__name__} = {value!r}')
+                tags[tag_id] = tag_cls(text=str(value))
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 

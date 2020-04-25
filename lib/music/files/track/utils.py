@@ -3,6 +3,7 @@
 """
 
 import logging
+import platform
 import re
 import string
 from pathlib import Path
@@ -19,10 +20,11 @@ if TYPE_CHECKING:
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
-    'tag_repr'
+    'tag_repr', 'ON_WINDOWS'
 ]
 log = logging.getLogger(__name__)
 
+ON_WINDOWS = platform.system().lower() == 'windows'
 RATING_RANGES = [(1, 31, 15), (32, 95, 64), (96, 159, 128), (160, 223, 196), (224, 255, 255)]
 TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
     'title': {'mp4': '\xa9nam', 'mp3': 'TIT2', 'flac': 'TITLE'},
@@ -130,22 +132,27 @@ def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run, colo
     name_width = max(len(tag_name) for tag_name in changes) if changes else 0
     orig_width = max(max(len(r), mono_width(r)) for r in (repr(orig) for orig, _ in changes.values())) if changes else 0
     _fmt = '  - {{:<{}s}}{}{{:>{}s}}{}{{}}'
-    uprint(colored('{} {} by changing...'.format('[DRY RUN] Would update' if dry_run else 'Updating', obj), color))
-    for tag_name, (orig_val, new_val) in changes.items():
-        if tag_name == 'title':
-            bg, reset, w = 20, False, 20
-        else:
-            bg, reset, w = None, True, 14
 
-        orig_repr = repr(orig_val)
-        fmt = _fmt.format(
-            name_width + w, colored(' from ', 15, bg, reset=reset),
-            orig_width - (mono_width(orig_repr) - len(orig_repr)) + w, colored(' to ', 15, bg, reset=reset)
-        )
+    if changes:
+        uprint(colored('{} {} by changing...'.format('[DRY RUN] Would update' if dry_run else 'Updating', obj), color))
+        for tag_name, (orig_val, new_val) in changes.items():
+            if tag_name == 'title':
+                bg, reset, w = 20, False, 20
+            else:
+                bg, reset, w = None, True, 14
 
-        uprint(colored(
-            fmt.format(
-                colored(tag_name, 14, bg, reset=reset), colored(orig_repr, 11, bg, reset=reset),
-                colored(repr(new_val), 10, bg, reset=reset)
-            ), bg_color=bg
-        ))
+            orig_repr = repr(orig_val)
+            fmt = _fmt.format(
+                name_width + w, colored(' from ', 15, bg, reset=reset),
+                orig_width - (mono_width(orig_repr) - len(orig_repr)) + w, colored(' to ', 15, bg, reset=reset)
+            )
+
+            uprint(colored(
+                fmt.format(
+                    colored(tag_name, 14, bg, reset=reset), colored(orig_repr, 11, bg, reset=reset),
+                    colored(repr(new_val), 10, bg, reset=reset)
+                ), bg_color=bg
+            ))
+    else:
+        prefix = '[DRY RUN] ' if dry_run else ''
+        uprint(colored(f'{prefix}No changes necessary for {obj}', color))

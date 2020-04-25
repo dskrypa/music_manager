@@ -4,7 +4,6 @@
 
 import logging
 import os
-import platform
 import re
 from pathlib import Path
 from typing import Optional, Union
@@ -21,12 +20,11 @@ from .bpm import get_bpm
 from .patterns import (
     ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 )
-from .utils import print_tag_changes, tag_repr
+from .utils import print_tag_changes, tag_repr, ON_WINDOWS
 
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
 LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
-ON_WINDOWS = platform.system().lower() == 'windows'
 
 
 class SongFile(BaseSongFile):

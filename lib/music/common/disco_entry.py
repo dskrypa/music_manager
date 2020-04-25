@@ -4,9 +4,10 @@
 
 import logging
 from enum import Enum
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Union, List
 
 from ds_tools.compat import cached_property
+from ds_tools.core.decorate import cached_classproperty
 
 __all__ = ['DiscoEntryType']
 log = logging.getLogger(__name__)
@@ -38,6 +39,14 @@ class DiscoEntryType(Enum):
     def __bool__(self):
         return self is not DiscoEntryType.UNKNOWN
 
+    def __lt__(self, other: 'DiscoEntryType'):
+        return self._members.index(self) < self._members.index(other)
+
+    # noinspection PyMethodParameters
+    @cached_classproperty
+    def _members(cls) -> List['DiscoEntryType']:
+        return list(cls.__members__.values())
+
     @classmethod
     def _for_category(cls, category: str) -> Optional['DiscoEntryType']:
         _category = category.lower().strip().replace('-', ' ').replace('_', ' ')
@@ -50,13 +59,21 @@ class DiscoEntryType(Enum):
     @classmethod
     def for_name(cls, name: Union[str, Iterable[str], None]) -> 'DiscoEntryType':
         if name:
+            candidates = set()
             if isinstance(name, str):
                 if album_type := cls._for_category(name):
-                    return album_type
+                    candidates.add(album_type)
             else:
                 for _name in name:
                     if album_type := cls._for_category(_name):
-                        return album_type
+                        candidates.add(album_type)
+
+            if candidates:
+                if len(candidates) == 1:
+                    return next(iter(candidates))
+                else:
+                    return min(candidates)
+
             log.debug(f'No DiscoEntryType exists for name={name!r}')
         return cls.UNKNOWN
 

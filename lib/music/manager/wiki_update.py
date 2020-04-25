@@ -20,7 +20,7 @@ from .wiki_utils import get_disco_part, DiscoObj
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
-TRACK_NAME_FORMAT = SafePath('{num}. {track}.{ext}')
+TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
 
 
 def update_tracks(
@@ -43,11 +43,6 @@ def update_tracks(
         )
     else:
         for album_dir in iter_album_dirs(paths):
-            # TODO: When multiple versions of a track name are found, pick the one that more sites agree on -
-            #  e.g., for "Luv U" (사랑해) on I Trust by (G)I-DLE, Wikipedia + kpop.fandom use "Luv U" while generasia
-            #  uses "I Love You" - use "Luv U".
-
-            # TODO: Prefer title case over only capitalizing the first letter of the first word
             try:
                 album = find_album(album_dir)
             except Exception as e:
@@ -118,8 +113,11 @@ def _update_album_from_disco_entry(
             prefix = '[DRY RUN] Would move' if dry_run else 'Moving'
             log.info(f'{prefix} {album_dir} -> {expected_dir}')
             if not dry_run:
+                orig_parent_path = album_dir.path.parent
                 album_dir.move(expected_dir)
-                # TODO: cleanup empty original dir(s)
+                if orig_parent_path.exists() and not list(orig_parent_path.iterdir()):
+                    log.info(f'Removing empty directory: {orig_parent_path}')
+                    orig_parent_path.rmdir()
         else:
             log.log(19, f'Album {album_dir} is already in expected dir: {expected_dir}')
 

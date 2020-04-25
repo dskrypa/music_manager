@@ -149,7 +149,14 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
         infobox = entry_page.infobox
-        name = infobox['name'].value
+        try:
+            name = infobox['name'].value
+        except KeyError:
+            if (names := list(artist_name_from_intro(entry_page))) and len(names) == 1:
+                name = names[0]
+            else:
+                name = entry_page.title
+
         repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
         entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
         artists = _find_artist_links(infobox, entry_page)

@@ -66,7 +66,7 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
     def names(self) -> MutableSet[Name]:
         names = OrderedSet()
         for edition in self.editions:
-            names.add(Name(edition._name))
+            names.add(edition.name_base)
         return names
 
     @cached_property
@@ -207,12 +207,12 @@ class Soundtrack(DiscographyEntry):
 class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
-            self, name: Optional[str], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
+            self, name: Union[str, Name, None], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
             artist: Union[Node, Iterable[Node], None], release_dates: Sequence[date],
             tracks: Union[ListNode, Iterable[ListNode], None], edition: Optional[str] = None,
             lang: Optional[str] = None, repackage=False
     ):
-        self._name = name                       # type: Optional[str]
+        self._name = name                       # type: Union[str, Name, None]
         self.page = page                        # type: WikiPage
         self.entry = entry                      # type: DiscographyEntry
         self.type = entry_type                  # type: DiscoEntryType
@@ -248,12 +248,17 @@ class DiscographyEntryEdition:
         return (self.artist, self.date, self._name, self.edition) < (other.artist, other.date, other._name, other.edition)
 
     @cached_property
+    def name_base(self) -> Name:
+        if name := self._name:
+            return name if isinstance(name, Name) else Name(name)
+        return Name()
+
+    @cached_property
     def name(self):
-        return Name(self.full_name())
+        return Name.from_parts(tuple(map(combine_with_parens, _name_parts(self.name_base, self.edition))))
 
     def full_name(self, hide_edition=False):
-        parts = (self._name, self.edition if not hide_edition else None)
-        return combine_with_parens(tuple(filter(None, parts)))
+        return ' '.join(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
 
     @cached_property
     def cls_type_name(self):
@@ -347,16 +352,16 @@ class DiscographyEntryPart:
 
     @cached_property
     def name(self):
-        return Name(self.full_name())
+        ed = self.edition
+        return Name.from_parts(tuple(map(combine_with_parens, _name_parts(ed.name_base, ed.edition, part=self._name))))
 
     @cached_property
     def cls_type_name(self):
         return self.edition.entry.cls_type_name + 'Part'
 
     def full_name(self, hide_edition=False):
-        edition = self.edition
-        parts = (edition._name, self._name, edition.edition if not hide_edition else None)
-        return combine_with_parens(tuple(filter(None, parts)))
+        ed = self.edition
+        return ' '.join(map(combine_with_parens, _name_parts(ed.name_base, ed.edition, hide_edition, self._name)))
 
     @cached_property
     def track_names(self) -> List[Name]:
@@ -374,6 +379,20 @@ class DiscographyEntryPart:
 class SoundtrackPart(DiscographyEntryPart):
     """A part of a multi-part soundtrack"""
     pass
+
+
+def _name_parts(
+        base: Name, edition: Optional[str] = None, hide_edition=False, part: Optional[str] = None
+) -> Tuple[Tuple[str, ...], ...]:
+    eng, non_eng = (base.english, base.non_eng)
+    edition = None if hide_edition else edition
+    part_filter = lambda *parts: tuple(filter(None, parts))
+    if eng and non_eng:
+        return part_filter(part_filter(eng, part, edition), part_filter(non_eng, part, edition))
+    elif name := eng or non_eng:
+        return part_filter(part_filter(name, part, edition))
+    else:
+        return part_filter(part_filter(part, edition))
 
 
 # Down here due to circular dependency

@@ -117,9 +117,17 @@ class WikiEntity:
             raise error
         elif cls is not WikiEntity:
             # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories
+            if isinstance(obj, WikiPage) and obj.disambiguation_link:
+                log.debug(f'{cls.__name__}._validate found a disambiguation link from: {obj}')
+                return cls._handle_disambiguation_link(obj.disambiguation_link, existing, name, prompt)
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
             raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
         return cls, obj
+
+    @classmethod
+    def _handle_disambiguation_link(cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt):
+        mw_client, title = link_client_and_title(link)
+        return cls._validate(mw_client.get_page(title), existing, name, prompt)
 
     @classmethod
     def _resolve_ambiguous(

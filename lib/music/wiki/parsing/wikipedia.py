@@ -4,10 +4,10 @@
 
 import logging
 from functools import partial
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence, Iterable
 
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node
+from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section
 from wiki_nodes.nodes import N
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 __all__ = ['WikipediaParser']
 log = logging.getLogger(__name__)
 
+SECTION_BLACKLIST = {'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums'}
 short_repr = partial(_short_repr, containers_only=False)
 
 
@@ -48,22 +49,28 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         except KeyError:
             log.debug(f'No discography section found for {artist_page}')
             return
-        try:
-            disco_link_tmpl = section.content[0]
-        except Exception as e:
-            log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
-            return
 
-        if isinstance(disco_link_tmpl, Template) and disco_link_tmpl.name.lower() == 'main':
+        if section.content:
             try:
-                disco_page_link = disco_link_tmpl.value
+                disco_link_tmpl = section.content[0]
             except Exception as e:
-                log.debug(f'Unexpected error finding the discography link on {artist_page} from {disco_link_tmpl}: {e}')
+                log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
+                return
+
+            if isinstance(disco_link_tmpl, Template) and disco_link_tmpl.name.lower() == 'main':
+                try:
+                    disco_page_link = disco_link_tmpl.value
+                except Exception as e:
+                    log.debug(
+                        f'Unexpected error finding the discography link on {artist_page} from {disco_link_tmpl}: {e}'
+                    )
+                else:
+                    disco_entity = Discography.from_link(disco_page_link)
+                    disco_entity._process_entries(finder)
             else:
-                disco_entity = Discography.from_link(disco_page_link)
-                disco_entity._process_entries(finder)
+                log.debug(f'Unexpected discography section format on {artist_page}')
         else:
-            log.debug(f'Unexpected discography section format on {artist_page}')
+            cls._parse_disco_page_entries(artist_page, _disco_sections(section), finder)
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
@@ -83,16 +90,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
-        blacklist = {'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums'}
-        sections = []
-        for section in disco_page.sections:
-            if section.title.lower() in blacklist:
-                break
-            elif section.depth == 1:
-                sections.extend(section)
-            else:
-                sections.append(section)
+        cls._parse_disco_page_entries(disco_page, _disco_sections(disco_page.sections), finder)
 
+    @classmethod
+    def _parse_disco_page_entries(cls, page: WikiPage, sections: List[Section], finder: 'DiscographyEntryFinder'):
         alb_types = []
         last_depth = -1
         for section in sections:
@@ -111,7 +112,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                             except AttributeError:  # Usually caused by a footnote about the table
                                 pass
                         else:
-                            cls._process_disco_row(disco_page, finder, row, alb_types, lang)
+                            cls._process_disco_row(page, finder, row, alb_types, lang)
                     except Exception:
                         log.error(f'Error processing {section=} row={short_repr(row)}:', exc_info=True, extra={'color': 9})
             except Exception:
@@ -119,7 +120,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def _process_disco_row(
-            cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder', row, alb_types: Sequence[str],
+            cls, page: WikiPage, finder: 'DiscographyEntryFinder', row, alb_types: Sequence[str],
             lang: Optional[str]
     ) -> None:
         # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
@@ -154,8 +155,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.debug(f'Error parsing album data for {row=}: {e}')
             from_albums = None
         disco_entry = DiscoEntry(
-            disco_page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data,
-            from_albums=from_albums
+            page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data, from_albums=from_albums
         )
         if isinstance(title, Link):
             finder.add_entry_link(title, disco_entry)
@@ -169,6 +169,18 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                 if expected:
                     disco_entry.title = title[0].value
                 finder.add_entry(disco_entry, row, not expected)
+
+
+def _disco_sections(section_iter: Iterable[Section]) -> List[Section]:
+    sections = []
+    for section in section_iter:
+        if section.title.lower() in SECTION_BLACKLIST:
+            break
+        elif section.depth == 1:
+            sections.extend(section)
+        else:
+            sections.append(section)
+    return sections
 
 
 def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:

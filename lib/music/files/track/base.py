@@ -286,7 +286,6 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             artists = set(split_artists(artist))
             # noinspection PyUnresolvedReferences
             if (album := self.album) and album.feat:
-                # noinspection PyUnresolvedReferences
                 artists.update(album.feat)
             return artists
         return set()

@@ -37,7 +37,7 @@ UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE)
 class AlbumName:
     name_parts: InitVar[Union[str, Iterable[str]]]
     alb_type: str = None
-    alb_num: int = None
+    alb_num: str = None
     sm_station: bool = False
     edition: str = None
     remix: str = None
@@ -46,8 +46,8 @@ class AlbumName:
     part: int = None
     network_info: str = None
     part_name: str = None
-    feat: Optional[Tuple[str, ...]] = None
-    song_name: str = None
+    feat: Tuple[Name, ...] = None
+    song_name: Name = None
     name: Name = None
 
     def __post_init__(self, name_parts):
@@ -140,7 +140,7 @@ class AlbumName:
                     except IndexError:
                         name_parts.append(part)
                     else:
-                        feat.append(feat_artist)
+                        feat.extend(split_artists(feat_artist))
                 elif lc_part.startswith(CHANNELS) and (lc_part.endswith('드라마') or '특별' in lc_part):
                     self.network_info = part
                 elif suffix := next((s for s in ('original soundtrack', ' ost') if lc_part.endswith(s)), None):

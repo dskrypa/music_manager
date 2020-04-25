@@ -26,6 +26,9 @@ class Artist(PersonOrGroup, DiscographyMixin):
     def __repr__(self):
         return f'<{self.__class__.__name__}({self.name.artist_str()!r})[pages: {len(self._pages)}]>'
 
+    def __lt__(self, other):
+        return self.name < other.name
+
     @cached_property
     def name(self) -> Name:
         if not (names := self.names):
@@ -80,7 +83,7 @@ class Singer(Artist):
             parser.parse_member_of(page) for page, parser in self.page_parsers('parse_member_of')
         ))
         log.debug(f'Found group links for {self}: {links}')
-        return list(Group.from_links(links).values())
+        return sorted(Group.from_links(links).values())
 
 
 class Group(Artist):
@@ -93,7 +96,7 @@ class Group(Artist):
             members_dict = parser.parse_group_members(page)
             names = set(chain.from_iterable((titles for key, titles in members_dict.items() if titles != 'sub_units')))
             singers = Singer.from_titles(names, sites=page.site, search=False, strict=0)
-            return list(singers.values())
+            return sorted(singers.values())
         return None
 
     @cached_property
@@ -102,7 +105,7 @@ class Group(Artist):
             members_dict = parser.parse_group_members(page)
             if sub_units := members_dict.get('sub_units'):
                 groups = Group.from_titles(sub_units, sites=page.site, search=False, strict=0)
-                return list(groups.values())
+                return sorted(groups.values())
         return None
 
     def _find_member(self, mem_type: str, name: Union[Name, str]) -> Union[Singer, 'Group', None]:

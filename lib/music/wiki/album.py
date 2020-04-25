@@ -258,7 +258,7 @@ class DiscographyEntryEdition:
         return Name.from_parts(tuple(map(combine_with_parens, _name_parts(self.name_base, self.edition))))
 
     def full_name(self, hide_edition=False):
-        return ' '.join(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
+        return combine_with_parens(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
 
     @cached_property
     def cls_type_name(self):
@@ -361,7 +361,9 @@ class DiscographyEntryPart:
 
     def full_name(self, hide_edition=False):
         ed = self.edition
-        return ' '.join(map(combine_with_parens, _name_parts(ed.name_base, ed.edition, hide_edition, self._name)))
+        return combine_with_parens(
+            map(combine_with_parens, _name_parts(ed.name_base, ed.edition, hide_edition, self._name))
+        )
 
     @cached_property
     def track_names(self) -> List[Name]:

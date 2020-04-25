@@ -19,7 +19,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..base import TemplateEntity
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import LANG_ABBREV_MAP, find_ordinal, artist_name_from_intro, get_artist_title, find_language
+from .utils import LANG_ABBREV_MAP, find_ordinal, name_from_intro, get_artist_title, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -37,8 +37,7 @@ RELEASE_CATEGORY_LANGS = {'k-': 'Korean', 'j-': 'Japanese', 'mandopop': 'Mandari
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        yield from artist_name_from_intro(artist_page)
-
+        yield from name_from_intro(artist_page)
         try:
             section = artist_page.sections.find('Profile')
         except KeyError:
@@ -417,7 +416,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
-        if external_links := artist_page.sections.find('External Links'):
+        if external_links := artist_page.sections.find('External Links', None):
             if isinstance(external_links.content, CompoundNode):
                 for node in external_links.content:
                     if isinstance(node, Template):

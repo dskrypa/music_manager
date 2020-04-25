@@ -11,7 +11,7 @@ from wiki_nodes import WikiPage, CompoundNode, Link, Node
 from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed
 
 __all__ = [
-    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'artist_name_from_intro',
+    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'name_from_intro',
     'get_artist_title', 'find_language'
 ]
 log = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def rm_lang_prefix(text: str) -> str:
     return LANG_PREFIX_SUB('', text).strip()
 
 
-def artist_name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
+def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
     intro = artist_page.intro
     if isinstance(intro, CompoundNode):
         intro = intro[0]

@@ -342,7 +342,7 @@ class SpecialEvent(EntertainmentEntity):
 
 
 class TVSeries(EntertainmentEntity):
-    _categories = ('television program', 'television series', 'drama')
+    _categories = ('television program', 'television series', 'drama', 'survival show')
 
 
 class TemplateEntity(WikiEntity):

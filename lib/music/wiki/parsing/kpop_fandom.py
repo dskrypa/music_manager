@@ -19,7 +19,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import artist_name_from_intro, find_ordinal, get_artist_title, LANG_ABBREV_MAP, find_language
+from .utils import name_from_intro, find_ordinal, get_artist_title, LANG_ABBREV_MAP, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -36,7 +36,7 @@ REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by':
 class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        yield from artist_name_from_intro(artist_page)
+        yield from name_from_intro(artist_page)
         if _infobox := artist_page.infobox:
             log.debug(f'Found infobox for {artist_page}')
             infobox = _infobox.value
@@ -153,12 +153,12 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
         infobox = entry_page.infobox
-        try:
-            name = infobox['name'].value
-        except KeyError:
-            if (names := list(artist_name_from_intro(entry_page))) and len(names) == 1:
-                name = names[0]
-            else:
+        if (names := list(name_from_intro(entry_page))) and len(names) > 0:
+            name = names[0]
+        else:
+            try:
+                name = infobox['name'].value
+            except KeyError:
                 name = entry_page.title
 
         repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
@@ -249,7 +249,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         section = 'current'
         if isinstance(members_section.content, Table):
             for row in members_section.content:
-                if isinstance(row, MappingNode) and (title := get_artist_title(row['Name'], artist_page)):
+                # noinspection PyUnboundLocalVariable
+                if isinstance(row, MappingNode) and (name := row.get('Name')) and (title := get_artist_title(name, artist_page)):
                     # noinspection PyUnboundLocalVariable
                     members[section].append(title)
                 elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
@@ -271,7 +272,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         if intro := artist_page.intro:
-            for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True)).items():
+
+            for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True), strict=1).items():
                 # noinspection PyUnresolvedReferences
                 if entity._categories == GROUP_CATEGORIES and (members := entity.members):
                     # noinspection PyUnboundLocalVariable

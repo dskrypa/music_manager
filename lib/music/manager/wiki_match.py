@@ -49,7 +49,7 @@ def show_matches(paths: Paths):
 
 def find_artists(album_dir: AlbumDir) -> List[Artist]:
     if artists := album_dir.all_artists:
-        log.debug(f'Processing {artists=}')
+        log.debug(f'Processing artists in {album_dir}: {artists}')
         remaining = set(artists)
         artist_objs = []
         if groups := album_dir._groups:
@@ -63,7 +63,7 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
                         log.warning(f'No match found for {name.artist_str()}', extra={'color': 11})
 
         if remaining:
-            log.debug(f'Processing {remaining=}', extra={'color': 14})
+            log.debug(f'Processing remaining artists in {album_dir}: {remaining}', extra={'color': 14})
             if artist_names := {a for a in artists if a.english != 'Various Artists'}:
                 for name, artist in Artist.from_titles(artist_names, search=True, strict=1).items():
                     artist_objs.append(artist)
@@ -86,6 +86,7 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
     before = f'Found multiple possible matches for {album_name}'
     candidates = []
     artists = artists or find_artists(album_dir)
+    log.debug(f'Processing album for {album_dir} with {album_name=!r} and {artists=}')
     for artist in artists:
         for disco_entry in artist.discography:
             if not album_type or album_type == disco_entry.type:

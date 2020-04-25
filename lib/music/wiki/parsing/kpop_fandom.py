@@ -110,9 +110,13 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             if isinstance(entry, String):
                 year_str = entry.value.rsplit(maxsplit=1)[1]
             else:
-                year_str = entry[-1].value.split()[-1]
+                try:
+                    year_str = entry[-1].value.split()[-1]
+                except AttributeError:
+                    log.debug(f'Unable to parse year from {entry=!r} on {artist_page}')
+                    year_str = None
 
-            year = datetime.strptime(year_str, '(%Y)').year
+            year = datetime.strptime(year_str, '(%Y)').year if year_str else 0
             disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
 
             if isinstance(entry, CompoundNode):

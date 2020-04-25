@@ -104,7 +104,7 @@ class Name(ClearableCachedPropertyMixin):
         return bool(self._english or self.non_eng or self.romanized or self.lit_translation)
 
     def __lt__(self, other: 'Name'):
-        return (self.english, self.non_eng) < (other.english, other.non_eng)
+        return (self.english or '', self.non_eng or '') < (other.english or '', other.non_eng or '')
 
     @cached_property
     def __parts(self):

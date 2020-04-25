@@ -10,7 +10,7 @@ from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
-from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Template, ListEntry
+from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Template, ListEntry, List as ListNode
 from wiki_nodes.nodes import N
 from wiki_nodes.utils import strip_style
 from ...common import DiscoEntryType
@@ -43,7 +43,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         except KeyError:
             pass
         else:
-            profile = section.content.as_mapping(multiline=False)
+            profile_content = section.content
+            if isinstance(profile_content, ListNode):
+                profile = profile_content.as_mapping(multiline=False)
+            elif isinstance(profile_content, CompoundNode) and isinstance(profile_content[0], ListNode):
+                profile = profile_content[0].as_mapping(multiline=False)
+            else:
+                log.debug(f'Unexpected {profile_content=!r} on {artist_page}')
+                return
+
             for key in ('Stage Name', 'Real Name', 'Korean Name'):
                 try:
                     value = profile[key]

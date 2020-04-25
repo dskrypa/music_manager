@@ -6,7 +6,7 @@ import logging
 from collections import defaultdict
 from typing import Iterable, Dict, Tuple, List, Union
 
-from wiki_nodes import MediaWikiClient, WikiPage, Link
+from wiki_nodes import MediaWikiClient, WikiPage, Link, String, CompoundNode
 from ..text import Name
 from .exceptions import NoLinkSite, NoLinkTarget
 
@@ -50,9 +50,12 @@ def page_name(page: WikiPage) -> str:
     name = page.title
     if page.infobox:
         try:
-            return page.infobox['name'].value
+            ib_name = page.infobox['name']
         except KeyError:
             pass
+        else:
+            if isinstance(ib_name, String):
+                return ib_name.value
     return name
 
 

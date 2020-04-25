@@ -12,7 +12,7 @@ from wiki_nodes import MediaWikiClient, Link
 from .album import DiscographyEntry
 from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError
+from .exceptions import EntityTypeError, AmbiguousPageError
 from .utils import link_client_and_title
 
 __all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
@@ -103,10 +103,11 @@ class DiscographyEntryFinder:
                 try:
                     # log.debug(f'Creating DiscographyEntry for page={page} with entry={disco_entry}')
                     discography[src_site].append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
-                except EntityTypeError as e:
+                except (EntityTypeError, AmbiguousPageError) as e:
                     self.remaining[disco_entry] -= 1
                     if self.created_entry[disco_entry]:
-                        log.log(9, f'Type mismatch for additional {link=} associated with {disco_entry}: {e}')
+                        msg = 'Type mismatch' if isinstance(e, EntityTypeError) else 'Ambiguous page error'
+                        log.log(9, f'{msg} for additional {link=} associated with {disco_entry}: {e}')
                     elif self.remaining[disco_entry]:
                         log.log(9, f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
                     else:

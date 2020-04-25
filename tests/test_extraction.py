@@ -7,7 +7,7 @@ from pathlib import Path
 from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired, get_unpaired
+from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +51,14 @@ class MiscExtractionTestCase(TestCaseBase):
         }
         for text, unpaired in cases.items():
             self.assertEqual(get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
+
+    def test_ends_with_enclosed(self):
+        self.assertTrue(ends_with_enclosed("test 'one'"))
+        self.assertFalse(ends_with_enclosed("test one'"))
+        self.assertFalse(ends_with_enclosed("test 'one"))
+        self.assertTrue(ends_with_enclosed("test (one)"))
+        self.assertFalse(ends_with_enclosed("test one)"))
+        self.assertFalse(ends_with_enclosed("test (one"))
 
 
 class ExtractEnclosedTestCase(TestCaseBase):

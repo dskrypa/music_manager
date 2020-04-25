@@ -8,7 +8,7 @@ import logging
 from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping
 
 from ds_tools.compat import cached_property
-from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template
+from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
 from ..text import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
@@ -118,8 +118,11 @@ class WikiEntity:
         elif cls is not WikiEntity:
             # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories
             if isinstance(obj, WikiPage) and obj.disambiguation_link:
-                log.debug(f'{cls.__name__}._validate found a disambiguation link from: {obj}')
-                return cls._handle_disambiguation_link(obj.disambiguation_link, existing, name, prompt)
+                log.debug(f'{cls.__name__}._validate found a possible disambiguation link from: {obj}')
+                try:
+                    return cls._handle_disambiguation_link(obj.disambiguation_link, existing, name, prompt)
+                except PageMissingError as e:
+                    log.debug(f'The disambiguation link was not found: {e}')
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
             raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
         return cls, obj

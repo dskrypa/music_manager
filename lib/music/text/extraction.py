@@ -101,7 +101,8 @@ def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str
         openers = CLOSER_TO_OPENER[closer]
     except KeyError:
         return None
-    if opener := next((c for c in openers if c in text), None):
+    remainder = text[:-1]
+    if opener := next((c for c in openers if c in remainder), None):
         return opener + closer
     return None
 

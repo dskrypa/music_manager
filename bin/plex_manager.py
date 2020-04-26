@@ -24,7 +24,8 @@ from ds_tools.output import bullet_list, Printer
 
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
-from music.plex import LocalPlexServer, stars
+from music.common import stars
+from music.plex import LocalPlexServer
 from music.files.patches import apply_mutagen_patches
 
 log = logging.getLogger(__name__)

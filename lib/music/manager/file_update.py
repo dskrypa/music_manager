@@ -12,7 +12,7 @@ from ds_tools.core import Paths
 from ds_tools.input import get_input
 from ..files import iter_album_dirs, iter_music_files, TagException
 
-__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags']
+__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags']
 log = logging.getLogger(__name__)
 
 
@@ -62,3 +62,8 @@ def clean_tags(paths: Paths, dry_run=False, add_bpm=False):
     for album_dir in iter_album_dirs(paths):
         album_dir.remove_bad_tags(dry_run)
         album_dir.fix_song_tags(dry_run, add_bpm)
+
+
+def remove_tags(paths: Paths, tag_ids, dry_run=False):
+    for music_file in iter_music_files(paths):
+        music_file.remove_tags(tag_ids, dry_run, logging.INFO)

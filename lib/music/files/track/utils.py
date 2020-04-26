@@ -10,17 +10,20 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type
 from unicodedata import normalize
 
+from mutagen.id3 import POPM, USLT, APIC
+
 from ds_tools.caching import ClearableCachedProperty
 from ds_tools.compat import cached_property
 from ds_tools.output import colored, uprint
 from ds_tools.output.table import mono_width
+from ...common import stars
 
 if TYPE_CHECKING:
     from .base import BaseSongFile
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
-    'tag_repr', 'ON_WINDOWS'
+    'tag_repr', 'ON_WINDOWS', 'stars_from_256'
 ]
 log = logging.getLogger(__name__)
 
@@ -53,7 +56,18 @@ WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-
 _NotSet = object()
 
 
-def tag_repr(tag_val, max_len=125, sub_len=25):
+def tag_repr(tag_val, max_len=None, sub_len=None):
+    if isinstance(tag_val, POPM):
+        # noinspection PyUnresolvedReferences
+        return stars(stars_from_256(tag_val.rating, 10))
+    elif isinstance(tag_val, APIC) and max_len is None and sub_len is None:
+        return '<APIC>'
+    elif isinstance(tag_val, USLT) and max_len is None and sub_len is None:
+        max_len, sub_len = 45, 20
+    else:
+        max_len = max_len or 125
+        sub_len = sub_len or 25
+
     tag_val = normalize('NFC', str(tag_val)).translate(WHITESPACE_TRANS_TBL)
     if len(tag_val) > max_len:
         return '{}...{}'.format(tag_val[:sub_len], tag_val[-sub_len:])
@@ -156,3 +170,22 @@ def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run, colo
     else:
         prefix = '[DRY RUN] ' if dry_run else ''
         uprint(colored(f'{prefix}No changes necessary for {obj}', color))
+
+
+def stars_from_256(rating: int, out_of=5) -> int:
+    if not (0 <= rating <= 255):
+        raise ValueError(f'{rating=} is outside the range of 0-255')
+    elif out_of == 256:
+        return rating
+    elif out_of not in (5, 10):
+        raise ValueError(f'{out_of=} is invalid - must be 5, 10, or 256')
+
+    for stars_5, (a, b, c) in enumerate(RATING_RANGES, 1):
+        if a <= rating <= b:
+            if out_of == 5:
+                return stars_5
+            a, b, c = RATING_RANGES[stars_5 - 1]
+            if stars_5 == 1 and rating < c:
+                return 1
+            stars_10 = stars_5 * 2
+            return stars_10 + 1 if rating > c else stars_10

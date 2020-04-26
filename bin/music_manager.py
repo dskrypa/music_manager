@@ -22,7 +22,7 @@ from music.files import apply_mutagen_patches
 from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
 )
-from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags
+from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags, remove_tags
 from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
 from music.manager.wiki_match import show_matches
 from music.manager.wiki_update import update_tracks
@@ -43,7 +43,7 @@ def parser():
     show_parser = parser.add_subparser('action', 'show', help='Show song/tag information')
     for name, help_text in SHOW_ARGS.items():
         _parser = show_parser.add_subparser('sub_action', name, help=help_text)
-        _parser.add_argument('path', nargs='+', help='Paths for music files or directories containing music files')
+        _parser.add_argument('path', nargs='*', default=['.'], help='Paths for music files or directories containing music files')
         if name in ('info', 'unique', 'table'):
             _parser.add_argument('--tags', '-t', nargs='+', help='The tags to display', required=(name == 'unique'))
         if name == 'info':
@@ -66,6 +66,10 @@ def parser():
 
     clean_parser = parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files')
     clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+
+    rm_parser = parser.add_subparser('action', 'remove', help='Remove the specified tags from the specified files')
+    rm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+    rm_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to remove', required=True)
     # endregion
 
     # region Wiki Actions
@@ -145,6 +149,8 @@ def main():
     elif action == 'clean':
         bpm = aubio_installed() if args.bpm is None else args.bpm
         clean_tags(args.path, args.dry_run, bpm)
+    elif action == 'remove':
+        remove_tags(args.path, args.tag, args.dry_run)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
 

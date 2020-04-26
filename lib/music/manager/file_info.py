@@ -88,16 +88,31 @@ def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
 def table_song_tags(paths: Paths, include_tags=None):
     rows = [{'path': '[Tag Description]'}, TableBar()]
     tags = set()
+    values = defaultdict(Counter)
     for music_file in iter_music_files(paths):
-        row = defaultdict(str, path=music_file.filename)
+        row = defaultdict(str, path=music_file.rel_path)
         for tag, val in sorted(music_file.tags.items()):
             tag = ':'.join(tag.split(':')[:2])
             if not include_tags or tag in include_tags:
                 tags.add(tag)
-                row[tag] = tag_repr(val, 10, 5) if tag.startswith('APIC') else tag_repr(val)
+                row[tag] = val_repr = tag_repr(val)
+                values[tag][val_repr] += 1
         rows.append(row)
 
     rows[0].update({tag: tag_name_map.get(tag[:4], '[unknown]') for tag in tags})
+
+    # noinspection PyUnboundLocalVariable
+    if (artists := values['TPE1']) and (alb_artists := values['TPE2']) and (artists == alb_artists):
+        tags.add('TPE1/2')
+        rows[0]['TPE1/2'] = '(Album) Artist'
+        for key in ('TPE1', 'TPE2'):
+            tags.remove(key)
+            del rows[0][key]
+
+        for row in rows[2:]:
+            del row['TPE2']
+            row['TPE1/2'] = row.pop('TPE1')
+
     tbl = Table(SimpleColumn('path'), *(SimpleColumn(tag) for tag in sorted(tags)), update_width=True)
     tbl.print_rows(rows)
 

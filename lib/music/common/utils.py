@@ -2,10 +2,7 @@
 :author: Doug Skrypa
 """
 
-import logging
-
 __all__ = ['stars']
-log = logging.getLogger(__name__)
 
 
 def stars(rating, out_of=10, num_stars=5, chars=('\u2605', '\u2730'), half='\u00BD'):

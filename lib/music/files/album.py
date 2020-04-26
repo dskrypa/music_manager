@@ -239,7 +239,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
                     future.result()
 
     def remove_bad_tags(self, dry_run=False):
-        prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
         i = 0
         for music_file in self.songs:
             try:
@@ -248,27 +247,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 raise TypeError(f'Unhandled tag type: {music_file.tag_type}') from e
 
             # noinspection PyArgumentList
-            to_remove = {
-                tag: val if isinstance(val, list) else [val]
-                for tag, val in sorted(music_file.tags.items()) if rm_tag_match(tag) and tag not in KEEP_TAGS
-            }
-            if to_remove:
+            if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
                 if i:
                     log.debug('')
-                rm_str = ', '.join(
-                    f'{tag_id}: {tag_repr(val)}' for tag_id, vals in sorted(to_remove.items()) for val in vals
-                )
-                info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in sorted(to_remove.items()))
-
-                log.info(f'{prefix} tags from {music_file}: {info_str}')
-                log.debug(f'\t{music_file.filename}: {rm_str}')
-                if not dry_run:
-                    for tag_id in to_remove:
-                        music_file.delete_tag(tag_id)
-                    music_file.save()
-                i += 1
-            else:
-                log.debug(f'{music_file.filename}: Did not have the tags specified for removal')
+            i += int(music_file.remove_tags(to_remove, dry_run))
 
         if not i:
             log.debug(f'None of the songs in {self} had any tags that needed to be removed')

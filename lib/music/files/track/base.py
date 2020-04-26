@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, Iterator, Tuple, Set, Any
+from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable
 
 import mutagen
 import mutagen.id3._frames
@@ -24,7 +24,8 @@ from ...text import Name
 from ..exceptions import *
 from .parsing import split_artists, AlbumName
 from .utils import (
-    FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, ON_WINDOWS
+    FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, ON_WINDOWS,
+    stars_from_256, tag_repr
 )
 
 __all__ = ['BaseSongFile']
@@ -155,6 +156,27 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             del self.tags[tag_id]
         else:
             raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
+
+    def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG) -> bool:
+        prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
+        to_remove = {
+            tag_id: val if isinstance(val, list) else [val]
+            for tag_id in sorted(tag_ids) if (val := self.tags_for_id(tag_id))
+        }
+        if to_remove:
+            rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
+            info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
+
+            log.info(f'{prefix} tags from {self}: {info_str}')
+            log.debug(f'\t{self}: {rm_str}')
+            if not dry_run:
+                for tag_id in to_remove:
+                    self.delete_tag(tag_id)
+                self.save()
+            return True
+        else:
+            log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
+            return False
 
     def set_text_tag(self, tag: str, value, by_id=False):
         tag_id = tag if by_id else self.tag_name_to_id(tag)
@@ -380,15 +402,9 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @property
     def star_rating_10(self) -> Optional[int]:
-        star_rating_5 = self.star_rating
-        if star_rating_5 is None:
-            return None
-        star_rating_10 = star_rating_5 * 2
-        a, b, c = RATING_RANGES[star_rating_5 - 1]
-        # log.debug('rating = {}, stars/5 = {}, a={}, b={}, c={}'.format(self.rating, star_rating_5, a, b, c))
-        if star_rating_5 == 1 and self.rating < c:
-            return 1
-        return star_rating_10 + 1 if self.rating > c else star_rating_10
+        if (rating := self.rating) is not None:
+            return stars_from_256(rating, 10)
+        return None
 
     @star_rating_10.setter
     def star_rating_10(self, value: Union[int, float]):
@@ -407,11 +423,8 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
         :return int|None: The star rating equivalent of this track's POPM rating
         """
-        rating = self.rating
-        if rating is not None:
-            for stars, (a, b, c) in enumerate(RATING_RANGES):
-                if a <= rating <= b:
-                    return stars + 1
+        if (rating := self.rating) is not None:
+            return stars_from_256(rating)
         return None
 
     @star_rating.setter

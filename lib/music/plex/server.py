@@ -28,9 +28,9 @@ from ds_tools.compat import cached_property
 from ds_tools.input import get_input
 from ds_tools.unicode import LangCat
 from ds_tools.output import short_repr, bullet_list
+from ..common.utils import stars
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
-from .utils import stars
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)

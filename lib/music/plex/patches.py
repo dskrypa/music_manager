@@ -11,7 +11,7 @@ from plexapi.audio import Track, Album, Artist
 from plexapi.base import OPERATORS, PlexObject
 from plexapi.playlist import Playlist
 
-from .utils import stars
+from ..common.utils import stars
 
 __all__ = ['apply_plex_patches', 'track_repr']
 log = logging.getLogger(__name__)

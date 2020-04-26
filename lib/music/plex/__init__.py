@@ -78,4 +78,3 @@ Object and element attributes and elements available for searching:
 """
 
 from .server import LocalPlexServer
-from .utils import stars

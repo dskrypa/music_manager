@@ -185,7 +185,7 @@ class SongFile(BaseSongFile):
             tag_name = tag_name_map.get(tag_id)
             if not tag_name:
                 raise ValueError(f'Invalid tag ID: {tag_id}')
-            tag_repr = f'{tag_id}/{tag_name}'
+            _tag_repr = f'{tag_id}/{tag_name}'
 
             current_vals = self.tags_for_id(tag_id)
             if not current_vals:
@@ -197,13 +197,13 @@ class SongFile(BaseSongFile):
                 else:
                     raise ValueError(f'Adding new tags to non-MP3s is not currently supported for {self}')
 
-                log.info(f'{prefix}{set_msg} {tag_repr} = {value!r} in file: {self.filename}')
+                log.info(f'{prefix}{set_msg} {_tag_repr} = {value!r} in file: {self.filename}')
                 should_save = True
                 if not dry_run:
                     self.tags.add(frame_cls(text=value))
             else:
                 if len(current_vals) > 1:
-                    log.warning(f'Found multiple values for {tag_repr} in {self.filename} - using first value')
+                    log.warning(f'Found multiple values for {_tag_repr} in {self.filename} - using first value')
 
                 current_val = current_vals[0]
                 current_text = current_val.text[0]
@@ -219,7 +219,7 @@ class SongFile(BaseSongFile):
                         new_text = value
 
                 if new_text != current_text:
-                    log.info(f'{prefix}{repl_msg} {tag_repr} {current_text!r} with {new_text!r} in {self.filename}')
+                    log.info(f'{prefix}{repl_msg} {_tag_repr} {current_text!r} with {new_text!r} in {self.filename}')
                     should_save = True
                     if not dry_run:
                         current_vals[0].text[0] = new_text

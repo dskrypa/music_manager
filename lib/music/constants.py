@@ -6,8 +6,10 @@ tag_name_map = {
     'TPE1': 'Artist',
 
     'TCOM': 'Composer',
-    'TRCK': 'Track number',
-    'TPOS': 'Disk Number',
+    # 'TRCK': 'Track number',
+    'TRCK': 'Track',
+    # 'TPOS': 'Disk Number',
+    'TPOS': 'Disk',
     'TCON': 'Genre',
     'TYER': 'Year',                                                             #V2.3
 
@@ -30,7 +32,8 @@ tag_name_map = {
     'PCST': 'Podcast Flag',
 
     #General Fields
-    'POPM': 'Popularimeter',                            # See https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
+    # 'POPM': 'Popularimeter',                            # See https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
+    'POPM': 'Rating',
 
     'AENC': 'Audio encryption',
     'APIC': 'Album Cover',

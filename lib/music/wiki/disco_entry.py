@@ -5,17 +5,20 @@
 import logging
 from typing import TYPE_CHECKING, Optional, Union, Mapping, Iterable, List
 
+from ds_tools.compat import cached_property
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, Link
 from wiki_nodes.nodes import N
 from ..common import DiscoEntryType
+from ..text import Name
 from ..text.time import parse_date, DateObj
 
 if TYPE_CHECKING:
-    from datetime import date
+    from datetime import date as _date
 
 __all__ = ['DiscoEntry']
 log = logging.getLogger(__name__)
+
 
 
 class DiscoEntry:
@@ -25,9 +28,9 @@ class DiscoEntry:
     May provide useful information when a full page does not exist for a given entry.
     """
     def __init__(
-            self, source: WikiPage, node: N, *, title: Optional[str] = None, lang: Union[str, LangCat, None] = None,
-            type_: Union[DiscoEntryType, str, Iterable[str], None] = None, date: DateObj = None,
-            year: Optional[int] = None, link: Optional[Link] = None, song: Optional[str] = None,
+            self, source: WikiPage, node: N, *, title: Union[str, Name, None] = None,
+            lang: Union[str, LangCat, None] = None, type_: Union[DiscoEntryType, str, Iterable[str], None] = None,
+            date: DateObj = None, year: Optional[int] = None, link: Optional[Link] = None, song: Optional[str] = None,
             track_data: Optional[N] = None, from_albums: Optional[Mapping[str, Optional[Link]]] = None
     ):
         """
@@ -48,10 +51,10 @@ class DiscoEntry:
         """
         self.source = source                                                        # type: WikiPage
         self.node = node                                                            # type: Optional[N]
-        self._title = title                                                         # type: Optional[str]
+        self._title = title                                                         # type: Union[str, Name, None]
         self._type = type_
         self.language = LangCat.for_name(lang) if isinstance(lang, str) else lang   # type: Optional[LangCat]
-        self.date = parse_date(date)                                                # type: date
+        self.date = parse_date(date)                                                # type: _date
         self.year = year if year else self.date.year if self.date else None         # type: Optional[int]
         self._link = link                                                           # type: Optional[Link]
         self.links = []                                                             # type: List[Link]
@@ -76,9 +79,19 @@ class DiscoEntry:
         else:
             return None
 
+    @cached_property
+    def name(self) -> Name:
+        if (title := self._title) and isinstance(title, Name):
+            return title
+        elif title := self.title:
+            return Name.from_enclosed(title)
+        return Name()
+
     @property
-    def title(self):
-        return self._title if self._title else self.link.show if self.link else None
+    def title(self) -> Optional[str]:
+        if title := self._title:
+            return str(title)
+        return self.link.show if self.link else None
 
     @title.setter
     def title(self, value):

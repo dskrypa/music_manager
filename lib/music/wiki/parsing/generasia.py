@@ -33,6 +33,14 @@ OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
 MEMBER_TYPE_SECTIONS = {'former': 'Former Members', 'hiatus': 'Hiatus', 'sub_units': 'Sub-Units'}
 RELEASE_CATEGORY_LANGS = {'k-': 'Korean', 'j-': 'Japanese', 'mandopop': 'Mandarin'}
 
+# TODO:
+"""
+The bit in parentheses at the end is wrong:
+https://www.generasia.com/wiki/Map_of_the_Soul:_7
+[DRY RUN] Would update <SongFile('new_sorting/kpop_2020-02-22/bts/BTS-MOTS7-320-K2N/02. 작은 것들을 위한 시 (Boy With Luv) (Feat. Halsey).mp3')> by changing...
+  - artist from                                  '방탄소년단 (BTS)' to 'BTS (방탄소년단) (feat. Halsey ) (작은 것들을 위한 시))'
+"""
+
 
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
@@ -225,7 +233,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', de_type: DiscoEntryType, entry: CompoundNode,
             lang: Optional[str]
     ):
-        log.log(9, f'Processing {cls.parse_album_name(entry)!r}')
+        name = cls.parse_album_name(entry)
+        log.log(9, f'Processing {name!r}')
         entry_type = de_type  # Except for collabs with a different primary artist
         entry_link = next(entry.find_all(Link, True), None)  # Almost always the 1st link
         song_title = entry_link.show if entry_link else None
@@ -264,7 +273,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         date = datetime.strptime(first_str[:first_str.index(']')], '[%Y.%m.%d').date()
         # noinspection PyTypeChecker
         disco_entry = DiscoEntry(
-            artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title
+            artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title, title=name
         )
         if entry_link:
             finder.add_entry_link(entry_link, disco_entry)

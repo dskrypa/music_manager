@@ -75,7 +75,7 @@ def _update_album_from_disco_entry(
             if tag_name in ('disk', 'track'):
                 orig = getattr(file, f'{tag_name}_num')
             else:
-                orig = file.tag_text(tag_name)
+                orig = file.tag_text(tag_name, default=None)
             counts[tag_name][(orig, new_val)] += 1
 
     _apply_track_updates(album_dir, file_track_map, updates, counts, dry_run)

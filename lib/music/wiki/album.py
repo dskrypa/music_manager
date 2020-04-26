@@ -27,6 +27,8 @@ __all__ = [
 ]
 log = logging.getLogger(__name__)
 OST_MATCH = re.compile(r'^(.*? OST) (PART.?\s?\d+)$').match
+NodeOrNodes = Union[Node, Iterable[Node], None]
+ListOrLists = Union[ListNode, Iterable[ListNode], None]
 
 
 class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
@@ -208,19 +210,18 @@ class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
             self, name: Union[str, Name, None], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
-            artist: Union[Node, Iterable[Node], None], release_dates: Sequence[date],
-            tracks: Union[ListNode, Iterable[ListNode], None], edition: Optional[str] = None,
+            artist: NodeOrNodes, release_dates: Sequence[date], tracks: ListOrLists, edition: Optional[str] = None,
             lang: Optional[str] = None, repackage=False
     ):
-        self._name = name                       # type: Union[str, Name, None]
-        self.page = page                        # type: WikiPage
-        self.entry = entry                      # type: DiscographyEntry
-        self.type = entry_type                  # type: DiscoEntryType
-        self._artist = artist                   # type: Union[Node, Iterable[Node], None]
-        self.release_dates = release_dates      # type: Sequence[date]
-        self._tracks = tracks                   # type: Union[ListNode, Iterable[ListNode], None]
-        self.edition = edition                  # type: Optional[str]
-        self.lang = lang                        # type: Optional[str]
+        self._name = name                                                               # type: Union[str, Name, None]
+        self.page = page                                                                # type: WikiPage
+        self.entry = entry                                                              # type: DiscographyEntry
+        self.type = entry_type                                                          # type: DiscoEntryType
+        self._artist = artist                                                           # type: NodeOrNodes
+        self.release_dates = release_dates                                              # type: Sequence[date]
+        self._tracks = tracks                                                           # type: ListOrLists
+        self.edition = edition                                                          # type: Optional[str]
+        self.lang = 'Korean' if not lang and page.site == 'kpop.fandom.com' else lang   # type: Optional[str]
         self.repackage = repackage
         # TODO: Fix edition values here:
         """

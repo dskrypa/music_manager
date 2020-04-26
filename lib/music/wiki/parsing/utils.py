@@ -34,6 +34,9 @@ ORDINAL_TO_INT = {
     'tenth': 10, 'debut': 1
 }
 ORDINAL_SEARCH = re.compile('({})'.format('|'.join(ORDINAL_TO_INT)), re.IGNORECASE).search
+WIKI_STYLE_SEARCHES = (
+    re.compile(r"^(''''')(.+?)(\1)").search, re.compile(r"^(''')(.+?)(\1)").search, re.compile(r"^('')(.+?)(\1)").search
+)
 
 
 def find_ordinal(text: str) -> Optional[int]:
@@ -88,6 +91,11 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
         try:
             first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         except ValueError:
+            # log.debug(f'split_enclosed({name!r}) failed')
+            raw_intro = intro.raw.string
+            if m := next((search(raw_intro) for search in WIKI_STYLE_SEARCHES), None):
+                name = m.group(2)
+            name = name.replace(' : ', ': ')
             yield Name(name)
         else:
             if '; ' in paren_part:

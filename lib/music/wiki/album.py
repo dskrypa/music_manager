@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 OST_MATCH = re.compile(r'^(.*? OST) (PART.?\s?\d+)$').match
 NodeOrNodes = Union[Node, Iterable[Node], None]
 ListOrLists = Union[ListNode, Iterable[ListNode], None]
+NameType = Union[str, Name, None]
 
 
 class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
@@ -210,20 +211,22 @@ class Soundtrack(DiscographyEntry):
 class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
-            self, name: Union[str, Name, None], page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
+            self, name: NameType, page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
             artist: NodeOrNodes, release_dates: Sequence[date], tracks: ListOrLists, edition: Optional[str] = None,
             lang: Optional[str] = None, repackage=False
     ):
-        self._name = name                                                               # type: Union[str, Name, None]
-        self.page = page                                                                # type: WikiPage
-        self.entry = entry                                                              # type: DiscographyEntry
-        self.type = entry_type                                                          # type: DiscoEntryType
-        self._artist = artist                                                           # type: NodeOrNodes
-        self.release_dates = release_dates                                              # type: Sequence[date]
-        self._tracks = tracks                                                           # type: ListOrLists
-        self.edition = edition                                                          # type: Optional[str]
-        self.lang = 'Korean' if not lang and page.site == 'kpop.fandom.com' else lang   # type: Optional[str]
-        self.repackage = repackage
+        self._name = name                                                                   # type: NameType
+        self.page = page                                                                    # type: WikiPage
+        self.entry = entry                                                                  # type: DiscographyEntry
+        self.type = entry_type                                                              # type: DiscoEntryType
+        self._artist = artist                                                               # type: NodeOrNodes
+        self.release_dates = release_dates                                                  # type: Sequence[date]
+        self._tracks = tracks                                                               # type: ListOrLists
+        self.edition = edition                                                              # type: Optional[str]
+        self.repackage = repackage                                                          # type: bool
+        if not lang and (artist := self.artist):
+            lang = artist.language
+        self.lang = 'Korean' if not lang and page.site == 'kpop.fandom.com' else lang       # type: Optional[str]
         # TODO: Fix edition values here:
         """
             - <[2013-06-03]AlbumEdition['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][type=1st Chinese Album][edition='Kiss Edition - Hug Edition'][lang='Chinese']>:

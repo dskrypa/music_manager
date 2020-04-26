@@ -63,6 +63,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_album_name(cls, node: N) -> Name:
+        # For discography page/section entries
         raise NotImplementedError
 
     @classmethod
@@ -227,12 +228,16 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             return _process_track_string(node.value)
         elif node.__class__ is CompoundNode:
             if has_item_types(node, String, Tag) and is_node_with(node[1], Tag, String, name='small'):
+                # log.debug(f'Processing track name with small tag from {node=}')
                 return _process_track_string(node[0].value, node[1].value.value)
             elif has_item_types(node, String, Link, String) and node[0].value == '"':
+                # log.debug(f'Processing track name with String+Link+String from {node=}')
                 return _process_track_string(f'"{node[1].show}{node[2].value}')
             elif node.only_basic and not node.find_one(Link, recurse=True):
+                # log.debug(f'Processing track name with basic compound and no links from {node=}')
                 return _process_track_string(' '.join(str(n.show if isinstance(n, Link) else n.value) for n in node))
             else:
+                # log.debug(f'Processing track name with complex content from {node=}')
                 return _process_track_complex(node)
         else:
             log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
@@ -328,6 +333,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                 raise ValueError(f'Unexpected second node value for track={orig_node!r} {node=!r}')
         else:
             split_name = split_enclosed(node.value, maxsplit=1)
+            # log.debug(f'split_enclosed({node.value!r}) => {split_name}')
             if len(split_name) == 1:
                 base_name = split_name[0]
             else:
@@ -337,9 +343,10 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
     else:
         raise TypeError(f'Unexpected first node type for track={orig_node!r} {node=!r}')
 
+    # log.debug(f'Processing complex track node: {base_name=!r} {remainder=!r} {nodes=}')
     if not remainder and nodes:
         node = nodes.pop(0)
-        if is_node_with(node, Tag, CompoundNode, name='small'):
+        if is_node_with(node, (Tag, Template), CompoundNode, name='small'):
             nodes = list(node.value) + nodes
             node = nodes.pop(0)
             if isinstance(node, String):
@@ -354,6 +361,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
     extra = {}
     if remainder:
         if extra_type := REMAINDER_ARTIST_EXTRA_TYPE_MAP.get(remainder.lower()):
+            # log.debug(f'Found {remainder=!r} => {extra_type=!r}')
             remainder = None
             artists = []
             while nodes:
@@ -361,7 +369,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                 if isinstance(node, Link):
                     artists.append(node)
                 elif isinstance(node, String):
-                    if start_str := next((val for val in (')', 'duet)') if node.value.startswith(val)), None):
+                    if start_str := next((val for val in (')', 'duet)', 'solo)') if node.value.startswith(val)), None):
                         if len(artists) == 1:
                             extra[extra_type] = artists[0]
                         else:
@@ -379,6 +387,8 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                         artists.append(node)
                 else:
                     raise TypeError(f'Unexpected artist node type for track={orig_node!r} {node=!r}')
+
+            # log.debug(f'Found {artists=} {remainder=!r} {nodes=} {extra=}')
 
     remainder = remainder or ''
     if nodes:

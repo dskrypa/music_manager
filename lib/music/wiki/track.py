@@ -4,7 +4,7 @@
 
 import logging
 from functools import partialmethod
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from ds_tools.compat import cached_property
 from wiki_nodes import CompoundNode, String, Link
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 __all__ = ['Track']
 log = logging.getLogger(__name__)
 EXTRA_VALUE_MAP = {'instrumental': 'Inst.', 'acoustic': 'Acoustic'}
+ARTISTS_SUFFIXES = {1: 'solo', 2: 'duet'}
 
 
 class Track:
@@ -47,7 +48,7 @@ class Track:
         if extras := self.name.extra:
             if feat := extras.get('feat'):
                 if isinstance(feat, CompoundNode):
-                    feat = artist_string(feat)
+                    feat = artist_string(feat)[0]
                 elif isinstance(feat, Link):
                     try:
                         feat = Artist.from_link(feat)
@@ -59,8 +60,24 @@ class Track:
                 parts.append(f'feat. {feat}')
             if collab := extras.get('collabs'):
                 if isinstance(collab, CompoundNode):
-                    collab = artist_string(collab)
+                    collab = artist_string(collab)[0]
                 parts.append(f'with {collab}')
+
+            if artists := extras.get('artists'):
+                if isinstance(artists, CompoundNode):
+                    artists, found = artist_string(artists)
+                    if suffix := ARTISTS_SUFFIXES.get(found):
+                        artists = f'{artists} {suffix}'
+                elif isinstance(artists, Link):
+                    try:
+                        artist = Artist.from_link(artists)
+                    except Exception as e:
+                        log.debug(f'Error retrieving artist from link={artists!r}: {e}')
+                    else:
+                        artists = f'{artist.name} solo'
+
+                parts.append(str(artists))
+
         return parts
 
     def full_name(self, collabs=True) -> str:
@@ -83,7 +100,8 @@ class Track:
         return combine_with_parens(parts)
 
 
-def artist_string(node: CompoundNode) -> str:
+def artist_string(node: CompoundNode) -> Tuple[str, int]:
+    found = 0
     link_artist_map = Artist.from_links(node.find_all(Link))
     parts = []
     for child in node.children:
@@ -93,6 +111,7 @@ def artist_string(node: CompoundNode) -> str:
             # if value not in '()':
             #     feat_parts.append(value)
         elif isinstance(child, Link):
+            found += 1
             try:
                 parts.append(link_artist_map[child].name)
             except KeyError:
@@ -111,4 +130,4 @@ def artist_string(node: CompoundNode) -> str:
             processed.append(part)
             last = part[-1]
 
-    return ''.join(processed)
+    return ''.join(processed), found

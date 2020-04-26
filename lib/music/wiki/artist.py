@@ -5,9 +5,8 @@ Artist wiki pages.
 """
 
 import logging
-from collections import defaultdict
 from itertools import chain
-from typing import MutableSet, List, Optional, Union
+from typing import MutableSet, List, Optional, Union, Set
 
 from ordered_set import OrderedSet
 
@@ -15,6 +14,7 @@ from ds_tools.compat import cached_property
 from ..text import Name
 from .base import PersonOrGroup, GROUP_CATEGORIES
 from .discography import DiscographyEntryFinder, DiscographyMixin
+from .parsing.utils import LANGUAGES
 
 __all__ = ['Artist', 'Singer', 'Group']
 log = logging.getLogger(__name__)
@@ -72,6 +72,21 @@ class Artist(PersonOrGroup, DiscographyMixin):
         for artist_page, parser in self.page_parsers('process_disco_sections'):
             parser.process_disco_sections(artist_page, finder)
         return finder
+
+    @cached_property
+    def languages(self) -> Set[str]:
+        categories = set(chain.from_iterable(cat.split() for page in self.pages for cat in page.categories))
+        return set(filter(None, (LANGUAGES.get(cat) for cat in categories)))
+
+    @cached_property
+    def language(self) -> Optional[str]:
+        if any(val in self._pages for val in ('kpop.fandom.com', 'kindie.fandom.com')):
+            return 'Korean'
+        if langs := self.languages:
+            if len(langs) == 1:
+                return next(iter(langs))
+        log.debug(f'Unable to determine primary language for {self} - found {langs=}')
+        return None
 
 
 class Singer(Artist):

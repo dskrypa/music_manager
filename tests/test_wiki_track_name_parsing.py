@@ -405,6 +405,21 @@ class KpopFandomTrackNameReprTest(NameTestCaseBase):
         track = Track(3, parse_kf_track_name(entry), None)
         self.assertEqual(track.full_name(collabs=True), 'Lost Without You (우리집을 못 찾겠군요) (feat. BOL4 (볼빨간사춘기))')
 
+    def test_track_artists_repr(self):
+        entry = as_node(""""Someday" ([[Jinho]] & [[Hui (PENTAGON)|Hui]] duet) - 3:57""", root=self.root)
+        track = Track(10, parse_kf_track_name(entry), None)
+        self.assertEqual(track.full_name(collabs=True), 'Someday (Jinho (진호) & Hui (후이) duet)')
+
+    def test_track_artist_solo_repr(self):
+        entry = as_node(""""Be Calm (덤덤해지네)" ([[Hwa Sa]] solo) - 3:28""", root=self.root)
+        name = parse_kf_track_name(entry)
+        eng, han = 'Be Calm', '덤덤해지네'
+        self.assertAll(
+            name, eng, eng, han, han, extra={'artists': as_node("""[[Hwa Sa]]""", root=self.root), 'length': '3:28'}
+        )
+        track = Track(4, name, None)
+        self.assertEqual(track.full_name(collabs=True), 'Be Calm (덤덤해지네) (Hwa Sa (화사) solo)')
+
 
 class GenerasiaTrackNameReprTest(NameTestCaseBase):
     root = MagicMock(site='www.generasia.com')

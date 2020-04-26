@@ -12,7 +12,7 @@ from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'name_from_intro',
-    'get_artist_title', 'find_language'
+    'get_artist_title', 'find_language', 'LANGUAGES'
 ]
 log = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ LANG_ABBREV_MAP = {
     'spanish': 'Spanish',
     'mandarin': 'Mandarin'
 }
+LANGUAGES = {lang.lower(): lang for lang in LANG_ABBREV_MAP.values()}
 MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
 LANG_PREFIX_SUB = re.compile(r'(?:{}):'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
 NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}

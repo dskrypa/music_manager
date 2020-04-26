@@ -210,6 +210,8 @@ class Soundtrack(DiscographyEntry):
 
 class DiscographyEntryEdition:
     """An edition of an album"""
+    __artist_initialized = False
+
     def __init__(
             self, name: NameType, page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
             artist: NodeOrNodes, release_dates: Sequence[date], tracks: ListOrLists, edition: Optional[str] = None,
@@ -224,9 +226,7 @@ class DiscographyEntryEdition:
         self._tracks = tracks                                                               # type: ListOrLists
         self.edition = edition                                                              # type: Optional[str]
         self.repackage = repackage                                                          # type: bool
-        if not lang and (artist := self.artist):
-            lang = artist.language
-        self.lang = 'Korean' if not lang and page.site == 'kpop.fandom.com' else lang       # type: Optional[str]
+        self._lang = lang                                                                   # type: Optional[str]
         # TODO: Fix edition values here:
         """
             - <[2013-06-03]AlbumEdition['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][type=1st Chinese Album][edition='Kiss Edition - Hug Edition'][lang='Chinese']>:
@@ -240,7 +240,10 @@ class DiscographyEntryEdition:
         _type = self.numbered_type or (repr(self.type.real_name) if self.type else None)
         alb_type = f'[type={_type}]' if _type else ''
         edition = f'[edition={self.edition!r}]' if self.edition else ''
-        lang = f'[lang={self.lang!r}]' if self.lang else ''
+        if self.__artist_initialized:
+            lang = f'[lang={self.lang!r}]' if self.lang else ''
+        else:
+            lang = f'[lang={self._lang!r}]' if self._lang else ''
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
@@ -251,6 +254,14 @@ class DiscographyEntryEdition:
 
     def __lt__(self, other: 'DiscographyEntryEdition') -> bool:
         return (self.artist, self.date, self._name, self.edition) < (other.artist, other.date, other._name, other.edition)
+
+    @cached_property
+    def lang(self) -> Optional[str]:
+        if lang := self._lang:
+            return lang
+        if artist := self.artist:
+            lang = artist.language
+        return 'Korean' if not lang and self.page.site == 'kpop.fandom.com' else lang
 
     @cached_property
     def name_base(self) -> Name:
@@ -297,11 +308,13 @@ class DiscographyEntryEdition:
     def artist(self) -> Optional['Artist']:
         if artists := self.artists:
             if len(artists) == 1:
+                self.__artist_initialized = True
                 return next(iter(artists))
             else:
                 log.debug(f'Multiple artists found for {self!r}: {artists}')
         else:
             log.debug(f'No artists found for {self!r}')
+        self.__artist_initialized = True
         return None
 
     @cached_property

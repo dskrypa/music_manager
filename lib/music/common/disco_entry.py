@@ -17,7 +17,7 @@ class DiscoEntryType(Enum):
     # Format: real_name, categories, directory, numbered
     UNKNOWN = 'UNKNOWN', (), 'Other', False
     MiniAlbum = 'Mini Album', ('mini album',), 'Mini Albums', True
-    ExtendedPlay = 'EP', ('extended play',), 'EPs', False
+    ExtendedPlay = 'EP', ('extended play', 'digital eps'), 'EPs', False
     SingleAlbum = 'Single Album', ('single album',), 'Single Albums', True
     SpecialAlbum = 'Special Album', ('special album',), 'Special Albums', True
     Compilation = 'Compilation', ('compilation', 'best album'), 'Compilations', False
@@ -28,7 +28,10 @@ class DiscoEntryType(Enum):
     CoverAlbum = 'Cover Album', ('cover album', 'remake album'), 'Other', False
     Soundtrack = 'Soundtrack', ('soundtrack', 'ost'), 'Soundtracks', False
     Single = (
-        'Single', ('single', 'song', 'digital single', 'promotional single', 'special single', 'other release'),
+        'Single', (
+            'single', 'song', 'digital single', 'promotional single', 'special single', 'other release',
+            'digital download'
+        ),
         'Singles', False
     )
     Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album'), 'Albums', True
@@ -54,6 +57,9 @@ class DiscoEntryType(Enum):
             if any(cat in _category for cat in album_type.categories):
                 # log.debug(f'{category!r} => {album_type}')
                 return album_type
+
+        if _category == 'ep':
+            return cls.ExtendedPlay
         return None
 
     @classmethod

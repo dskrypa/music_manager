@@ -92,11 +92,12 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
             if not album_type or album_type == disco_entry.type:
                 if album_name.name.matches(disco_entry.name):
                     if parts := list(disco_entry.parts()):
-                        if len(parts) == 1:
-                            candidates.append(parts[0])
-                        else:
-                            part = choose_item(parts, 'part', before=before)
-                            candidates.append(part)
+                        candidates.extend(parts)
+                        # if len(parts) == 1:
+                        #     candidates.append(parts[0])
+                        # else:
+                        #     part = choose_item(parts, 'part', before=before)
+                        #     candidates.append(part)
                 #     else:
                 #         log.debug(f'Found no parts for {disco_entry=}')
                 # else:

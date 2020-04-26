@@ -339,6 +339,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 raise ValueError(f'Unexpected album_name_node={node[name_key]}')
         else:
             album_name = album_name_node[0].value
+            if isinstance(album_name, String):
+                album_name = album_name.value
             if album_name.endswith('('):
                 album_name = album_name[:-1].strip()
 

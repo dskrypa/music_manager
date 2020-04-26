@@ -278,7 +278,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
             for title, entity in title_entity_map.items():
                 if 0 < len(entity._pages) < len(sites):
                     # noinspection PyUnboundLocalVariable
-                    if (name := entity.name) and (eng := name.english) and eng != title:
+                    if (name := entity.name) and (eng := name.english) and eng != title and eng not in title_name_map:
                         # log.debug(f'Will re-search for {eng=!r} {title=!r} {entity=!r}')
                         new_orig_title_map[eng] = title
                         research_title_name_map[eng] = title_name_map.get(title)

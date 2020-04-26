@@ -71,6 +71,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                     if not isinstance(disco_page_link, Link):
                         if isinstance(disco_page_link, MappingNode):
                             disco_page_link = Link.from_title(disco_page_link['1'].value, artist_page)
+                        elif isinstance(disco_page_link, list):
+                            disco_page_link = Link.from_title(disco_page_link[0].value, artist_page)
                         else:
                             log.debug(f'Unexpected {disco_page_link=} format on {artist_page}')
                             return

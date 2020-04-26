@@ -51,6 +51,8 @@ class DiscographyMixin(ABC):
                     temp[entry._merge_key].append(entry)
 
         for key, entries in temp.items():
+            # if len(entries) > 1:
+            #     log.debug(f'Merging disco entries for {self}: {key=!r} {entries=!r}')
             entries = iter(entries)
             entry = next(entries)
             for other in entries:

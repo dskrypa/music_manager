@@ -55,10 +55,13 @@ def handle_disambiguation_candidates(
     else:
         p_name = page_name(page)
         links = list(candidates)
+        links.append('[None - skip]')
         # log.debug(f'Ambiguous title={p_name!r} on site={client.host} has too many candidates: {len(candidates)}')
         source = f'for ambiguous title={p_name!r} on {client.host}'
-        link = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
-        return candidates[link]
+        choice = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
+        if choice == '[None - skip]':
+            raise AmbiguousPageError(page_name(page), page, list(candidates))
+        return candidates[choice]
 
 
 def _filtered_candidates(name: Name, candidates: Candidates, existing: Optional[WE] = None) -> Candidates:

@@ -139,7 +139,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         # [date] [[{romanized} (eng)]] (han; lit)
         #        ^_______title_______^
         name = Name(non_eng=non_eng, lit_translation=lit_translation)
-        if ends_with_enclosed(title, exclude='"'):
+        if opener_closer := ends_with_enclosed(title, exclude='"'):
+            opener, closer = opener_closer
             if non_eng:
                 if non_eng.endswith(')') and '(' in non_eng and name.has_romanization(title):
                     name.set_eng_or_rom(title)
@@ -178,6 +179,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                                 incomplete_extra = process_extra(extras, b)
                             else:
                                 name._english = f'{a} ({b})'
+            elif title.startswith(opener) and title.endswith(closer) and all(title.count(c) == 1 for c in opener_closer):
+                name.set_eng_or_rom(title)
             else:
                 try:
                     a, b = split_enclosed(title, reverse=True, maxsplit=1)

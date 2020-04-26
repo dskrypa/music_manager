@@ -86,6 +86,8 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
         # log.debug(f'Without lang prefix: {cleaned!r}')
         if delim := next((c for c in ';,' if c in cleaned), None):
             cleaned = cleaned.split(delim, 1)[0].strip() + ')'
+        if '(stylized' in cleaned:
+            cleaned = cleaned.partition('(stylized')[0].strip()
         # log.debug(f'Cleaned name: {cleaned!r}')
         yield Name.from_enclosed(cleaned)
     else:

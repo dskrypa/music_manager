@@ -162,7 +162,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         try:
             from_albums = node_to_link_dict(row.get('Album'))
         except ValueError as e:
-            log.debug(f'Error parsing album data for {row=}: {e}')
+            log.log(9, f'Error parsing album data from {page} for row={row.pformat()}: {e}')
             from_albums = None
 
         disco_entry = DiscoEntry(

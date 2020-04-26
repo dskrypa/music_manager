@@ -5,7 +5,7 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
-from typing import Dict, List, Iterable
+from typing import Dict, List, Iterable, Iterator
 
 from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, Link
@@ -33,6 +33,11 @@ class DiscographyMixin(ABC):
     @cached_property
     def discography_entries(self) -> Dict[str, List[DiscographyEntry]]:
         return self._finder_with_entries().process_entries()
+
+    @property
+    def all_discography_entries(self) -> Iterator[DiscographyEntry]:
+        for site, entries in self.discography_entries.items():
+            yield from entries
 
     @cached_property
     def discography(self) -> List[DiscographyEntry]:
@@ -107,11 +112,11 @@ class DiscographyEntryFinder:
                     self.remaining[disco_entry] -= 1
                     if self.created_entry[disco_entry]:
                         msg = 'Type mismatch' if isinstance(e, EntityTypeError) else 'Ambiguous page error'
-                        log.log(9, f'{msg} for additional {link=} associated with {disco_entry}: {e}')
+                        log.log(8, f'{msg} for additional {link=} associated with {disco_entry}: {e}')
                     elif self.remaining[disco_entry]:
-                        log.log(9, f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
+                        log.log(8, f'{e}, but {self.remaining[disco_entry]} associated links are pending processing')
                     else:
-                        log.debug(f'{e}, and no other links are available')
+                        log.log(9, f'{e}, and no other links are available')
                         # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
                         discography[src_site].append(DiscographyEntry.from_disco_entry(disco_entry))
                         self.created_entry[disco_entry] = True

@@ -74,7 +74,7 @@ class DiscoEntryType(Enum):
                 else:
                     return min(candidates)
 
-            log.debug(f'No DiscoEntryType exists for name={name!r}')
+            log.debug(f'No DiscoEntryType exists for name={name!r}', stack_info=True)
         return cls.UNKNOWN
 
     @cached_property

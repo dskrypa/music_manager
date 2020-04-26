@@ -25,7 +25,7 @@ def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Optional[Ite
     if URL_MATCH(identifier):
         entity = EntertainmentEntity.from_url(identifier)
     else:
-        entity = EntertainmentEntity.from_title(identifier, search=True)
+        entity = EntertainmentEntity.from_title(identifier, search=True, research=True)
     uprint(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):
@@ -70,6 +70,7 @@ def print_discography(
                     print_disco_entry(disco_entry, indent + 6, editions, track_info=track_info)
                 else:
                     uprint(f'{prefix}    - {disco_entry}')
+                    # uprint(f'{prefix}    - {disco_entry}: {list(disco_entry.pages)}')
     else:
         uprint(f'{prefix}  Discography: [Unavailable]')
 

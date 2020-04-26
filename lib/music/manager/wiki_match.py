@@ -88,7 +88,7 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
     artists = artists or find_artists(album_dir)
     log.debug(f'Processing album for {album_dir} with {album_name=!r} and {artists=}')
     for artist in artists:
-        for disco_entry in artist.discography:
+        for disco_entry in artist.all_discography_entries:
             if not album_type or album_type == disco_entry.type:
                 if album_name.name.matches(disco_entry.name):
                     if parts := list(disco_entry.parts()):
@@ -97,5 +97,9 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
                         else:
                             part = choose_item(parts, 'part', before=before)
                             candidates.append(part)
+                    else:
+                        log.debug(f'Found no parts for {disco_entry=}')
+                else:
+                    log.debug(f'{album_name} does not match {disco_entry} ({disco_entry._pages})')
 
     return choose_item(candidates, 'candidate', before=before)

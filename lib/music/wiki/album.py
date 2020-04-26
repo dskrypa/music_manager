@@ -131,11 +131,11 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
         return self.year or date.year, date, self.name
 
     @cached_property
-    def _merge_key(self) -> Tuple[Optional[int], str]:
+    def _merge_key(self) -> Tuple[Optional[int], str, Optional['DiscoEntryType']]:
         uc_name = self._name.upper()
         if ost_match := OST_MATCH(uc_name):
             uc_name = ost_match.group(1)
-        return self.year, uc_name
+        return self.year, uc_name, self.type
 
     @cached_property
     def year(self) -> Optional[int]:

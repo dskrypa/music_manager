@@ -4,7 +4,7 @@
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, date
 from os.path import commonprefix
 from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 __all__ = ['GenerasiaParser']
 log = logging.getLogger(__name__)
 
-DATE_PAT_MATCH = re.compile(r'^\[\d{4}\.\d{2}\.\d{2}\]\s*(.*)$').match
+DATE_PAT_MATCH = re.compile(r'^\[\d{4}(?:\.\d{2}\.\d{2})?\]\s*(.*)$').match
 OST_PAT_SEARCH = re.compile(r'\sOST(?:\s*|$)').search
 
 MEMBER_TYPE_SECTIONS = {'former': 'Former Members', 'hiatus': 'Hiatus', 'sub_units': 'Sub-Units'}
@@ -179,7 +179,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                             else:
                                 name._english = f'{a} ({b})'
             else:
-                a, b = split_enclosed(title, reverse=True, maxsplit=1)
+                try:
+                    a, b = split_enclosed(title, reverse=True, maxsplit=1)
+                except Exception:
+                    log.error(f'Error splitting {title=!r}', exc_info=True)
+                    raise
+
                 if OST_PAT_SEARCH(b) or is_extra(b):
                     eng_title = a
                     incomplete_extra = process_extra(extras, b)
@@ -217,7 +222,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 continue
             lang = section_prefix.strip() if section_prefix in ('Korean ', 'Japanese ') else None
             for alb_type, alb_type_section in section.children.items():
-                if 'video' in alb_type.lower():
+                lc_alb_type = alb_type.lower()
+                if any(val in lc_alb_type for val in ('video', 'dvd')) or lc_alb_type == 'other':
                     continue
                 de_type = DiscoEntryType.for_name(alb_type)
                 content = alb_type_section.content
@@ -225,8 +231,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     try:
                         cls._process_disco_entry(artist_page, finder, de_type, entry, lang)
                     except Exception as e:
-                        msg = f'Unexpected error processing section={section} entry={entry}: {format_exc()}'
-                        log.error(msg, extra={'color': 'red'})
+                        log.error(f'Unexpected error processing {section=} {entry=}:', extra={'color': 9}, exc_info=True)
 
     @classmethod
     def _process_disco_entry(
@@ -270,10 +275,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         pass
 
         first_str = entry[0].value
-        date = datetime.strptime(first_str[:first_str.index(']')], '[%Y.%m.%d').date()
+        date_str = first_str[1:first_str.index(']')]
+        if len(date_str) == 4:
+            date_obj = date(int(date_str), 1, 1)
+        else:
+            date_obj = datetime.strptime(date_str, '%Y.%m.%d').date()
+
         # noinspection PyTypeChecker
         disco_entry = DiscoEntry(
-            artist_page, entry, type_=entry_type, lang=lang, date=date, link=entry_link, song=song_title, title=name
+            artist_page, entry, type_=entry_type, lang=lang, date=date_obj, link=entry_link, song=song_title, title=name
         )
         if entry_link:
             finder.add_entry_link(entry_link, disco_entry)

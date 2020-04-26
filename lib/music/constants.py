@@ -15,7 +15,8 @@ tag_name_map = {
 
     'USLT': 'Lyrics',
     'TIT1': 'Grouping',
-    'TBPM': 'BPM (beats per minute)',
+    # 'TBPM': 'BPM (beats per minute)',
+    'TBPM': 'BPM',
     'TCMP': 'Compilation (boolean)',                                            #iTunes only
     'TSOC': 'Composer [for sorting]',                                           #iTunes only
     'TSO2': 'Album Artist [for sorting]',                                       #iTunes only

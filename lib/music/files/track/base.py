@@ -161,7 +161,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
         to_remove = {
             tag_id: val if isinstance(val, list) else [val]
-            for tag_id in sorted(tag_ids) if (val := self.tags_for_id(tag_id))
+            for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
         }
         if to_remove:
             rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)

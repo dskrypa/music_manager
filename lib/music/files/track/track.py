@@ -20,7 +20,7 @@ from .bpm import get_bpm
 from .patterns import (
     ALBUM_DIR_CLEANUP_RE_FUNCS, ALBUM_VOLUME_MATCH, EXTRACT_PART_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 )
-from .utils import print_tag_changes, tag_repr, ON_WINDOWS
+from .utils import print_tag_changes, tag_repr, ON_WINDOWS, TYPED_TAG_MAP
 
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
@@ -182,6 +182,8 @@ class SongFile(BaseSongFile):
         prefix, repl_msg, set_msg = ('[DRY RUN] Would ', 'replace', 'set') if dry_run else ('', 'Replacing', 'Setting')
         should_save = False
         for tag_id in tag_ids:
+            if names_by_type := TYPED_TAG_MAP.get(tag_id):
+                tag_id = names_by_type[self.tag_type]
             tag_name = tag_name_map.get(tag_id)
             if not tag_name:
                 raise ValueError(f'Invalid tag ID: {tag_id}')

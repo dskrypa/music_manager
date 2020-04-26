@@ -29,6 +29,7 @@ LANGUAGES = {lang.lower(): lang for lang in LANG_ABBREV_MAP.values()}
 MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
 LANG_PREFIX_SUB = re.compile(r'(?:{}):'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
 LANG_ABBREV_PAT = re.compile(r'(^|\s)({})(\s|$)'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE)
+LIST_SPLIT = re.compile(r'[,;] ').split
 NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}
 ORDINAL_TO_INT = {
     '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8, '9th': 9, '10th': 10,
@@ -111,7 +112,7 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             if '; ' in paren_part:
                 # log.debug('Found ;')
                 first_part_lang = LangCat.categorize(first_part)
-                for part in map(rm_lang_prefix, paren_part.split('; ')):
+                for part in map(rm_lang_prefix, LIST_SPLIT(paren_part)):
                     if LangCat.categorize(part) != first_part_lang and not part.startswith('stylized '):
                         yield Name.from_parts((first_part, part))
             elif ', and' in paren_part:

@@ -51,6 +51,7 @@ def update_tracks(
                 log.error(f'Error finding an album match for {album_dir}: {e}', extra={'color': 9})
                 log.debug(f'Error finding an album match for {album_dir}:', exc_info=True)
             else:
+                log.info(f'Matched {album_dir} to {album}')
                 _update_album_from_disco_entry(
                     album_dir, album, dry_run, soloist, hide_edition, collab_mode, add_bpm, dest_base_dir
                 )
@@ -105,6 +106,7 @@ def _apply_track_updates(
         file.update_tags(values, dry_run, no_log=common_changes)
 
         track = file_track_map[file]
+        log.debug(f'Matched {file} to {track.name._full_repr()}')
         filename = TRACK_NAME_FORMAT(track=track.full_name(True), ext=file.ext, num=track.num)
         if file.path.name != filename:
             rel_path = Path(file.rel_path)

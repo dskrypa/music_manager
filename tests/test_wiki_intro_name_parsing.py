@@ -31,6 +31,12 @@ class IntroNameParsingTest(TestCaseBase):
         names = set(name_from_intro(page))
         self.assertSetEqual(names, {Name('GFRIEND', '여자친구'), Name('GFRIEND', 'ジーフレンド')})
 
+    def test_multi_lang_with_aka(self):
+        page = MagicMock(intro=as_node("""'''WJSN''' (also known as '''Cosmic Girls'''; Korean: 우주소녀, Chinese: 宇宙少女) is a thirteen-member South Korean-Chinese girl group formed by [[Starship Entertainment]] and [[Yuehua Entertainment]]. They debuted on February 25, 2
+016 with their first mini album ''[[Would You Like?]]''."""))
+        names = set(name_from_intro(page))
+        self.assertSetEqual(names, {Name('WJSN', '우주소녀'), Name('WJSN', '宇宙少女')})
+
 
 if __name__ == '__main__':
     main()

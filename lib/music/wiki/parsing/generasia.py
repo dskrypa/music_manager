@@ -310,8 +310,9 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if isinstance(node, MappingNode) and 'Artist' in node:
                 try:
                     yield from cls._process_album_edition(entry, entry_page, node, langs, repackage)
-                except Exception:
-                    log.error(f'Error processing edition on {entry_page=} {node=}', exc_info=True, extra={'color': 9})
+                except Exception as e:
+                    log.debug(f'Error processing edition on {entry_page=}: {e}', extra={'color': 9})
+                    # log.debug(f'Error processing edition on {entry_page=} node={node.pformat()}', exc_info=True, extra={'color': 9})
                 else:
                     repackage = True
 
@@ -329,7 +330,16 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         elif album_name_node is None:
             album_name_node = node[name_key]
             if isinstance(album_name_node, ListEntry) and album_name_node.children:
-                names = [c.value.value for c in album_name_node.children]
+                try:
+                    # Example: https://www.generasia.com/wiki/The_Best_(Girls%27_Generation)
+                    names = [c.value for c in album_name_node.sub_list.iter_flat()]
+                except AttributeError:
+                    # TODO:
+                    # https://www.generasia.com/wiki/Miina_(Bonamana)
+                    # https://www.generasia.com/wiki/The_SHINee_World
+                    # log.error(f'Unexpected value for {album_name_node=!r} on {entry_page}')
+                    raise ValueError(f'Unexpected value for {album_name_node=!r}')
+
                 if prefix := clean_common_prefix(names):
                     log.debug(f'Using album={prefix!r} for {album_name_node} on {entry_page=}')
                     album_name = prefix

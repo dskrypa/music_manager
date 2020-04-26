@@ -136,7 +136,11 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             lang: Optional[str]
     ) -> None:
         # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
-        title = row['Title']
+        try:
+            title = row['Title']
+        except KeyError:
+            title = row['']         # example: https://en.wikipedia.org/wiki/AOA_discography#As_lead_artist
+
         track_data = None
         if details := next((row[key] for key in ('Details', 'Album details') if key in row), None):
             if track_list := details.find_one(Template, name='hidden'):

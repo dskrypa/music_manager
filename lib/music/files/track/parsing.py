@@ -22,7 +22,7 @@ CHANNELS = tuple(map(str.lower, ('SBS', 'KBS', 'tvN', 'MBC')))
 
 ALB_TYPE_DASH_SUFFIX_MATCH = re.compile(r'(.*)\s[-X]\s*((?:EP|Single|SM[\s-]?STATION))$', re.IGNORECASE).match
 NTH_ALB_TYPE_MATCH = re.compile(
-    r'^(?:the)?\s*([0-9]+(?:st|nd|rd|th))\s+(.*?album\s*(?:repackage)?)$', re.IGNORECASE
+    r'^(.*?)(?:the)?\s*([0-9]+(?:st|nd|rd|th))\s+(.*?album\s*(?:repackage)?)$', re.IGNORECASE
 ).match
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
@@ -111,9 +111,12 @@ class AlbumName:
         except ValueError:
             name_parts = (name.translate(APOSTROPHES_TRANS),)
         else:
+            orig_parts = parts.copy()
             name_parts = []
-            for i, part in enumerate(parts):
-                part = part.translate(APOSTROPHES_TRANS)
+            i = -1
+            while parts:
+                i += 1
+                part = parts.pop(0).translate(APOSTROPHES_TRANS)
                 lc_part = part.lower()
                 # log.debug(f'Processing part={part!r} / lc_part={lc_part!r}')
                 if self.ost and part == '영화':   # movie
@@ -146,31 +149,41 @@ class AlbumName:
                 elif suffix := next((s for s in ('original soundtrack', ' ost') if lc_part.endswith(s)), None):
                     part = clean(part[:-len(suffix)])
                     self.ost = True
-                    if len(parts) == 2 and 'OST' not in parts[int(not i)]:
+                    if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
                         real_album = part
                         part = None
                     if part:
                         name_parts.append(part)
                 elif m := OST_PART_MATCH(part):
+                    # log.debug(f'OST_PART_MATCH({part!r}) => {m.groups()}')
                     _part, _ost, _part_, part_num = map(clean, m.groups())
                     if _part_ or _ost:
                         self.ost = True
                         self.part = int(part_num)
                         part = _part
-                        if len(parts) == 2 and 'OST' not in parts[int(not i)]:
+                        if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
                             real_album = part
                             part = None
 
                     if part:
                         name_parts.append(part)
                 elif m := NTH_ALB_TYPE_MATCH(part):
-                    self.alb_num = '{} {}'.format(*m.groups())
-                    self.alb_type = m.group(2)
+                    groups = m.groups()
+                    # log.debug(f'Found NTH_ALB_TYPE_MATCH({part!r}) => {groups}')
+                    self.alb_num = '{} {}'.format(*groups[1:])
+                    self.alb_type = m.group(3)
+                    part = groups[0].strip()
+                    if part.endswith('-'):
+                        part = part[:-1].strip()
+                    if part:
+                        # log.debug(f'Re-inserting {part=!r}')
+                        parts.insert(0, part)
                 elif m := SPECIAL_PREFIX_MATCH(part):
                     self.alb_type, part = map(clean, m.groups())
                     if part:
                         name_parts.append(part)
                 else:
+                    # log.debug(f'No cases matched {part=!r}')
                     name_parts.append(part)
 
         if feat:

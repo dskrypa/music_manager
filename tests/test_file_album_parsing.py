@@ -14,6 +14,7 @@ from music.text.name import Name, sort_name_parts
 log = logging.getLogger(__name__)
 
 ALBUM_TEST_CASES = {
+    'OBSESSION - The 6th Album': AlbumName('OBSESSION', alb_num='6th Album', alb_type='Album'),
     'The 2nd Mini Album `중독 (Overdose)`': AlbumName(('중독', 'Overdose'), alb_num='2nd Mini Album', alb_type='Mini Album'),
     'The 2nd Mini Album `上瘾 (Overdose)`': AlbumName(('上瘾', 'Overdose'), alb_num='2nd Mini Album', alb_type='Mini Album'),
 
@@ -160,7 +161,7 @@ class FileAlbumParsingTestCase(TestCaseBase):
             if parsed == expected:
                 passed += 1
             else:
-                log.error(f'AlbumName.parse({test_case!r}) => {parsed} != {expected} (expected)')
+                log.error(f'AlbumName.parse({test_case!r}) =>\n  parsed={parsed}\n!=\n{expected=}', extra={'color': 13})
 
         msg = f'{passed}/{total} ({passed/total:.2%}) of test cases passed'
         log.info(msg)

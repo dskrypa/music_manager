@@ -214,13 +214,20 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
         tracks = edition._tracks
+        if tracks.__class__ is CompoundNode and len(tracks) == 1 and isinstance(tracks[0], ListNode):
+            tracks = tracks[0]
         if isinstance(tracks, ListNode):
             yield DiscographyEntryPart(None, edition, tracks)
         elif isinstance(tracks, list):
             for i, track_node in enumerate(tracks):
                 yield DiscographyEntryPart(f'CD{i + 1}', edition, track_node)
         else:
-            log.warning(f'Unexpected type for {edition!r}._tracks: {tracks!r}')
+            try:
+                # noinspection PyUnresolvedReferences
+                log.warning(f'Unexpected type for {edition!r}._tracks: {tracks.pformat()}', extra={'color': 'red'})
+            except AttributeError:
+                log.warning(f'Unexpected type for {edition!r}._tracks: {tracks!r}')
+
 
     @classmethod
     def parse_track_name(cls, node: N) -> Name:

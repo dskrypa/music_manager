@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 from ds_tools.compat import cached_property
 from wiki_nodes import CompoundNode, String, Link
 from ..text import Name, combine_with_parens
+from .parsing.utils import replace_lang_abbrev
 from .artist import Artist
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ class Track:
 
             for key in ('version', 'edition'):
                 if value := extras.get(key):
-                    parts.append(value)
+                    parts.append(replace_lang_abbrev(value))
 
             if collabs:
                 parts.extend(self.collab_parts)

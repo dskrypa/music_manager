@@ -12,7 +12,7 @@ from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'name_from_intro',
-    'get_artist_title', 'find_language', 'LANGUAGES'
+    'get_artist_title', 'find_language', 'LANGUAGES', 'replace_lang_abbrev'
 ]
 log = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ LANG_ABBREV_MAP = {
 LANGUAGES = {lang.lower(): lang for lang in LANG_ABBREV_MAP.values()}
 MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
 LANG_PREFIX_SUB = re.compile(r'(?:{}):'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
+LANG_ABBREV_PAT = re.compile(r'(^|\s)({})(\s|$)'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE)
 NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}
 ORDINAL_TO_INT = {
     '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8, '9th': 9, '10th': 10,
@@ -38,6 +39,14 @@ ORDINAL_SEARCH = re.compile('({})'.format('|'.join(ORDINAL_TO_INT)), re.IGNORECA
 WIKI_STYLE_SEARCHES = (
     re.compile(r"^(''''')(.+?)(\1)").search, re.compile(r"^(''')(.+?)(\1)").search, re.compile(r"^('')(.+?)(\1)").search
 )
+
+
+def replace_lang_abbrev(text: str) -> str:
+    if m := LANG_ABBREV_PAT.search(text):
+        abbrev = m.group(2).lower()
+        lang = LANG_ABBREV_MAP[abbrev]
+        return LANG_ABBREV_PAT.sub(r'\1{}\3'.format(lang), text)
+    return text
 
 
 def find_ordinal(text: str) -> Optional[int]:

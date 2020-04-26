@@ -2,6 +2,7 @@
 :author: Doug Skrypa
 """
 
+import atexit
 import logging
 import os
 from collections import defaultdict
@@ -20,7 +21,7 @@ from tz_aware_dt import format_duration
 from ..common import DiscoEntryType
 from ..text import Name
 from .exceptions import *
-from .track import BaseSongFile, SongFile, tag_repr, AlbumName
+from .track import BaseSongFile, SongFile, AlbumName
 from .utils import iter_music_files
 
 __all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs']
@@ -32,6 +33,7 @@ RM_TAG_MATCHERS = {
     'flac': FnMatcher(('UPLOADED*',)).match
 }
 KEEP_TAGS = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
+EXECUTOR = None     # type: Optional[futures.ThreadPoolExecutor]
 
 
 class AlbumDir(ClearableCachedPropertyMixin):
@@ -232,11 +234,12 @@ class AlbumDir(ClearableCachedPropertyMixin):
                     bpm = _file.bpm(not dry_run, calculate=True)
                     log.info(f'{prefix}{add_msg} BPM={bpm} to {_file}')
 
-            with futures.ThreadPoolExecutor(max_workers=max(1, len(self.songs))) as executor:
-                # Would be better with ProcessPoolExecutor, but it had issues. This is still faster than single-threaded
-                _futures = {executor.submit(bpm_func, music_file) for music_file in self.songs}
-                for future in futures.as_completed(_futures):
-                    future.result()
+            global EXECUTOR
+            if EXECUTOR is None:
+                EXECUTOR = futures.ThreadPoolExecutor(max_workers=8)
+
+            for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in self.songs}):
+                future.result()
 
     def remove_bad_tags(self, dry_run=False):
         i = 0
@@ -274,6 +277,12 @@ def _album_dir_obj(self):
     except InvalidAlbumDir:
         pass
     return None
+
+
+@atexit.register
+def _cleanup_executor():
+    if EXECUTOR is not None:
+        EXECUTOR.shutdown(True)
 
 
 # Note: The only time this property is not available is in interactive sessions started for the files.track.base module

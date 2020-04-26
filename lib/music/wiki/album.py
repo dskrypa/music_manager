@@ -171,7 +171,8 @@ class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
         try:
             return cls._by_category(disco_entry, disco_entry=disco_entry)
         except EntityTypeError as e:
-            err_msg = f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}'
+            # err_msg = f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}'
+            err_msg = f'Failed to create {cls.__name__} from {disco_entry}: {e}'
             log.error(err_msg, extra={'color': 'red'})
 
     @cached_property

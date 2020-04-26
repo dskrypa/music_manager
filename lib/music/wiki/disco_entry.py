@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional, Union, Mapping, Iterable, List
+from typing import Optional, Union, Mapping, Iterable, List
 
 from ds_tools.compat import cached_property
 from ds_tools.unicode import LangCat
@@ -11,10 +11,7 @@ from wiki_nodes import WikiPage, Link
 from wiki_nodes.nodes import N
 from ..common import DiscoEntryType
 from ..text import Name
-from ..text.time import parse_date, DateObj
-
-if TYPE_CHECKING:
-    from datetime import date as _date
+from ..text.time import parse_date, DateObj, DateResult
 
 __all__ = ['DiscoEntry']
 log = logging.getLogger(__name__)
@@ -54,7 +51,7 @@ class DiscoEntry:
         self._title = title                                                         # type: Union[str, Name, None]
         self._type = type_
         self.language = LangCat.for_name(lang) if isinstance(lang, str) else lang   # type: Optional[LangCat]
-        self.date = parse_date(date)                                                # type: _date
+        self.date = parse_date(date)                                                # type: DateResult
         self.year = year if year else self.date.year if self.date else None         # type: Optional[int]
         self._link = link                                                           # type: Optional[Link]
         self.links = []                                                             # type: List[Link]
@@ -68,7 +65,7 @@ class DiscoEntry:
         lang = self.language.full_name if self.language else None
         from_album = f'from {self.from_albums!r}' if self.from_albums else None
         additional = ', '.join(filter(None, [self.type.real_name, lang, tracks, from_album]))
-        return f'<{type(self).__name__}[{self.title!r}, {date}] from {self.source}[{additional}]>'
+        return f'<{type(self).__name__}[{self.name}, {date}] from {self.source}[{additional}]>'
 
     @property
     def link(self):

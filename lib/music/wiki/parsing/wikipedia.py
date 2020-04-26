@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 SECTION_BLACKLIST = {
     'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums', 'guest appearances',
-    'other charted songs'
+    'other charted songs', 'other appearances'
 }
 short_repr = partial(_short_repr, containers_only=False)
 

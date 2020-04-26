@@ -42,6 +42,11 @@ class IntroNameParsingTest(TestCaseBase):
         names = set(name_from_intro(page))
         self.assertSetEqual(names, {Name('Obsession')})
 
+    def test_keep_quotes(self):
+        page = MagicMock(intro=as_node("""'''''‘The ReVe Festival’ Finale''''' is a repackage album by [[Red Velvet]]. It was released on December 23, 2019 with "Psycho" serving as the album's title track."""))
+        names = set(name_from_intro(page))
+        self.assertSetEqual(names, {Name('\'The ReVe Festival\' Finale')})
+
 
 if __name__ == '__main__':
     main()

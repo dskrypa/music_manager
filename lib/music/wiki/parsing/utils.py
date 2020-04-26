@@ -111,6 +111,7 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             name = name.replace(' : ', ': ')
             yield Name(name)
         else:
+            # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')
             if '; ' in paren_part:
                 # log.debug('Found ;')
                 first_part_lang = LangCat.categorize(first_part)
@@ -150,7 +151,10 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
                     else:
                         yield Name.from_parts((first_part, paren_part))
                 else:
-                    if LangCat.categorize(first_part) == LangCat.categorize(paren_part):
+                    if ' is ' in paren_part and '(' not in name:
+                        paren_part = paren_part.partition(' is ')[0]
+                        yield Name(f'\'{first_part}\' {paren_part}')    # Example: The_ReVe_Festival_Finale
+                    elif LangCat.categorize(first_part) == LangCat.categorize(paren_part):
                         yield Name.from_enclosed(first_part)
                     else:
                         yield Name.from_parts((first_part, paren_part))

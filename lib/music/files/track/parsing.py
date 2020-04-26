@@ -186,6 +186,9 @@ class AlbumName:
                     # log.debug(f'No cases matched {part=!r}')
                     name_parts.append(part)
 
+            if len(name_parts) == 2 and _langs_match(name_parts) and sum(1 for c in APOSTROPHES if c in name) == 2:
+                name_parts = [f'\'{name_parts[1]}\' {name_parts[0]}']     # reversed above
+
         if feat:
             self.feat = tuple(feat)
 
@@ -379,6 +382,15 @@ def _balance_unzipped_parts(parts: MutableSequence[str], a: str, b: str) -> Iter
         # noinspection PyUnboundLocalVariable
         yield f'{mem_x} ({mem_y})', f'of {group_a} ({group_b})'
         b = parts.pop() if members and parts else None
+
+
+def _langs_match(parts):
+    iparts = iter(parts)
+    lang = LangCat.categorize(next(iparts))
+    for part in iparts:
+        if LangCat.categorize(part) != lang:
+            return False
+    return True
 
 
 class UnexpectedListFormat(ValueError):

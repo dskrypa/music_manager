@@ -62,7 +62,6 @@ ALBUM_TEST_CASES = {
     '4U Project (손만 잡을게)': AlbumName(('4U Project', '손만 잡을게')),
     '밤이 되니까 (因为入夜了)': AlbumName(('밤이 되니까', '因为入夜了')),
 
-    '‘The ReVe Festival’ Day 1': AlbumName(('The ReVe Festival', 'Day 1')),
     'Re:union, The real': AlbumName('Re:union, The real'),
     "Mabinogi (It's Fantastic!)": AlbumName(('Mabinogi', "It's Fantastic!")),
     'O!RUL8,2?': AlbumName('O!RUL8,2?'),
@@ -72,6 +71,9 @@ ALBUM_TEST_CASES = {
     '1집 Chapter 1': AlbumName('1집 Chapter 1'),  # g.o.d
     '6집 보통날': AlbumName('6집 보통날'),          # g.o.d
     '12시 25분 (Wish List) - Winter Garden': AlbumName(('12시 25분', 'Wish List', 'Winter Garden')),    # xmas date
+
+    '‘The ReVe Festival’ Day 1': AlbumName("'The ReVe Festival' Day 1"),
+    "‘The ReVe Festival’ Finale": AlbumName("'The ReVe Festival' Finale"),
 }
 
 UNCOMMON_TEST_CASES = {

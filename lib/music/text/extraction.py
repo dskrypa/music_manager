@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 OPENERS = '([{~`"\'～“՚՛՜՝“⁽₍⌈⌊〈〈《「『【〔〖〘〚〝〝﹙﹛﹝（［｛｟｢‐‘-<'
 CLOSERS = ')]}~`"\'～“՚՛՜՝”⁾₎⌉⌋〉〉》」』】〕〗〙〛〞〟﹚﹜﹞）］｝｠｣‐’->'
 DASH_CHARS = '~‐-'
+QUOTE_CHARS = '`"\'“՚՛՜՝”〞〟〝’'
 _NotSet = object()
 
 

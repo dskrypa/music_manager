@@ -5,12 +5,10 @@
 import logging
 import re
 from datetime import datetime, date
-from traceback import format_stack
 from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable
 
 from ordered_set import OrderedSet
 
-from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import WikiPage, Node, Link, List as ListNode
@@ -32,7 +30,7 @@ ListOrLists = Union[ListNode, Iterable[ListNode], None]
 NameType = Union[str, Name, None]
 
 
-class DiscographyEntry(EntertainmentEntity, ClearableCachedPropertyMixin):
+class DiscographyEntry(EntertainmentEntity):
     """
     A page or set of pages for any item in an artist's top-level discography, i.e., albums, soundtracks, singles,
     collaborations.

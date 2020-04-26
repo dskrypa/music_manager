@@ -5,8 +5,10 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 """
 
 import logging
+from collections import defaultdict
 from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping
 
+from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
 from ..text import Name
@@ -23,7 +25,7 @@ GROUP_CATEGORIES = ('group', 'subunits', 'duos')
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
 
-class WikiEntity:
+class WikiEntity(ClearableCachedPropertyMixin):
     _categories = ()
     _not_categories = ()
     _category_classes = {}
@@ -70,6 +72,11 @@ class WikiEntity:
 
     def _add_page(self, page: WikiPage):
         self._pages[page.site] = page
+        self.clear_cached_properties()
+
+    def _add_pages(self, pages: Mapping[str, WikiPage]):
+        self._pages.update(pages)
+        self.clear_cached_properties()
 
     @property
     def pages(self) -> Iterator[WikiPage]:
@@ -218,21 +225,34 @@ class WikiEntity:
             return entity
 
     @classmethod
-    def from_title(cls: Type[WE], title: str, sites: StrOrStrs = None, search=True) -> WE:
+    def from_title(cls: Type[WE], title: str, sites: StrOrStrs = None, search=True, research=False) -> WE:
         """
         :param str title: A page title
         :param iterable sites: A list or other iterable that yields site host strings
         :param bool search: Whether the provided title should also be searched for, in case there is not an exact match.
+        :param bool research: If only one site returned a hit, re-search with the title from that site
         :return: A WikiEntity (or subclass thereof) that represents the page(s) with the given title.
         """
-        pages, errors = MediaWikiClient.get_multi_site_page(title, _sites(sites), search=search)
+        sites = _sites(sites)
+        pages, errors = MediaWikiClient.get_multi_site_page(title, sites, search=search)
         if pages:
-            return cls._from_multi_site_pages(pages.values())
+            entity = cls._from_multi_site_pages(pages.values())
+            if search and research:
+                if 0 < len(entity._pages) < len(sites):
+                    # noinspection PyUnboundLocalVariable
+                    if (name := entity.name) and (eng := name.english) and eng != title:
+                        log.debug(f'Returning {cls.__name__}.from_title for {eng=!r}')
+                        research_entity = cls.from_title(eng, set(sites).difference(entity._pages), search, False)
+                        research_entity._add_pages(entity._pages)
+                        return research_entity
+            return entity
+
         raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
 
     @classmethod
     def from_titles(
-            cls: Type[WE], titles: Iterable[Union[str, Name]], sites: StrOrStrs = None, search=True, strict=2
+            cls: Type[WE], titles: Iterable[Union[str, Name]], sites: StrOrStrs = None, search=True, strict=2,
+            research=False
     ) -> Dict[Union[str, Name], WE]:
         """
         :param Iterable titles: Page titles to retrieve
@@ -240,14 +260,43 @@ class WikiEntity:
         :param bool search: Resolve titles that may not be exact matches
         :param int strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
           EntityTypeError and AmbiguousPageError as a warning.  If 0, log those errors on debug level.
+        :param bool research: If only one site returned a hit for a given title, re-search with the title from that site
         :return dict: Mapping of {title: WikiEntity} for the given titles
         """
         titles, title_name_map = titles_and_title_name_map(titles)
         # log.debug(f'{title_name_map=}')
-        query_map = {site: titles for site in _sites(sites)}
+        sites = _sites(sites)
+        query_map = {site: titles for site in sites}
         # log.debug(f'Retrieving {cls.__name__}s: {query_map}', extra={'color': 14})
         log.debug(f'Retrieving {cls.__name__}s from sites={sorted(query_map)} with {titles=}')
-        return cls._from_site_title_map(query_map, search, strict, title_name_map)
+        title_entity_map = cls._from_site_title_map(query_map, search, strict, title_name_map)
+
+        if search and research:
+            research_query_map = defaultdict(list)
+            research_title_name_map = {}
+            new_orig_title_map = {}
+            for title, entity in title_entity_map.items():
+                if 0 < len(entity._pages) < len(sites):
+                    # noinspection PyUnboundLocalVariable
+                    if (name := entity.name) and (eng := name.english) and eng != title:
+                        # log.debug(f'Will re-search for {eng=!r} {title=!r} {entity=!r}')
+                        new_orig_title_map[eng] = title
+                        research_title_name_map[eng] = title_name_map.get(title)
+                        for site in set(sites).difference(entity._pages):
+                            research_query_map[site].append(eng)
+
+            if research_query_map:
+                fmt = 'Re-attempting retrieval of {}s from sites={} with titles={}'
+                log.debug(fmt.format(cls.__name__, sorted(research_query_map), list(new_orig_title_map)))
+                new_title_entity_map = cls._from_site_title_map(
+                    research_query_map, search, strict, research_title_name_map
+                )
+                for eng, entity in new_title_entity_map.items():
+                    # log.debug(f'Found re-search result for {eng=!r} {entity=!r}')
+                    orig = title_entity_map[new_orig_title_map[eng]]
+                    orig._add_pages(entity._pages)
+
+        return title_entity_map
 
     @classmethod
     def _from_site_title_map(
@@ -345,7 +394,7 @@ class SpecialEvent(EntertainmentEntity):
 
 
 class TVSeries(EntertainmentEntity):
-    _categories = ('television program', 'television series', 'drama', 'survival show')
+    _categories = ('television program', 'television series', 'drama', 'survival show', 'music shows')
 
 
 class TemplateEntity(WikiEntity):

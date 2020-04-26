@@ -53,7 +53,7 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
         remaining = set(artists)
         artist_objs = []
         if groups := album_dir._groups:
-            for title, group_obj in Group.from_titles(set(groups), search=True, strict=1).items():
+            for title, group_obj in Group.from_titles(set(groups), search=True, strict=1, research=True).items():
                 log.debug(f'Found {group_obj=}', extra={'color': 10})
                 for name in groups[title]:
                     if singer := group_obj.find_member(name):
@@ -65,7 +65,7 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
         if remaining:
             log.debug(f'Processing remaining artists in {album_dir}: {remaining}', extra={'color': 14})
             if artist_names := {a for a in artists if a.english != 'Various Artists'}:
-                for name, artist in Artist.from_titles(artist_names, search=True, strict=1).items():
+                for name, artist in Artist.from_titles(artist_names, search=True, strict=1, research=True).items():
                     artist_objs.append(artist)
                     remaining.discard(name)
 
@@ -97,9 +97,9 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
                         else:
                             part = choose_item(parts, 'part', before=before)
                             candidates.append(part)
-                    else:
-                        log.debug(f'Found no parts for {disco_entry=}')
-                else:
-                    log.debug(f'{album_name} does not match {disco_entry} ({disco_entry._pages})')
+                #     else:
+                #         log.debug(f'Found no parts for {disco_entry=}')
+                # else:
+                #     log.debug(f'{album_name} does not match {disco_entry} ({disco_entry._pages})')
 
     return choose_item(candidates, 'candidate', before=before)

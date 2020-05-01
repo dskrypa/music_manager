@@ -112,6 +112,17 @@ def main():
                     duration__gte=60000,
                 ).unique()
             )
+            plex.sync_playlist(
+                'K-Pop Unrated from Known Artists',
+                query=kpop_tracks.filter(userRating__gte=7).artists().tracks().filter(
+                    userRating=0,
+                    genre__like_exact='k-?pop',
+                    genre__not_like='christmas',
+                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix',
+                    parentTitle__not_like='christmas|santa',
+                    duration__gte=60000,
+                ).unique()
+            )
         else:
             log.error('Unconfigured sync action')
     elif args.action == 'find':

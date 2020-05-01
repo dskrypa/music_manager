@@ -5,8 +5,6 @@ Local Plex server client implementation.
 """
 
 import logging
-import re
-from collections import defaultdict
 from configparser import NoSectionError
 from functools import partialmethod
 from getpass import getpass
@@ -25,7 +23,6 @@ from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ds_tools.compat import cached_property
 from ds_tools.input import get_input
-from ds_tools.unicode import LangCat
 from ds_tools.output import short_repr, bullet_list
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
@@ -293,16 +290,6 @@ class LocalPlexServer:
         :param dict kwargs: The kwargs that were passed to :meth:`.get_tracks` or a similar method
         :return dict: Modified kwargs with custom search filters
         """
-        exclude_rated_dupes = kwargs.pop('exclude_rated_dupes', False)
-        for updated in self.__updated_filters(obj_type, kwargs):
-            # If excluding rated dupes, search for the tracks that were rated and have the same titles as unrated tracks
-            if exclude_rated_dupes and obj_type == 'track' and 'userRating' in updated:
-                updated['custom__custom'] = self.__get_dupe_filter(updated)
-                yield updated
-            else:
-                yield updated
-
-    def __updated_filters(self, obj_type, kwargs):
         kwargs = _resolve_aliases(kwargs)
         kwargs = _resolve_custom_ops(kwargs)
         kwargs = self.__apply_custom_filters(obj_type, kwargs, CUSTOM_FILTERS_BASE)
@@ -387,35 +374,6 @@ class LocalPlexServer:
                     kwargs[target_key] = keys
 
         return kwargs
-
-    def __get_dupe_filter(self, kwargs):
-        dupe_kwargs = kwargs.copy()
-        dupe_kwargs.pop('userRating')
-        dupe_kwargs['userRating__gte'] = 1
-        msg = f'Performing intermediate search for tracks matching {_filter_repr(dupe_kwargs)} to filter out dupes'
-        log.debug(msg, extra={'color': 11})
-        rated_tracks = self.music.fetchItems(self._ekey('track'), **dupe_kwargs)
-        rated_tracks_by_artist_key = defaultdict(set)
-        for track in rated_tracks:
-            rated_tracks_by_artist_key[track.grandparentKey].add(track.title.lower())
-
-        match = re.compile(r'(.*)\((?:Japanese|JP|Chinese|Mandarin)\s*(?:ver\.?(?:sion))?\)$', re.IGNORECASE).match
-
-        def _filter(elem_attrib):
-            if not (titles := rated_tracks_by_artist_key[elem_attrib['grandparentKey']]):
-                return True
-            elif (title := elem_attrib['title'].lower()) in titles:
-                return False
-            elif (m := match(title)) and m.group(1).strip() in titles:
-                return False
-            elif not (part := next((t for t in titles if t.startswith(title) or title.startswith(t)), None)):
-                return True
-            elif len(part) > len(title):
-                return title not in LangCat.split(part)
-            else:
-                return part not in LangCat.split(title)
-
-        return _filter
 
 
 def _filter_repr(filters):

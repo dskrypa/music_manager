@@ -12,8 +12,8 @@ from ds_tools.output import short_repr
 from ..common.utils import stars
 
 __all__ = [
-    'PlexObj', 'PlexObjTypes', 'CUSTOM_FILTERS_BASE', 'CUSTOM_OPS', 'CUSTOM_FILTERS_TRACK_ARTIST', 'ALIASES',
-    '_show_filters', '_prefixed_filters', '_resolve_aliases', '_resolve_custom_ops', 'print_song_info'
+    'PlexObj', 'PlexObjTypes', 'CUSTOM_OPS', 'ALIASES', '_show_filters', '_prefixed_filters', '_resolve_aliases',
+    '_resolve_custom_ops', 'print_song_info', '_filter_repr'
 ]
 log = logging.getLogger(__name__)
 
@@ -23,15 +23,6 @@ PlexObjTypes = Literal[     # SEARCHTYPES keys
     'photo', 'photoalbum', 'playlist', 'playlistFolder', 'collection', 'userPlaylistItem'
 ]
 
-CUSTOM_FILTERS_BASE = {
-    'genre': ('album', 'genre__tag', {'track': 'parentKey'}),
-    'album': ('album', 'title', {'track': 'parentKey'}),
-    'artist': ('artist', 'title', {'album': 'parentKey'}),
-    'in_playlist': ('playlist', 'title', {})
-}
-CUSTOM_FILTERS_TRACK_ARTIST = {
-    'artist': ('artist', 'title', {'track': 'grandparentKey'}),
-}
 CUSTOM_OPS = {
     '__like': 'sregex',
     '__like_exact': 'sregex',
@@ -42,9 +33,13 @@ ALIASES = {
 }
 
 
-def _show_filters(filters):
+def _filter_repr(filters):
+    return ', '.join('{}={}'.format(k, short_repr(v)) for k, v in filters.items())
+
+
+def _show_filters(obj_type, filters):
     final_filters = '\n'.join(f'    {key}={short_repr(val)}' for key, val in sorted(filters.items()))
-    log.debug(f'Final filters:\n{final_filters}')
+    log.debug(f'Applying the following filters to {obj_type}s:\n{final_filters}')
 
 
 def _prefixed_filters(field, filters):

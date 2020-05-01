@@ -23,14 +23,11 @@ from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ds_tools.compat import cached_property
 from ds_tools.input import get_input
-from ds_tools.output import short_repr, bullet_list
+from ds_tools.output import bullet_list
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
-from .query import QueryResults
-from .utils import (
-    PlexObjTypes, PlexObj, CUSTOM_FILTERS_TRACK_ARTIST, CUSTOM_FILTERS_BASE, _resolve_custom_ops, _prefixed_filters,
-    _resolve_aliases, _show_filters
-)
+from .query import QueryResults, RawQueryResults
+from .utils import PlexObjTypes, PlexObj
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
@@ -135,24 +132,10 @@ class LocalPlexServer:
         return self.find_objects('album', **kwargs)
 
     def find_object(self, obj_type: PlexObjTypes, **kwargs) -> Optional[PlexObj]:
-        ekey = self._ekey(obj_type)
-        for kwargs in self._updated_filters(obj_type, kwargs):
-            _show_filters(kwargs)
-            return self.music.fetchItem(ekey, **kwargs)
-        return None
+        return self._query(obj_type).filter(**kwargs).result()
 
     def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> Collection[PlexObj]:
-        ekey = self._ekey(obj_type)
-        if obj_type == 'track':
-            results = set()
-            for kwargs in self._updated_filters(obj_type, kwargs):
-                _show_filters(kwargs)
-                results.update(self.music.fetchItems(ekey, **kwargs))
-            return results
-        else:
-            kwargs = next(self._updated_filters(obj_type, kwargs))
-            _show_filters(kwargs)
-            return self.music.fetchItems(ekey, **kwargs)
+        return self._query(obj_type).filter(**kwargs).results()
 
     get_track = partialmethod(find_object, 'track')
     get_track.__annotations__ = {'return': Optional[Track]}
@@ -161,6 +144,10 @@ class LocalPlexServer:
 
     def query(self, obj_type: PlexObjTypes, **kwargs):
         return QueryResults(self, obj_type, self.find_objects(obj_type, **kwargs))
+
+    def _query(self, obj_type: PlexObjTypes):
+        data = self.music._server.query(self._ekey(obj_type))
+        return RawQueryResults(self, obj_type, data)
 
     @property
     def playlists(self) -> Dict[str, Playlist]:
@@ -267,114 +254,3 @@ class LocalPlexServer:
                     log.info('{} rating from {} to {} for {}'.format(prefix, plex_stars, file_stars, file))
                     if not self.dry_run:
                         track.edit(**{'userRating.value': file_stars})
-
-    def _updated_filters(self, obj_type, kwargs):
-        """
-        Update the kwarg search filters for a fetchItem/fetchItems call using custom search filters.
-
-        Implemented custom filters:
-         - *__like: Automatically compiles the given str value as a regex pattern and replaces 'like' with the custom
-           sregex filter function, which uses pattern.search() instead of re.match()
-         - *__not_like: Like __like, but translates to nsregex
-         - genre: Plex stores genres at the album and artist level rather than the track level - this filter first runs
-           a search for albums that match the given value, then adds a filter to the track search so that only tracks
-           that are in the albums with the given genre are returned.
-         - artist/album: Rather than needing to chain searches manually where artist/album objects are passed as the
-           values, they can now be provided as strings.  Similar to the genre search, a separate search is run first for
-           finding artists/albums that match the given value, then tracks from/in the given criteria are found by using
-           the parentKey__in/grandparentKey__in filters, respectfully.  In theory, this should be more efficient than
-           using the parentTitle/grandparentTitle filters, since any regex operations only need to be done on the
-           album/artist titles once instead of on each track's album/artist titles, and the track search can use a O(1)
-           set lookup against the discovered parent/grandparent keys.
-
-        :param dict kwargs: The kwargs that were passed to :meth:`.get_tracks` or a similar method
-        :return dict: Modified kwargs with custom search filters
-        """
-        kwargs = _resolve_aliases(kwargs)
-        kwargs = _resolve_custom_ops(kwargs)
-        kwargs = self.__apply_custom_filters(obj_type, kwargs, CUSTOM_FILTERS_BASE)
-        if obj_type == 'track':
-            artist_keys = _prefixed_filters('artist', kwargs)
-            if artist_keys:
-                yield self.__apply_custom_filters(obj_type, kwargs.copy(), CUSTOM_FILTERS_TRACK_ARTIST)
-                filter_repl_fmt = 'Replacing custom filter {!r} with {}={}'
-                for filter_key in artist_keys:
-                    artist_key = filter_key.replace('artist', 'originalTitle', 1)
-                    filter_val = kwargs.pop(filter_key)
-                    log.debug(filter_repl_fmt.format(filter_key, artist_key, short_repr(filter_val)))
-                    kwargs[artist_key] = filter_val
-                yield kwargs
-            else:
-                yield kwargs
-        else:
-            yield kwargs
-
-    def __apply_custom_filters(self, obj_type: PlexObjTypes, kwargs, filters):
-        # Perform intermediate searches that are necessary for custom filters
-        filter_repl_fmt = 'Replacing custom filter {!r} with {}={}'
-        for kw, (ekey, field, targets) in sorted(filters.items()):
-            try:
-                target_key = '{}__in'.format(targets[obj_type])
-            except KeyError:
-                if kw == 'genre':  # tracks need to go by their parents' genre, but albums/artists can use their own
-                    for filter_key in _prefixed_filters(kw, kwargs):
-                        if filter_key.startswith('genre') and not filter_key.startswith('genre__tag'):
-                            target_key = filter_key.replace('genre', 'genre__tag', 1)
-                            filter_val = kwargs.pop(filter_key)
-                            log.debug(filter_repl_fmt.format(filter_key, target_key, short_repr(filter_val)))
-                            kwargs[target_key] = filter_val
-                elif kw == 'in_playlist':
-                    target_key = 'key__in'
-                    for filter_key in _prefixed_filters(kw, kwargs):
-                        filter_val = kwargs.pop(filter_key)
-                        lc_val = filter_val.lower()
-                        for pl_name, playlist in self.playlists.items():
-                            if pl_name.lower() == lc_val:
-                                log.debug(filter_repl_fmt.format(filter_key, target_key, short_repr(filter_val)))
-                                keys = {track.key for track in playlist.items()}
-                                if target_key in kwargs:
-                                    keys = keys.intersection(kwargs[target_key])
-                                    log.debug('Merged filter={!r} values => {}'.format(target_key, short_repr(keys)))
-                                kwargs[target_key] = keys
-                                break
-                        else:
-                            raise ValueError('Invalid playlist: {!r}'.format(filter_val))
-            else:
-                # log.debug(f'custom filter kw={kw!r} for obj_type={obj_type!r} has target_key={target_key!r}')
-                if kw_keys := _prefixed_filters(kw, kwargs):
-                    ekey_filters = {}
-                    for filter_key in kw_keys:
-                        filter_val = kwargs.pop(filter_key)
-                        try:
-                            base, op = filter_key.rsplit('__', 1)
-                        except ValueError:
-                            op = 'contains'
-                        else:
-                            if base.endswith('__not'):
-                                op = 'not__' + op
-
-                        ekey_filters['{}__{}'.format(field, op)] = filter_val
-
-                    custom_filter_keys = '+'.join(sorted(kw_keys))
-
-                    msg = f'Performing intermediate search for {ekey}s matching {_filter_repr(ekey_filters)}'
-                    msg += f' - results will be used for custom {obj_type} filters: {custom_filter_keys}'
-                    log.debug(msg, extra={'color': 11})
-
-                    results = self.music.fetchItems(self._ekey(ekey), **ekey_filters)
-                    if obj_type == 'album' and target_key == 'key__in':
-                        keys = {'{}/children'.format(a.key) for a in results}
-                    else:
-                        keys = {a.key for a in results}
-
-                    log.debug(f'Replacing custom filters {custom_filter_keys} with {target_key}={short_repr(keys)}')
-                    if target_key in kwargs:
-                        keys = keys.intersection(kwargs[target_key])
-                        log.debug(f'Merging {target_key} values: {short_repr(keys)}')
-                    kwargs[target_key] = keys
-
-        return kwargs
-
-
-def _filter_repr(filters):
-    return ', '.join('{}={}'.format(k, short_repr(v)) for k, v in filters.items())

@@ -137,13 +137,14 @@ class QueryResults:
 
         return QueryResults(self.server, self._type, results)
 
-    def unique(self, rated=True, fuzzy=True, latest=True) -> 'QueryResults':
+    def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'QueryResults':
         """
         :param bool rated: When multiple versions of a track with a given name exist, and one of them has a rating,
           keep the one with the rating.  If False, ignore ratings.
         :param bool fuzzy: Process titles as :class:`Name<music.text.name.Name>` objects
         :param bool latest: When multiple versions of a track with a given name exist, keep the one that has the more
           recent release date
+        :param bool singles: Before applying the `latest` filter, allow singles
         """
         if self._type != 'track':
             raise InvalidQueryFilter(f'unique() is only permitted for track results')
@@ -162,19 +163,23 @@ class QueryResults:
                     elif not existing.userRating and track.userRating:
                         keep = track
                         # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
-                    elif latest and (latest_track := _get_latest(existing, track, self.server.server_root)):
+                    elif latest and (latest_track := _get_latest(existing, track, self.server.server_root, singles)):
                         # noinspection PyUnboundLocalVariable
                         keep = latest_track
                         # if latest_track == existing:
                         #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
                         # else:
                         #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
-                elif latest and (latest_track := _get_latest(existing, track, self.server.server_root)):
+                    else:
+                        keep = min(existing, track)
+                elif latest and (latest_track := _get_latest(existing, track, self.server.server_root, singles)):
                     keep = latest_track
                     # if latest_track == existing:
                     #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
                     # else:
                     #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
+                else:
+                    keep = min(existing, track)
 
             title_obj_map[lc_title] = keep
 
@@ -199,20 +204,26 @@ class QueryResults:
                                 keep_name = track_name
                                 keep = track
                                 # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 14})
-                            elif latest and (latest_track := _get_latest(existing, track, self.server.server_root)):
+                            elif latest and (latest_track := _get_latest(existing, track, self.server.server_root, singles)):
                                 keep_name = match if latest_track == existing else track_name
                                 keep = latest_track
                                 # if latest_track == existing:
                                 #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 14})
                                 # else:
                                 #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 14})
-                        elif latest and (latest_track := _get_latest(existing, track, self.server.server_root)):
+                            else:
+                                keep = min(existing, track)
+                                keep_name = match if keep == existing else track_name
+                        elif latest and (latest_track := _get_latest(existing, track, self.server.server_root, singles)):
                             keep_name = match if latest_track == existing else track_name
                             keep = latest_track
-                    #         if latest_track == existing:
-                    #             log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 14})
-                    #         else:
-                    #             log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 14})
+                            # if latest_track == existing:
+                            #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 14})
+                            # else:
+                            #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 14})
+                        else:
+                            keep = min(existing, track)
+                            keep_name = match if keep == existing else track_name
                     # else:
                     #     log.debug(f'{track_name=!r} / {track=} did not match any other tracks from {artist_key=!r}')
 
@@ -224,7 +235,15 @@ class QueryResults:
         return QueryResults(self.server, self._type, results)
 
 
-def _get_latest(a: Track, b: Track, server_root):
+def _get_latest(a: Track, b: Track, server_root, singles):
+    if singles:
+        a_path = a.media[0].parts[0].file.lower()
+        b_path = b.media[0].parts[0].file.lower()
+        if '/singles/' in a_path and '/singles/' not in b_path:
+            return b
+        elif '/singles/' in b_path and '/singles/' not in a_path:
+            return a
+
     a_file = SongFile.for_plex_track(a, server_root)
     b_file = SongFile.for_plex_track(b, server_root)
     try:

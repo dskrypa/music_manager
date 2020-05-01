@@ -98,7 +98,7 @@ def apply_plex_patches(deinit_colorama=True):
             return op_cache[attr]
         except KeyError:
             base, op, operator = get_attr_operator(attr)
-            log.debug('get_attr_operator({!r}) => attr={!r}, op={!r}, operator={}'.format(attr, base, op, operator))
+            # log.debug('get_attr_operator({!r}) => attr={!r}, op={!r}, operator={}'.format(attr, base, op, operator))
             op_cache[attr] = (base, op, operator)
             return base, op, operator
 

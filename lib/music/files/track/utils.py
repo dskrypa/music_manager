@@ -6,6 +6,7 @@ import logging
 import platform
 import re
 import string
+from datetime import datetime, date
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type
 from unicodedata import normalize
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
-    'tag_repr', 'ON_WINDOWS', 'stars_from_256'
+    'tag_repr', 'ON_WINDOWS', 'stars_from_256', 'parse_file_date'
 ]
 log = logging.getLogger(__name__)
 
@@ -189,3 +190,12 @@ def stars_from_256(rating: int, out_of=5) -> int:
                 return 1
             stars_10 = stars_5 * 2
             return stars_10 + 1 if rating > c else stars_10
+
+
+def parse_file_date(dt_str) -> Optional[date]:
+    for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y'):
+        try:
+            return datetime.strptime(dt_str, fmt).date()
+        except ValueError:
+            pass
+    return None

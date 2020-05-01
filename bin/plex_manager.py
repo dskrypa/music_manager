@@ -78,35 +78,39 @@ def main():
     args, dynamic = parser().parse_with_dynamic_args('query')
     init_logging(args.verbose, log_path=None, names=None)
 
-    plex = LocalPlexServer(args.server_url, args.username, args.server_path_root, args.config_path, args.music_library)
+    plex = LocalPlexServer(
+        args.server_url, args.username, args.server_path_root, args.config_path, args.music_library, args.dry_run
+    )
 
     if args.action == 'sync':
         if args.sync_action == 'ratings':
             if args.direction == 'to_files':
-                plex.sync_ratings_to_files(args.path_filter, args.dry_run)
+                plex.sync_ratings_to_files(args.path_filter)
             elif args.direction == 'from_files':
-                plex.sync_ratings_from_files(args.path_filter, args.dry_run)
+                plex.sync_ratings_from_files(args.path_filter)
             else:
                 log.error('Unconfigured direction')
         elif args.sync_action == 'playlists':
-            plex.sync_playlist('K-Pop ALL', genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 1 Star', userRating=2, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 2 Stars', userRating=4, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 3 Stars', userRating=6, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 3+ Stars', userRating__gte=6, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 3\u00BD+ Stars', userRating__gte=7, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 4 Stars', userRating=8, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 4+ Stars', userRating__gte=8, genre__like_exact='[kj]-?pop')
-            plex.sync_playlist('K-Pop 5 Stars', userRating__gte=10, genre__like_exact='[kj]-?pop')
+            kpop_tracks = plex.query('track', genre__like_exact='[kj]-?pop')
+            plex.sync_playlist('K-Pop ALL', query=kpop_tracks)
+            plex.sync_playlist('K-Pop 1 Star', query=kpop_tracks.filter(userRating=2))
+            plex.sync_playlist('K-Pop 2 Stars', query=kpop_tracks.filter(userRating=4))
+            plex.sync_playlist('K-Pop 3 Stars', query=kpop_tracks.filter(userRating=6))
+            plex.sync_playlist('K-Pop 3+ Stars', query=kpop_tracks.filter(userRating__gte=6))
+            plex.sync_playlist('K-Pop 3\u00BD+ Stars', query=kpop_tracks.filter(userRating__gte=7))
+            plex.sync_playlist('K-Pop 4 Stars', query=kpop_tracks.filter(userRating=8))
+            plex.sync_playlist('K-Pop 4+ Stars', query=kpop_tracks.filter(userRating__gte=8))
+            plex.sync_playlist('K-Pop 5 Stars', query=kpop_tracks.filter(userRating__gte=10))
             plex.sync_playlist(
                 'K-Pop Unrated',
-                userRating=0,
-                genre__like_exact='k-?pop',
-                genre__not_like='christmas',
-                title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix',
-                parentTitle__not_like='christmas|santa',
-                duration__gte=60000,
-                exclude_rated_dupes=True
+                query=kpop_tracks.filter(
+                    userRating=0,
+                    genre__like_exact='k-?pop',
+                    genre__not_like='christmas',
+                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix',
+                    parentTitle__not_like='christmas|santa',
+                    duration__gte=60000,
+                ).unique()
             )
         else:
             log.error('Unconfigured sync action')

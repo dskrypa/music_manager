@@ -25,7 +25,7 @@ from ..exceptions import *
 from .parsing import split_artists, AlbumName
 from .utils import (
     FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, ON_WINDOWS,
-    stars_from_256, tag_repr
+    stars_from_256, tag_repr, parse_file_date
 )
 
 __all__ = ['BaseSongFile']
@@ -42,7 +42,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_album_artist = TextTagProperty('album_artist', default=None)    # type: Optional[str]
     tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]
     tag_album = TextTagProperty('album', default=None)                  # type: Optional[str]
-    date = TextTagProperty('date', lambda d: datetime.strptime(d, '%Y%m%d').date())     # type: date
+    date = TextTagProperty('date', parse_file_date)                     # type: Optional[date]
 
     def __new__(cls, file_path: Union[Path, str], *args, **kwargs):
         file_path = (Path(file_path).expanduser() if isinstance(file_path, str) else file_path).as_posix()

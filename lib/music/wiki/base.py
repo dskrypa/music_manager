@@ -168,9 +168,6 @@ class WikiEntity(ClearableCachedPropertyMixin):
             except EntityTypeError:
                 pass
 
-        # TODO: If a given site returned results, but none matched, and other sites returned matching results due to a
-        #  redirect, then re-attempt the search on the sites that returned no relevant results, using the discovered id
-        #  => Example: SNSD
         return handle_disambiguation_candidates(page, client, candidates, existing, name, prompt)
 
     @classmethod

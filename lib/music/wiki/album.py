@@ -330,10 +330,11 @@ class DiscographyEntryEdition:
     @cached_property
     def numbered_type(self) -> Optional[str]:
         if (num := self.entry.number) and self.type:
+            album_lang = self.lang
+            artist_lang = self.artist.language if self.artist else None
             parts = (
                 f'{num}{num_suffix(num)}',
-                # TODO: Determine artist's primary lang, include only if it doesn't match
-                self.lang if self.lang != 'Korean' else None,
+                None if artist_lang and album_lang and artist_lang != album_lang else album_lang,
                 self.type.real_name, 'Repackage' if self.repackage else None
             )
             return ' '.join(filter(None, parts))

@@ -190,6 +190,7 @@ def apply_plex_patches(deinit_colorama=True):
         # Return True if the elem should be included in results, False otherwise
         for attr, query in kwargs.items():
             attr, op, operator = _get_attr_operator(None, attr)
+            # log.debug(f'Processing {attr=!r} {op=!r} {query=!r} for {elem.attrib.get("key", elem)!r}')
             if op == 'custom':
                 if not query(elem.attrib):
                     return False

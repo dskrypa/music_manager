@@ -11,11 +11,10 @@ from configparser import NoSectionError
 from functools import partialmethod
 from getpass import getpass
 from pathlib import Path
-from typing import Optional, Collection, TypeVar, Dict, Iterable
+from typing import Optional, Collection, Dict, Iterable
 
 from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
 from plexapi.audio import Track, Artist, Album
-from plexapi.base import PlexPartialObject
 from plexapi.library import MusicSection
 from plexapi.myplex import MyPlexAccount
 from plexapi.playlist import Playlist
@@ -28,34 +27,19 @@ from ds_tools.compat import cached_property
 from ds_tools.input import get_input
 from ds_tools.unicode import LangCat
 from ds_tools.output import short_repr, bullet_list
-from ..common.utils import stars
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
+from .query import QueryResults
+from .utils import (
+    PlexObjTypes, PlexObj, CUSTOM_FILTERS_TRACK_ARTIST, CUSTOM_FILTERS_BASE, _resolve_custom_ops, _prefixed_filters,
+    _resolve_aliases, _show_filters
+)
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
-PlexObj = TypeVar('PlexObj', bound=PlexPartialObject)
 
 disable_urllib3_warnings()
 apply_plex_patches()
-
-CUSTOM_FILTERS_BASE = {
-    'genre': ('album', 'genre__tag', {'track': 'parentKey'}),
-    'album': ('album', 'title', {'track': 'parentKey'}),
-    'artist': ('artist', 'title', {'album': 'parentKey'}),
-    'in_playlist': ('playlist', 'title', {})
-}
-CUSTOM_FILTERS_TRACK_ARTIST = {
-    'artist': ('artist', 'title', {'track': 'grandparentKey'}),
-}
-CUSTOM_OPS = {
-    '__like': 'sregex',
-    '__like_exact': 'sregex',
-    '__not_like': 'nsregex'
-}
-ALIASES = {
-    'rating': 'userRating'
-}
 
 
 class LocalPlexServer:
@@ -72,6 +56,12 @@ class LocalPlexServer:
         server_path_root = self._get_config('custom', 'server_path_root', new_value=server_path_root)
         self.server_root = Path(server_path_root) if server_path_root else None
         self.music_library = self._get_config('custom', 'music_lib_name', new_value=music_library) or 'Music'
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}({self.user}@{self.url})>'
+
+    def __eq__(self, other):
+        return self.user == other.user and self.url == other.url
 
     @cached_property
     def _token(self):
@@ -118,8 +108,10 @@ class LocalPlexServer:
     def music(self) -> MusicSection:
         return self._session.library.section(self.music_library)
 
-    def _ekey(self, search_type: str) -> str:
-        return '/library/sections/1/all?type={}'.format(SEARCHTYPES[search_type])
+    def _ekey(self, search_type: PlexObjTypes) -> str:
+        ekey = f'/library/sections/1/all?type={SEARCHTYPES[search_type]}'
+        log.debug(f'Resolved {search_type=!r} => {ekey=!r}')
+        return ekey
 
     def find_songs_by_rating_gte(self, rating, **kwargs):
         """
@@ -141,14 +133,14 @@ class LocalPlexServer:
         kwargs.setdefault('title__{}'.format(mode), name)
         return self.find_objects('album', **kwargs)
 
-    def find_object(self, obj_type, **kwargs) -> Optional[PlexObj]:
+    def find_object(self, obj_type: PlexObjTypes, **kwargs) -> Optional[PlexObj]:
         ekey = self._ekey(obj_type)
         for kwargs in self._updated_filters(obj_type, kwargs):
             _show_filters(kwargs)
             return self.music.fetchItem(ekey, **kwargs)
         return None
 
-    def find_objects(self, obj_type, **kwargs) -> Collection[PlexObj]:
+    def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> Collection[PlexObj]:
         ekey = self._ekey(obj_type)
         if obj_type == 'track':
             results = set()
@@ -165,6 +157,9 @@ class LocalPlexServer:
     get_track.__annotations__ = {'return': Optional[Track]}
     get_tracks = partialmethod(find_objects, 'track')
     get_tracks.__annotations__ = {'return': Collection[Track]}
+
+    def query(self, obj_type: PlexObjTypes, **kwargs):
+        return QueryResults(self, obj_type, self.find_objects(obj_type, **kwargs))
 
     @property
     def playlists(self) -> Dict[str, Playlist]:
@@ -313,7 +308,7 @@ class LocalPlexServer:
         else:
             yield kwargs
 
-    def __apply_custom_filters(self, obj_type, kwargs, filters):
+    def __apply_custom_filters(self, obj_type: PlexObjTypes, kwargs, filters):
         # Perform intermediate searches that are necessary for custom filters
         filter_repl_fmt = 'Replacing custom filter {!r} with {}={}'
         for kw, (ekey, field, targets) in sorted(filters.items()):
@@ -344,7 +339,7 @@ class LocalPlexServer:
                         else:
                             raise ValueError('Invalid playlist: {!r}'.format(filter_val))
             else:
-                log.debug(f'custom filter kw={kw!r} for obj_type={obj_type!r} has target_key={target_key!r}')
+                # log.debug(f'custom filter kw={kw!r} for obj_type={obj_type!r} has target_key={target_key!r}')
                 kw_keys = _prefixed_filters(kw, kwargs)
                 if kw_keys:
                     ekey_filters = {}
@@ -411,53 +406,3 @@ class LocalPlexServer:
 
         # return lambda a: a['title'] not in rated_tracks_by_artist_key[a['grandparentKey']]
         return _filter
-
-
-def _show_filters(filters):
-    final_filters = '\n'.join(f'    {key}={short_repr(val)}' for key, val in sorted(filters.items()))
-    log.debug(f'Final filters:\n{final_filters}')
-
-
-def _prefixed_filters(field, filters):
-    us_key = '{}__'.format(field)
-    return {k for k in filters if k == field or k.startswith(us_key)}
-
-
-def _resolve_aliases(kwargs):
-    for key, val in list(kwargs.items()):
-        base = key
-        op = None
-        if '__' in key:
-            base, op = key.split('__', maxsplit=1)
-        try:
-            real_key = ALIASES[base]
-        except KeyError:
-            pass
-        else:
-            del kwargs[key]
-            if op:
-                real_key = f'{real_key}__{op}'
-            kwargs[real_key] = val
-
-    return kwargs
-
-
-def _resolve_custom_ops(kwargs):
-    # Replace custom/shorthand ops with the real operators
-    for filter_key, filter_val in sorted(kwargs.items()):
-        keyword = next((val for val in CUSTOM_OPS if filter_key.endswith(val)), None)
-        if keyword:
-            kwargs.pop(filter_key)
-            target_key = '{}__{}'.format(filter_key[:-len(keyword)], CUSTOM_OPS[keyword])
-            if keyword == '__like' and isinstance(filter_val, str):
-                filter_val = filter_val.replace(' ', '.*?')
-            filter_val = re.compile(filter_val, re.IGNORECASE) if isinstance(filter_val, str) else filter_val
-            log.debug('Replacing custom op {!r} with {}={}'.format(filter_key, target_key, short_repr(filter_val)))
-            kwargs[target_key] = filter_val
-
-    return kwargs
-
-
-def print_song_info(songs):
-    for song in songs:
-        print('{} - {} - {} - {}'.format(stars(song.userRating), song.artist().title, song.album().title, song.title))

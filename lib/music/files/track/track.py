@@ -31,7 +31,7 @@ class SongFile(BaseSongFile):
     _bpm = None
 
     @classmethod
-    def for_plex_track(cls, track: Track, root: Union[str, Path]):
+    def for_plex_track(cls, track: Track, root: Union[str, Path]) -> 'SongFile':
         if ON_WINDOWS:
             if isinstance(root, Path):                              # Path does not work for network shares in Windows
                 root = root.as_posix()

@@ -6,13 +6,13 @@ import logging
 import re
 from datetime import datetime, date
 from traceback import format_exc
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Any, Tuple, Union
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Any, Tuple, Union, Type
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import (
     WikiPage, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List as ListNode
 )
-from wiki_nodes.nodes import N
+from wiki_nodes.nodes import N, AnyNode
 from ...common import DiscoEntryType
 from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -31,6 +31,7 @@ DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
 REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
+VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
 
 
 class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
@@ -324,7 +325,7 @@ class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
     pass
 
 
-def is_node_with(obj, cls, val_cls, **kwargs):
+def is_node_with(obj: AnyNode, cls: Union[Type[AnyNode], Tuple[Type[AnyNode], ...]], val_cls: Type[AnyNode], **kwargs):
     if not isinstance(obj, cls):
         return False
     if not isinstance(obj.value, val_cls):
@@ -383,6 +384,10 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                 raise TypeError(f'Unexpected tag value node type for track={orig_node!r} {node=!r}')
         elif isinstance(node, String):
             remainder = node.value
+        elif isinstance(node, Link) and base_name.endswith('('):
+            remainder = '('
+            base_name = base_name[:-1].strip()
+            nodes.insert(0, node)
         else:
             raise TypeError(f'Unexpected node type after track name for track={orig_node!r} {node=!r}')
 
@@ -394,6 +399,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
             artists = []
             while nodes:
                 node = nodes.pop(0)
+                # log.debug(f'Processing {node=!r}')
                 if isinstance(node, Link):
                     artists.append(node)
                 elif isinstance(node, String):
@@ -411,7 +417,15 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                             extra[extra_type] = CompoundNode.from_nodes(artists, root=orig_node.root, delim=' ')
                         extra['feat'] = node.value[5:-1].strip()
                         break
+                    elif m := VERSION_SEARCH(node.value):
+                        # log.debug(f'Found version match={m}')
+                        version_parts = [m.group(1)]
+                        if artists and not extra:
+                            version_parts = [a.show for a in artists] + version_parts
+                            artists = []
+                        extra['version'] = ' '.join(version_parts)
                     else:
+                        # log.debug(f'Assuming {node=!r} is part of artists')
                         artists.append(node)
                 else:
                     raise TypeError(f'Unexpected artist node type for track={orig_node!r} {node=!r}')
@@ -423,6 +437,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
         remainder_parts = [remainder]
         for node in nodes:
             if is_node_with(node, Template, MappingNode, name='small'):
+                # noinspection PyUnresolvedReferences
                 node = node.value['1']
             remainder_parts.append(str(node.show if isinstance(node, Link) else node.value))
         remainder = ' '.join(remainder_parts)

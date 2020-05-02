@@ -91,7 +91,7 @@ class Track:
         if extras := name_obj.extra:
             parts.extend(val for key, val in EXTRA_VALUE_MAP.items() if extras.get(key))
 
-            for key in ('version', 'edition'):
+            for key in ('version', 'edition', 'remix'):
                 if value := extras.get(key):
                     parts.append(replace_lang_abbrev(value))
 

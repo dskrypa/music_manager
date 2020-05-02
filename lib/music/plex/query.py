@@ -94,11 +94,14 @@ class RawQueryResults(QueryResultsBase):
     def _query(self, obj_type: PlexObjTypes, **kwargs):
         return self.server._query(obj_type, **kwargs)
 
-    def keys(self, trim=None) -> Set[str]:
-        if trim is not None:
-            return {obj.attrib['key'][:trim] for obj in self._data}
-        else:
-            return {obj.attrib['key'] for obj in self._data}
+    def __serializable__(self):
+        return self.results()
+
+    def keys(self, trim=None, level='key', suffix=None) -> Set[str]:
+        keys = {o.attrib[level] for o in self._data} if trim is None else {o.attrib[level][:trim] for o in self._data}
+        if suffix:
+            keys = {f'{key}{suffix}' for key in keys}
+        return keys
 
     def items(self, trim=None) -> Iterator[Tuple[str, Element]]:
         if trim is None:
@@ -199,6 +202,40 @@ class RawQueryResults(QueryResultsBase):
                 obj.librarySectionID = self._library_section_id
                 return obj
         return None
+
+    def artists(self, **kwargs) -> 'RawQueryResults':
+        if self._type == 'artist':
+            return self.filter(**kwargs)
+        elif self._type == 'album':
+            artist_keys = self.keys(level='parentKey', suffix='/children')
+        elif self._type == 'track':
+            artist_keys = self.keys(level='grandparentKey', suffix='/children')
+        else:
+            raise InvalidQueryFilter(f'artists() is only permitted for track, album, and artist results')
+        return self._query('artist', key__in=artist_keys, **kwargs)
+
+    def albums(self, **kwargs) -> 'RawQueryResults':
+        if self._type == 'album':
+            return self.filter(**kwargs)
+        elif self._type == 'artist':
+            return self._query('album', parentKey__in=self.keys(-9), **kwargs)
+        elif self._type == 'track':
+            return self._query('album', key__in=self.keys(level='parentKey', suffix='/children'), **kwargs)
+        else:
+            raise InvalidQueryFilter(f'albums() is only permitted for track, album, and artist results')
+
+    def tracks(self, **kwargs) -> 'RawQueryResults':
+        if self._type == 'track':
+            return self.filter(**kwargs)
+        elif self._type == 'artist':
+            return self._query('track', grandparentKey__in=self.keys(-9), **kwargs)
+        elif self._type == 'album':
+            return self._query('track', parentKey__in=self.keys(-9), **kwargs)
+        else:
+            raise InvalidQueryFilter(f'tracks() is only permitted for track, album, and artist results')
+
+    def with_rating(self, rating, op=eq) -> 'RawQueryResults':
+        return self._new({obj for obj in self._data if op(float(obj.attrib.get('userRating', 0)), rating)})
 
 
 class QueryResults(QueryResultsBase):

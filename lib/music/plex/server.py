@@ -135,19 +135,19 @@ class LocalPlexServer:
         return self._query(obj_type).filter(**kwargs).result()
 
     def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> Collection[PlexObj]:
-        return self._query(obj_type).filter(**kwargs).results()
+        return self._query(obj_type, **kwargs).results()
 
     get_track = partialmethod(find_object, 'track')
     get_track.__annotations__ = {'return': Optional[Track]}
     get_tracks = partialmethod(find_objects, 'track')
     get_tracks.__annotations__ = {'return': Collection[Track]}
 
-    def query(self, obj_type: PlexObjTypes, **kwargs):
-        return QueryResults(self, obj_type, self.find_objects(obj_type, **kwargs))
+    def query(self, obj_type: PlexObjTypes, **kwargs) -> QueryResults:
+        return self._query(obj_type, **kwargs)._results()
 
-    def _query(self, obj_type: PlexObjTypes):
+    def _query(self, obj_type: PlexObjTypes, **kwargs) -> RawQueryResults:
         data = self.music._server.query(self._ekey(obj_type))
-        return RawQueryResults(self, obj_type, data)
+        return RawQueryResults(self, obj_type, data).filter(**kwargs)
 
     @property
     def playlists(self) -> Dict[str, Playlist]:

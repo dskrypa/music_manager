@@ -237,6 +237,56 @@ class RawQueryResults(QueryResultsBase):
     def with_rating(self, rating, op=eq) -> 'RawQueryResults':
         return self._new({obj for obj in self._data if op(float(obj.attrib.get('userRating', 0)), rating)})
 
+    def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'RawQueryResults':
+        """
+        :param bool rated: When multiple versions of a track with a given name exist, and one of them has a rating,
+          keep the one with the rating.  If False, ignore ratings.
+        :param bool fuzzy: Process titles as :class:`Name<music.text.name.Name>` objects
+        :param bool latest: When multiple versions of a track with a given name exist, keep the one that has the more
+          recent release date
+        :param bool singles: Before applying the `latest` filter, allow singles
+        """
+        if self._type != 'track':
+            raise InvalidQueryFilter(f'unique() is only permitted for track results')
+
+        artist_title_obj_map = defaultdict(dict)
+        for track in self._data:
+            td = track.attrib
+
+            artist = td['originalTitle'] if td['grandparentTitle'] == 'Various Artists' else td['grandparentTitle']
+            title_obj_map = artist_title_obj_map[artist]
+            lc_title = td['title'].lower()
+            if existing := title_obj_map.get(lc_title):
+                keep = _pick_uniq_track_(existing, track, self.server, rated, latest, singles)
+            else:
+                keep = track
+
+            title_obj_map[lc_title] = keep
+
+        if fuzzy:
+            name_from_enclosed = Name.from_enclosed
+            results = set()
+            for artist_key, title_obj_map in artist_title_obj_map.items():
+                artist_uniq = {}
+                for track in title_obj_map.values():
+                    track_name = name_from_enclosed(track.attrib['title'])
+                    keep = track
+                    if match := next(filter(track_name.matches, artist_uniq), None):
+                        existing = artist_uniq.pop(match)
+                        # log.debug(f'Found {match=!r} / {existing=} for {track_name=!r} / {track=}', extra={'color': 13})
+                        keep = _pick_uniq_track_(existing, track, self.server, rated, latest, singles)
+                        keep_name = match if keep == existing else track_name
+                    else:
+                        # log.debug(f'{track_name=!r} / {track=} did not match any other tracks from {artist_key=!r}')
+                        keep_name = track_name
+
+                    artist_uniq[keep_name] = keep
+                results.update(artist_uniq.values())
+        else:
+            results = set(chain.from_iterable(artist_title_obj_map.values()))
+
+        return self._new(results)
+
 
 class QueryResults(QueryResultsBase):
     _data: ResultData
@@ -368,6 +418,65 @@ class QueryResults(QueryResultsBase):
             results = set(chain.from_iterable(artist_title_obj_map.values()))
 
         return self._new(results)
+
+
+def _pick_uniq_track_(existing: Element, track: Element, server, rated, latest, singles) -> Element:
+    if rated:
+        if existing.attrib.get('userRating') and not track.attrib.get('userRating'):
+            # log.debug(f'Keeping {existing=} instead of {track=} because of rating', extra={'color': 11})
+            return existing
+        elif not existing.attrib.get('userRating') and track.attrib.get('userRating'):
+            # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
+            return track
+        elif latest and (latest_track := _get_latest_(existing, track, server.server_root, singles)):
+            # if latest_track == existing:
+            #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
+            # else:
+            #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
+            # noinspection PyUnboundLocalVariable
+            return latest_track
+        else:
+            return min(existing, track)     # Ensure the chosen value is stable between runs
+    elif latest and (latest_track := _get_latest_(existing, track, server.server_root, singles)):
+        # if latest_track == existing:
+        #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
+        # else:
+        #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
+        # noinspection PyUnboundLocalVariable
+        return latest_track
+    else:
+        return min(existing, track)         # Ensure the chosen value is stable between runs
+
+
+def _get_latest_(a: Element, b: Element, server_root, singles):
+    a_path = a[0][0].attrib['file']
+    b_path = b[0][0].attrib['file']
+    if singles:
+        a_path_lc = a_path.lower()
+        b_path_lc = b_path.lower()
+        if '/singles/' in a_path_lc and '/singles/' not in b_path_lc:
+            return b
+        elif '/singles/' in b_path_lc and '/singles/' not in a_path_lc:
+            return a
+
+    a_file = SongFile.for_plex_track(a_path, server_root)
+    b_file = SongFile.for_plex_track(b_path, server_root)
+    try:
+        a_date = a_file.date
+    except Exception as e:
+        log.debug(f'Error getting date for {a_file}: {e}')
+        return None
+    try:
+        b_date = b_file.date
+    except Exception as e:
+        log.debug(f'Error getting date for {b_file}: {e}')
+        return None
+
+    if a_date > b_date:
+        return a
+    elif b_date > a_date:
+        return b
+    return None
 
 
 def _pick_uniq_track(existing: Track, track: Track, server, rated, latest, singles) -> Track:

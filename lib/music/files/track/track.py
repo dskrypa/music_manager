@@ -31,13 +31,17 @@ class SongFile(BaseSongFile):
     _bpm = None
 
     @classmethod
-    def for_plex_track(cls, track: Track, root: Union[str, Path]) -> 'SongFile':
+    def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> 'SongFile':
         if ON_WINDOWS:
             if isinstance(root, Path):                              # Path does not work for network shares in Windows
                 root = root.as_posix()
             if root.startswith('/') and not root.startswith('//'):
                 root = '/' + root
-        rel_path = track.media[0].parts[0].file
+
+        if isinstance(track_or_rel_path, str):
+            rel_path = track_or_rel_path
+        else:
+            rel_path = track_or_rel_path.media[0].parts[0].file
         path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
         return cls(path)
 

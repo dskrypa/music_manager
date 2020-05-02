@@ -12,11 +12,12 @@ from xml.etree.ElementTree import Element
 
 from plexapi.audio import Track
 
+from ds_tools.output import short_repr
 from ..files.track.track import SongFile
 from ..text import Name
 from .exceptions import InvalidQueryFilter
 from .filters import check_attrs
-from .utils import short_repr, _prefixed_filters, _filter_repr, PlexObjTypes, PlexObj
+from .typing import PlexObjTypes, PlexObj
 
 if TYPE_CHECKING:
     from .server import LocalPlexServer
@@ -110,48 +111,7 @@ class RawQueryResults(QueryResultsBase):
     def key_map(self, trim=None) -> Dict[str, Element]:
         return {k: v for k, v in self.items(trim)}
 
-    def _intermediate_search(self, intm_type: PlexObjTypes, intm_keys, dest_filter: str, kwargs, intm_field='title'):
-        intm_kwargs = _extract_kwargs(kwargs, intm_keys, intm_field)
-        custom_filter_keys = '+'.join(sorted(intm_keys))
-        msg = f'Performing intermediate search for {intm_type}s matching {_filter_repr(intm_kwargs)}'
-        msg += f' - results will be used for custom {self._type} filters: {custom_filter_keys}'
-        log.debug(msg, extra={'color': 11})
-        results = self._query(intm_type, **intm_kwargs).results()
-        if self._type == 'album' and dest_filter == 'key__in':
-            keys = {'{}/children'.format(a.key) for a in results}
-        else:
-            keys = {a.key for a in results}
-
-        log.debug(f'Replacing custom filters {custom_filter_keys} with {dest_filter}={short_repr(keys)}')
-        if dest_filter in kwargs:
-            keys = keys.intersection(kwargs[dest_filter])
-            log.debug(f'Merging {dest_filter} values: {short_repr(keys)}')
-        kwargs[dest_filter] = keys
-        return kwargs
-
-    def _updated_filters(self, kwargs):
-        if self._type == 'track':
-            if genre_keys := _prefixed_filters('genre', kwargs):
-                kwargs = self._intermediate_search('album', genre_keys, 'parentKey__in', kwargs, 'genre__tag')
-
-            if album_keys := _prefixed_filters('album', kwargs):
-                kwargs = self._intermediate_search('album', album_keys, 'parentKey__in', kwargs)
-        else:
-            if genre_keys := _prefixed_filters('genre', kwargs):
-                for filter_key in genre_keys:
-                    if not filter_key.startswith('genre__tag'):
-                        target_key = filter_key.replace('genre', 'genre__tag', 1)
-                        filter_val = kwargs.pop(filter_key)
-                        log.debug(f'Replacing custom filter {filter_key!r} with {target_key}={short_repr(filter_val)}')
-                        kwargs[target_key] = filter_val
-
-        if self._type == 'album':
-            if artist_keys := _prefixed_filters('artist', kwargs):
-                kwargs = self._intermediate_search('artist', artist_keys, 'parentKey__in', kwargs)
-
-        return kwargs
-
-    def in_playlist(self, name: str):
+    def in_playlist(self, name: str) -> 'RawQueryResults':
         if not self._type == 'track':
             raise InvalidQueryFilter(f'in_playlist() is only permitted for track results')
 
@@ -167,40 +127,62 @@ class RawQueryResults(QueryResultsBase):
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 
+    def with_genre(self, **kwargs) -> 'RawQueryResults':
+        for key in list(kwargs):
+            if key.startswith('genre') and not key.startswith('genre__tag'):
+                kwargs[key.replace('genre', 'genre__tag', 1)] = kwargs.pop(key)
+
+        if self._type == 'track':
+            album_keys = self._query('album', **kwargs).keys(-9)
+            return self._new(self._filter(self._data, parentKey__in=album_keys))
+        else:
+            return self._new(self._filter(self._data, **kwargs))
+
+    def from_album(self, **kwargs):
+        if not self._type == 'track':
+            raise InvalidQueryFilter(f'from_album() is only permitted for track results')
+        album_keys = self._query('album', **kwargs).keys(-9)
+        return self._new(self._filter(self._data, parentKey__in=album_keys))
+
+    def from_artist(self, **kwargs):
+        artist_keys = self._query('artist', **kwargs).keys(-9)
+        if self._type == 'album':
+            return self._new(self._filter(self._data, parentKey__in=artist_keys))
+        elif self._type == 'track':
+            results = set(self._filter(self._data, 'album artist', grandparentKey__in=artist_keys))
+            artist_filters = {key.replace('title', 'originalTitle', 1): val for key, val in kwargs.items()}
+            results.update(self._filter(self._data, 'non-album artist', **artist_filters))
+            return self._new(results)
+        else:
+            raise InvalidQueryFilter(f'from_artist() is only permitted for track and album results')
+
+    def _apply_custom_filters(self, kwargs) -> 'RawQueryResults':
+        result = self
+        if in_playlist := kwargs.pop('in_playlist', None):
+            result = result.in_playlist(in_playlist)
+        if genre_keys := _prefixed_filters('genre', kwargs):
+            result = result.with_genre(**_extract_kwargs(kwargs, genre_keys, 'genre__tag'))
+        if artist_keys := _prefixed_filters('artist', kwargs):
+            result = result.from_artist(**_extract_kwargs(kwargs, artist_keys))
+        if result._type == 'track':
+            if album_keys := _prefixed_filters('album', kwargs):
+                result = result.from_album(**_extract_kwargs(kwargs, album_keys))
+        return result
+
     def _filter(self, data: RawResultData, msg: Optional[str] = None, **kwargs):
         final_filters = '\n'.join(f'    {key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
         msg = msg or 'the following'
         log.debug(f'Applying {msg} filters to {self._type}s:\n{final_filters}')
         return [elem for elem in data if check_attrs(elem, **kwargs)]
 
-    def _apply_custom_filters(self, kwargs):
-        if in_playlist := kwargs.pop('in_playlist', None):
-            self._data = self.in_playlist(in_playlist)._data
-
     def filter(self, **kwargs) -> 'RawQueryResults':
         if not kwargs:
             return self
 
-        kwargs = _resolve_aliases(kwargs)
-        kwargs = _resolve_custom_ops(kwargs)
-        self._apply_custom_filters(kwargs)
-        if data := self._data:
-            kwargs = self._updated_filters(kwargs)
-            if self._type == 'track':
-                if artist_keys := _prefixed_filters('artist', kwargs):
-                    track_kwargs = {k: v for k, v in kwargs.items() if k not in artist_keys}
-                    _results = self._filter(data, **track_kwargs)
-
-                    artist_kwargs = _extract_kwargs(kwargs, artist_keys)
-                    artist_id_keys = self._query('artist', **artist_kwargs).keys(-9)
-                    results = set(self._filter(_results, 'album artist', grandparentKey__in=artist_id_keys))
-
-                    artist_filters = {key.replace('title', 'originalTitle', 1): v for key, v in artist_kwargs.items()}
-                    results.update(self._filter(_results, 'non-album artist', **artist_filters))
-                else:
-                    results = self._filter(data, **kwargs)
-            else:
-                results = self._filter(data, **kwargs)
+        kwargs = _resolve_custom_ops(_resolve_aliases(kwargs))
+        result = self._apply_custom_filters(kwargs)
+        if data := result._data:
+            results = self._filter(data, **kwargs)
         else:
             log.debug(f'No results exist to filter')
             results = []
@@ -235,6 +217,23 @@ class QueryResults(QueryResultsBase):
 
     def results(self) -> ResultData:
         return self._data
+
+    def keys(self, trim=None, suffix=None) -> Set[str]:
+        keys = {obj.key for obj in self._data} if trim is None else {obj.key[:trim] for obj in self._data}
+        if suffix:
+            keys = {f'{key}{suffix}' for key in keys}
+        return keys
+
+    def items(self, trim=None) -> Iterator[Tuple[str, PlexObj]]:
+        if trim is None:
+            for obj in self._data:
+                yield obj.key, obj
+        else:
+            for obj in self._data:
+                yield obj.key[:trim], obj
+
+    def key_map(self, trim=None) -> Dict[str, PlexObj]:
+        return {k: v for k, v in self.items(trim)}
 
     def __serializable__(self):
         return self._data
@@ -403,6 +402,11 @@ def _get_rating(obj) -> float:
     return float(obj._data.attrib.get('userRating', 0))
 
 
+def _prefixed_filters(field, filters):
+    us_key = '{}__'.format(field)
+    return {k for k in filters if k == field or k.startswith(us_key)}
+
+
 def _extract_kwargs(kwargs, keys, intermediate_field='title'):
     intm_kwargs = {}
     for key in keys:
@@ -455,7 +459,7 @@ def _resolve_custom_ops(kwargs):
     return kwargs
 
 
-def _merge_filters(kwargs: Dict[str, Any], key: str, value: Any, union=True):
+def _merge_filters(kwargs: Dict[str, Any], key: str, value: Any, union=False):
     if key in kwargs:
         current = kwargs[key]
         if key.endswith('__in'):

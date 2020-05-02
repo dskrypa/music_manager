@@ -27,7 +27,7 @@ from ds_tools.output import bullet_list
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
 from .query import QueryResults, RawQueryResults
-from .utils import PlexObjTypes, PlexObj
+from .typing import PlexObjTypes, PlexObj
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)

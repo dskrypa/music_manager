@@ -7,7 +7,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence, Iterable
 
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode
+from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
 from wiki_nodes.nodes import N
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -118,8 +118,17 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             last_depth = section.depth
             alb_types.append(section.title)
             lang = None
+
+            content = section.content
+            if not isinstance(content, Table):
+                if isinstance(content, CompoundNode) and len(content) > 1 and isinstance(content[1], Table):
+                    content = content[1]
+                else:
+                    log.debug(f'Unexpected content in {section=} on {page}: {content.__class__.__name__}')
+                    continue
+
             try:
-                for row in section.content:
+                for row in content:
                     try:
                         # log.debug(f'Processing alb_type={alb_types} row={row}')
                         if isinstance(row, TableSeparator):
@@ -130,9 +139,9 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                         else:
                             cls._process_disco_row(page, finder, row, alb_types, lang)
                     except Exception:
-                        log.error(f'Error processing {section=} row={short_repr(row)}:', exc_info=True, extra={'color': 9})
+                        log.error(f'Error processing {section=} on {page} row={short_repr(row)}:', exc_info=True, extra={'color': 9})
             except Exception:
-                log.error(f'Unexpected error processing {section=}:', exc_info=True, extra={'color': 9})
+                log.error(f'Unexpected error processing {section=} on {page}:', exc_info=True, extra={'color': 9})
 
     @classmethod
     def _process_disco_row(

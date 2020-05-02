@@ -115,15 +115,7 @@ class RawQueryResults(QueryResultsBase):
         if not self._type == 'track':
             raise InvalidQueryFilter(f'in_playlist() is only permitted for track results')
 
-        playlists = self.server.playlists
-        if not (playlist := playlists.get(name)):
-            lc_name = name.lower()
-            for pl_name, _playlist in playlists.items():
-                if pl_name.lower() == lc_name:
-                    playlist = _playlist
-                    break
-            else:
-                raise ValueError(f'Playlist {name!r} does not exist')
+        playlist = self.server.playlist(name)
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 

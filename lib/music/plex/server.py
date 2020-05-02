@@ -153,6 +153,15 @@ class LocalPlexServer:
     def playlists(self) -> Dict[str, Playlist]:
         return {p.title: p for p in self._session.playlists()}
 
+    def playlist(self, name: str) -> Playlist:
+        playlists = self.playlists
+        if playlist := playlists.get(name):
+            return playlist
+        lc_name = name.lower()
+        if playlist := next((p for n, p in playlists.items() if n.lower() == lc_name), None):
+            return playlist
+        raise ValueError(f'Playlist {name!r} does not exist')
+
     def create_playlist(self, name: str, items: Iterable[Track]) -> Playlist:
         if not items:
             raise ValueError('An iterable containing one or more tracks/items must be provided')

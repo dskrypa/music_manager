@@ -327,7 +327,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     @cached_property
     def album(self) -> Optional[AlbumName]:
         if album := self.tag_album:
-            return AlbumName.parse(album)
+            return AlbumName.parse(album, self.tag_artist)
         return None
 
     @cached_property

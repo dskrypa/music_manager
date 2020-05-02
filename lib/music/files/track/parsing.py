@@ -90,8 +90,9 @@ class AlbumName:
         return DiscoEntryType.UNKNOWN
 
     @classmethod
-    def parse(cls, name: str) -> 'AlbumName':
-        self = cls.__new__(cls)                         # type: AlbumName
+    def parse(cls, name: str, artist: Optional[str] = None) -> 'AlbumName':
+        self = cls.__new__(cls)                                         # type: AlbumName
+        artist = Name.from_enclosed(artist) if artist else None         # type: Optional[Name]
         if m := ALB_TYPE_DASH_SUFFIX_MATCH(name):
             name, alb_type = map(clean, m.groups())
             if 'station' in alb_type.lower():
@@ -191,6 +192,8 @@ class AlbumName:
                 elif len(orig_parts) == 1 and LangCat.categorize(part) == LangCat.MIX and '.' in part:
                     versions.append(Name.from_enclosed(part))
                     name_parts.append(part.split('.')[0])
+                elif name_parts and artist and artist.matches(part):
+                    log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
                 else:
                     # log.debug(f'No cases matched {part=!r}')
                     name_parts.append(part)

@@ -75,7 +75,12 @@ ALBUM_TEST_CASES = {
     '‘The ReVe Festival’ Day 1': AlbumName("'The ReVe Festival' Day 1"),
     "‘The ReVe Festival’ Finale": AlbumName("'The ReVe Festival' Finale"),
 
-    '솔직히 지친다.newwav': AlbumName(Name(non_eng='솔직히 지친다', versions=[Name.from_enclosed('솔직히 지친다.newwav')]))
+    '솔직히 지친다.newwav': AlbumName(
+        Name(non_eng='솔직히 지친다', versions=[Name.from_enclosed('솔직히 지친다.newwav')])
+    ),
+    ('위키미키(Weki Meki) Digital Single [DAZZLE DAZZLE]', '위키미키 (Weki Meki)'): AlbumName(
+        'DAZZLE DAZZLE', alb_type='Digital Single'
+    ),
 }
 
 UNCOMMON_TEST_CASES = {
@@ -161,7 +166,10 @@ class FileAlbumParsingTestCase(TestCaseBase):
         passed = 0
         for test_case, expected in cases.items():
             log.log(19, '')
-            parsed = AlbumName.parse(test_case)
+            if isinstance(test_case, tuple):
+                parsed = AlbumName.parse(*test_case)
+            else:
+                parsed = AlbumName.parse(test_case)
             if parsed == expected:
                 passed += 1
             else:

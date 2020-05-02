@@ -6,12 +6,13 @@ Artist wiki pages.
 
 import logging
 from itertools import chain
-from typing import MutableSet, List, Optional, Union, Set
+from typing import MutableSet, List, Optional, Union, Set, Iterator
 
 from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ..text import Name
+from .album import DiscographyEntry
 from .base import PersonOrGroup, GROUP_CATEGORIES
 from .discography import DiscographyEntryFinder, DiscographyMixin
 from .parsing.utils import LANGUAGES
@@ -87,6 +88,19 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 return next(iter(langs))
         log.debug(f'Unable to determine primary language for {self} - found {langs=}')
         return None
+
+    @property
+    def all_discography_entries(self) -> Iterator[DiscographyEntry]:
+        for entry in super().all_discography_entries:
+            if entry.artist is None or entry.artist is not self and entry.artist.name.matches(self.name):
+                # log.debug(f'Setting {entry}.artist = {self}')
+                # noinspection PyPropertyAccess
+                entry.artist = self
+                for edition in entry:
+                    if edition.artist is None or edition.artist is not self and edition.artist.name.matches(self.name):
+                        # noinspection PyPropertyAccess
+                        edition.artist = self
+            yield entry
 
 
 class Singer(Artist):

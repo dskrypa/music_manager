@@ -8,14 +8,37 @@ from typing import List, Iterable, Optional
 from ds_tools.core import Paths
 from ds_tools.input import choose_item
 from ds_tools.output import uprint
+from wiki_nodes.http import URL_MATCH
 from ..files import AlbumDir, iter_album_dirs
-from ..wiki.album import DiscographyEntryPart
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry
 from ..wiki.artist import Artist, Group
 from .exceptions import NoArtistFoundException
 from .wiki_info import print_de_part
 
-__all__ = ['show_matches', 'find_artists', 'find_album']
+__all__ = ['show_matches', 'find_artists', 'find_album', 'test_match']
 log = logging.getLogger(__name__)
+
+
+def test_match(paths: Paths, identifier: str):
+    for album_dir in iter_album_dirs(paths):
+        album_name = album_dir.name
+        if not album_name:
+            raise ValueError(f'Directories with multiple album names are not currently handled.')
+
+        if URL_MATCH(identifier):
+            disco_entry = DiscographyEntry.from_url(identifier)
+        else:
+            disco_entry = DiscographyEntry.from_title(identifier, search=True, research=True)
+
+        uprint(f'Match scores for {album_name!r}:')
+        de_score = album_name.name._score(disco_entry.name)
+        uprint(f'  - {disco_entry}: {de_score}')
+        for edition in disco_entry:
+            ed_score = album_name.name._score(edition.name)
+            uprint(f'    - {edition}: {ed_score}')
+            for part in edition:
+                p_score = album_name.name._score(part.name)
+                uprint(f'      - {part}: {p_score}')
 
 
 def show_matches(paths: Paths):

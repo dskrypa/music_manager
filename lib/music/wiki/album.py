@@ -344,10 +344,10 @@ class DiscographyEntryEdition:
 class DiscographyEntryPart:
     _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
-    def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: ListNode):
+    def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: Optional[ListNode]):
         self._name = name                               # type: Optional[str]
         self.edition = edition                          # type: DiscographyEntryEdition
-        self._tracks = tracks                           # type: ListNode
+        self._tracks = tracks                           # type: Optional[ListNode]
         m = self._disc_match(name) if name else None
         self.disc = int(m.group(1)) if m else 1         # type: int
 
@@ -385,10 +385,16 @@ class DiscographyEntryPart:
     @cached_property
     def track_names(self) -> List[Name]:
         if parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name'):
-            return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
+            if self._tracks is None:
+                if self.edition.type == DiscoEntryType.Single:
+                    return [parser.parse_single_page_track_name(self.edition.page)]
+                else:
+                    log.debug(f'No tracks found for {self}')
+            else:
+                return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')
-            return []
+        return []
 
     @cached_property
     def tracks(self) -> List['Track']:

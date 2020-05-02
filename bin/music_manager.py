@@ -24,7 +24,7 @@ from music.manager.file_info import (
 )
 from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags, remove_tags
 from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
-from music.manager.wiki_match import show_matches
+from music.manager.wiki_match import show_matches, test_match
 from music.manager.wiki_update import update_tracks
 
 log = logging.getLogger(__name__)
@@ -95,6 +95,10 @@ def parser():
 
     match_parser = wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info')
     match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+
+    test_parser = wiki_parser.add_subparser('sub_action', 'test', help='Test matching of tracks in a given path with a given wiki URL')
+    test_parser.add_argument('path', help='One path of music files or directories containing music files')
+    test_parser.add_argument('url', help='A wiki URL for a page to test whether it matches the given files')
     # endregion
 
     for _parser in (clean_parser, upd_parser):
@@ -140,6 +144,8 @@ def main():
             show_matches(args.path)
         elif sub_action == 'pprint':
             pprint_wiki_page(args.url, args.mode)
+        elif sub_action == 'test':
+            test_match(args.path, args.url)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':

@@ -35,7 +35,7 @@ UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE)
 
 @dataclass
 class AlbumName:
-    name_parts: InitVar[Union[str, Iterable[str]]]
+    name_parts: InitVar[Union[str, Iterable[str], Name]]
     alb_type: str = None
     alb_num: str = None
     sm_station: bool = False
@@ -51,12 +51,17 @@ class AlbumName:
     name: Name = None
 
     def __post_init__(self, name_parts):
-        self.name = Name(name_parts) if isinstance(name_parts, str) else Name(*sort_name_parts(name_parts))
+        if isinstance(name_parts, Name):
+            self.name = name_parts
+        else:
+            if isinstance(name_parts, str):
+                name_parts = (name_parts,)
+            self.name = Name(*sort_name_parts(name_parts))
 
     def __repr__(self):
         parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(_fields(self), self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
-        return f'{self.__class__.__name__}[{self.type.name}]({self.name!r}{parts})'
+        return f'{self.__class__.__name__}[{self.type.name}]({self.name._full_repr(delim=" ", indent=0)}{parts})'
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -106,6 +111,7 @@ class AlbumName:
 
         real_album = None
         feat = []
+        versions = []
         try:
             parts = list(filter(None, map(clean, reversed(split_enclosed(name, reverse=True)))))
         except ValueError:
@@ -182,6 +188,9 @@ class AlbumName:
                     self.alb_type, part = map(clean, m.groups())
                     if part:
                         name_parts.append(part)
+                elif len(orig_parts) == 1 and LangCat.categorize(part) == LangCat.MIX and '.' in part:
+                    versions.append(Name.from_enclosed(part))
+                    name_parts.append(part.split('.')[0])
                 else:
                     # log.debug(f'No cases matched {part=!r}')
                     name_parts.append(part)
@@ -200,6 +209,8 @@ class AlbumName:
             name_parts = split_name(tuple(reversed(name_parts)))
 
         self.name = Name(*sort_name_parts(name_parts))
+        if versions:
+            self.name.update(versions=versions)
         return self
 
 

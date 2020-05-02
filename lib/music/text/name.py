@@ -6,7 +6,7 @@ import logging
 import re
 from copy import deepcopy
 from typing import (
-    Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Tuple, Collection, Mapping, TypeVar, Dict
+    Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Collection, Mapping, TypeVar, Dict
 )
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -73,12 +73,12 @@ class Name(ClearableCachedPropertyMixin):
         parts = ', '.join(map(repr, filter(None, parts)))
         return f'<{type(self).__name__}({parts})>'
 
-    def _full_repr(self, include_no_val=False):
+    def _full_repr(self, include_no_val=False, delim='\n', indent=4):
         var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang', 'versions')
         var_vals = (getattr(self, attr) for attr in var_names)
-        indent = ' ' * 4
-        parts = ',\n'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
-        return f'<{type(self).__name__}(\n{parts}\n)>'
+        indent = ' ' * indent
+        parts = f',{delim}'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
+        return f'<{type(self).__name__}({delim}{parts}{delim})>'
 
     def __str__(self):
         eng = self.english
@@ -114,6 +114,7 @@ class Name(ClearableCachedPropertyMixin):
         for part in self._parts:
             try:
                 if getattr(self, part) != getattr(other, part):
+                    # log.debug(f'{self!r}.{part}={getattr(self, part)!r} != {other!r}.{part}={getattr(other, part)!r}')
                     return False
             except AttributeError:
                 return False
@@ -125,6 +126,7 @@ class Name(ClearableCachedPropertyMixin):
     def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True):
         if isinstance(other, str):
             other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
+        # log.debug(f'Scoring match:\n{self._full_repr()}._score(\n{other._full_repr()})')
         scores = []
         if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
             scores.append(revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace))
@@ -387,8 +389,11 @@ class _NamePart:
         return s_cat < o_cat
 
 
-def sort_name_parts(parts: Iterable[str]) -> Tuple[str, ...]:
-    return tuple(p.value for p in sorted(_NamePart(i, part) for i, part in enumerate(parts)))
+def sort_name_parts(parts: Iterable[str]) -> List[Optional[str]]:
+    parts = list(p.value for p in sorted(_NamePart(i, part) for i, part in enumerate(parts)))
+    if not LangCat.contains_any(parts[0], LangCat.ENG):
+        parts.insert(0, None)
+    return parts
 
 
 def xor(a, b):

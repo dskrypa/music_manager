@@ -217,6 +217,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
     parse_track_name = parse_album_name
 
     @classmethod
+    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+        raise NotImplementedError
+
+    @classmethod
     def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder'):
         for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
             try:

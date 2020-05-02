@@ -152,16 +152,20 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                 log.warning(f'On page={artist_page}, unexpected type for entry={entry!r}')
 
     @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
-        infobox = entry_page.infobox
-        if (names := list(name_from_intro(entry_page))) and len(names) > 0:
-            name = names[0]
+    def _album_page_name(cls, page: WikiPage) -> Union[Name, str]:
+        if (names := list(name_from_intro(page))) and len(names) > 0:
+            return names[0]
         else:
+            infobox = page.infobox
             try:
-                name = infobox['name'].value
+                return infobox['name'].value
             except KeyError:
-                name = entry_page.title
+                return page.title
 
+    @classmethod
+    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        name = cls._album_page_name(entry_page)
+        infobox = entry_page.infobox
         repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
         entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
         artists = _find_artist_links(infobox, entry_page)
@@ -221,13 +225,14 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         elif isinstance(tracks, list):
             for i, track_node in enumerate(tracks):
                 yield DiscographyEntryPart(f'CD{i + 1}', edition, track_node)
+        elif tracks is None and edition.type == DiscoEntryType.Single:
+            yield DiscographyEntryPart(None, edition, None)
         else:
             try:
                 # noinspection PyUnresolvedReferences
                 log.warning(f'Unexpected type for {edition!r}._tracks: {tracks.pformat()}', extra={'color': 'red'})
             except AttributeError:
                 log.warning(f'Unexpected type for {edition!r}._tracks: {tracks!r}')
-
 
     @classmethod
     def parse_track_name(cls, node: N) -> Name:
@@ -248,6 +253,22 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                 return _process_track_complex(node)
         else:
             log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
+
+    @classmethod
+    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+        name = cls._album_page_name(page)
+        if not isinstance(name, Name):
+            name = Name.from_enclosed(name)
+
+        infobox = page.infobox
+        try:
+            length = infobox['length'].value
+        except KeyError:
+            pass
+        else:
+            name.update(extra={'length': length})
+
+        return name
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:

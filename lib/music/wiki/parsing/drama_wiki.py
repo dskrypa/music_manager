@@ -40,6 +40,10 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         raise NotImplementedError
 
     @classmethod
+    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+        raise NotImplementedError
+
+    @classmethod
     def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         try:
             section = artist_page.sections.find('TV Show Theme Songs')

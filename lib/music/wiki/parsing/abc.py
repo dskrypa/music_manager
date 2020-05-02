@@ -62,6 +62,11 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
+    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
     def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         raise NotImplementedError
 

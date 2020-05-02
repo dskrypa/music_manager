@@ -74,6 +74,8 @@ ALBUM_TEST_CASES = {
 
     '‘The ReVe Festival’ Day 1': AlbumName("'The ReVe Festival' Day 1"),
     "‘The ReVe Festival’ Finale": AlbumName("'The ReVe Festival' Finale"),
+
+    '솔직히 지친다.newwav': AlbumName(Name(non_eng='솔직히 지친다', versions=[Name.from_enclosed('솔직히 지친다.newwav')]))
 }
 
 UNCOMMON_TEST_CASES = {
@@ -177,7 +179,7 @@ class FileAlbumParsingTestCase(TestCaseBase):
             (('z한', 'a'), ('a', 'z한')),
         ]
         for case, expected in cases:
-            self.assertEqual(sort_name_parts(case), expected)
+            self.assertSequenceEqual(sort_name_parts(case), expected)
 
 
 if __name__ == '__main__':

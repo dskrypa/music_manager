@@ -7,16 +7,17 @@ import re
 from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String
 from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed
 
 __all__ = [
-    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'ORDINAL_TO_INT', 'find_ordinal', 'name_from_intro',
-    'get_artist_title', 'find_language', 'LANGUAGES', 'replace_lang_abbrev'
+    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'name_from_intro', 'get_artist_title', 'find_language',
+    'LANGUAGES', 'replace_lang_abbrev'
 ]
 log = logging.getLogger(__name__)
 
 FEAT_ARTIST_INDICATORS = ('with', 'feat.', 'feat ', 'featuring')
+IS_SPLIT = re.compile(r' is (?:a|the)', re.IGNORECASE).split
 LANG_ABBREV_MAP = {
     'chinese': 'Chinese', 'chn': 'Chinese',
     'english': 'English', 'en': 'English', 'eng': 'English',
@@ -27,16 +28,10 @@ LANG_ABBREV_MAP = {
 }
 LANGUAGES = {lang.lower(): lang for lang in LANG_ABBREV_MAP.values()}
 MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
-LANG_PREFIX_SUB = re.compile(r'(?:{}):'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
+LANG_PREFIX_SUB = re.compile(r'(?:{})\s?:'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
 LANG_ABBREV_PAT = re.compile(r'(^|\s)({})(\s|$)'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE)
 LIST_SPLIT = re.compile(r'[,;] ').split
 NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}
-ORDINAL_TO_INT = {
-    '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7, '8th': 8, '9th': 9, '10th': 10,
-    'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9,
-    'tenth': 10, 'debut': 1
-}
-ORDINAL_SEARCH = re.compile('({})'.format('|'.join(ORDINAL_TO_INT)), re.IGNORECASE).search
 WIKI_STYLE_SEARCHES = (
     re.compile(r"^(''''')(.+?)(\1)").search, re.compile(r"^(''')(.+?)(\1)").search, re.compile(r"^('')(.+?)(\1)").search
 )
@@ -48,12 +43,6 @@ def replace_lang_abbrev(text: str) -> str:
         lang = LANG_ABBREV_MAP[abbrev]
         return LANG_ABBREV_PAT.sub(r'\1{}\3'.format(lang), text)
     return text
-
-
-def find_ordinal(text: str) -> Optional[int]:
-    if m := ORDINAL_SEARCH(text):
-        return ORDINAL_TO_INT[m.group(1)]
-    return None
 
 
 def get_artist_title(node: Node, entry_page: WikiPage):
@@ -70,14 +59,33 @@ def rm_lang_prefix(text: str) -> str:
     return LANG_PREFIX_SUB('', text).strip()
 
 
+def _strify_node(node: CompoundNode):
+    parts = []
+    for n in node:
+        if isinstance(n, Link):
+            parts.append(n.show)
+        elif isinstance(n, String):
+            parts.append(n.value)
+        else:
+            break
+    return ' '.join(parts)
+
+
 def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
-    intro = artist_page.intro
+    _intro = intro = artist_page.intro
     if isinstance(intro, CompoundNode):
-        intro = intro[0]
-    if intro:
-        first_string = intro.value
+        intro = _strify_node(intro)
+    elif isinstance(intro, String):
+        intro = intro.value
     else:
-        raise ValueError(f'Unexpected intro on {artist_page}:\n{artist_page.intro.pformat()}')
+        intro = None
+    if intro:
+        first_string = IS_SPLIT(intro, 1)[0]
+    else:
+        try:
+            raise ValueError(f'Unexpected intro on {artist_page}:\n{artist_page.intro.pformat()}')
+        except AttributeError:
+            raise ValueError(f'Unexpected intro on {artist_page}: {artist_page.intro!r}') from None
 
     if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
         # log.debug(f'Found multi-lang name match: {m}')
@@ -105,7 +113,7 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         except ValueError:
             # log.debug(f'split_enclosed({name!r}) failed')
-            raw_intro = intro.raw.string
+            raw_intro = _intro.raw.string
             if m := next((search(raw_intro) for search in WIKI_STYLE_SEARCHES), None):
                 name = m.group(2)
             name = name.replace(' : ', ': ')
@@ -151,7 +159,7 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
                     else:
                         yield Name.from_parts((first_part, paren_part))
                 else:
-                    if ' is ' in paren_part and '(' not in name:
+                    if ' is ' in intro and '(' not in name:
                         paren_part = paren_part.partition(' is ')[0]
                         yield Name(f'\'{first_part}\' {paren_part}')    # Example: The_ReVe_Festival_Finale
                     elif LangCat.categorize(first_part) == LangCat.categorize(paren_part):

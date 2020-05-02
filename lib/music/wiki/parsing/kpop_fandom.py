@@ -14,12 +14,12 @@ from wiki_nodes import (
 )
 from wiki_nodes.nodes import N, AnyNode
 from ...common import DiscoEntryType
-from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens
+from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import name_from_intro, find_ordinal, get_artist_title, LANG_ABBREV_MAP, find_language
+from .utils import name_from_intro, get_artist_title, LANG_ABBREV_MAP, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder

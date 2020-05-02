@@ -124,10 +124,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
             raise error
         elif cls is not WikiEntity:
             # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories
-            if isinstance(obj, WikiPage) and obj.disambiguation_link:
+            if isinstance(obj, WikiPage) and obj.disambiguation_link or obj.similar_name_link:
                 log.debug(f'{cls.__name__}._validate found a possible disambiguation link from: {obj}')
+                link = obj.disambiguation_link or obj.similar_name_link
                 try:
-                    return cls._handle_disambiguation_link(obj.disambiguation_link, existing, name, prompt)
+                    return cls._handle_disambiguation_link(link, existing, name, prompt)
                 except PageMissingError as e:
                     log.debug(f'The disambiguation link was not found: {e}')
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
@@ -222,18 +223,24 @@ class WikiEntity(ClearableCachedPropertyMixin):
             return entity
 
     @classmethod
-    def from_title(cls: Type[WE], title: str, sites: StrOrStrs = None, search=True, research=False) -> WE:
+    def from_title(
+            cls: Type[WE], title: str, sites: StrOrStrs = None, search=True, research=False,
+            name: Optional[Name] = None, strict=2
+    ) -> WE:
         """
         :param str title: A page title
         :param iterable sites: A list or other iterable that yields site host strings
         :param bool search: Whether the provided title should also be searched for, in case there is not an exact match.
         :param bool research: If only one site returned a hit, re-search with the title from that site
+        :param Name name: The Name of the entity to retrieve
+        :param int strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
+          EntityTypeError and AmbiguousPageError as a warning.  If 0, log those errors on debug level.
         :return: A WikiEntity (or subclass thereof) that represents the page(s) with the given title.
         """
         sites = _sites(sites)
         pages, errors = MediaWikiClient.get_multi_site_page(title, sites, search=search)
         if pages:
-            entity = cls._from_multi_site_pages(pages.values())
+            entity = cls._from_multi_site_pages(pages.values(), name, strict=strict)
             if search and research:
                 if 0 < len(entity._pages) < len(sites):
                     # noinspection PyUnboundLocalVariable

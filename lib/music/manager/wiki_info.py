@@ -8,6 +8,7 @@ from typing import Optional, Iterable, Set
 from ds_tools.output import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
 from ..common import DiscoEntryType
+from ..text import Name
 from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart
 from ..wiki.discography import DiscographyMixin, Discography
 
@@ -20,12 +21,26 @@ def pprint_wiki_page(url: str, mode: str):
     page.sections.pprint(mode)
 
 
-def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None):
+def show_wiki_entity(
+        identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None, etype: Optional[str] = None
+):
     alb_types = _album_types(alb_types)
+    cls = EntertainmentEntity
+    if etype:
+        for _cls in EntertainmentEntity._subclasses:
+            if _cls.__name__ == etype and issubclass(_cls, EntertainmentEntity):    # _subclasses is from WikiEntity
+                cls = _cls
+                break
+        else:
+            raise ValueError(f'Invalid EntertainmentEntity subclass: {etype!r}')
+
     if URL_MATCH(identifier):
-        entity = EntertainmentEntity.from_url(identifier)
+        entity = cls.from_url(identifier)
     else:
-        entity = EntertainmentEntity.from_title(identifier, search=True, research=True)
+        entity = cls.from_title(
+            identifier, search=True, research=True, strict=1,
+            # name=Name.from_enclosed(identifier)
+        )
     uprint(f'{entity}:')
 
     if isinstance(entity, DiscographyEntry):

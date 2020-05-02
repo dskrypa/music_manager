@@ -101,10 +101,12 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
 
 
 def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) -> DiscographyEntryPart:
-    album_type = album_dir.type
     album_name = album_dir.name
     if not album_name:
         raise ValueError(f'Directories with multiple album names are not currently handled.')
+    _type = album_dir.type
+    _name = album_name.name
+    num = album_name.number
 
     before = f'Found multiple possible matches for {album_name}'
     candidates = []
@@ -112,8 +114,8 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
     log.debug(f'Processing album for {album_dir} with {album_name=!r} and {artists=}')
     for artist in artists:
         for disco_entry in artist.all_discography_entries:
-            if not album_type or album_type == disco_entry.type:
-                if album_name.name.matches(disco_entry.name):
+            if not _type or _type == disco_entry.type:
+                if _name and _name.matches(disco_entry.name):
                     if parts := list(disco_entry.parts()):
                         candidates.extend(parts)
                         # if len(parts) == 1:
@@ -123,6 +125,9 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
                         #     candidates.append(part)
                 #     else:
                 #         log.debug(f'Found no parts for {disco_entry=}')
+                elif _type and _type == disco_entry.type and num and disco_entry.number and num == disco_entry.number:
+                    if parts := list(disco_entry.parts()):
+                        candidates.extend(parts)
                 # else:
                 #     log.debug(f'{album_name} does not match {disco_entry} ({disco_entry._pages})')
 

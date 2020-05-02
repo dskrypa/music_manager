@@ -14,6 +14,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
+from .utils import name_from_intro
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -31,7 +32,7 @@ short_repr = partial(_short_repr, containers_only=False)
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        raise NotImplementedError
+        yield from name_from_intro(artist_page)
 
     @classmethod
     def parse_album_name(cls, node: N) -> Name:

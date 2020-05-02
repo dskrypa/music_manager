@@ -81,6 +81,7 @@ ALBUM_TEST_CASES = {
     ('위키미키(Weki Meki) Digital Single [DAZZLE DAZZLE]', '위키미키 (Weki Meki)'): AlbumName(
         'DAZZLE DAZZLE', alb_type='Digital Single'
     ),
+    ('The 1st Mini Album', '슈퍼엠 (SuperM)'): AlbumName(None, alb_num='1st Mini Album', alb_type='Mini Album')
 }
 
 UNCOMMON_TEST_CASES = {

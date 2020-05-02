@@ -84,6 +84,7 @@ def parser():
     ws_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
     ws_parser.add_argument('--limit', '-L', type=int, default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
     ws_parser.add_argument('--types', '-t', nargs='+', help='Filter albums to only those that match the specified types')
+    ws_parser.add_argument('--type', '-T', help='An EntertainmentEntity subclass to require that the given page matches')
 
     upd_parser = wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info')
     upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -133,7 +134,7 @@ def main():
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'wiki':
         if sub_action == 'show':
-            show_wiki_entity(args.identifier, args.expand, args.limit, args.types)
+            show_wiki_entity(args.identifier, args.expand, args.limit, args.types, args.type)
         elif sub_action == 'update':
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(

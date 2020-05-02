@@ -10,7 +10,7 @@ from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Opti
 from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
 from ...common import DiscoEntryType
-from ...text import Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired
+from ...text import Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired, find_ordinal
 
 __all__ = ['AlbumName', 'split_artists', 'UnexpectedListFormat']
 log = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE)
 
 @dataclass
 class AlbumName:
-    name_parts: InitVar[Union[str, Iterable[str], Name]]
+    name_parts: InitVar[Union[str, Iterable[str], Name, None]]
     alb_type: str = None
     alb_num: str = None
     sm_station: bool = False
@@ -51,7 +51,9 @@ class AlbumName:
     name: Name = None
 
     def __post_init__(self, name_parts):
-        if isinstance(name_parts, Name):
+        if name_parts is None:
+            self.name = Name()
+        elif isinstance(name_parts, Name):
             self.name = name_parts
         else:
             if isinstance(name_parts, str):
@@ -88,6 +90,12 @@ class AlbumName:
             except Exception as e:
                 log.debug(f'Error determining DiscoEntryType for {alb_type=!r}: {e}')
         return DiscoEntryType.UNKNOWN
+
+    @cached_property
+    def number(self) -> Optional[int]:
+        if alb_num := self.alb_num:
+            return find_ordinal(alb_num)
+        return None
 
     @classmethod
     def parse(cls, name: str, artist: Optional[str] = None) -> 'AlbumName':

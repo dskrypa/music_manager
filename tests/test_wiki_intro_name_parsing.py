@@ -47,6 +47,16 @@ class IntroNameParsingTest(TestCaseBase):
         names = set(name_from_intro(page))
         self.assertSetEqual(names, {Name('\'The ReVe Festival\' Finale')})
 
+    def test_lang_with_prefix(self):
+        page = MagicMock(intro=as_node("""'''SuperM''' ([[Hangul]]: 슈퍼엠) is a [[K-pop|South Korean pop]] group formed in 2019 by [[SM Entertainment]] and [[Capitol Music Group]]."""))
+        names = set(name_from_intro(page))
+        self.assertSetEqual(names, {Name('SuperM', '슈퍼엠')})
+
+    def test_eng_stop_at_is(self):
+        page = MagicMock(intro=as_node("""'''SuperM''' is a seven-member supergroup formed in partnership with [[SM Entertainment]], [[Wikipedia:Capitol Music Group|Capitol Music Group]], and [[Wikipedia:Caroline Distribution|Caroline]]."""))
+        names = set(name_from_intro(page))
+        self.assertSetEqual(names, {Name('SuperM')})
+
 
 if __name__ == '__main__':
     main()

@@ -391,7 +391,7 @@ class _NamePart:
 
 def sort_name_parts(parts: Iterable[str]) -> List[Optional[str]]:
     parts = list(p.value for p in sorted(_NamePart(i, part) for i, part in enumerate(parts)))
-    if not LangCat.contains_any(parts[0], LangCat.ENG):
+    if parts and not LangCat.contains_any(parts[0], LangCat.ENG):
         parts.insert(0, None)
     return parts
 

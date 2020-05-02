@@ -3,32 +3,41 @@
 """
 
 import logging
+import re
 from collections import defaultdict
 from itertools import chain
 from operator import eq
-from typing import TYPE_CHECKING, Collection, Iterator, Set, List, Optional
+from typing import TYPE_CHECKING, Collection, List, Optional
 
 from plexapi.audio import Track
 
 from ..files.track.track import SongFile
 from ..text import Name
-from .utils import (
-    _show_filters, _resolve_aliases, _resolve_custom_ops, short_repr, _prefixed_filters, _filter_repr, PlexObjTypes
-)
+from .exceptions import InvalidQueryFilter
+from .filters import check_attrs
+from .utils import _show_filters, short_repr, _prefixed_filters, _filter_repr, PlexObjTypes, PlexObj
 
 if TYPE_CHECKING:
-    from .server import LocalPlexServer, PlexObjTypes, PlexObj
+    from .server import LocalPlexServer
 
-__all__ = ['QueryResults', 'PlexQueryException', 'InvalidQueryFilter', 'RawQueryResults']
+__all__ = ['QueryResults', 'RawQueryResults']
 log = logging.getLogger(__name__)
 
+ALIASES = {'rating': 'userRating'}
+CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsregex'}
 
-class RawQueryResults:
-    def __init__(self, server: 'LocalPlexServer', obj_type: 'PlexObjTypes', data, library_section_id=None):
+
+class QueryResultsBase:
+    _new_args = ()
+
+    def __init__(self, server: 'LocalPlexServer', obj_type: 'PlexObjTypes', data):
         self.server = server
         self._type = obj_type
         self._data = data
-        self._library_section_id = library_section_id or data.attrib.get('librarySectionID')
+
+    def _new(self, data, obj_type: 'PlexObjTypes' = None):
+        # noinspection PyArgumentList
+        return self.__class__(self.server, obj_type or self._type, data, *(getattr(self, a) for a in self._new_args))
 
     def __iter__(self):
         return iter(self._data)
@@ -36,13 +45,56 @@ class RawQueryResults:
     def __repr__(self):
         return f'<{self.__class__.__name__}[{len(self._data):,d} {self._type}s]>'
 
+    def __bool__(self):
+        return bool(self._data)
+
+    def __len__(self, other):
+        return len(self._data)
+
+    def __validate(self, other, op):
+        if not isinstance(other, self.__class__):
+            raise TypeError(f'Unable to {op} results with type={other.__class__.__name__}')
+        elif self._type != other._type:
+            raise ValueError(f'Unable to {op} results for incompatible types ({self._type}, {other._type})')
+        elif self.server != other.server:
+            raise ValueError(f'Unable to {op} results from different servers ({self.server}, {other.server})')
+
+    def __add__(self, other):
+        self.__validate(other, 'combine')
+        return self._new(set(self._data).union(other._data))
+
+    def __iadd__(self, other):
+        self.__validate(other, 'combine')
+        self._data = set(self._data).union(other._data)
+        return self
+
+    def __sub__(self, other):
+        self.__validate(other, 'remove')
+        return self._new(set(self._data).difference(other._data))
+
+    def __isub__(self, other):
+        self.__validate(other, 'remove')
+        self._data = set(self._data).difference(other._data)
+        return self
+
+
+class RawQueryResults(QueryResultsBase):
+    _new_args = ('_library_section_id',)
+
+    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data, library_section_id=None):
+        super().__init__(server, obj_type, data)
+        self._library_section_id = library_section_id or data.attrib.get('librarySectionID')
+
+    def _query(self, obj_type: PlexObjTypes, **kwargs):
+        return self.server._query(obj_type).filter(**kwargs)
+
     def _intermediate_search(self, intm_type: PlexObjTypes, intm_keys, dest_filter: str, kwargs, intm_field='title'):
         intm_kwargs = _intermediate_search_kwargs(kwargs, intm_field, keys=intm_keys)
         custom_filter_keys = '+'.join(sorted(intm_keys))
         msg = f'Performing intermediate search for {intm_type}s matching {_filter_repr(intm_kwargs)}'
         msg += f' - results will be used for custom {self._type} filters: {custom_filter_keys}'
         log.debug(msg, extra={'color': 11})
-        results = self.server.music.fetchItems(self.server._ekey(intm_type), **intm_kwargs)
+        results = self._query(intm_type, **intm_kwargs).results()
         if self._type == 'album' and dest_filter == 'key__in':
             keys = {'{}/children'.format(a.key) for a in results}
         else:
@@ -103,7 +155,6 @@ class RawQueryResults:
         return kwargs
 
     def _filter(self, data, **kwargs):
-        check_attrs = self.server.music._checkAttrs
         return [elem for elem in data if check_attrs(elem, **kwargs)]
 
     def filter(self, **kwargs) -> 'RawQueryResults':
@@ -136,10 +187,10 @@ class RawQueryResults:
         else:
             log.debug(f'No results exist to filter')
             results = []
-        # noinspection PyTypeChecker
-        return RawQueryResults(self.server, self._type, results, self._library_section_id)
 
-    def results(self) -> List['PlexObj']:
+        return self._new(results)
+
+    def results(self) -> List[PlexObj]:
         build_item = self.server.music._buildItemOrNone
         library_section_id = self._library_section_id
         results = list(filter(None, (build_item(elem, None, None) for elem in self._data)))
@@ -147,7 +198,7 @@ class RawQueryResults:
             obj.librarySectionID = library_section_id
         return results
 
-    def result(self) -> Optional['PlexObj']:
+    def result(self) -> Optional[PlexObj]:
         build_item = self.server.music._buildItemOrNone
         for elem in self._data:
             if (obj := build_item(elem, None, None)) is not None:
@@ -156,55 +207,15 @@ class RawQueryResults:
         return None
 
 
-class QueryResults:
-    def __init__(self, server: 'LocalPlexServer', obj_type: 'PlexObjTypes', results: Collection['PlexObj']):
-        self.server = server
-        self._type = obj_type
-        self._results = set(results) if not isinstance(results, set) else results                   # type: Set[PlexObj]
+class QueryResults(QueryResultsBase):
+    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, results: Collection[PlexObj]):
+        super().__init__(server, obj_type, set(results) if not isinstance(results, set) else results)
 
-    def __repr__(self):
-        return f'<{self.__class__.__name__}[{len(self._results):,d} {self._type}s]>'
-
-    def results(self) -> Collection['PlexObj']:
-        return self._results
-
-    def __iter__(self) -> Iterator['PlexObj']:
-        return iter(self._results)
-
-    def __bool__(self):
-        return bool(self._results)
-
-    def __len__(self, other):
-        return len(self._results)
+    def results(self) -> Collection[PlexObj]:
+        return self._data
 
     def __serializable__(self):
-        return self._results
-
-    def __validate(self, other, op):
-        if not isinstance(other, QueryResults):
-            raise TypeError(f'Unable to {op} results with type={other.__class__.__name__}')
-        elif self._type != other._type:
-            raise ValueError(f'Unable to {op} results for incompatible types ({self._type}, {other._type})')
-        elif self.server != other.server:
-            raise ValueError(f'Unable to {op} results from different servers ({self.server}, {other.server})')
-
-    def __add__(self, other: 'QueryResults'):
-        self.__validate(other, 'combine')
-        return QueryResults(self.server, self._type, self._results.union(other._results))
-
-    def __iadd__(self, other: 'QueryResults'):
-        self.__validate(other, 'combine')
-        self._results.update(other._results)
-        return self
-
-    def __sub__(self, other: 'QueryResults'):
-        self.__validate(other, 'remove')
-        return QueryResults(self.server, self._type, self._results - other._results)
-
-    def __isub__(self, other: 'QueryResults'):
-        self.__validate(other, 'remove')
-        self._results -= other._results
-        return self
+        return self._data
 
     def artists(self, **kwargs) -> 'QueryResults':
         if self._type == 'artist':
@@ -215,7 +226,7 @@ class QueryResults:
             return self.server.query('artist', key__in={f'{obj.grandparentKey}/children' for obj in self}, **kwargs)
         else:
             try:
-                return QueryResults(self.server, 'artist', {obj.artist() for obj in self}).filter(**kwargs)
+                return self._new({obj.artist() for obj in self}, 'artist').filter(**kwargs)
             except AttributeError as e:
                 raise InvalidQueryFilter(str(e)) from e
 
@@ -228,7 +239,7 @@ class QueryResults:
             return self.server.query('album', key__in={f'{obj.parentKey}/children' for obj in self}, **kwargs)
         else:
             try:
-                return QueryResults(self.server, 'album', {obj.album() for obj in self}).filter(**kwargs)
+                return self._new({obj.album() for obj in self}, 'album').filter(**kwargs)
             except AttributeError as e:
                 raise InvalidQueryFilter(str(e)) from e
 
@@ -240,25 +251,25 @@ class QueryResults:
         elif self._type == 'album':
             return self.server.query('track', parentKey__in={obj.key for obj in self}, **kwargs)
         try:
-            return QueryResults(self.server, 'track', {obj.tracks() for obj in self}).filter(**kwargs)
+            return self._new({obj.tracks() for obj in self}, 'track').filter(**kwargs)
         except AttributeError as e:
             raise InvalidQueryFilter(str(e)) from e
 
     def with_rating(self, rating, op=eq) -> 'QueryResults':
-        return QueryResults(self.server, self._type, {obj for obj in self if op(_get_rating(obj), rating)})
+        return self._new({obj for obj in self if op(_get_rating(obj), rating)})
 
     def filter(self, **kwargs) -> 'QueryResults':
         if not kwargs:
             return self
-        if data := [obj._data for obj in self._results]:
+        if data := [obj._data for obj in self._data]:
             # noinspection PyTypeChecker
-            raw = RawQueryResults(self.server, self._type, data, next(iter(self._results)).librarySectionID)
+            raw = RawQueryResults(self.server, self._type, data, next(iter(self._data)).librarySectionID)
             results = raw.filter(**kwargs).results()
         else:
             log.debug(f'No results exist to filter')
             results = []
 
-        return QueryResults(self.server, self._type, results)
+        return self._new(results)
 
     def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'QueryResults':
         """
@@ -273,7 +284,7 @@ class QueryResults:
             raise InvalidQueryFilter(f'unique() is only permitted for track results')
 
         artist_title_obj_map = defaultdict(dict)
-        for track in self._results:                                     # type: Track
+        for track in self._data:                                     # type: Track
             artist = track.originalTitle if track.grandparentTitle == 'Various Artists' else track.grandparentTitle
             title_obj_map = artist_title_obj_map[artist]
             lc_title = track.title.lower()
@@ -306,7 +317,7 @@ class QueryResults:
         else:
             results = set(chain.from_iterable(artist_title_obj_map.values()))
 
-        return QueryResults(self.server, self._type, results)
+        return self._new(results)
 
 
 def _pick_uniq_track(existing: Track, track: Track, server, rated, latest, singles) -> Track:
@@ -387,9 +398,37 @@ def _intermediate_search_kwargs(kwargs, intermediate_field='title', keys=None, p
     return intm_kwargs
 
 
-class PlexQueryException(Exception):
-    """Base query exception"""
+def _resolve_aliases(kwargs):
+    for key, val in list(kwargs.items()):
+        base = key
+        op = None
+        if '__' in key:
+            base, op = key.split('__', maxsplit=1)
+        try:
+            real_key = ALIASES[base]
+        except KeyError:
+            pass
+        else:
+            del kwargs[key]
+            if op:
+                real_key = f'{real_key}__{op}'
+            kwargs[real_key] = val
+            log.debug(f'Resolved query alias={key!r} => {real_key}={short_repr(val)}')
+
+    return kwargs
 
 
-class InvalidQueryFilter(PlexQueryException):
-    """An invalid query filter was provided"""
+def _resolve_custom_ops(kwargs):
+    # Replace custom/shorthand ops with the real operators
+    for filter_key, filter_val in sorted(kwargs.items()):
+        keyword = next((val for val in CUSTOM_OPS if filter_key.endswith(val)), None)
+        if keyword:
+            kwargs.pop(filter_key)
+            target_key = '{}__{}'.format(filter_key[:-len(keyword)], CUSTOM_OPS[keyword])
+            if keyword == '__like' and isinstance(filter_val, str):
+                filter_val = filter_val.replace(' ', '.*?')
+            filter_val = re.compile(filter_val, re.IGNORECASE) if isinstance(filter_val, str) else filter_val
+            log.debug(f'Replacing custom op={filter_key!r} with {target_key}={short_repr(filter_val)}')
+            kwargs[target_key] = filter_val
+
+    return kwargs

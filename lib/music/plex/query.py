@@ -7,7 +7,8 @@ import re
 from collections import defaultdict
 from itertools import chain
 from operator import eq
-from typing import TYPE_CHECKING, Collection, List, Optional, Dict, Any, Set
+from typing import TYPE_CHECKING, Collection, List, Optional, Dict, Any, Set, Union, Iterator, Tuple
+from xml.etree.ElementTree import Element
 
 from plexapi.audio import Track
 
@@ -22,6 +23,9 @@ if TYPE_CHECKING:
 
 __all__ = ['QueryResults', 'RawQueryResults']
 log = logging.getLogger(__name__)
+AllResultData = Union[Element, Collection[Element], Collection[PlexObj]]
+RawResultData = Union[Element, Collection[Element]]
+ResultData = Collection[PlexObj]
 
 ALIASES = {'rating': 'userRating'}
 CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsregex'}
@@ -30,12 +34,12 @@ CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsreg
 class QueryResultsBase:
     _new_args = ()
 
-    def __init__(self, server: 'LocalPlexServer', obj_type: 'PlexObjTypes', data):
+    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: AllResultData):
         self.server = server
         self._type = obj_type
         self._data = data
 
-    def _new(self, data, obj_type: 'PlexObjTypes' = None):
+    def _new(self, data: AllResultData, obj_type: PlexObjTypes = None):
         # noinspection PyArgumentList
         return self.__class__(self.server, obj_type or self._type, data, *(getattr(self, a) for a in self._new_args))
 
@@ -79,9 +83,10 @@ class QueryResultsBase:
 
 
 class RawQueryResults(QueryResultsBase):
+    _data: RawResultData
     _new_args = ('_library_section_id',)
 
-    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data, library_section_id=None):
+    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
         super().__init__(server, obj_type, data)
         self._library_section_id = library_section_id or data.attrib.get('librarySectionID')
 
@@ -94,7 +99,7 @@ class RawQueryResults(QueryResultsBase):
         else:
             return {obj.attrib['key'] for obj in self._data}
 
-    def items(self, trim=None):
+    def items(self, trim=None) -> Iterator[Tuple[str, Element]]:
         if trim is None:
             for obj in self._data:
                 yield obj.attrib['key'], obj
@@ -102,7 +107,7 @@ class RawQueryResults(QueryResultsBase):
             for obj in self._data:
                 yield obj.attrib['key'][:trim], obj
 
-    def key_map(self, trim=None):
+    def key_map(self, trim=None) -> Dict[str, Element]:
         return {k: v for k, v in self.items(trim)}
 
     def _intermediate_search(self, intm_type: PlexObjTypes, intm_keys, dest_filter: str, kwargs, intm_field='title'):
@@ -146,7 +151,7 @@ class RawQueryResults(QueryResultsBase):
 
         return kwargs
 
-    def in_playlist(self, name):
+    def in_playlist(self, name: str):
         if not self._type == 'track':
             raise InvalidQueryFilter(f'in_playlist() is only permitted for track results')
 
@@ -162,7 +167,7 @@ class RawQueryResults(QueryResultsBase):
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 
-    def _filter(self, data, msg=None, **kwargs):
+    def _filter(self, data: RawResultData, msg: Optional[str] = None, **kwargs):
         final_filters = '\n'.join(f'    {key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
         msg = msg or 'the following'
         log.debug(f'Applying {msg} filters to {self._type}s:\n{final_filters}')
@@ -223,10 +228,12 @@ class RawQueryResults(QueryResultsBase):
 
 
 class QueryResults(QueryResultsBase):
-    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, results: Collection[PlexObj]):
-        super().__init__(server, obj_type, set(results) if not isinstance(results, set) else results)
+    _data: ResultData
 
-    def results(self) -> Collection[PlexObj]:
+    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: ResultData):
+        super().__init__(server, obj_type, set(data) if not isinstance(data, set) else data)
+
+    def results(self) -> ResultData:
         return self._data
 
     def __serializable__(self):

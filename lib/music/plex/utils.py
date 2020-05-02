@@ -3,9 +3,11 @@
 """
 
 import logging
-from typing import TypeVar, Literal
+from typing import Literal, Union
 
-from plexapi.base import PlexPartialObject
+from plexapi.audio import Audio, Album, Artist, Track
+from plexapi.playlist import Playlist
+from plexapi.video import Video, Movie, Show, Season, Episode
 
 from ds_tools.output import short_repr
 from ..common.utils import stars
@@ -13,7 +15,8 @@ from ..common.utils import stars
 __all__ = ['PlexObj', 'PlexObjTypes', '_prefixed_filters', 'print_song_info', '_filter_repr']
 log = logging.getLogger(__name__)
 
-PlexObj = TypeVar('PlexObj', bound=PlexPartialObject)
+PlexObj = Union[Album, Artist, Audio, Track, Playlist, Video, Movie, Show, Season, Episode]
+# PlexObj = TypeVar('PlexObj', bound=PlexPartialObject)
 PlexObjTypes = Literal[     # SEARCHTYPES keys
     'movie', 'show', 'season', 'episode', 'trailer', 'comic', 'person', 'artist', 'album', 'track', 'picture', 'clip',
     'photo', 'photoalbum', 'playlist', 'playlistFolder', 'collection', 'userPlaylistItem'

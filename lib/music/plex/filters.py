@@ -54,9 +54,6 @@ def check_attrs(elem, **kwargs):
                 return False
         else:
             values = get_attr_value(elem, attr)
-            # if op == 'sregex' and attr == 'originalTitle':
-            #     log.debug(f'Processing title={elem.attrib.get("title")!r} with op={op} values={values}')
-
             # special case query in (None, 0, '') to include missing attr
             if op == 'exact' and not values and query in (None, 0, ''):
                 # original would return True here, bypassing other filters, which was bad!
@@ -67,13 +64,11 @@ def check_attrs(elem, **kwargs):
             else:
                 cast = cast_func(op, query)
                 # return if attr we're looking for is missing
-                if op in ('ne', 'nsregex') or 'not' in op:
+                if op == 'ne' or op == 'nsregex' or 'not' in op:
                     # If any value is not truthy for a negative filter, then it should be filtered out
                     if not all(operator(_cast(cast, value, attr, elem), query) for value in values):
                         return False
                 else:
-                    # if op == 'in':
-                    #     log.debug(f'query: {query}')
                     for value in values:
                         try:
                             if operator(_cast(cast, value, attr, elem), query):
@@ -84,13 +79,10 @@ def check_attrs(elem, **kwargs):
                             #     if op == 'sregex' and attr == 'originalTitle':
                             #         log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => False')
                         except ValueError:
+                            # log.error(f'Problem processing operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
+                            # raise
                             if operator(value, query):
                                 break
-
-                        #     log.error(f'Problem processing operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
-                        #     raise
-                        # else:
-                        #     log.debug(f'Successfully processed operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
                     else:
                         return False
     return True
@@ -104,34 +96,29 @@ def get_attr_value(elem, attrstr, results=None):
         lc_attr = attrstr.lower()
         # check were looking for the tag
         if lc_attr == 'etag':
-            # if elem.tag == 'Genre':
-            #     log.debug('Returning [{}]'.format(elem.tag))
             return [elem.tag]
         # loop through attrs so we can perform case-insensitive match
         for _attr, value in elem.attrib.items():
             if lc_attr == _attr.lower():
-                # if elem.tag == 'Genre':
-                #     log.debug('Returning {}'.format(value))
                 return [value]
-        # if elem.tag == 'Genre':
-        #     log.debug('Returning []')
         return []
     else:
         lc_attr = attr.lower()
         results = [] if results is None else results
         for child in (c for c in elem if c.tag.lower() == lc_attr):
-            results += get_attr_value(child, attrstr, results)
-        # if elem.tag == 'Genre':
-        #     log.debug('Returning {}'.format([r for r in results if r is not None]))
-        return [r for r in results if r is not None]
+            results.extend(get_attr_value(child, attrstr, results))
+        return list(filter(lambda r: r is not None, results))
 
 
 def _cast(cast, value, attr, elem):
-    try:
-        return cast(value) if cast is not None else value
-    except ValueError:
-        log.error(f'Unable to cast {attr=!r} {value=!r} from {elem=!r}')
-        raise
+    if cast is None:
+        return value
+    else:
+        try:
+            return cast(value)
+        except ValueError:
+            log.error(f'Unable to cast {attr=!r} {value=!r} from {elem=!r}')
+            raise
 
 
 def cast_func(op, query):

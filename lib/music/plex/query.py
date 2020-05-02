@@ -10,8 +10,6 @@ from operator import eq
 from typing import TYPE_CHECKING, Collection, List, Optional, Dict, Any, Set, Union, Iterator, Tuple
 from xml.etree.ElementTree import Element
 
-from plexapi.audio import Track
-
 from ds_tools.output import short_repr
 from ..files.track.track import SongFile
 from ..text import Name
@@ -22,29 +20,25 @@ from .typing import PlexObjTypes, PlexObj
 if TYPE_CHECKING:
     from .server import LocalPlexServer
 
-__all__ = ['QueryResults', 'RawQueryResults']
+__all__ = ['QueryResults']
 log = logging.getLogger(__name__)
-AllResultData = Union[Element, Collection[Element], Collection[PlexObj]]
 RawResultData = Union[Element, Collection[Element]]
-ResultData = Collection[PlexObj]
 
 ALIASES = {'rating': 'userRating'}
 CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsregex'}
 
 
-class QueryResultsBase:
-    _new_args = ()
-
-    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: AllResultData):
+class QueryResults:
+    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
         self.server = server
         self._type = obj_type
         self._data = data
+        self._library_section_id = library_section_id or data.attrib.get('librarySectionID')
 
-    def _new(self, data: AllResultData, obj_type: PlexObjTypes = None):
-        # noinspection PyArgumentList
-        return self.__class__(self.server, obj_type or self._type, data, *(getattr(self, a) for a in self._new_args))
+    def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> 'QueryResults':
+        return self.__class__(self.server, obj_type or self._type, data, self._library_section_id)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Element]:
         return iter(self._data)
 
     def __repr__(self):
@@ -53,7 +47,7 @@ class QueryResultsBase:
     def __bool__(self):
         return bool(self._data)
 
-    def __len__(self, other):
+    def __len__(self):
         return len(self._data)
 
     def __validate(self, other, op):
@@ -82,17 +76,8 @@ class QueryResultsBase:
         self._data = set(self._data).difference(other._data)
         return self
 
-
-class RawQueryResults(QueryResultsBase):
-    _data: RawResultData
-    _new_args = ('_library_section_id',)
-
-    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
-        super().__init__(server, obj_type, data)
-        self._library_section_id = library_section_id or data.attrib.get('librarySectionID')
-
     def _query(self, obj_type: PlexObjTypes, **kwargs):
-        return self.server._query(obj_type, **kwargs)
+        return self.server.query(obj_type, **kwargs)
 
     def __serializable__(self):
         return self.results()
@@ -114,7 +99,7 @@ class RawQueryResults(QueryResultsBase):
     def key_map(self, trim=None) -> Dict[str, Element]:
         return {k: v for k, v in self.items(trim)}
 
-    def in_playlist(self, name: str) -> 'RawQueryResults':
+    def in_playlist(self, name: str) -> 'QueryResults':
         if not self._type == 'track':
             raise InvalidQueryFilter(f'in_playlist() is only permitted for track results')
 
@@ -122,7 +107,7 @@ class RawQueryResults(QueryResultsBase):
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 
-    def with_genre(self, **kwargs) -> 'RawQueryResults':
+    def with_genre(self, **kwargs) -> 'QueryResults':
         for key in list(kwargs):
             if key.startswith('genre') and not key.startswith('genre__tag'):
                 kwargs[key.replace('genre', 'genre__tag', 1)] = kwargs.pop(key)
@@ -151,7 +136,7 @@ class RawQueryResults(QueryResultsBase):
         else:
             raise InvalidQueryFilter(f'from_artist() is only permitted for track and album results')
 
-    def _apply_custom_filters(self, kwargs) -> 'RawQueryResults':
+    def _apply_custom_filters(self, kwargs) -> 'QueryResults':
         result = self
         if in_playlist := kwargs.pop('in_playlist', None):
             result = result.in_playlist(in_playlist)
@@ -170,7 +155,7 @@ class RawQueryResults(QueryResultsBase):
         log.debug(f'Applying {msg} filters to {self._type}s:\n{final_filters}')
         return [elem for elem in data if check_attrs(elem, **kwargs)]
 
-    def filter(self, **kwargs) -> 'RawQueryResults':
+    def filter(self, **kwargs) -> 'QueryResults':
         if not kwargs:
             return self
 
@@ -183,9 +168,6 @@ class RawQueryResults(QueryResultsBase):
             results = []
 
         return self._new(results)
-
-    def _results(self) -> 'QueryResults':
-        return QueryResults(self.server, self._type, self.results())
 
     def results(self) -> List[PlexObj]:
         build_item = self.server.music._buildItemOrNone
@@ -203,7 +185,7 @@ class RawQueryResults(QueryResultsBase):
                 return obj
         return None
 
-    def artists(self, **kwargs) -> 'RawQueryResults':
+    def artists(self, **kwargs) -> 'QueryResults':
         if self._type == 'artist':
             return self.filter(**kwargs)
         elif self._type == 'album':
@@ -214,7 +196,7 @@ class RawQueryResults(QueryResultsBase):
             raise InvalidQueryFilter(f'artists() is only permitted for track, album, and artist results')
         return self._query('artist', key__in=artist_keys, **kwargs)
 
-    def albums(self, **kwargs) -> 'RawQueryResults':
+    def albums(self, **kwargs) -> 'QueryResults':
         if self._type == 'album':
             return self.filter(**kwargs)
         elif self._type == 'artist':
@@ -224,7 +206,7 @@ class RawQueryResults(QueryResultsBase):
         else:
             raise InvalidQueryFilter(f'albums() is only permitted for track, album, and artist results')
 
-    def tracks(self, **kwargs) -> 'RawQueryResults':
+    def tracks(self, **kwargs) -> 'QueryResults':
         if self._type == 'track':
             return self.filter(**kwargs)
         elif self._type == 'artist':
@@ -234,10 +216,10 @@ class RawQueryResults(QueryResultsBase):
         else:
             raise InvalidQueryFilter(f'tracks() is only permitted for track, album, and artist results')
 
-    def with_rating(self, rating, op=eq) -> 'RawQueryResults':
+    def with_rating(self, rating, op=eq) -> 'QueryResults':
         return self._new({obj for obj in self._data if op(float(obj.attrib.get('userRating', 0)), rating)})
 
-    def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'RawQueryResults':
+    def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'QueryResults':
         """
         :param bool rated: When multiple versions of a track with a given name exist, and one of them has a rating,
           keep the one with the rating.  If False, ignore ratings.
@@ -257,138 +239,6 @@ class RawQueryResults(QueryResultsBase):
             title_obj_map = artist_title_obj_map[artist]
             lc_title = td['title'].lower()
             if existing := title_obj_map.get(lc_title):
-                keep = _pick_uniq_track_(existing, track, self.server, rated, latest, singles)
-            else:
-                keep = track
-
-            title_obj_map[lc_title] = keep
-
-        if fuzzy:
-            name_from_enclosed = Name.from_enclosed
-            results = set()
-            for artist_key, title_obj_map in artist_title_obj_map.items():
-                artist_uniq = {}
-                for track in title_obj_map.values():
-                    track_name = name_from_enclosed(track.attrib['title'])
-                    keep = track
-                    if match := next(filter(track_name.matches, artist_uniq), None):
-                        existing = artist_uniq.pop(match)
-                        # log.debug(f'Found {match=!r} / {existing=} for {track_name=!r} / {track=}', extra={'color': 13})
-                        keep = _pick_uniq_track_(existing, track, self.server, rated, latest, singles)
-                        keep_name = match if keep == existing else track_name
-                    else:
-                        # log.debug(f'{track_name=!r} / {track=} did not match any other tracks from {artist_key=!r}')
-                        keep_name = track_name
-
-                    artist_uniq[keep_name] = keep
-                results.update(artist_uniq.values())
-        else:
-            results = set(chain.from_iterable(artist_title_obj_map.values()))
-
-        return self._new(results)
-
-
-class QueryResults(QueryResultsBase):
-    _data: ResultData
-
-    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: ResultData):
-        super().__init__(server, obj_type, set(data) if not isinstance(data, set) else data)
-
-    def results(self) -> ResultData:
-        return self._data
-
-    def keys(self, trim=None, suffix=None) -> Set[str]:
-        keys = {obj.key for obj in self._data} if trim is None else {obj.key[:trim] for obj in self._data}
-        if suffix:
-            keys = {f'{key}{suffix}' for key in keys}
-        return keys
-
-    def items(self, trim=None) -> Iterator[Tuple[str, PlexObj]]:
-        if trim is None:
-            for obj in self._data:
-                yield obj.key, obj
-        else:
-            for obj in self._data:
-                yield obj.key[:trim], obj
-
-    def key_map(self, trim=None) -> Dict[str, PlexObj]:
-        return {k: v for k, v in self.items(trim)}
-
-    def __serializable__(self):
-        return self._data
-
-    def artists(self, **kwargs) -> 'QueryResults':
-        if self._type == 'artist':
-            return self.filter(**kwargs)
-        elif self._type == 'album':
-            return self.server.query('artist', key__in={f'{obj.parentKey}/children' for obj in self}, **kwargs)
-        elif self._type == 'track':
-            return self.server.query('artist', key__in={f'{obj.grandparentKey}/children' for obj in self}, **kwargs)
-        else:
-            try:
-                return self._new({obj.artist() for obj in self}, 'artist').filter(**kwargs)
-            except AttributeError as e:
-                raise InvalidQueryFilter(str(e)) from e
-
-    def albums(self, **kwargs) -> 'QueryResults':
-        if self._type == 'album':
-            return self.filter(**kwargs)
-        elif self._type == 'artist':
-            return self.server.query('album', parentKey__in={obj.key for obj in self}, **kwargs)
-        elif self._type == 'track':
-            return self.server.query('album', key__in={f'{obj.parentKey}/children' for obj in self}, **kwargs)
-        else:
-            try:
-                return self._new({obj.album() for obj in self}, 'album').filter(**kwargs)
-            except AttributeError as e:
-                raise InvalidQueryFilter(str(e)) from e
-
-    def tracks(self, **kwargs) -> 'QueryResults':
-        if self._type == 'track':
-            return self.filter(**kwargs)
-        elif self._type == 'artist':
-            return self.server.query('track', grandparentKey__in={obj.key for obj in self}, **kwargs)
-        elif self._type == 'album':
-            return self.server.query('track', parentKey__in={obj.key for obj in self}, **kwargs)
-        try:
-            return self._new({obj.tracks() for obj in self}, 'track').filter(**kwargs)
-        except AttributeError as e:
-            raise InvalidQueryFilter(str(e)) from e
-
-    def with_rating(self, rating, op=eq) -> 'QueryResults':
-        return self._new({obj for obj in self if op(_get_rating(obj), rating)})
-
-    def filter(self, **kwargs) -> 'QueryResults':
-        if not kwargs:
-            return self
-        if data := [obj._data for obj in self._data]:
-            # noinspection PyTypeChecker
-            raw = RawQueryResults(self.server, self._type, data, next(iter(self._data)).librarySectionID)
-            results = raw.filter(**kwargs).results()
-        else:
-            log.debug(f'No results exist to filter')
-            results = []
-
-        return self._new(results)
-
-    def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'QueryResults':
-        """
-        :param bool rated: When multiple versions of a track with a given name exist, and one of them has a rating,
-          keep the one with the rating.  If False, ignore ratings.
-        :param bool fuzzy: Process titles as :class:`Name<music.text.name.Name>` objects
-        :param bool latest: When multiple versions of a track with a given name exist, keep the one that has the more
-          recent release date
-        :param bool singles: Before applying the `latest` filter, allow singles
-        """
-        if self._type != 'track':
-            raise InvalidQueryFilter(f'unique() is only permitted for track results')
-
-        artist_title_obj_map = defaultdict(dict)
-        for track in self._data:                                     # type: Track
-            artist = track.originalTitle if track.grandparentTitle == 'Various Artists' else track.grandparentTitle
-            title_obj_map = artist_title_obj_map[artist]
-            lc_title = track.title.lower()
-            if existing := title_obj_map.get(lc_title):
                 keep = _pick_uniq_track(existing, track, self.server, rated, latest, singles)
             else:
                 keep = track
@@ -401,7 +251,7 @@ class QueryResults(QueryResultsBase):
             for artist_key, title_obj_map in artist_title_obj_map.items():
                 artist_uniq = {}
                 for track in title_obj_map.values():
-                    track_name = name_from_enclosed(track.title)
+                    track_name = name_from_enclosed(track.attrib['title'])
                     keep = track
                     if match := next(filter(track_name.matches, artist_uniq), None):
                         existing = artist_uniq.pop(match)
@@ -420,7 +270,7 @@ class QueryResults(QueryResultsBase):
         return self._new(results)
 
 
-def _pick_uniq_track_(existing: Element, track: Element, server, rated, latest, singles) -> Element:
+def _pick_uniq_track(existing: Element, track: Element, server, rated, latest, singles) -> Element:
     if rated:
         if existing.attrib.get('userRating') and not track.attrib.get('userRating'):
             # log.debug(f'Keeping {existing=} instead of {track=} because of rating', extra={'color': 11})
@@ -428,27 +278,27 @@ def _pick_uniq_track_(existing: Element, track: Element, server, rated, latest, 
         elif not existing.attrib.get('userRating') and track.attrib.get('userRating'):
             # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
             return track
-        elif latest and (latest_track := _get_latest_(existing, track, server.server_root, singles)):
+        elif latest and (latest_track := _get_latest(existing, track, server.server_root, singles)):
             # if latest_track == existing:
             #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
             # else:
             #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
             # noinspection PyUnboundLocalVariable
             return latest_track
-        else:
-            return min(existing, track)     # Ensure the chosen value is stable between runs
-    elif latest and (latest_track := _get_latest_(existing, track, server.server_root, singles)):
+        else:                                                           # Ensure the chosen value is stable between runs
+            return min(existing, track, key=lambda e: int(e.attrib['ratingKey']))
+    elif latest and (latest_track := _get_latest(existing, track, server.server_root, singles)):
         # if latest_track == existing:
         #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
         # else:
         #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
         # noinspection PyUnboundLocalVariable
         return latest_track
-    else:
-        return min(existing, track)         # Ensure the chosen value is stable between runs
+    else:                                                               # Ensure the chosen value is stable between runs
+        return min(existing, track, key=lambda e: int(e.attrib['ratingKey']))
 
 
-def _get_latest_(a: Element, b: Element, server_root, singles):
+def _get_latest(a: Element, b: Element, server_root, singles):
     a_path = a[0][0].attrib['file']
     b_path = b[0][0].attrib['file']
     if singles:
@@ -477,67 +327,6 @@ def _get_latest_(a: Element, b: Element, server_root, singles):
     elif b_date > a_date:
         return b
     return None
-
-
-def _pick_uniq_track(existing: Track, track: Track, server, rated, latest, singles) -> Track:
-    if rated:
-        if existing.userRating and not track.userRating:
-            # log.debug(f'Keeping {existing=} instead of {track=} because of rating', extra={'color': 11})
-            return existing
-        elif not existing.userRating and track.userRating:
-            # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
-            return track
-        elif latest and (latest_track := _get_latest(existing, track, server.server_root, singles)):
-            # if latest_track == existing:
-            #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
-            # else:
-            #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
-            # noinspection PyUnboundLocalVariable
-            return latest_track
-        else:
-            return min(existing, track)     # Ensure the chosen value is stable between runs
-    elif latest and (latest_track := _get_latest(existing, track, server.server_root, singles)):
-        # if latest_track == existing:
-        #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
-        # else:
-        #     log.debug(f'Keeping {track=} instead of {existing=} because of date', extra={'color': 11})
-        # noinspection PyUnboundLocalVariable
-        return latest_track
-    else:
-        return min(existing, track)         # Ensure the chosen value is stable between runs
-
-
-def _get_latest(a: Track, b: Track, server_root, singles):
-    if singles:
-        a_path = a.media[0].parts[0].file.lower()
-        b_path = b.media[0].parts[0].file.lower()
-        if '/singles/' in a_path and '/singles/' not in b_path:
-            return b
-        elif '/singles/' in b_path and '/singles/' not in a_path:
-            return a
-
-    a_file = SongFile.for_plex_track(a, server_root)
-    b_file = SongFile.for_plex_track(b, server_root)
-    try:
-        a_date = a_file.date
-    except Exception as e:
-        log.debug(f'Error getting date for {a_file}: {e}')
-        return None
-    try:
-        b_date = b_file.date
-    except Exception as e:
-        log.debug(f'Error getting date for {b_file}: {e}')
-        return None
-
-    if a_date > b_date:
-        return a
-    elif b_date > a_date:
-        return b
-    return None
-
-
-def _get_rating(obj) -> float:
-    return float(obj._data.attrib.get('userRating', 0))
 
 
 def _prefixed_filters(field, filters):

@@ -26,7 +26,7 @@ from ds_tools.input import get_input
 from ds_tools.output import bullet_list
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
-from .query import QueryResults, RawQueryResults
+from .query import QueryResults
 from .typing import PlexObjTypes, PlexObj
 
 __all__ = ['LocalPlexServer']
@@ -132,10 +132,10 @@ class LocalPlexServer:
         return self.find_objects('album', **kwargs)
 
     def find_object(self, obj_type: PlexObjTypes, **kwargs) -> Optional[PlexObj]:
-        return self._query(obj_type).filter(**kwargs).result()
+        return self.query(obj_type).filter(**kwargs).result()
 
     def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> Collection[PlexObj]:
-        return self._query(obj_type, **kwargs).results()
+        return self.query(obj_type, **kwargs).results()
 
     get_track = partialmethod(find_object, 'track')
     get_track.__annotations__ = {'return': Optional[Track]}
@@ -143,11 +143,8 @@ class LocalPlexServer:
     get_tracks.__annotations__ = {'return': Collection[Track]}
 
     def query(self, obj_type: PlexObjTypes, **kwargs) -> QueryResults:
-        return self._query(obj_type, **kwargs)._results()
-
-    def _query(self, obj_type: PlexObjTypes, **kwargs) -> RawQueryResults:
         data = self.music._server.query(self._ekey(obj_type))
-        return RawQueryResults(self, obj_type, data).filter(**kwargs)
+        return QueryResults(self, obj_type, data).filter(**kwargs)
 
     @property
     def playlists(self) -> Dict[str, Playlist]:

@@ -62,6 +62,11 @@ class IntroNameParsingTest(TestCaseBase):
         names = set(name_from_intro(page))
         self.assertSetEqual(names, {Name("Let's Go Everywhere")})
 
+    def test_repackage(self):
+        page = MagicMock(intro=as_node("""'''''&TWICE -Repackage-''''' is a repackage of [[TWICE]]'s second Japanese studio album ''[[&TWICE]]''. It was released on February 5, 2020 with "Swing" serving as the album's title track."""))
+        names = set(name_from_intro(page))
+        self.assertSetEqual(names, {Name('&TWICE', extra={'repackage': True})})
+
 
 if __name__ == '__main__':
     main()

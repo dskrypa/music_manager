@@ -32,7 +32,10 @@ short_repr = partial(_short_repr, containers_only=False)
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        yield from name_from_intro(artist_page)
+        try:
+            yield from name_from_intro(artist_page)
+        except ValueError as e:
+            log.debug(e)
 
     @classmethod
     def parse_album_name(cls, node: N) -> Name:

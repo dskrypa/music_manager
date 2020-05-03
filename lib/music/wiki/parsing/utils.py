@@ -120,7 +120,9 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             yield Name(name)
         else:
             # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')
-            if '; ' in paren_part:
+            if paren_part.lower() == 'repackage':
+                yield Name.from_enclosed(first_part, extra={'repackage': True})
+            elif '; ' in paren_part:
                 # log.debug('Found ;')
                 first_part_lang = LangCat.categorize(first_part)
                 for part in map(rm_lang_prefix, LIST_SPLIT(paren_part)):

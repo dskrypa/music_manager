@@ -85,6 +85,7 @@ ALBUM_TEST_CASES = {
     ('Let\'s Go Everywhere - Korean Air X SuperM', 'SuperM'): AlbumName(
         'Let\'s Go Everywhere', collabs=(Name('Korean Air'),)
     ),
+    ('&TWICE (Repackage)', 'TWICE'): AlbumName('&TWICE', repackage=True)
 }
 
 UNCOMMON_TEST_CASES = {

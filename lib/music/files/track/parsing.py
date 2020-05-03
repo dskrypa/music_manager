@@ -43,6 +43,7 @@ class AlbumName:
     remix: str = None
     version: str = None
     ost: bool = False
+    repackage: bool = False
     part: int = None
     network_info: str = None
     part_name: str = None
@@ -102,6 +103,10 @@ class AlbumName:
     def parse(cls, name: str, artist: Optional[str] = None) -> 'AlbumName':
         self = cls.__new__(cls)                                         # type: AlbumName
         artist = Name.from_enclosed(artist) if artist else None         # type: Optional[Name]
+
+        if 'repackage' in name.lower():
+            self.repackage = True
+
         if m := ALB_TYPE_DASH_SUFFIX_MATCH(name):
             name, alb_type = map(clean, m.groups())
             if 'station' in alb_type.lower():
@@ -138,6 +143,8 @@ class AlbumName:
                 # log.debug(f'Processing part={part!r} / lc_part={lc_part!r}')
                 if self.ost and part == '영화':   # movie
                     pass
+                elif lc_part == 'repackage':
+                    self.repackage = True
                 elif 'edition' in lc_part:
                     self.edition = part
                 elif 'remix' in lc_part:

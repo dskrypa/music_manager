@@ -239,7 +239,10 @@ class DiscographyEntryEdition:
         _date = self.release_dates[0].strftime('%Y-%m-%d')
         _type = self.numbered_type or (repr(self.type.real_name) if self.type else None)
         alb_type = f'[type={_type}]' if _type else ''
-        edition = f'[edition={self.edition!r}]' if self.edition else ''
+        _edition = self.edition or ''
+        if self.repackage:
+            _edition = f'{_edition}, repackage' if _edition else 'repackage'
+        edition = f'[edition={_edition!r}]' if _edition else ''
         lang = f'[lang={self._lang!r}]' if self._lang else ''
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
@@ -365,6 +368,10 @@ class DiscographyEntryPart:
         return bool(self.tracks)
 
     @cached_property
+    def repackage(self):
+        return self.edition.repackage
+
+    @cached_property
     def name(self):
         ed = self.edition
         return Name.from_parts(tuple(map(combine_with_parens, _name_parts(ed.name_base, ed.edition, part=self._name))))
@@ -375,8 +382,11 @@ class DiscographyEntryPart:
 
     def full_name(self, hide_edition=False):
         ed = self.edition
+        edition_str = ed.edition
+        if self.repackage:
+            edition_str = f'{edition_str} - Repackage' if edition_str else 'Repackage'
         return combine_with_parens(
-            map(combine_with_parens, _name_parts(ed.name_base, ed.edition, hide_edition, self._name))
+            map(combine_with_parens, _name_parts(ed.name_base, edition_str, hide_edition, self._name))
         )
 
     @cached_property

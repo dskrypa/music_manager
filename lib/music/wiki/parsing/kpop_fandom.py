@@ -105,8 +105,16 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             lang: Optional[str] = None
     ) -> None:
         content = section.content
-        if type(content) is CompoundNode:  # A template for splitting the discography into
-            content = content[0]  # columns follows the list of albums in this section
+        log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
+        if type(content) is CompoundNode:   # A template for splitting the discography into
+            content = content[0]            # columns follows the list of albums in this section
+
+        if not isinstance(content, ListNode):
+            try:
+                raise TypeError(f'Unexpected content on {artist_page}: {content.pformat()}')
+            except AttributeError:
+                raise TypeError(f'Unexpected content on {artist_page}: {content!r}')
+
         for entry in content.iter_flat():
             # {primary artist} - {album or single} [(with collabs)] (year)
             if isinstance(entry, String):
@@ -168,6 +176,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         name = cls._album_page_name(entry_page)
         infobox = entry_page.infobox
         repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
+        if name.extra:
+            repackage_page = repackage_page or name.extra.get('repackage', False)
         entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
         artists = _find_artist_links(infobox, entry_page)
         dates = _find_release_dates(infobox)

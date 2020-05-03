@@ -106,17 +106,18 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
         raise ValueError(f'Directories with multiple album names are not currently handled.')
     _type = album_dir.type
     _name = album_name.name
+    repackage = album_name.repackage
     num = album_name.number
 
     before = f'Found multiple possible matches for {album_name}'
     candidates = []
     artists = artists or find_artists(album_dir)
-    log.debug(f'Processing album for {album_dir} with {album_name=!r} and {artists=}')
+    log.debug(f'Processing album for {album_dir} with {album_name=!r} ({repackage=}) and {artists=}')
     for artist in artists:
         for disco_entry in artist.all_discography_entries:
             if not _type or _type == disco_entry.type:
                 if _name and _name.matches(disco_entry.name):
-                    if parts := list(disco_entry.parts()):
+                    if parts := [p for p in disco_entry.parts() if p.repackage == repackage]:
                         candidates.extend(parts)
                         # if len(parts) == 1:
                         #     candidates.append(parts[0])

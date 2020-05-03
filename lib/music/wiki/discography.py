@@ -5,15 +5,18 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
-from typing import Dict, List, Iterable, Iterator
+from typing import TYPE_CHECKING, Dict, List, Iterable, Iterator, Optional
 
 from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, Link
-from .album import DiscographyEntry
+from .album import DiscographyEntry, DiscographyEntryEdition
 from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, AmbiguousPageError
 from .utils import link_client_and_title
+
+if TYPE_CHECKING:
+    from .artist import Artist
 
 __all__ = ['Discography', 'DiscographyEntryFinder', 'DiscographyMixin']
 log = logging.getLogger(__name__)
@@ -63,7 +66,8 @@ class DiscographyMixin(ABC):
 
 class DiscographyEntryFinder:
     """Internal-use class that handles common discography entry page discovery; used by Discography and Artist"""
-    def __init__(self):
+    def __init__(self, artist: Optional['Artist'] = None):
+        self.artist = artist
         self.created_entry = defaultdict(lambda: False)
         self.remaining = Counter()
         self.entries_by_site = defaultdict(dict)
@@ -95,7 +99,7 @@ class DiscographyEntryFinder:
             log.log(9, f'Unexpected entry content from {content.root}: {content!r}')
 
     def process_entries(self) -> Dict[str, List[DiscographyEntry]]:
-        discography = defaultdict(list)
+        discography = defaultdict(list)                                     # type: Dict[str, List[DiscographyEntry]]
         pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(self.entries_by_site)
         for site_client, title_entry_map in self.entries_by_site.items():
             site = site_client.host
@@ -145,6 +149,19 @@ class DiscographyEntryFinder:
                     # log.debug(f'Creating DiscographyEntry for page=[no links] entry={disco_entry}')
                     site_discography.append(DiscographyEntry.from_disco_entry(disco_entry))
                     self.created_entry[disco_entry] = True
+
+        if (artist := self.artist) is not None:         # Ensure the disco entries have the artist with all known pages
+            name_matches = artist.name.matches
+            for site_entries in discography.values():
+                for entry in site_entries:
+                    for edition in entry:               # Set artist on editions first - entry.artists looks at editions
+                        if (ea := edition.artist) is None or (ea is not artist and name_matches(ea.name)):
+                            # noinspection PyPropertyAccess
+                            edition.artist = artist
+                    if (ea := entry.artist) is None or (ea is not artist and name_matches(ea.name)):
+                        # noinspection PyPropertyAccess
+                        entry.artist = artist
+
         return discography
 
 

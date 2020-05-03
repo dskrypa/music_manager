@@ -69,7 +69,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
         return names
 
     def _finder_with_entries(self) -> DiscographyEntryFinder:
-        finder = DiscographyEntryFinder()
+        finder = DiscographyEntryFinder(self)
         for artist_page, parser in self.page_parsers('process_disco_sections'):
             parser.process_disco_sections(artist_page, finder)
         return finder
@@ -88,19 +88,6 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 return next(iter(langs))
         log.debug(f'Unable to determine primary language for {self} - found {langs=}')
         return None
-
-    @property
-    def all_discography_entries(self) -> Iterator[DiscographyEntry]:
-        for entry in super().all_discography_entries:
-            if entry.artist is None or entry.artist is not self and entry.artist.name.matches(self.name):
-                # log.debug(f'Setting {entry}.artist = {self}')
-                # noinspection PyPropertyAccess
-                entry.artist = self
-                for edition in entry:
-                    if edition.artist is None or edition.artist is not self and edition.artist.name.matches(self.name):
-                        # noinspection PyPropertyAccess
-                        edition.artist = self
-            yield entry
 
 
 class Singer(Artist):

@@ -211,8 +211,6 @@ class Soundtrack(DiscographyEntry):
 
 class DiscographyEntryEdition:
     """An edition of an album"""
-    __artist_initialized = False
-
     def __init__(
             self, name: NameType, page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
             artist: NodeOrNodes, release_dates: Sequence[date], tracks: ListOrLists, edition: Optional[str] = None,
@@ -236,15 +234,20 @@ class DiscographyEntryEdition:
               - <[2013-06-03]AlbumPart['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][edition='Kiss Edition - Hug Edition']>:
         """
 
+    @property
+    def _basic_repr(self):
+        # Used in logs from .artists and .artist to avoid circular references that depend on artist being set
+        _date = self.release_dates[0].strftime('%Y-%m-%d')
+        edition = f'[edition={self.edition!r}]' if self.edition else ''
+        lang = f'[lang={self._lang!r}]' if self._lang else ''
+        return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{edition}{lang}>'
+
     def __repr__(self) -> str:
         _date = self.release_dates[0].strftime('%Y-%m-%d')
         _type = self.numbered_type or (repr(self.type.real_name) if self.type else None)
         alb_type = f'[type={_type}]' if _type else ''
         edition = f'[edition={self.edition!r}]' if self.edition else ''
-        if self.__artist_initialized:
-            lang = f'[lang={self.lang!r}]' if self.lang else ''
-        else:
-            lang = f'[lang={self._lang!r}]' if self._lang else ''
+        lang = f'[lang={self._lang!r}]' if self._lang else ''
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
@@ -294,28 +297,26 @@ class DiscographyEntryEdition:
                 else:
                     artist_strs.add(artist)
             if artist_strs:
-                log.debug(f'Found non-link artist values for {self!r}: {artist_strs}', extra={'color': 11})
+                log.debug(f'Found non-link artist values for {self._basic_repr}: {artist_strs}', extra={'color': 11})
             artists.update(Artist.from_links(artist_links).values())
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))
             except BadLinkError as e:
-                log.debug(f'Error getting artist={self._artist} for {self}: {e}')
+                log.debug(f'Error getting artist={self._artist} for {self._basic_repr}: {e}')
         else:
-            log.debug(f'Found unexpected value for {self!r}._artist: {self._artist!r}', extra={'color': 11})
+            log.debug(f'Found unexpected value for {self._basic_repr}._artist: {self._artist!r}', extra={'color': 11})
         return artists
 
     @cached_property
     def artist(self) -> Optional['Artist']:
         if artists := self.artists:
             if len(artists) == 1:
-                self.__artist_initialized = True
                 return next(iter(artists))
             else:
-                log.debug(f'Multiple artists found for {self!r}: {artists}')
+                log.debug(f'Multiple artists found for {self._basic_repr}: {artists}')
         else:
-            log.debug(f'No artists found for {self!r}')
-        self.__artist_initialized = True
+            log.debug(f'No artists found for {self._basic_repr}')
         return None
 
     @cached_property

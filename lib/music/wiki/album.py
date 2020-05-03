@@ -226,13 +226,6 @@ class DiscographyEntryEdition:
         self.edition = edition                                                              # type: Optional[str]
         self.repackage = repackage                                                          # type: bool
         self._lang = lang                                                                   # type: Optional[str]
-        # TODO: Fix edition values here:
-        """
-            - <[2013-06-03]AlbumEdition['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][type=1st Chinese Album][edition='Kiss Edition - Hug Edition'][lang='Chinese']>:
-            Artist: <Group('EXO (also called EXO Planet)')[pages: 1]>
-            Parts:
-              - <[2013-06-03]AlbumPart['XOXO' @ <WikiPage['XOXO (EXO)' @ www.generasia.com]>][edition='Kiss Edition - Hug Edition']>:
-        """
 
     @property
     def _basic_repr(self):

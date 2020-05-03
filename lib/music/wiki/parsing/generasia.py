@@ -412,15 +412,16 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             # `value` is the List node containing track info
             lc_key = key.lower().strip()
             if 'tracklist' in lc_key and not lc_key.startswith('dvd '):
+                _edition = edition
                 if lc_key != 'tracklist':
                     tl_edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
                     if tl_edition.lower() == 'cd':
                         tl_edition = None
                     if tl_edition:
-                        edition = f'{edition} - {tl_edition}' if edition else tl_edition
+                        _edition = f'{edition} - {tl_edition}' if edition else tl_edition
 
                 yield DiscographyEntryEdition(
-                    album_name, entry_page, entry, entry_type, artist_link, release_dates, value, edition or version,
+                    album_name, entry_page, entry, entry_type, artist_link, release_dates, value, _edition or version,
                     find_language(value, lang, langs), repackage
                 )
 

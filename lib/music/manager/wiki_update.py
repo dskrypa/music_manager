@@ -48,8 +48,11 @@ def update_tracks(
             try:
                 album = find_album(album_dir)
             except Exception as e:
-                log.error(f'Error finding an album match for {album_dir}: {e}', extra={'color': 9})
-                log.debug(f'Error finding an album match for {album_dir}:', exc_info=True)
+                if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
+                    log.warning(f'No match found for {album_dir} ({album_dir.name})', extra={'color': 9})
+                else:
+                    log.error(f'Error finding an album match for {album_dir}: {e}', extra={'color': 9})
+                    log.debug(f'Error finding an album match for {album_dir}:', exc_info=True)
             else:
                 log.info(f'Matched {album_dir} to {album}')
                 _update_album_from_disco_entry(

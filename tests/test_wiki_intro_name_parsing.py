@@ -57,6 +57,11 @@ class IntroNameParsingTest(TestCaseBase):
         names = set(name_from_intro(page))
         self.assertSetEqual(names, {Name('SuperM')})
 
+    def test_quotes_outside_bold(self):
+        page = MagicMock(intro=as_node(""""'''Let's Go Everywhere'''" is the first promotional single by [[SuperM]]. It was released on November 18, 2019 in collaboration with [[Wikipedia:Korean Air|Korean Air]]."""))
+        names = set(name_from_intro(page))
+        self.assertSetEqual(names, {Name("Let's Go Everywhere")})
+
 
 if __name__ == '__main__':
     main()

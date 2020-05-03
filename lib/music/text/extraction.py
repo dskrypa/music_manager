@@ -109,8 +109,15 @@ def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str
 
 
 def strip_enclosed(text: str) -> str:
-    enclosing = ends_with_enclosed(text)
-    if enclosing:
+    """
+    If the given string is fully enclosed, i.e., its first and last characters are a matching pair of opener and closer
+    characters as defined above, then those characters will be stripped from the returned string.  If the first and last
+    characters are not a matching pair, then no action will be taken.
+
+    :param str text: A string
+    :return str: The string without the enclosing characters
+    """
+    if enclosing := ends_with_enclosed(text):
         opener, closer = enclosing
         if text.startswith(opener):
             return text[1:-1]

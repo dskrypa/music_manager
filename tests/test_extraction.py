@@ -7,7 +7,9 @@ from pathlib import Path
 from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed
+from music.text.extraction import (
+    partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed, strip_enclosed
+)
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +61,14 @@ class MiscExtractionTestCase(TestCaseBase):
         self.assertTrue(ends_with_enclosed("test (one)"))
         self.assertFalse(ends_with_enclosed("test one)"))
         self.assertFalse(ends_with_enclosed("test (one"))
+
+    def test_strip_enclosed(self):
+        self.assertEqual(strip_enclosed('"test"'), 'test')
+        self.assertEqual(strip_enclosed('"test" a'), '"test" a')
+        self.assertEqual(strip_enclosed('a "test"'), 'a "test"')
+        self.assertEqual(strip_enclosed('""'), '')
+        self.assertEqual(strip_enclosed('"a" b "c"'), 'a" b "c')    # Not ideal... but this is not analyzing closely
+        self.assertEqual(strip_enclosed('"a b "c"'), 'a b "c')
 
 
 class ExtractEnclosedTestCase(TestCaseBase):

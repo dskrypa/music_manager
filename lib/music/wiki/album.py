@@ -18,6 +18,7 @@ from .base import EntertainmentEntity, Pages
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, BadLinkError
 from .parsing import WikiParser
+from .utils import short_site
 
 __all__ = [
     'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',
@@ -76,7 +77,9 @@ class DiscographyEntry(EntertainmentEntity):
         return ' / '.join(map(str, names))
 
     def __repr__(self):
-        return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[pages: {len(self._pages)}]>'
+        sites = ', '.join(sorted(short_site(site) for site in self._pages))
+        page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
+        return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[{page_str}]>'
 
     def __lt__(self, other: 'DiscographyEntry'):
         return self._sort_key < other._sort_key

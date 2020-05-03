@@ -8,7 +8,7 @@ from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode, Link, Node, String
-from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed
+from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed, strip_enclosed
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'name_from_intro', 'get_artist_title', 'find_language',
@@ -116,7 +116,7 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             raw_intro = _intro.raw.string
             if m := next((search(raw_intro) for search in WIKI_STYLE_SEARCHES), None):
                 name = m.group(2)
-            name = name.replace(' : ', ': ')
+            name = strip_enclosed(name.replace(' : ', ': '))
             yield Name(name)
         else:
             # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')

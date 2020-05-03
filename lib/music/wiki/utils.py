@@ -6,12 +6,13 @@ import logging
 from collections import defaultdict
 from typing import Iterable, Dict, Tuple, List, Union
 
-from wiki_nodes import MediaWikiClient, WikiPage, Link, String, CompoundNode
+from wiki_nodes import MediaWikiClient, WikiPage, Link, String
 from ..text import Name
 from .exceptions import NoLinkSite, NoLinkTarget
 
 __all__ = [
-    'site_titles_map', 'link_client_and_title', 'page_name', 'titles_and_title_name_map', 'multi_site_page_map'
+    'site_titles_map', 'link_client_and_title', 'page_name', 'titles_and_title_name_map', 'multi_site_page_map',
+    'short_site'
 ]
 log = logging.getLogger(__name__)
 
@@ -73,3 +74,10 @@ def titles_and_title_name_map(titles: Iterable[Union[str, Name]]) -> Tuple[List[
             _titles.append(title)
 
     return sorted(_titles), title_name_map
+
+
+def short_site(site: str) -> str:
+    parts = site.split('.')[:-1]            # omit domain
+    if parts[0] in ('www', 'wiki', 'en'):   # omit common prefixes
+        parts = parts[1:]
+    return '.'.join(parts)

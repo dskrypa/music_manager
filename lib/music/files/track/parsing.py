@@ -47,6 +47,7 @@ class AlbumName:
     network_info: str = None
     part_name: str = None
     feat: Tuple[Name, ...] = None
+    collabs: Tuple[Name, ...] = None
     song_name: Name = None
     name: Name = None
 
@@ -120,6 +121,7 @@ class AlbumName:
 
         real_album = None
         feat = []
+        collabs = []
         versions = []
         try:
             parts = list(filter(None, map(clean, reversed(split_enclosed(name, reverse=True)))))
@@ -202,6 +204,11 @@ class AlbumName:
                     name_parts.append(part.split('.')[0])
                 elif name_parts and artist and artist.matches(part):
                     log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
+                elif artist and artist.english and len(orig_parts) == 1 and ' - ' in part and artist.english in part:
+                    _parts = tuple(map(str.strip, part.split(' - ', 1)))
+                    ni, ai = (1, 0) if artist.english in _parts[0] else (0, 1)
+                    name_parts.append(_parts[ni])
+                    collabs.extend(n for n in split_artists(_parts[ai]) if not artist.matches(n))
                 else:
                     # log.debug(f'No cases matched {part=!r}')
                     name_parts.append(part)
@@ -211,6 +218,8 @@ class AlbumName:
 
         if feat:
             self.feat = tuple(feat)
+        if collabs:
+            self.collabs = tuple(collabs)
 
         if real_album:
             if name_parts:

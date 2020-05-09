@@ -6,9 +6,10 @@ import logging
 import platform
 import re
 import string
+from collections import defaultdict, Counter
 from datetime import datetime, date
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type
+from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type, Dict
 from unicodedata import normalize
 
 from mutagen.id3 import POPM, USLT, APIC
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
-    'tag_repr', 'ON_WINDOWS', 'stars_from_256', 'parse_file_date'
+    'tag_repr', 'ON_WINDOWS', 'stars_from_256', 'parse_file_date', 'FILE_TYPE_TAG_ID_TO_NAME_MAP', 'count_tag_changes'
 ]
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,11 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
     # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
+FILE_TYPE_TAG_ID_TO_NAME_MAP = {}
+for name, type_tag_map in TYPED_TAG_MAP.items():
+    for ftype, tag_id in type_tag_map.items():
+        FILE_TYPE_TAG_ID_TO_NAME_MAP.setdefault(ftype, {})[tag_id] = name
+
 # Translate whitespace characters (such as \n, \r, etc.) to their escape sequences
 WHITESPACE_TRANS_TBL = str.maketrans({c: c.encode('unicode_escape').decode('utf-8') for c in string.whitespace})
 _NotSet = object()
@@ -141,6 +147,18 @@ class TextTagProperty(ClearableCachedProperty):
 
     def __delete__(self, instance):
         instance.delete_tag(instance.tag_name_to_id(self.tag_name))
+
+
+def count_tag_changes(updates: Mapping['BaseSongFile', Mapping[str, Any]]) -> Dict[str, Dict[Tuple[Any, Any], int]]:
+    counts = defaultdict(Counter)
+    for file, values in updates.items():
+        for tag_name, new_val in values.items():
+            if tag_name in ('disk', 'track'):
+                orig = getattr(file, f'{tag_name}_num')
+            else:
+                orig = file.tag_text(tag_name, default=None)
+            counts[tag_name][(orig, new_val)] += 1
+    return counts
 
 
 def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run, color=None):

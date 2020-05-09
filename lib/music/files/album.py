@@ -22,9 +22,9 @@ from ..common import DiscoEntryType
 from ..text import Name
 from .exceptions import *
 from .track import BaseSongFile, SongFile, AlbumName
-from .utils import iter_music_files
+from .utils import iter_music_files, get_common_changes
 
-__all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs']
+__all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
 
 RM_TAG_MATCHERS = {
@@ -258,6 +258,15 @@ class AlbumDir(ClearableCachedPropertyMixin):
         if not i:
             log.debug(f'None of the songs in {self} had any tags that needed to be removed')
 
+    def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
+        updates = {file: file.get_tag_updates(tag_ids, value, patterns=patterns, partial=partial) for file in self}
+        if any(values for values in updates.values()):
+            common_changes = get_common_changes(self, updates)
+            for file, values in updates.items():
+                file.update_tags(values, dry_run, no_log=common_changes, none_level=20)
+        else:
+            log.info(f'No changes to make for {self}')
+
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:
     for path in iter_paths(paths):
@@ -267,6 +276,16 @@ def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:
                     yield AlbumDir(root)
         elif path.is_file():
             yield AlbumDir(path.parent)
+
+
+def iter_albums_or_files(paths: Paths) -> Iterator[Union[AlbumDir, SongFile]]:
+    for path in iter_paths(paths):
+        if path.is_dir():
+            for root, dirs, files in os.walk(path.as_posix()):  # as_posix for 3.5 compatibility
+                if files and not dirs:
+                    yield AlbumDir(root)
+        elif path.is_file():
+            yield SongFile(path)
 
 
 def _album_dir_obj(self):

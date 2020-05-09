@@ -4,12 +4,15 @@
 
 import logging
 from itertools import chain
-from typing import Iterator, Iterable, Union
+from typing import TYPE_CHECKING, Iterator, Iterable, Union, Mapping, Any, Dict, Tuple
 
 from ds_tools.core.filesystem import iter_files, Paths
-from .track.track import SongFile
+from .track import BaseSongFile, SongFile, print_tag_changes, count_tag_changes
 
-__all__ = ['iter_music_files', 'sanitize_path', 'SafePath']
+if TYPE_CHECKING:
+    from .album import AlbumDir
+
+__all__ = ['iter_music_files', 'sanitize_path', 'SafePath', 'get_common_changes']
 log = logging.getLogger(__name__)
 
 NON_MUSIC_EXTS = {'jpg', 'jpeg', 'png', 'jfif', 'part', 'pdf', 'zip', 'webp'}
@@ -51,3 +54,21 @@ class SafePath:
     def __iadd__(self, other: 'SafePath') -> 'SafePath':
         self.parts = tuple(chain(self.parts, other.parts))
         return self
+
+
+def get_common_changes(
+        album_dir: 'AlbumDir', updates: Mapping['BaseSongFile', Mapping[str, Any]], show=True, extra_newline=False
+) -> Dict[str, Tuple[Any, Any]]:
+    counts = count_tag_changes(updates)
+    # noinspection PyUnboundLocalVariable
+    common_changes = {
+        tag_name: val_tup for tag_name, tag_counts in sorted(counts.items())
+        if len(tag_counts) == 1 and (val_tup := next(iter(tag_counts))) and val_tup[0] != val_tup[1]
+    }
+    if show and common_changes:
+        if extra_newline:
+            print()
+        print_tag_changes(album_dir, common_changes, 10)
+        print()
+
+    return common_changes

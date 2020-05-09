@@ -8,7 +8,6 @@ import re
 from pathlib import Path
 from typing import Optional, Union
 
-import mutagen.id3._frames as id3_frames
 from plexapi.audio import Track
 
 from ds_tools.compat import cached_property
@@ -150,11 +149,12 @@ class SongFile(BaseSongFile):
                 bpm = None
         return bpm
 
-    def update_tags(self, name_value_map, dry_run=False, no_log=None):
+    def update_tags(self, name_value_map, dry_run=False, no_log=None, none_level=19):
         """
         :param dict name_value_map: Mapping of {tag name: new value}
         :param bool dry_run: Whether tags should actually be updated
         :param container no_log: Names of tags for which updates should not be logged
+        :param int none_level: If no changes need to be made, the log level for the message stating that.
         """
         to_update = {}
         for tag_name, new_value in sorted(name_value_map.items()):
@@ -165,7 +165,8 @@ class SongFile(BaseSongFile):
 
         if to_update:
             no_log = no_log or ()
-            print_tag_changes(self, {k: v for k, v in to_update.items() if k not in no_log}, dry_run)
+            if to_log := {k: v for k, v in to_update.items() if k not in no_log}:
+                print_tag_changes(self, to_log, dry_run)
             do_save = True
             for tag_name, (file_value, new_value) in to_update.items():
                 if not dry_run:
@@ -177,39 +178,23 @@ class SongFile(BaseSongFile):
             if do_save and not dry_run:
                 self.save()
         else:
-            log.log(19, f'No changes to make for {self.extended_repr}')
+            log.log(none_level, f'No changes to make for {self.extended_repr}')
 
-    def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
+    def get_tag_updates(self, tag_ids, value, patterns=None, partial=False):
         if partial and not patterns:
             raise ValueError('Unable to perform partial tag update without any patterns')
         patterns = compiled_fnmatch_patterns(patterns)
-        prefix, repl_msg, set_msg = ('[DRY RUN] Would ', 'replace', 'set') if dry_run else ('', 'Replacing', 'Setting')
-        should_save = False
+        to_update = {}
         for tag_id in tag_ids:
             if names_by_type := TYPED_TAG_MAP.get(tag_id):
                 tag_id = names_by_type[self.tag_type]
-            tag_name = tag_name_map.get(tag_id)
-            if not tag_name:
+            if not (tag_name := tag_name_map.get(tag_id)):
                 raise ValueError(f'Invalid tag ID: {tag_id}')
-            _tag_repr = f'{tag_id}/{tag_name}'
+            norm_name = self.normalize_tag_name(tag_id)
 
-            current_vals = self.tags_for_id(tag_id)
-            if not current_vals:
-                if self.tag_type == 'mp3':
-                    try:
-                        frame_cls = getattr(id3_frames, tag_id.upper())
-                    except AttributeError as e:
-                        raise ValueError(f'Invalid tag ID: {tag_id!r} (no frame class found for it)') from e
-                else:
-                    raise ValueError(f'Adding new tags to non-MP3s is not currently supported for {self}')
-
-                log.info(f'{prefix}{set_msg} {_tag_repr} = {value!r} in file: {self.filename}')
-                should_save = True
-                if not dry_run:
-                    self.tags.add(frame_cls(text=value))
-            else:
+            if current_vals := self.tags_for_id(tag_id):
                 if len(current_vals) > 1:
-                    log.warning(f'Found multiple values for {_tag_repr} in {self.filename} - using first value')
+                    log.warning(f'Found multiple values for {tag_id}/{tag_name} in {self} - using first value')
 
                 current_val = current_vals[0]
                 current_text = current_val.text[0]
@@ -225,16 +210,15 @@ class SongFile(BaseSongFile):
                         new_text = value
 
                 if new_text != current_text:
-                    log.info(f'{prefix}{repl_msg} {_tag_repr} {current_text!r} with {new_text!r} in {self.filename}')
-                    should_save = True
-                    if not dry_run:
-                        current_vals[0].text[0] = new_text
+                    to_update[norm_name] = new_text
+            else:
+                to_update[norm_name] = value
 
-        if should_save:
-            if not dry_run:
-                self.save()
-        else:
-            log.log(19, f'Nothing to change for {self.filename}')
+        return to_update
+
+    def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
+        updates = self.get_tag_updates(tag_ids, value, patterns, partial)
+        self.update_tags(updates, dry_run)
 
 
 def _extract_album_part(title):

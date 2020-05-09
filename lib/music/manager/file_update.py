@@ -6,11 +6,9 @@ import logging
 import re
 from fnmatch import translate as fnmatch_to_regex_str
 
-from mutagen.id3 import ID3
-
 from ds_tools.core import Paths
 from ds_tools.input import get_input
-from ..files import iter_album_dirs, iter_music_files, TagException
+from ..files import iter_album_dirs, iter_music_files, TagException, iter_albums_or_files
 
 __all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags']
 log = logging.getLogger(__name__)
@@ -21,12 +19,8 @@ def update_tags_with_value(paths: Paths, tag_ids, value, replace_pats=None, part
     if partial and not patterns:
         raise ValueError('When using --partial/-p, --replace/-r must also be specified')
 
-    for music_file in iter_music_files(paths):
-        if not isinstance(music_file.tags, ID3):
-            log.info('Skipping non-MP3: {}'.format(music_file.filename))
-            continue
-
-        music_file.update_tags_with_value(tag_ids, value, patterns=patterns, partial=partial, dry_run=dry_run)
+    for music_obj in iter_albums_or_files(paths):
+        music_obj.update_tags_with_value(tag_ids, value, patterns=patterns, partial=partial, dry_run=dry_run)
 
 
 def path_to_tag(paths: Paths, dry_run=False, skip_prompt=False, title=False):

@@ -3,14 +3,12 @@
 """
 
 import logging
-from collections import defaultdict, Counter
 from pathlib import Path
 from typing import Union, Optional, Dict, Any, Tuple
 
 from ds_tools.core import Paths
 from ds_tools.output import colored
-from ..files import iter_album_dirs, AlbumDir, SafePath
-from ..files.track import SongFile, print_tag_changes
+from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, print_tag_changes, get_common_changes
 from ..wiki import Track, Singer, DiscographyEntry, DiscographyEntryPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from .enums import CollabMode as CM
@@ -71,35 +69,15 @@ def _update_album_from_disco_entry(
     ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), disco_part.tracks)
     file_track_map = {file: track for file, track in ft_iter}                   # type: Dict[SongFile, Track]
 
-    updates = {}                                                                # type: TrackUpdates
-    counts = defaultdict(Counter)                                               # type: UpdateCounts
-    for file, track in file_track_map.items():
-        updates[file] = values = _get_update_values(track, soloist, hide_edition, collab_mode)
-        for tag_name, new_val in values.items():
-            if tag_name in ('disk', 'track'):
-                orig = getattr(file, f'{tag_name}_num')
-            else:
-                orig = file.tag_text(tag_name, default=None)
-            counts[tag_name][(orig, new_val)] += 1
-
-    _apply_track_updates(album_dir, file_track_map, updates, counts, dry_run)
+    updates = {
+        file: _get_update_values(track, soloist, hide_edition, collab_mode) for file, track in file_track_map.items()
+    }
+    _apply_track_updates(album_dir, file_track_map, updates, dry_run)
     _move_album_dir(album_dir, disco_part, dest_base_dir, hide_edition, dry_run)
 
 
-def _apply_track_updates(
-        album_dir: AlbumDir, file_track_map: Dict[SongFile, Track], updates: TrackUpdates, counts: UpdateCounts,
-        dry_run: bool
-):
-    # noinspection PyUnboundLocalVariable
-    common_changes = {
-        tag_name: val_tup for tag_name, tag_counts in sorted(counts.items())
-        if len(tag_counts) == 1 and (val_tup := next(iter(tag_counts))) and val_tup[0] != val_tup[1]
-    }
-    if common_changes:
-        print()
-        print_tag_changes(album_dir, common_changes, 10)
-        print()
-
+def _apply_track_updates(album_dir: AlbumDir, file_track_map: Dict[SongFile, Track], updates: TrackUpdates, dry_run):
+    common_changes = get_common_changes(album_dir, updates, extra_newline=True)
     prefix = '[DRY RUN] Would rename' if dry_run else 'Renaming'
     for file, values in updates.items():
         if file.tag_type == 'mp4':

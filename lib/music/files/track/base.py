@@ -14,7 +14,7 @@ import mutagen
 import mutagen.id3._frames
 from mutagen import File
 from mutagen.flac import VCFLACDict
-from mutagen.id3 import ID3, POPM
+from mutagen.id3 import ID3, POPM, Frames
 from mutagen.mp4 import MP4Tags
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -25,7 +25,7 @@ from ..exceptions import *
 from .parsing import split_artists, AlbumName
 from .utils import (
     FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, ON_WINDOWS,
-    stars_from_256, tag_repr, parse_file_date
+    stars_from_256, tag_repr, parse_file_date, FILE_TYPE_TAG_ID_TO_NAME_MAP
 )
 
 __all__ = ['BaseSongFile']
@@ -179,7 +179,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return False
 
     def set_text_tag(self, tag: str, value, by_id=False):
-        tag_id = tag if by_id else self.tag_name_to_id(tag)
+        tag_id = tag if by_id else self.normalize_tag_id(tag)
         tags = self._f.tags
         tag_type = self.tag_type
         if tag_type in ('mp4', 'flac'):
@@ -200,6 +200,37 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 tags[tag_id] = tag_cls(text=str(value))
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
+
+    def normalize_tag_id(self, tag_name_or_id: str) -> str:
+        if type_to_id := TYPED_TAG_MAP.get(tag_name_or_id.lower()):
+            try:
+                return type_to_id[self.tag_type]
+            except KeyError as e:
+                raise UnsupportedTagForFileType(tag_name_or_id, self) from e
+        id_to_name = FILE_TYPE_TAG_ID_TO_NAME_MAP[self.tag_type]
+        if tag_name_or_id in id_to_name:
+            return tag_name_or_id
+        id_upper = tag_name_or_id.upper()
+        if id_upper in id_to_name:
+            return id_upper
+        if self.tag_type == 'mp3':
+            if id_upper in Frames:
+                return id_upper
+            raise InvalidTagName(id_upper, self)
+        else:
+            return tag_name_or_id
+
+    def normalize_tag_name(self, tag_name_or_id: str) -> str:
+        if tag_name_or_id in TYPED_TAG_MAP:
+            return tag_name_or_id
+        id_lower = tag_name_or_id.lower()
+        if id_lower in TYPED_TAG_MAP:
+            return id_lower
+        id_to_name = FILE_TYPE_TAG_ID_TO_NAME_MAP[self.tag_type]
+        for val in (tag_name_or_id, id_lower, tag_name_or_id.upper()):
+            if val in id_to_name:
+                return id_to_name[val]
+        return tag_name_or_id
 
     def tag_name_to_id(self, tag_name: str) -> str:
         """
@@ -229,7 +260,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :param str tag_name: A tag name; see :meth:`.tag_name_to_id` for mapping of names to IDs
         :return list: All tags from this file with the given name
         """
-        return self.tags_for_id(self.tag_name_to_id(tag_name))
+        return self.tags_for_id(self.normalize_tag_id(tag_name))
 
     def get_tag(self, tag: str, by_id=False):
         """

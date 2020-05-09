@@ -66,6 +66,17 @@ def print_artist(
                 for version in name.versions:
                     uprint(f'{prefix}       - {version}')
 
+    if langs := artist.languages:
+        primary = artist.language
+        uprint(f'{prefix}  Languages:')
+        for lang in langs:
+            if primary and lang == primary:
+                uprint(f'{prefix}    - {lang} (primary)')
+            else:
+                uprint(f'{prefix}    - {lang}')
+    else:
+        uprint(f'{prefix}  Languages: (unknown)')
+
     print_discography(artist, indent, expand_disco, editions, track_info, alb_types)
 
 

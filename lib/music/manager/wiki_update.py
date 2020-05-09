@@ -83,8 +83,7 @@ def _update_album_from_disco_entry(
             counts[tag_name][(orig, new_val)] += 1
 
     _apply_track_updates(album_dir, file_track_map, updates, counts, dry_run)
-    if dest_base_dir:
-        _move_album_dir(album_dir, disco_part, dest_base_dir, hide_edition, dry_run)
+    _move_album_dir(album_dir, disco_part, dest_base_dir, hide_edition, dry_run)
 
 
 def _apply_track_updates(
@@ -118,9 +117,16 @@ def _apply_track_updates(
                 file.rename(file.path.with_name(filename))
 
 
-def _move_album_dir(album_dir: AlbumDir, disco_part: DiscographyEntryPart, dest_base_dir: Path, hide_edition, dry_run):
+def _move_album_dir(
+        album_dir: AlbumDir, disco_part: DiscographyEntryPart, dest_base_dir: Optional[Path], hide_edition, dry_run
+):
     edition = disco_part.edition
-    rel_dir_fmt = ARTIST_TYPE_DIRS + _album_format(edition.date, edition.type.numbered and edition.entry.number)
+    rel_dir_fmt = _album_format(edition.date, edition.type.numbered and edition.entry.number)
+    if dest_base_dir is None:
+        dest_base_dir = album_dir.path.parent
+    else:
+        rel_dir_fmt = ARTIST_TYPE_DIRS + rel_dir_fmt
+
     expected_rel_dir = rel_dir_fmt(
         artist=edition.artist.name.english, type_dir=edition.type.directory, album_num=edition.numbered_type,
         album=disco_part.full_name(hide_edition), date=edition.date
@@ -137,7 +143,7 @@ def _move_album_dir(album_dir: AlbumDir, disco_part: DiscographyEntryPart, dest_
                     log.log(19, f'Removing empty directory: {path}')
                     path.rmdir()
     else:
-        log.info(f'Album {album_dir} is already in expected dir: {expected_dir}')
+        log.log(19, f'Album {album_dir} is already in the expected dir: {expected_dir}')
 
 
 def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST) -> Dict[str, Any]:

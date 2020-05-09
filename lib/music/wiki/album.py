@@ -332,9 +332,10 @@ class DiscographyEntryEdition:
         if (num := self.entry.number) and self.type:
             album_lang = self.lang
             artist_lang = self.artist.language if self.artist else None
+            log.debug(f'{self._basic_repr} {album_lang=!r} {artist_lang=!r}')
             parts = (
                 f'{num}{num_suffix(num)}',
-                None if artist_lang and album_lang and artist_lang != album_lang else album_lang,
+                None if artist_lang and album_lang and artist_lang == album_lang else album_lang,
                 self.type.real_name, 'Repackage' if self.repackage else None
             )
             return ' '.join(filter(None, parts))

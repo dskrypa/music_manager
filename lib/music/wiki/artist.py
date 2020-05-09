@@ -77,12 +77,13 @@ class Artist(PersonOrGroup, DiscographyMixin):
     @cached_property
     def languages(self) -> Set[str]:
         categories = set(chain.from_iterable(cat.split() for page in self.pages for cat in page.categories))
-        return set(filter(None, (LANGUAGES.get(cat) for cat in categories)))
+        langs = set(filter(None, (LANGUAGES.get(cat) for cat in categories)))
+        if any(val in self._pages for val in ('kpop.fandom.com', 'kindie.fandom.com')):
+            langs.add('Korean')
+        return langs
 
     @cached_property
     def language(self) -> Optional[str]:
-        if any(val in self._pages for val in ('kpop.fandom.com', 'kindie.fandom.com')):
-            return 'Korean'
         if langs := self.languages:
             if len(langs) == 1:
                 return next(iter(langs))

@@ -7,7 +7,7 @@ import re
 from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template
 from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed, strip_enclosed
 
 __all__ = [
@@ -60,12 +60,15 @@ def rm_lang_prefix(text: str) -> str:
 
 
 def _strify_node(node: CompoundNode):
+    # log.debug(f'_strify_node({node!r})')
     parts = []
     for n in node:
         if isinstance(n, Link):
             parts.append(n.show)
         elif isinstance(n, String):
             parts.append(n.value)
+        elif isinstance(n, Template) and isinstance(n.value, String):
+            parts.append(n.value.value)
         else:
             break
     return ' '.join(parts)
@@ -79,8 +82,10 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         intro = intro.value
     else:
         intro = None
+
     if intro:
         first_string = IS_SPLIT(intro, 1)[0]
+        # log.debug(f'{first_string=!r}')
     else:
         try:
             raise ValueError(f'Unexpected intro on {page}:\n{_intro.pformat()}')
@@ -91,13 +96,15 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         # log.debug(f'Found multi-lang name match: {m}')
         # noinspection PyUnboundLocalVariable
         cleaned = rm_lang_prefix(m_str)
-        # log.debug(f'Without lang prefix: {cleaned!r}')
-        if delim := next((c for c in ';,' if c in cleaned), None):
-            cleaned = cleaned.split(delim, 1)[0].strip() + ')'
         if '(stylized' in cleaned:
             cleaned = cleaned.partition('(stylized')[0].strip()
+
         # log.debug(f'Cleaned name: {cleaned!r}')
-        yield Name.from_enclosed(cleaned)
+        parts = split_enclosed(cleaned, maxsplit=1)
+        if len(parts) == 2:
+            yield from _multi_lang_names(*parts)
+        else:
+            yield Name.from_enclosed(cleaned)
     else:
         # log.debug(f'Found {first_string=!r}')
         try:
@@ -124,17 +131,7 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
                 yield Name.from_enclosed(first_part, extra={'repackage': True})
             elif '; ' in paren_part:
                 # log.debug('Found ;')
-                first_part_lang = LangCat.categorize(first_part)
-                parts = list(map(rm_lang_prefix, LIST_SPLIT(paren_part)))
-                names = []
-                for part in parts:
-                    if LangCat.categorize(part) != first_part_lang and not part.startswith('stylized '):
-                        names.append(Name.from_parts((first_part, part)))
-                    elif part.startswith('lit. '):
-                        part = strip_enclosed(part.split(maxsplit=1)[1])
-                        for _name in names:
-                            _name.update(lit_translation=part)
-                yield from names
+                yield from _multi_lang_names(first_part, paren_part)
             elif ', and' in paren_part:
                 # log.debug('Found ", and"')
                 for part in map(str.strip, paren_part.split(', and')):
@@ -175,6 +172,20 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
                         yield Name.from_enclosed(first_part)
                     else:
                         yield Name.from_parts((first_part, paren_part))
+
+
+def _multi_lang_names(primary, parts):
+    first_part_lang = LangCat.categorize(primary)
+    parts = list(map(rm_lang_prefix, LIST_SPLIT(parts)))
+    names = []
+    for part in parts:
+        if LangCat.categorize(part) != first_part_lang and not part.startswith('stylized '):
+            names.append(Name.from_parts((primary, part)))
+        elif part.startswith('lit. '):
+            part = strip_enclosed(part.split(maxsplit=1)[1])
+            for _name in names:
+                _name.update(lit_translation=part)
+    return names
 
 
 def find_language(node: Node, lang: Optional[str], langs: Set[str]) -> Optional[str]:

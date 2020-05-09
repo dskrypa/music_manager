@@ -76,6 +76,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Lie', '또 Lie', lit_translation='Lie Again')})
 
+    def test_multi_lang_templates(self):
+        page = fake_page(as_node("""'''Apink''' ({{lang-ko\n    | 1 = 에이핑크\n}}, {{lang-ja\n    | 1 = エーピンク\n}}) is a South Korean [[girl group]] formed by [[Play M Entertainment]] (formerly A Cube Entertainment and Plan A Entertainment). The group debuted on April 19, 2011, with the [[extended play]] (EP) ''[[Seven Springs of Apink]]'' and with seven members: [[Park Cho-rong]], [[Yoon Bo-mi]], [[Jung Eun-ji]], [[Son Na-eun]], Hong Yoo-kyung, [[Kim Nam-joo (singer)|Kim Nam-joo]] and [[Oh Ha-young]]. Hong left the group in April 2013 to focus on her studies."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Apink', '에이핑크'), Name('Apink', 'エーピンク')})
+
 
 if __name__ == '__main__':
     main()

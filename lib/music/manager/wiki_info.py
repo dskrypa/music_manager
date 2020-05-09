@@ -18,6 +18,7 @@ AlbTypes = Optional[Set[DiscoEntryType]]
 
 def pprint_wiki_page(url: str, mode: str):
     page = MediaWikiClient.page_for_article(url)
+    page.intro(True)
     page.sections.pprint(mode)
 
 

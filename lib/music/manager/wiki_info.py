@@ -134,6 +134,7 @@ def print_de_part(part: DiscographyEntryPart, indent=0, track_info=False):
             uprint(f'{prefix}      - {track._repr()}')
             if track_info:
                 uprint(f'{prefix}          Full name: {track.full_name()!r}')
+                uprint(f'{prefix}          Name: {track.name._full_repr(indent=1, delim="")}')
     else:
         uprint(f'{prefix}- {part}: [Track info unavailable]')
 

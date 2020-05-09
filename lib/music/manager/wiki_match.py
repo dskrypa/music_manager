@@ -8,8 +8,11 @@ from typing import List, Iterable, Optional
 from ds_tools.core import Paths
 from ds_tools.input import choose_item
 from ds_tools.output import uprint
+from ds_tools.unicode import LangCat
 from wiki_nodes.http import URL_MATCH
+from ..common import DiscoEntryType
 from ..files import AlbumDir, iter_album_dirs
+from ..text import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry
 from ..wiki.artist import Artist, Group
 from .exceptions import NoArtistFoundException
@@ -104,32 +107,41 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
     album_name = album_dir.name
     if not album_name:
         raise ValueError(f'Directories with multiple album names are not currently handled.')
-    _type = album_dir.type
-    _name = album_name.name
     repackage = album_name.repackage
-    num = album_name.number
+    alb_name = album_name.name
 
-    before = f'Found multiple possible matches for {album_name}'
-    candidates = []
     artists = artists or find_artists(album_dir)
     log.debug(f'Processing album for {album_dir} with {album_name=!r} ({repackage=}) and {artists=}')
-    for artist in artists:
-        for disco_entry in artist.all_discography_entries:
-            if not _type or _type == disco_entry.type:
-                if _name and _name.matches(disco_entry.name):
-                    if parts := [p for p in disco_entry.parts() if p.repackage == repackage]:
-                        candidates.extend(parts)
-                        # if len(parts) == 1:
-                        #     candidates.append(parts[0])
-                        # else:
-                        #     part = choose_item(parts, 'part', before=before)
-                        #     candidates.append(part)
-                #     else:
-                #         log.debug(f'Found no parts for {disco_entry=}')
-                elif _type and _type == disco_entry.type and num and disco_entry.number and num == disco_entry.number:
-                    if parts := list(disco_entry.parts()):
-                        candidates.extend(parts)
-                # else:
-                #     log.debug(f'{album_name} does not match {disco_entry} ({disco_entry._pages})')
+    candidates = _find_album(alb_name, artists, album_dir.type, repackage, album_name.number)
+    if not candidates and alb_name.eng_lang == LangCat.MIX and alb_name.eng_langs.intersection(LangCat.non_eng_cats):
+        split = Name.split(alb_name.english, versions=[alb_name, Name(non_eng=alb_name.english)])
+        log.log(19, f'Re-attempting album match with name={split._full_repr(delim="", indent=1)}')
+        candidates = _find_album(split, artists, album_dir.type, repackage, album_name.number)
 
-    return choose_item(candidates, 'candidate', before=before)
+    return choose_item(candidates, 'candidate', before=f'Found multiple possible matches for {album_name}')
+
+
+def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num):
+    candidates = []
+    for artist in artists:
+        for entry in artist.all_discography_entries:
+            if not alb_type or alb_type == entry.type:
+                if alb_name and alb_name.matches(entry.name):
+                    entry_parts = list(entry.parts())
+                    pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
+                    log.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
+                    if pkg_match_parts:
+                        candidates.extend(pkg_match_parts)
+                    else:
+                        if entry_parts:
+                            pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
+                            log.debug(f'Found no matching parts for {entry=}: {pkg_repr}')
+                        else:
+                            log.debug(f'Found no parts for {entry=}')
+                elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
+                    if parts := list(entry.parts()):
+                        candidates.extend(parts)
+                else:
+                    log.debug(f'{alb_name!r} does not match {entry} ({entry._pages})')
+
+    return candidates

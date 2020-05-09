@@ -370,7 +370,7 @@ class DiscographyEntryPart:
 
     @cached_property
     def repackage(self):
-        return self.edition.repackage
+        return bool(self.edition.repackage)
 
     @cached_property
     def name(self):

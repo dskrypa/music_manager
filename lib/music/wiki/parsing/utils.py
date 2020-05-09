@@ -125,9 +125,16 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
             elif '; ' in paren_part:
                 # log.debug('Found ;')
                 first_part_lang = LangCat.categorize(first_part)
-                for part in map(rm_lang_prefix, LIST_SPLIT(paren_part)):
+                parts = list(map(rm_lang_prefix, LIST_SPLIT(paren_part)))
+                names = []
+                for part in parts:
                     if LangCat.categorize(part) != first_part_lang and not part.startswith('stylized '):
-                        yield Name.from_parts((first_part, part))
+                        names.append(Name.from_parts((first_part, part)))
+                    elif part.startswith('lit. '):
+                        part = strip_enclosed(part.split(maxsplit=1)[1])
+                        for _name in names:
+                            _name.update(lit_translation=part)
+                yield from names
             elif ', and' in paren_part:
                 # log.debug('Found ", and"')
                 for part in map(str.strip, paren_part.split(', and')):

@@ -74,11 +74,16 @@ class Name(ClearableCachedPropertyMixin):
         return f'<{type(self).__name__}({parts})>'
 
     def _full_repr(self, include_no_val=False, delim='\n', indent=4):
-        var_names = ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang', 'versions')
-        var_vals = (getattr(self, attr) for attr in var_names)
-        indent = ' ' * indent
-        parts = f',{delim}'.join(f'{indent}{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
-        return f'<{type(self).__name__}({delim}{parts}{delim})>'
+        var_names = ['_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang']
+        var_vals = [getattr(self, attr) for attr in var_names]
+        indent_str = ' ' * indent
+        parts = f',{delim}{indent_str}'.join(f'{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
+        if versions := self.versions:
+            if parts:
+                parts += f',{delim}{indent_str}'
+            parts += 'versions=[{}]'.format(', '.join(v._full_repr(include_no_val, delim, indent) for v in versions))
+        prefix = f'{delim}{indent_str}' if '\n' in delim else delim
+        return f'<{type(self).__name__}({prefix}{parts}{delim})>'
 
     def __str__(self):
         eng = self.english
@@ -256,6 +261,14 @@ class Name(ClearableCachedPropertyMixin):
         return non_word_char_sub('', non_eng_nospace) if non_eng_nospace else None
 
     @cached_property
+    def eng_lang(self) -> LangCat:
+        return LangCat.categorize(self.english)
+
+    @cached_property
+    def eng_langs(self) -> Set[LangCat]:
+        return LangCat.categorize(self.english, True)
+
+    @cached_property
     def non_eng_lang(self) -> LangCat:
         return LangCat.categorize(self.non_eng)
 
@@ -322,6 +335,10 @@ class Name(ClearableCachedPropertyMixin):
         else:
             parts = (name,)
         return cls.from_parts(parts, **kwargs)
+
+    @classmethod
+    def split(cls, name: str, **kwargs) -> 'Name':
+        return cls.from_parts(LangCat.split(name), **kwargs)
 
     @classmethod
     def from_parts(cls, parts: Iterable[str], **kwargs) -> 'Name':

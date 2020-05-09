@@ -46,7 +46,7 @@ def show_wiki_entity(
     if isinstance(entity, DiscographyEntry):
         print_disco_entry(entity, 2, expand > 0, limit, expand > 1)
     elif isinstance(entity, Artist):
-        print_artist(entity, 2, expand > 0, expand > 1, expand > 2, alb_types)
+        print_artist(entity, 2, expand, expand > 2, expand > 3, alb_types)
     elif isinstance(entity, Discography):
         print_discography(entity, 2, expand > 0, expand > 1, expand > 2, alb_types, True)
     else:
@@ -54,14 +54,15 @@ def show_wiki_entity(
 
 
 def print_artist(
-        artist: Artist, indent=0, expand_disco=False, editions=False, track_info=False, alb_types: AlbTypes = None
+        artist: Artist, indent=0, expand_disco=0, editions=False, track_info=False, alb_types: AlbTypes = None
 ):
     prefix = ' ' * indent
     uprint(f'{prefix}- {artist.name}:')
     if names := artist.names:
         uprint(f'{prefix}  Names:')
         for name in names:
-            uprint(f'{prefix}    - {name}')
+            # uprint(f'{prefix}    - {name}')
+            uprint(f'{prefix}    - {name.full_repr()}')
             if name.versions:
                 for version in name.versions:
                     uprint(f'{prefix}       - {version}')
@@ -77,7 +78,8 @@ def print_artist(
     else:
         uprint(f'{prefix}  Languages: (unknown)')
 
-    print_discography(artist, indent, expand_disco, editions, track_info, alb_types)
+    if expand_disco:
+        print_discography(artist, indent, expand_disco > 1, editions, track_info, alb_types)
 
 
 def print_discography(
@@ -134,7 +136,7 @@ def print_de_part(part: DiscographyEntryPart, indent=0, track_info=False):
             uprint(f'{prefix}      - {track._repr()}')
             if track_info:
                 uprint(f'{prefix}          Full name: {track.full_name()!r}')
-                uprint(f'{prefix}          Name: {track.name._full_repr(indent=1, delim="")}')
+                uprint(f'{prefix}          Name: {track.name.full_repr()}')
     else:
         uprint(f'{prefix}- {part}: [Track info unavailable]')
 

@@ -27,7 +27,8 @@ class NameTestCaseBase(TestCaseBase):
             found = colored(f'{attr}={value!r}', 'cyan')
             _expected = colored(f'expected={expected!r}', 13)
 
-        msg = f'\nFound Name.{found}; {_expected} - full name:\n{name.full_repr()}'
+        name_repr = name.full_repr(delim='\n', indent=4)
+        msg = f'\nFound Name.{found}; {_expected} - full name:\n{name_repr}'
         if expected is None:
             self.assertIs(value, expected, msg)
         elif attr == 'extra' and isinstance(expected, list):
@@ -47,12 +48,13 @@ class NameTestCaseBase(TestCaseBase):
         for attr, expected in zip(attrs, args):
             self.assertIsOrEqual(name, attr, expected)
         # except AssertionError:
+        #     name_repr = name.full_repr(delim='\n', indent=4)
         #     attrs = ('eng', 'non_eng', 'romanized', 'lit_translation', 'extra')
         #     args = (_english, non_eng, romanized, lit_translation, extra)
         #     expected = Name(**dict(zip(attrs, args)))
         #     error_parts = [
         #         '', colored(f'Expected: {expected.full_repr()}', 11), '~' * 80,
-        #         colored(f'Found: {name.full_repr()}', 9)
+        #         colored(f'Found: {name_repr}', 9)
         #     ]
         #     raise AssertionError('\n'.join(error_parts)) from None
 
@@ -64,8 +66,8 @@ class NameTestCaseBase(TestCaseBase):
         except AssertionError:
             error_parts = [
                 '',
-                colored('Expected: {}'.format('\n'.join(n.full_repr() for n in expected)), 11),
+                colored('Expected: {}'.format('\n'.join(n.full_repr(delim='\n', indent=4) for n in expected)), 11),
                 '~' * 80,
-                colored('Found: {}'.format('\n'.join(n.full_repr() for n in found)), 9)
+                colored('Found: {}'.format('\n'.join(n.full_repr(delim='\n', indent=4) for n in found)), 9)
             ]
             raise AssertionError('\n'.join(error_parts)) from None

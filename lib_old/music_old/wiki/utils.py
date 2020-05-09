@@ -5,24 +5,18 @@
 import logging
 import re
 from collections import OrderedDict
-from itertools import chain, combinations
+from itertools import chain
 from urllib.parse import urlparse
 
 from ds_tools.utils import QMARKS, regexcape
 from ds_tools.utils.soup import soupify
 
-__all__ = [
-    'comparison_type_check', 'edition_combinations', 'get_page_category', 'multi_lang_name', 'normalize_href',
-    'sanitize_path', 'strify_collabs', 'synonym_pattern'
-]
+__all__ = ['get_page_category', 'synonym_pattern']
 log = logging.getLogger(__name__)
 
 FEAT_ARTIST_INDICATORS = ('with', 'feat.', 'feat ', 'featuring')
 NUM_STRIP_TBL = str.maketrans({c: '' for c in '0123456789'})
-NUMS = {
-    'first': '1st', 'second': '2nd', 'third': '3rd', 'fourth': '4th', 'fifth': '5th', 'sixth': '6th',
-    'seventh': '7th', 'eighth': '8th', 'ninth': '9th', 'tenth': '10th', 'debut': '1st'
-}
+
 PAGE_CATEGORIES = OrderedDict([
     ('album', ('albums', 'discography article stubs', ' eps')),     # Note: space in ' eps' is intentional
     ('group', ('group', 'group article stubs', 'bands', 'duos')),
@@ -45,55 +39,9 @@ PAGE_CATEGORIES = OrderedDict([
         'counties', 'landmark', 'lake', 'ocean', 'forest', 'roads', 'manga'
     )),
 ])
-PATH_SANITIZATION_DICT = {c: '' for c in '*;?<>"'}
-PATH_SANITIZATION_DICT.update({'/': '_', ':': '-', '\\': '_', '|': '-'})
-PATH_SANITIZATION_TABLE = str.maketrans(PATH_SANITIZATION_DICT)
+
 QMARK_STRIP_TBL = str.maketrans({c: '' for c in QMARKS})
 SYNONYM_SETS = [{'and', '&', '+'}, {'version', 'ver.'}]
-
-
-def normalize_href(href):
-    if not href:
-        return None
-    href = href[6:] if href.startswith('/wiki/') else href
-    return None if 'redlink=1' in href else href
-
-
-def sanitize_path(text):
-    return text.translate(PATH_SANITIZATION_TABLE)
-
-
-def comparison_type_check(obj, other, req_type, op):
-    if not isinstance(other, req_type):
-        fmt = '{!r} is not supported between instances of {!r} and {!r}'
-        raise TypeError(fmt.format(op, type(obj).__name__, type(other).__name__))
-
-
-def multi_lang_name(eng_name, cjk_name):
-    if eng_name and cjk_name:
-        if cjk_name.startswith('(') and cjk_name.endswith(')'):
-            return '{} {}'.format(eng_name, cjk_name)
-        return '{} ({})'.format(eng_name, cjk_name)
-    else:
-        return eng_name or cjk_name
-
-
-def edition_combinations(editions, next_track):
-    next_track -= 1
-    candidates = []
-    for i in range(len(editions)):
-        for combo in combinations(editions, i):
-            tracks = sorted(t['num'] for t in chain.from_iterable(edition['tracks'] for edition in combo))
-            if tracks and len(set(tracks)) == len(tracks) == max(tracks) == next_track and min(tracks) == 1:
-                candidates.append(combo)
-
-    if not candidates:
-        for edition in editions:
-            tracks = sorted(t['num'] for t in edition['tracks'])
-            if tracks and len(set(tracks)) == len(tracks) == max(tracks) == next_track and min(tracks) == 1:
-                candidates.append([edition])
-
-    return list({tuple(e.get('section') or '' for e in combo): combo for combo in candidates}.values())
 
 
 def synonym_pattern(text, synonym_sets=None, chain_sets=True):
@@ -152,18 +100,3 @@ def get_page_category(url, cats, no_debug=False, raw=None):
         if not no_debug:
             log.debug('Unable to determine category for {}'.format(url))
         return None
-
-
-def strify_collabs(collaborators):
-    collabs = []
-    for c in collaborators:
-        if isinstance(c, dict):
-            a_name = '{} ({})'.format(*c['artist']) if c['artist'][1] else c['artist'][0]
-            if 'of_group' in c:
-                g_name = '{} ({})'.format(*c['of_group']) if c['of_group'][1] else c['of_group'][0]
-                collabs.append('{} of {}'.format(a_name, g_name))
-            else:
-                collabs.append(a_name)
-        else:
-            collabs.append(c)
-    return sorted(set(collabs))

@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 __all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
 
+NodeTypes = Union[Type[AnyNode], Tuple[Type[AnyNode], ...]]
+
 DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
@@ -350,7 +352,7 @@ class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
     pass
 
 
-def is_node_with(obj: AnyNode, cls: Union[Type[AnyNode], Tuple[Type[AnyNode], ...]], val_cls: Type[AnyNode], **kwargs):
+def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs):
     if not isinstance(obj, cls):
         return False
     if not isinstance(obj.value, val_cls):
@@ -400,9 +402,13 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
     # log.debug(f'Processing complex track node: {base_name=!r} {remainder=!r} {nodes=}')
     if not remainder and nodes:
         node = nodes.pop(0)
-        if is_node_with(node, (Tag, Template), CompoundNode, name='small'):
-            nodes = list(node.value) + nodes
-            node = nodes.pop(0)
+        if is_node_with(node, (Tag, Template), (CompoundNode, String), name='small'):
+            if isinstance(node.value, String):
+                # noinspection PyUnresolvedReferences
+                node = node.value
+            else:
+                nodes = list(node.value) + nodes
+                node = nodes.pop(0)
             if isinstance(node, String):
                 remainder = node.value
             else:

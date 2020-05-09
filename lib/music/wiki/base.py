@@ -218,7 +218,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         else:
             if page_link_map:
                 lvl = logging.WARNING if strict else logging.DEBUG
-                for page, links in page_link_map:
+                for page, links in page_link_map.items():
                     log.log(lvl, AmbiguousPageError(page_name(page), page, links))
             return entity
 

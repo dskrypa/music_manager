@@ -205,6 +205,11 @@ class Name(ClearableCachedPropertyMixin):
             else:
                 raise ValueError(f'Invalid name part: {key!r}')
 
+    def with_part(self, **kwargs):
+        _copy = copy(self)
+        _copy.update(**kwargs)
+        return _copy
+
     def _match(self, other: 'Name', attr: str):
         return _match(getattr(self, attr), getattr(other, attr))
 

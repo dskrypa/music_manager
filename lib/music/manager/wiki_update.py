@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Union, Optional, Dict, Any, Tuple
 
 from ds_tools.core import Paths
+from ds_tools.input import choose_item
 from ds_tools.output import colored
-from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, print_tag_changes, get_common_changes
+from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, get_common_changes
 from ..wiki import Track, Singer, DiscographyEntry, DiscographyEntryPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from .enums import CollabMode as CM
@@ -18,6 +19,7 @@ from .wiki_utils import get_disco_part, DiscoObj
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
+SOLO_DIR_FORMAT = SafePath('{artist}/Solo/{singer}')
 TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
 TrackUpdates = Dict[SongFile, Dict[str, Any]]
 UpdateCounts = Dict[str, Dict[Tuple[Any, Any], int]]
@@ -69,11 +71,17 @@ def _update_album_from_disco_entry(
     ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), disco_part.tracks)
     file_track_map = {file: track for file, track in ft_iter}                   # type: Dict[SongFile, Track]
 
+    edition = disco_part.edition
+    alb_artist = edition.artist
+    if isinstance(alb_artist, Singer) and alb_artist.groups and not soloist:
+        alb_artist = choose_item(alb_artist.groups, 'group', before=f'Found multiple groups for {alb_artist}')
+
     updates = {
-        file: _get_update_values(track, soloist, hide_edition, collab_mode) for file, track in file_track_map.items()
+        file: _get_update_values(track, alb_artist, soloist, hide_edition, collab_mode)
+        for file, track in file_track_map.items()
     }
     _apply_track_updates(album_dir, file_track_map, updates, dry_run)
-    _move_album_dir(album_dir, disco_part, dest_base_dir, hide_edition, dry_run)
+    _move_album_dir(album_dir, disco_part, dest_base_dir, soloist, alb_artist, hide_edition, dry_run)
 
 
 def _apply_track_updates(album_dir: AlbumDir, file_track_map: Dict[SongFile, Track], updates: TrackUpdates, dry_run):
@@ -96,18 +104,25 @@ def _apply_track_updates(album_dir: AlbumDir, file_track_map: Dict[SongFile, Tra
 
 
 def _move_album_dir(
-        album_dir: AlbumDir, disco_part: DiscographyEntryPart, dest_base_dir: Optional[Path], hide_edition, dry_run
+        album_dir: AlbumDir, disco_part: DiscographyEntryPart, dest_base_dir: Optional[Path], soloist, alb_artist,
+        hide_edition, dry_run
 ):
     edition = disco_part.edition
+    artist = edition.artist
+    alb_artist_name = artist.name.english
     rel_dir_fmt = _album_format(edition.date, edition.type.numbered and edition.entry.number)
     if dest_base_dir is None:
         dest_base_dir = album_dir.path.parent
     else:
-        rel_dir_fmt = ARTIST_TYPE_DIRS + rel_dir_fmt
+        if isinstance(artist, Singer) and artist.groups and not soloist:
+            rel_dir_fmt = SOLO_DIR_FORMAT + rel_dir_fmt
+            alb_artist_name = alb_artist.name.english
+        else:
+            rel_dir_fmt = ARTIST_TYPE_DIRS + rel_dir_fmt
 
     expected_rel_dir = rel_dir_fmt(
-        artist=edition.artist.name.english, type_dir=edition.type.directory, album_num=edition.numbered_type,
-        album=disco_part.full_name(hide_edition), date=edition.date
+        artist=alb_artist_name, type_dir=edition.type.directory, album_num=edition.numbered_type,
+        album=disco_part.full_name(hide_edition), date=edition.date, singer=artist.name.english
     )
     expected_dir = dest_base_dir.joinpath(expected_rel_dir)
     if expected_dir != album_dir.path:
@@ -117,6 +132,7 @@ def _move_album_dir(
             orig_parent_path = album_dir.path.parent
             album_dir.move(expected_dir)
             for path in (orig_parent_path, orig_parent_path.parent):
+                log.log(19, f'Checking directory: {path}')
                 if path.exists() and next(path.iterdir(), None) is None:
                     log.log(19, f'Removing empty directory: {path}')
                     path.rmdir()
@@ -124,14 +140,16 @@ def _move_album_dir(
         log.log(19, f'Album {album_dir} is already in the expected dir: {expected_dir}')
 
 
-def _get_update_values(track: Track, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST) -> Dict[str, Any]:
+def _get_update_values(
+        track: Track, alb_artist, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST
+) -> Dict[str, Any]:
     values = {}
     album_part = track.album_part
     album_edition = album_part.edition
 
     artist = album_edition.artist
     if isinstance(artist, Singer) and artist.groups and not soloist:
-        group_name = str(artist.groups[0].name)
+        group_name = str(alb_artist.name)
         values['album_artist'] = group_name
         values['artist'] = f'{artist.name} ({group_name})'
     else:

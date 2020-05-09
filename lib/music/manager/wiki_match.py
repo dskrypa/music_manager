@@ -15,6 +15,7 @@ from ..files import AlbumDir, iter_album_dirs
 from ..text import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry
 from ..wiki.artist import Artist, Group
+from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
 from .exceptions import NoArtistFoundException
 from .wiki_info import print_de_part
 
@@ -91,7 +92,17 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
         if remaining:
             log.debug(f'Processing remaining artists in {album_dir}: {remaining}', extra={'color': 14})
             if artist_names := {a for a in artists if a.english != 'Various Artists'}:
-                for name, artist in Artist.from_titles(artist_names, search=True, strict=1, research=True).items():
+                try:
+                    _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True)
+                except (AmbiguousPageError, AmbiguousPagesError) as e:
+                    if all(a.english == a.english.upper() for a in artist_names):
+                        log.debug(e)
+                        artist_names = {a.with_part(_english=a.english.title()) for a in artist_names}
+                        _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True)
+                    else:
+                        raise
+
+                for name, artist in _artists.items():
                     artist_objs.append(artist)
                     remaining.discard(name)
 

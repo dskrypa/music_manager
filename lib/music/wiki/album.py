@@ -406,7 +406,15 @@ class DiscographyEntryPart:
 
     @cached_property
     def tracks(self) -> List['Track']:
-        return [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
+        tracks = [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
+        eng_non_eng_map = {}
+        for track in tracks:
+            eng, non_eng = track.name.english, track.name.non_eng
+            if eng and non_eng:
+                eng_non_eng_map[eng] = non_eng
+            elif eng and eng in eng_non_eng_map:
+                track.name.non_eng = eng_non_eng_map[eng]
+        return tracks
 
 
 class SoundtrackPart(DiscographyEntryPart):

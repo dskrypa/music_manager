@@ -94,7 +94,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
 class Singer(Artist):
     _categories = ('singer', 'actor', 'actress', 'member', 'rapper', 'lyricist')
-    _not_categories = ('groups',)
+    _not_categories = ('groups', 'record labels')
 
     @cached_property
     def groups(self) -> List['Group']:

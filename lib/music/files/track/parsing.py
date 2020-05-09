@@ -65,7 +65,7 @@ class AlbumName:
     def __repr__(self):
         parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(_fields(self), self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
-        return f'{self.__class__.__name__}[{self.type.name}]({self.name._full_repr(delim=" ", indent=0)}{parts})'
+        return f'{self.__class__.__name__}[{self.type.name}]({self.name.full_repr(delim=" ", indent=0)}{parts})'
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):

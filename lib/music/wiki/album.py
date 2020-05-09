@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
-from wiki_nodes import WikiPage, Node, Link, List as ListNode
+from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError
 from ..common import DiscoEntryType
 from ..text import combine_with_parens, Name
 from .base import EntertainmentEntity, Pages
@@ -298,7 +298,7 @@ class DiscographyEntryEdition:
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))
-            except BadLinkError as e:
+            except (BadLinkError, PageMissingError) as e:
                 log.debug(f'Error getting artist={self._artist} for {self._basic_repr}: {e}')
         else:
             log.debug(f'Found unexpected value for {self._basic_repr}._artist: {self._artist!r}', extra={'color': 11})

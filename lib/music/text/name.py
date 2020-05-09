@@ -73,7 +73,7 @@ class Name(ClearableCachedPropertyMixin):
         parts = ', '.join(map(repr, filter(None, parts)))
         return f'<{type(self).__name__}({parts})>'
 
-    def _full_repr(self, include_no_val=False, delim='\n', indent=4):
+    def full_repr(self, include_no_val=False, delim='\n', indent=4):
         var_names = ['_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang']
         var_vals = [getattr(self, attr) for attr in var_names]
         indent_str = ' ' * indent
@@ -81,7 +81,7 @@ class Name(ClearableCachedPropertyMixin):
         if versions := self.versions:
             if parts:
                 parts += f',{delim}{indent_str}'
-            parts += 'versions=[{}]'.format(', '.join(v._full_repr(include_no_val, delim, indent) for v in versions))
+            parts += 'versions=[{}]'.format(', '.join(v.full_repr(include_no_val, delim, indent) for v in versions))
         prefix = f'{delim}{indent_str}' if '\n' in delim else delim
         return f'<{type(self).__name__}({prefix}{parts}{delim})>'
 
@@ -131,7 +131,7 @@ class Name(ClearableCachedPropertyMixin):
     def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True):
         if isinstance(other, str):
             other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
-        # log.debug(f'Scoring match:\n{self._full_repr()}._score(\n{other._full_repr()})')
+        # log.debug(f'Scoring match:\n{self.full_repr()}._score(\n{other.full_repr()})')
         scores = []
         if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
             scores.append(revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace))

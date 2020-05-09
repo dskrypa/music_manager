@@ -53,7 +53,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
             # log.debug(f'Processing names from {artist_page}')
             try:
                 for name in parser.parse_artist_name(artist_page):
-                    # log.debug(f'Found name from {artist_page}: {name._full_repr(delim=" ", indent=0)}')
+                    # log.debug(f'Found name from {artist_page}: {name.full_repr(delim=" ", indent=0)}')
                     for _name in names:
                         if _name.is_compatible_with(name):
                             # log.debug(f'Combining {_name} with {name}')

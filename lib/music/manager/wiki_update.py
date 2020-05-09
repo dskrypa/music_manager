@@ -86,7 +86,7 @@ def _apply_track_updates(album_dir: AlbumDir, file_track_map: Dict[SongFile, Tra
         file.update_tags(values, dry_run, no_log=common_changes)
 
         track = file_track_map[file]
-        log.debug(f'Matched {file} to {track.name._full_repr()}')
+        log.debug(f'Matched {file} to {track.name.full_repr()}')
         filename = TRACK_NAME_FORMAT(track=track.full_name(True), ext=file.ext, num=track.num)
         if file.path.name != filename:
             rel_path = Path(file.rel_path)

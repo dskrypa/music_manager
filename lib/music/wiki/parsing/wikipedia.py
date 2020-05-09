@@ -142,6 +142,9 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                                 pass
                         else:
                             cls._process_disco_row(page, finder, row, alb_types, lang)
+                    except TitleNotFound:
+                        log.debug(f'Unable to find title column in {section=} on {page} in row={short_repr(row)}')
+                        break           # Skip additional rows in this section
                     except Exception:
                         log.error(f'Error processing {section=} on {page} row={short_repr(row)}:', exc_info=True, extra={'color': 9})
             except Exception:
@@ -153,10 +156,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             lang: Optional[str]
     ) -> None:
         # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
-        try:
-            title = row['Title']
-        except KeyError:
-            title = row['']         # example: https://en.wikipedia.org/wiki/AOA_discography#As_lead_artist
+        if not (title := next(filter(None, (row.get(key) for key in ('Title', 'Song', ''))), None)):
+            # Empty string example: https://en.wikipedia.org/wiki/AOA_discography#As_lead_artist
+            # Song example: https://en.wikipedia.org/wiki/GWSN#Soundtrack_appearances
+            raise TitleNotFound()
 
         track_data = None
         if details := next((row[key] for key in ('Details', 'Album details') if key in row), None):
@@ -203,6 +206,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                 if expected:
                     disco_entry.title = title[0].value
                 finder.add_entry(disco_entry, row, not expected)
+
+
+class TitleNotFound(Exception):
+    """Exception that indicates a title column could not be found"""
 
 
 def _disco_sections(section_iter: Iterable[Section]) -> List[Section]:

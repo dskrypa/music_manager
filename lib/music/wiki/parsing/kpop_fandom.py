@@ -52,13 +52,21 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     raise ValueError(f'Unexpected format for birth_name={birth_name.pformat()}')
             else:
                 eng = eng.value if (eng := infobox.get('name')) else None
-                non_eng_map = {
-                    script: node.value for script in ('hangul', 'hanja', 'hiragana', 'kanji')
-                    if (node := infobox.get(script))
-                }
-                if eng or non_eng_map:
-                    non_eng = non_eng_map.pop('hangul', None) or non_eng_map.popitem()[1] if non_eng_map else None
-                    yield Name(eng, non_eng, versions=[Name(eng, val) for val in non_eng_map.values()])
+                non_eng_vals = []
+                for script in ('hangul', 'hanja', 'hiragana', 'kanji'):
+                    if node := infobox.get(script):
+                        if isinstance(node, String):
+                            non_eng_vals.append((script, node.value))
+                        elif isinstance(node, CompoundNode):    # Example: GWSN - Kanji with Japanese + Chinese
+                            for sub_node in node:
+                                if isinstance(sub_node, String):
+                                    non_eng_vals.append((script, sub_node.value))
+                        else:
+                            log.debug(f'Unexpected alt lang name node type on {artist_page}: {script}={node!r}')
+
+                if eng or non_eng_vals:
+                    non_eng = non_eng_vals.pop(0)[1] if non_eng_vals else None
+                    yield Name(eng, non_eng, versions=[Name(eng, val[1]) for val in non_eng_vals])
         else:
             log.debug(f'No infobox found for {artist_page}')
 

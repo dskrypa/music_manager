@@ -62,10 +62,11 @@ def print_artist(
         uprint(f'{prefix}  Names:')
         for name in names:
             # uprint(f'{prefix}    - {name}')
-            uprint(f'{prefix}    - {name.full_repr()}')
+            uprint(f'{prefix}    - {name.full_repr(include_versions=False)}')
             if name.versions:
                 for version in name.versions:
-                    uprint(f'{prefix}       - {version}')
+                    # uprint(f'{prefix}       - {version}')
+                    uprint(f'{prefix}       - {version.full_repr()}')
 
     if langs := artist.languages:
         primary = artist.language

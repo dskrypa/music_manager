@@ -55,11 +55,12 @@ class Artist(PersonOrGroup, DiscographyMixin):
                 for name in parser.parse_artist_name(artist_page):
                     # log.debug(f'Found name from {artist_page}: {name.full_repr()}')
                     for _name in names:
-                        if _name.is_compatible_with(name):
-                            # log.debug(f'Combining {_name} with {name}')
+                        if _name.should_merge(name):
+                            # log.debug(f'Combining {_name.full_repr()} with {name.full_repr()}')
                             _name += name
                             break
                     else:
+                        # log.debug(f'Adding new name: {name.full_repr()}')
                         names.add(name)
             except Exception as e:
                 log.error(f'Error processing names on {artist_page=}: {e}', exc_info=True)

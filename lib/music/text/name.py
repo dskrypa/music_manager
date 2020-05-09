@@ -4,7 +4,7 @@
 
 import logging
 import re
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import (
     Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Collection, Mapping, TypeVar, Dict
 )
@@ -52,7 +52,7 @@ class Name(ClearableCachedPropertyMixin):
     non_eng = NamePart(str)
     romanized = NamePart(str)
     lit_translation = NamePart(str)
-    versions = NamePart(List)
+    versions = NamePart(Set)
     extra = NamePart(Mapping)
 
     def __init__(
@@ -64,26 +64,42 @@ class Name(ClearableCachedPropertyMixin):
         self.non_eng = non_eng
         self.romanized = romanized
         self.lit_translation = lit_translation
-        self.versions = versions or []
+        self.versions = set(versions) if versions else set()
         self.extra = extra
         self.__clear = True
 
     def __repr__(self):
-        parts = (self.english, self.non_eng, self.extra)
-        parts = ', '.join(map(repr, filter(None, parts)))
-        return f'<{type(self).__name__}({parts})>'
+        return self.full_repr()
 
-    def full_repr(self, include_no_val=False, delim='', indent=1):
+    def __copy__(self):
+        attrs = self.as_dict()
+        attrs['eng'] = attrs.pop('_english')
+        return self.__class__(**attrs)
+
+    def as_dict(self):
+        return {attr: deepcopy(getattr(self, attr)) for attr in self._parts}
+
+    def full_repr(self, include_no_val=False, delim='', indent=1, inner=False, include_versions=True):
         var_names = ['_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang']
         var_vals = [getattr(self, attr) for attr in var_names]
         indent_str = ' ' * indent
         parts = f',{delim}{indent_str}'.join(f'{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
-        if versions := self.versions:
+        if (versions := self.versions) and include_versions:
             if parts:
                 parts += f',{delim}{indent_str}'
-            parts += 'versions=[{}]'.format(', '.join(v.full_repr(include_no_val, delim, indent) for v in versions))
+            if '\n' in delim:
+                inner_indent = ' ' * (indent + 4)
+                fmt = f'versions={{{{{delim}{inner_indent}{{}}{delim}{indent_str}}}}}'
+            else:
+                inner_indent = indent_str
+                fmt = 'versions={{{}}}'
+            parts += fmt.format(
+                f',{delim}{inner_indent}'.join(v.full_repr(include_no_val, inner=True) for v in versions)
+            )
+
         prefix = f'{delim}{indent_str}' if '\n' in delim else delim
-        return f'<{type(self).__name__}({prefix}{parts}{delim})>'
+        suffix = f'{delim}{indent_str}' if inner and '\n' in delim else delim
+        return f'<{type(self).__name__}({prefix}{parts}{suffix})>'
 
     def __str__(self):
         eng = self.english
@@ -113,6 +129,7 @@ class Name(ClearableCachedPropertyMixin):
 
     @cached_property
     def __parts(self):
+        # _english, non_eng, romanized, lit_translation
         return tuple(getattr(self, part) for part in self._parts if part not in ('versions', 'extra'))
 
     def __eq__(self, other: 'Name'):
@@ -142,13 +159,11 @@ class Name(ClearableCachedPropertyMixin):
         if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
             scores.append(romanization_match)
 
-        s_versions = self.versions
-        if s_versions:
+        if s_versions := self.versions:
             for version in s_versions:
                 scores.extend(version._score(other, romanization_match=romanization_match))
         if other_versions:
-            o_versions = other.versions
-            if o_versions:
+            if o_versions := other.versions:
                 for version in o_versions:
                     scores.extend(self._score(version, romanization_match=romanization_match, other_versions=False))
 
@@ -184,40 +199,82 @@ class Name(ClearableCachedPropertyMixin):
         name_parts = self._parts
         for key, val in kwargs.items():
             if key in name_parts:
+                if key == 'versions' and not isinstance(val, set):
+                    val = set(val)
                 setattr(self, key, val)
             else:
                 raise ValueError(f'Invalid name part: {key!r}')
 
-    def is_version_of(self, other: 'Name') -> bool:
-        if (s_eng := self.english) and (o_eng := other.english) and (s_ne := self.non_eng) and (o_ne := other.non_eng):
-            # noinspection PyUnboundLocalVariable
-            return (s_eng == o_eng and s_ne != o_ne) or (s_ne == o_ne and s_eng != o_eng)
+    def _match(self, other: 'Name', attr: str):
+        return _match(getattr(self, attr), getattr(other, attr))
+
+    def _matches(self, other: 'Name'):
+        return tuple(self._match(other, attr) for attr in ('english', 'non_eng'))
+
+    def _basic_matches(self, other: 'Name'):
+        return tuple(self._match(other, attr) for attr in ('_english', 'non_eng', 'romanized', 'lit_translation'))
+
+    def _merge_basic(self, other: 'Name'):
+        merged = {}
+        for attr in ('_english', 'non_eng', 'romanized', 'lit_translation'):
+            s_value = getattr(self, attr)
+            o_value = getattr(other, attr)
+            if s_value and o_value and s_value != o_value:
+                raise ValueError(f'Unable to merge {self!r} and {other!r} because {attr=!r} does not match')
+            merged[attr] = s_value or o_value
+        return merged
+
+    def _merge_complex(self, other: 'Name'):
+        extra = deepcopy(self.extra) or {}
+        if o_extra := other.extra:
+            extra.update(o_extra)
+        return {'extra': extra or None, 'versions': self._merge_versions(other)}
+
+    def _merge_versions(self, other: 'Name', include=False):
+        versions = set()
+        for version in self.versions:
+            try:
+                version._merge_basic(other)
+            except ValueError:
+                versions.add(version)
+        for version in other.versions:
+            try:
+                version._merge_basic(self)
+            except ValueError:
+                versions.add(version)
+
+        if include:
+            other = copy(other)
+            other._pop_versions()
+            versions.add(other)
+        return versions
+
+    def is_version_of(self, other: 'Name', partial=False) -> bool:
+        matches = self._matches(other)
+        any_match = any(matches)
+        if partial:
+            return any_match
+        elif any_match:
+            return not any(m is False for m in matches)
         return False
 
-    def is_compatible_with(self, other: 'Name') -> bool:
-        if self.is_version_of(other):
-            return True
-        s_eng, o_eng, s_ne, o_ne = self.english, other.english, self.non_eng, other.non_eng
-        eng_match = s_eng and o_eng and s_eng == o_eng and xor(s_ne, o_ne)
-        non_eng_match = xor(s_eng, o_eng) and s_ne and o_ne and s_ne == o_ne
-        return eng_match or non_eng_match
+    def should_merge(self, other: 'Name'):
+        matches = self._matches(other)
+        return any(matches) and not any(m is False for m in matches) and self != other
+
+    def _pop_versions(self):
+        versions = self.versions
+        self.versions = set()
+        return versions
 
     def _combined(self, other: 'Name') -> Dict[str, Any]:
-        if self.is_version_of(other):
-            combined = {attr: getattr(self, attr) for attr in self._parts}
-            combined['versions'].append(other)
+        try:
+            combined = self._merge_basic(other)
+        except ValueError:
+            combined = self.as_dict()
+            combined['versions'] = self._merge_versions(other, True)
         else:
-            combined = {}
-            for attr in self._parts:
-                s_value = getattr(self, attr)
-                o_value = getattr(other, attr)
-                if attr == 'versions':
-                    combined[attr] = s_value + o_value
-                elif attr == 'extra' and s_value and o_value:
-                    combined[attr] = combo_value = deepcopy(s_value)
-                    combo_value.update(o_value)
-                else:
-                    combined[attr] = s_value or o_value
+            combined.update(self._merge_complex(other))
         return combined
 
     def __add__(self, other: 'Name') -> 'Name':
@@ -411,6 +468,12 @@ def sort_name_parts(parts: Iterable[str]) -> List[Optional[str]]:
     if parts and not LangCat.contains_any(parts[0], LangCat.ENG):
         parts.insert(0, None)
     return parts
+
+
+def _match(a, b):
+    if a and b:
+        return a == b
+    return None
 
 
 def xor(a, b):

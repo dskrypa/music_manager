@@ -37,7 +37,7 @@ class GenerasiaArtistNameParsingTest(NameTestCaseBase):
         expected = {
             Name(
                 'Girls\' Generation', '소녀시대', romanized='So Nyeo Si Dae',
-                versions=[Name('SNSD', '소녀시대', romanized='So Nyeo Si Dae')]
+                versions={Name('SNSD', '소녀시대', romanized='So Nyeo Si Dae')}
             ),
             Name('Girls\' Generation', '少女時代', romanized='Shoujo Jidai'),
         }

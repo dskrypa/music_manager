@@ -114,7 +114,7 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
     log.debug(f'Processing album for {album_dir} with {album_name=!r} ({repackage=}) and {artists=}')
     candidates = _find_album(alb_name, artists, album_dir.type, repackage, album_name.number)
     if not candidates and alb_name.eng_lang == LangCat.MIX and alb_name.eng_langs.intersection(LangCat.non_eng_cats):
-        split = Name.split(alb_name.english, versions=[alb_name, Name(non_eng=alb_name.english)])
+        split = Name.split(alb_name.english, versions={alb_name, Name(non_eng=alb_name.english)})
         log.log(19, f'Re-attempting album match with name={split.full_repr()}')
         candidates = _find_album(split, artists, album_dir.type, repackage, album_name.number)
 

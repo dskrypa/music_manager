@@ -76,7 +76,7 @@ ALBUM_TEST_CASES = {
     "‘The ReVe Festival’ Finale": AlbumName("'The ReVe Festival' Finale"),
 
     '솔직히 지친다.newwav': AlbumName(
-        Name(non_eng='솔직히 지친다', versions=[Name.from_enclosed('솔직히 지친다.newwav')])
+        Name(non_eng='솔직히 지친다', versions={Name.from_enclosed('솔직히 지친다.newwav')})
     ),
     ('위키미키(Weki Meki) Digital Single [DAZZLE DAZZLE]', '위키미키 (Weki Meki)'): AlbumName(
         'DAZZLE DAZZLE', alb_type='Digital Single'

@@ -155,7 +155,7 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
                             name_1 = Name.from_parts((first_part, part_a))
                             name_2 = Name.from_parts((alias, part_a))
                             name_2.update(romanized=romanized)
-                            name_1.update(romanized=romanized, versions=[name_2])
+                            name_1.update(romanized=romanized, versions={name_2})
                             yield name_1
             else:
                 # log.debug('No ;/and')

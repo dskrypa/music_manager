@@ -68,7 +68,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
                 if eng or non_eng_vals:
                     non_eng = non_eng_vals.pop(0)[1] if non_eng_vals else None
-                    yield Name(eng, non_eng, versions=[Name(eng, val[1]) for val in non_eng_vals])
+                    yield Name(eng, non_eng, versions={Name(eng, val[1]) for val in non_eng_vals})
         else:
             log.debug(f'No infobox found for {artist_page}')
 

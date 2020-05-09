@@ -237,7 +237,7 @@ class AlbumName:
 
         self.name = Name(*sort_name_parts(name_parts))
         if versions:
-            self.name.update(versions=versions)
+            self.name.update(versions=set(versions))
         return self
 
 

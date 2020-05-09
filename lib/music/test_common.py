@@ -59,8 +59,8 @@ class NameTestCaseBase(TestCaseBase):
         #     raise AssertionError('\n'.join(error_parts)) from None
 
     def assertNamesEqual(self, found, expected):
-        found = set(found) if not isinstance(found, set) else found
-        expected = set(expected) if not isinstance(expected, set) else expected
+        found = _to_set(found)
+        expected = _to_set(expected)
         try:
             self.assertSetEqual(found, expected)
         except AssertionError:
@@ -71,3 +71,12 @@ class NameTestCaseBase(TestCaseBase):
                 colored('Found: {}'.format('\n'.join(n.full_repr(delim='\n', indent=4) for n in found)), 9)
             ]
             raise AssertionError('\n'.join(error_parts)) from None
+
+
+def _to_set(value):
+    if isinstance(value, set):
+        return value
+    elif isinstance(value, Name):
+        return {value}
+    else:
+        return set(value)

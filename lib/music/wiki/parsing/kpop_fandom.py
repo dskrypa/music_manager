@@ -113,7 +113,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             lang: Optional[str] = None
     ) -> None:
         content = section.content
-        log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
+        # log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
         if type(content) is CompoundNode:   # A template for splitting the discography into
             content = content[0]            # columns follows the list of albums in this section
 
@@ -191,8 +191,15 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         dates = _find_release_dates(infobox)
         langs = _find_page_languages(entry_page)
 
-        if track_list_section := entry_page.sections.find('Track list', None):
-            track_section_content = track_list_section.processed(False, False, False, False, True)
+        tl_keys = ('Track list', 'Tracklist')
+        if track_list_section := next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None):
+            orig = track_list_section.pformat('content')
+            try:
+                track_section_content = track_list_section.processed(False, False, False, False, True)
+            except Exception:
+                log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
+                return
+
             if track_section_content:
                 yield DiscographyEntryEdition(  # edition or version = None
                     name, entry_page, entry, entry_type, artists, dates, track_section_content, None,

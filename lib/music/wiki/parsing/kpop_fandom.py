@@ -246,8 +246,11 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
         tracks = edition._tracks
-        if tracks.__class__ is CompoundNode and len(tracks) == 1 and isinstance(tracks[0], ListNode):
+        if tracks.__class__ is CompoundNode and isinstance(tracks[0], ListNode):
+            if len(tracks) != 1:
+                log.debug(f'Warning: tracks node on {edition.page} may contain additional data - len={len(tracks)}')
             tracks = tracks[0]
+
         if isinstance(tracks, ListNode):
             yield DiscographyEntryPart(None, edition, tracks)
         elif isinstance(tracks, list):

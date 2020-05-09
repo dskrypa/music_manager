@@ -288,7 +288,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
                         # log.debug(f'Will re-search for {eng=!r} {title=!r} {entity=!r}')
                         new_orig_title_map[eng] = title
                         research_title_name_map[eng] = title_name_map.get(title)
-                        for site in set(sites).difference(entity._pages):
+                        for site in set(sites).difference(entity._pages).union({'kindie.fandom.com'}):
                             research_query_map[site].append(eng)
 
             if research_query_map:

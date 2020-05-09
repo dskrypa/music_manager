@@ -71,8 +71,8 @@ def _strify_node(node: CompoundNode):
     return ' '.join(parts)
 
 
-def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
-    _intro = intro = artist_page.intro
+def name_from_intro(page: WikiPage) -> Iterator[Name]:
+    _intro = intro = page.intro(True)
     if isinstance(intro, CompoundNode):
         intro = _strify_node(intro)
     elif isinstance(intro, String):
@@ -83,9 +83,9 @@ def name_from_intro(artist_page: WikiPage) -> Iterator[Name]:
         first_string = IS_SPLIT(intro, 1)[0]
     else:
         try:
-            raise ValueError(f'Unexpected intro on {artist_page}:\n{artist_page.intro.pformat()}')
+            raise ValueError(f'Unexpected intro on {page}:\n{_intro.pformat()}')
         except AttributeError:
-            raise ValueError(f'Unexpected intro on {artist_page}: {artist_page.intro!r}') from None
+            raise ValueError(f'Unexpected intro on {page}: {_intro!r}') from None
 
     if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
         # log.debug(f'Found multi-lang name match: {m}')

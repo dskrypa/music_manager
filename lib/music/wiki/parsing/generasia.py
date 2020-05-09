@@ -473,7 +473,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         """
         links = []
         member_str_index = None
-        for i, node in enumerate(page.intro):
+        for i, node in enumerate(page.intro()):
             if isinstance(node, String) and 'is a member of' in node.value:
                 member_str_index = i
             elif member_str_index is not None:

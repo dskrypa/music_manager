@@ -79,7 +79,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
-        if intro := entry_page.intro:
+        if intro := entry_page.intro():
             return find_ordinal(intro.raw.string)
         return None
 
@@ -332,7 +332,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
     @classmethod
     def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
-        if intro := artist_page.intro:
+        if intro := artist_page.intro():
 
             for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True), strict=1).items():
                 # noinspection PyUnresolvedReferences

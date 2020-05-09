@@ -115,8 +115,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
         for cls_cat, cat_cls in cls._category_classes.items():
             bad_cats = cat_cls._not_categories
             cat_match = next((pc for pc in page_cats if cls_cat in pc and not any(bci in pc for bci in bad_cats)), None)
-            if cat_match:
+            bad_match = next((pc for pc in page_cats if any(bci in pc for bci in bad_cats)), None)
+            if cat_match and not bad_match:
                 if issubclass(cat_cls, cls):                # True for this class and its subclasses
+                    # log.debug(f'{obj} is a {cat_cls.__name__} because of {cat_match=!r}; {page_cats=}')
                     return cat_cls, obj
                 error = EntityTypeError(err_fmt.format(cls_cat, cat_match))
 

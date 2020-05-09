@@ -79,6 +79,14 @@ class WikiEntityCompatibilityTest(TestCaseBase):
                 cls.from_page(page)
             self.n += 1
 
+    def test_group_from_cats(self):
+        categories = [
+            'emi group artists', 'japanese-language singers of south korea', 'k-pop music groups',
+            'musical groups established in 2011', 'musical groups from seoul', 'south korean girl groups'
+        ]
+        page = WikiPage('test', None, '', categories)
+        self.assertIs(type(WikiEntity.from_page(page)), Group)
+
 
 if __name__ == '__main__':
     main()

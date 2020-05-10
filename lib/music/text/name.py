@@ -69,7 +69,7 @@ class Name(ClearableCachedPropertyMixin):
         self.__clear = True
 
     def __repr__(self):
-        return self.full_repr()
+        return self.full_repr(pretty=True)
 
     def __copy__(self):
         attrs = self.as_dict()
@@ -79,11 +79,19 @@ class Name(ClearableCachedPropertyMixin):
     def as_dict(self):
         return {attr: deepcopy(getattr(self, attr)) for attr in self._parts}
 
-    def full_repr(self, include_no_val=False, delim='', indent=1, inner=False, include_versions=True):
-        var_names = ['_english', 'non_eng', 'romanized', 'lit_translation', 'extra', 'non_eng_lang']
+    def full_repr(self, include_no_val=False, delim='', indent=1, inner=False, include_versions=True, pretty=False):
+        var_names = [
+            'non_eng', 'romanized', 'lit_translation', 'extra', # 'non_eng_lang'
+        ]
         var_vals = [getattr(self, attr) for attr in var_names]
         indent_str = ' ' * indent
-        parts = f',{delim}{indent_str}'.join(f'{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
+        if pretty and delim == '' and self.english and self.english == self._english:
+            _parts = [repr(self.english)]
+        else:
+            _parts = [f'_english={self._english!r}']
+
+        _parts.extend(f'{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
+        parts = f',{delim}{indent_str}'.join(_parts)
         if (versions := self.versions) and include_versions:
             if parts:
                 parts += f',{delim}{indent_str}'

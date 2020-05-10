@@ -245,6 +245,12 @@ class DiscographyEntryEdition:
         lang = f'[lang={self._lang!r}]' if self._lang else ''
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and self.page == other.page and self.edition == other.edition
+
+    def __hash__(self):
+        return hash((self.__class__, self.page, self.edition))
+
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
         return iter(self.parts)
 
@@ -365,6 +371,12 @@ class DiscographyEntryPart:
 
     def __lt__(self, other: 'DiscographyEntryPart') -> bool:
         return (self.edition, self._name) < (other.edition, other._name)
+
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and self._name == other._name and self.edition == other.edition
+
+    def __hash__(self):
+        return hash((self.__class__, self._name, self.edition))
 
     def __iter__(self) -> Iterator['Track']:
         return iter(self.tracks)

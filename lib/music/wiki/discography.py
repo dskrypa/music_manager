@@ -154,17 +154,17 @@ class DiscographyEntryFinder:
                     site_discography.append(DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist))
                     self.created_entry[disco_entry] = True
 
-        if (artist := self.artist) is not None:         # Ensure the disco entries have the artist with all known pages
-            name_matches = artist.name.matches
-            for site_entries in discography.values():
-                for entry in site_entries:
-                    for edition in entry:               # Set artist on editions first - entry.artists looks at editions
-                        if (ea := edition.artist) is None or (ea is not artist and name_matches(ea.name)):
-                            # noinspection PyPropertyAccess
-                            edition.artist = artist
-                    if (ea := entry.artist) is None or (ea is not artist and name_matches(ea.name)):
-                        # noinspection PyPropertyAccess
-                        entry.artist = artist
+        # if (artist := self.artist) is not None:         # Ensure the disco entries have the artist with all known pages
+        #     name_matches = artist.name.matches
+        #     for site_entries in discography.values():
+        #         for entry in site_entries:
+        #             for edition in entry:               # Set artist on editions first - entry.artists looks at editions
+        #                 if (ea := edition.artist) is None or (ea is not artist and name_matches(ea.name)):
+        #                     # noinspection PyPropertyAccess
+        #                     edition.artist = artist
+        #             if (ea := entry.artist) is None or (ea is not artist and name_matches(ea.name)):
+        #                 # noinspection PyPropertyAccess
+        #                 entry.artist = artist
 
         return discography
 

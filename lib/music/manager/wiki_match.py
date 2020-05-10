@@ -135,7 +135,7 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
 
 
 def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num):
-    candidates = []
+    candidates = set()
     for artist in artists:
         for entry in artist.all_discography_entries:
             if not alb_type or alb_type == entry.type:
@@ -144,7 +144,7 @@ def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[Di
                     pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
                     mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
                     if pkg_match_parts:
-                        candidates.extend(pkg_match_parts)
+                        candidates.update(pkg_match_parts)
                     else:
                         if entry_parts:
                             pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
@@ -153,8 +153,8 @@ def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[Di
                             mlog.debug(f'Found no parts for {entry=}')
                 elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
                     if parts := list(entry.parts()):
-                        candidates.extend(parts)
+                        candidates.update(parts)
                 else:
                     mlog.debug(f'{alb_name!r} does not match {entry} ({entry._pages})')
 
-    return candidates
+    return sorted(candidates)

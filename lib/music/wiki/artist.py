@@ -27,7 +27,14 @@ class Artist(PersonOrGroup, DiscographyMixin):
         return f'<{self.__class__.__name__}({self.name.artist_str()!r})[pages: {len(self._pages)}]>'
 
     def __lt__(self, other):
+        if other is None:
+            return False
         return self.name < other.name
+
+    def __gt__(self, other):
+        if other is None:
+            return True
+        return self.name > other.name
 
     @cached_property
     def name(self) -> Name:

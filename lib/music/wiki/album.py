@@ -297,7 +297,8 @@ class DiscographyEntryEdition:
                 log.debug(f'Found non-link artist values for {self._basic_repr}: {artist_strs}', extra={'color': 11})
 
             # log.debug(f'Looking for artists from links: {artist_links}')
-            artists.update(Artist.from_links(artist_links, strict=1).values())
+            strict = 0 if artists or len(artist_links) > 1 else 1
+            artists.update(Artist.from_links(artist_links, strict=strict).values())
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))

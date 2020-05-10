@@ -6,13 +6,12 @@ Artist wiki pages.
 
 import logging
 from itertools import chain
-from typing import MutableSet, List, Optional, Union, Set, Iterator
+from typing import MutableSet, List, Optional, Union, Set
 
 from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ..text import Name
-from .album import DiscographyEntry
 from .base import PersonOrGroup, GROUP_CATEGORIES
 from .discography import DiscographyEntryFinder, DiscographyMixin
 from .parsing.utils import LANGUAGES

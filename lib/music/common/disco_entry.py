@@ -22,7 +22,6 @@ class DiscoEntryType(Enum):
     SpecialAlbum = 'Special Album', ('special album',), 'Special Albums', True
     Compilation = 'Compilation', ('compilation', 'best album'), 'Compilations', False
     Feature = 'Feature', ('feature',), 'Collaborations', False
-    Collaboration = 'Collaboration', ('collaboration',), 'Collaborations', False
     Live = 'Live Album', ('live album',), 'Live', False
     MixTape = 'MixTape', ('mixtape',), 'Other', False
     CoverAlbum = 'Cover Album', ('cover album', 'remake album'), 'Other', False
@@ -35,6 +34,7 @@ class DiscoEntryType(Enum):
         'Singles', False
     )
     Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album'), 'Albums', True
+    Collaboration = 'Collaboration', ('collaboration',), 'Collaborations', False
 
     def __repr__(self):
         return f'<{type(self).__name__}: {self.value[0]!r}>'

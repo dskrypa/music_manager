@@ -14,6 +14,7 @@ from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, get_common_ch
 from ..wiki import Track, Artist, Singer, Group, DiscographyEntry, DiscographyEntryPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from .enums import CollabMode as CM
+from .exceptions import MatchException
 from .wiki_match import find_album
 from .wiki_utils import get_disco_part, DiscoObj
 
@@ -22,7 +23,7 @@ log = logging.getLogger(__name__)
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
 SOLO_DIR_FORMAT = SafePath('{artist}/Solo/{singer}')
 TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
-ArtistType = Union[Artist, Group, Singer]
+ArtistType = Union[Artist, Group, Singer, 'ArtistSet']
 TrackUpdates = Dict[SongFile, Dict[str, Any]]
 UpdateCounts = Dict[str, Dict[Tuple[Any, Any], int]]
 
@@ -42,22 +43,16 @@ def update_tracks(
             raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
 
         entry = DiscographyEntry.from_url(url)
-        AlbumUpdater(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode).update(dest_base_dir)
+        AlbumUpdater(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode).update(dest_base_dir, add_bpm)
     else:
         for album_dir in iter_album_dirs(paths):
-            album_dir.remove_bad_tags(dry_run)
-            album_dir.fix_song_tags(dry_run, add_bpm)
             try:
-                album = find_album(album_dir)
-            except Exception as e:
-                if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
-                    log.warning(f'No match found for {album_dir} ({album_dir.name})', extra={'color': 9})
-                else:
-                    log.error(f'Error finding an album match for {album_dir}: {e}', extra={'color': 9})
-                    log.debug(f'Error finding an album match for {album_dir}:', exc_info=True)
+                updater = AlbumUpdater.for_album_dir(album_dir, dry_run, soloist, hide_edition, collab_mode)
+            except MatchException as e:
+                log.log(e.lvl, e, extra={'color': 9})
+                log.debug(e, exc_info=True)
             else:
-                log.info(f'Matched {album_dir} to {album}')
-                AlbumUpdater(album_dir, album, dry_run, soloist, hide_edition, collab_mode).update(dest_base_dir)
+                updater.update(dest_base_dir, add_bpm)
 
 
 class AlbumUpdater:
@@ -71,6 +66,21 @@ class AlbumUpdater:
         self.dry_run = dry_run
         self.album_dir = album_dir
         self.album = album
+
+    @classmethod
+    def for_album_dir(
+            cls, album_dir: AlbumDir, dry_run=False, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST
+    ) -> 'AlbumUpdater':
+        try:
+            album = find_album(album_dir)
+        except Exception as e:
+            if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
+                raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e
+            else:
+                raise MatchException(40, f'Error finding an album match for {album_dir}: {e}') from e
+        else:
+            log.info(f'Matched {album_dir} to {album}')
+            return cls(album_dir, album, dry_run, soloist, hide_edition, collab_mode)
 
     @cached_property
     def disco_part(self) -> DiscographyEntryPart:
@@ -87,8 +97,26 @@ class AlbumUpdater:
 
     @cached_property
     def artist(self) -> ArtistType:
-        artists = list(self.edition.artists)
-        return choose_item(artists, 'artist', f'Found multiple artists for {self.disco_part}')
+        artists = sorted(self.edition.artists)
+        if len(artists) > 1:
+            others = set(artists)
+            artist = choose_item(artists + ['[combine all]'], 'artist', self.disco_part)
+            if artist == '[combine all]':
+                path_artist = choose_item(
+                    artists + ['Various Artists'], 'artist',
+                    before=colored('\nWhich artist\'s name should be used in the file path?', 13)
+                )
+                if path_artist != 'Various Artists':
+                    path_artist = path_artist.name.english
+                artist = ArtistSet(artists, path_artist)
+            else:
+                others.remove(artist)
+                for track in self.file_track_map.values():
+                    track.add_collabs(others)
+        else:
+            artist = artists[0]
+
+        return artist
 
     @cached_property
     def album_artist(self) -> ArtistType:
@@ -123,10 +151,7 @@ class AlbumUpdater:
         for file, track in self.file_track_map.items():
             updates[file] = file_values = values.copy()
             file_values['title'] = track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH))
-            if self.collab_mode in (CM.ARTIST, CM.BOTH) and (collabs := track.collab_parts):
-                # noinspection PyUnboundLocalVariable
-                file_values['artist'] = '{} {}'.format(self.artist_name, ' '.join(f'({part})' for part in collabs))
-
+            file_values['artist'] = track.artist_name(self.artist_name, self.collab_mode in (CM.ARTIST, CM.BOTH))
             if file.tag_type == 'mp4':
                 file_values['track'] = (track.num, len(self.file_track_map))        # TODO: Handle incomplete file set
                 file_values['disk'] = (disk_num, disk_num)                          # TODO: get actual disk count
@@ -183,10 +208,22 @@ class AlbumUpdater:
         else:
             log.log(19, f'Album {self.album_dir} is already in the expected dir: {expected_dir}')
 
-    def update(self, dest_base_dir: Optional[Path] = None):
+    def update(self, dest_base_dir: Optional[Path] = None, add_bpm=False):
+        self.album_dir.remove_bad_tags(self.dry_run)
+        self.album_dir.fix_song_tags(self.dry_run, add_bpm)
         log.info(f'Artist for {self.edition}: {self.artist}')
         self._apply_track_updates()
         self._move_album_dir(dest_base_dir)
+
+
+class ArtistSet:
+    def __init__(self, artists, english):
+        self.name = self            # Prevent needing to have a separate class for the fake Name
+        self.artists = artists
+        self.english = english
+
+    def __str__(self):
+        return ', '.join(str(a.name) for a in self.artists)
 
 
 def _album_format(date, num):

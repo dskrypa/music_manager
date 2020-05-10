@@ -3,6 +3,7 @@
 """
 
 import logging
+from itertools import chain
 from functools import partialmethod
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
@@ -26,6 +27,7 @@ class Track:
         self.num = num                  # type: int
         self.name = name                # type: Name
         self.album_part = album_part    # type: Optional[DiscographyEntryPart]
+        self._collabs = []
 
     def _repr(self, long=False):
         if long:
@@ -42,6 +44,9 @@ class Track:
             return extras[item]
         else:
             raise KeyError(item)
+
+    def add_collabs(self, artists):
+        self._collabs.extend(artists)
 
     @cached_property
     def collab_parts(self) -> List[str]:
@@ -80,6 +85,13 @@ class Track:
                 parts.append(str(artists))
 
         return parts
+
+    def artist_name(self, artist_name, collabs=True):
+        base = ', '.join(chain((artist_name,), (str(a.name) for a in self._collabs)))
+        if collabs and (parts := self.collab_parts):
+            # noinspection PyUnboundLocalVariable
+            return '{} {}'.format(base, ' '.join(f'({part})' for part in parts))
+        return base
 
     def full_name(self, collabs=True) -> str:
         """

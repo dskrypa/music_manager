@@ -265,7 +265,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             for i, track_node in enumerate(tracks):
                 yield DiscographyEntryPart(f'CD{i + 1}', edition, track_node)
         elif tracks is None:
-            if edition.type in (DiscoEntryType.Single, DiscoEntryType.Collaboration):
+            if edition.type == DiscoEntryType.Single:
                 yield DiscographyEntryPart(None, edition, None)
             else:
                 log.warning(f'Unexpected type={edition.type} for {edition!r}')

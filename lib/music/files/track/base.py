@@ -319,9 +319,12 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             else:
                 raise e
 
-    def iter_clean_tags(self) -> Iterator[Tuple[str, Any]]:
+    def iter_clean_tags(self) -> Iterator[Tuple[str, str, Any]]:
+        mp3 = self.tag_type == 'mp3'
+        normalize_tag_name = self.normalize_tag_name
         for tag, value in self._f.tags.items():
-            yield tag[:4], value
+            _tag = tag[:4] if mp3 else tag
+            yield _tag, normalize_tag_name(_tag), value
 
     @cached_property
     def all_artists(self) -> Set[Name]:

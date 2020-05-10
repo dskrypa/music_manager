@@ -118,11 +118,11 @@ def table_song_tags(paths: Paths, include_tags=None):
 
 
 def table_unique_tag_values(paths: Paths, tag_ids):
-    matcher = FnMatcher(tag_ids, ignore_case=True)
+    matches = FnMatcher(tag_ids, ignore_case=True).matches
     unique_vals = defaultdict(Counter)
     for music_file in iter_music_files(paths):
-        for tag, val in music_file.iter_clean_tags():
-            if matcher.match(tag):
+        for tag, name, val in music_file.iter_clean_tags():
+            if matches((tag, name)):
                 unique_vals[tag][str(val)] += 1
 
     tbl = Table(
@@ -143,7 +143,7 @@ def table_tag_type_counts(paths: Paths):
     for music_file in iter_music_files(paths):
         files += 1
         tag_set = set()
-        for tag, val in music_file.iter_clean_tags():
+        for tag, name, val in music_file.iter_clean_tags():
             tag_set.add(tag)
             total_tags[tag] += 1
             unique_values[tag][str(val)] += 1

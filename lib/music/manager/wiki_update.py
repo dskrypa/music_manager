@@ -103,8 +103,8 @@ class AlbumUpdater:
             artist = choose_item(artists + ['[combine all]'], 'artist', self.disco_part)
             if artist == '[combine all]':
                 path_artist = choose_item(
-                    artists + ['Various Artists'], 'artist',
-                    before=colored('\nWhich artist\'s name should be used in the file path?', 13)
+                    artists + ['Various Artists'], 'artist', before_color=13,
+                    before='\nWhich artist\'s name should be used in the file path?'
                 )
                 if path_artist != 'Various Artists':
                     path_artist = path_artist.name.english

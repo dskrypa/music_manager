@@ -131,7 +131,9 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
         log.log(19, f'Re-attempting album match with name={split.full_repr()}')
         candidates = _find_album(split, artists, album_dir.type, repackage, album_name.number)
 
-    return choose_item(candidates, 'candidate', before=f'Found multiple possible matches for {album_name}')
+    return choose_item(
+        candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
+    )
 
 
 def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num):
@@ -157,4 +159,4 @@ def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[Di
                 else:
                     mlog.debug(f'{alb_name!r} does not match {entry} ({entry._pages})')
 
-    return sorted(candidates)
+    return candidates

@@ -7,7 +7,7 @@ import re
 from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode
 from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed, strip_enclosed
 
 __all__ = [
@@ -37,28 +37,6 @@ WIKI_STYLE_SEARCHES = (
 )
 
 
-def replace_lang_abbrev(text: str) -> str:
-    if m := LANG_ABBREV_PAT.search(text):
-        abbrev = m.group(2).lower()
-        lang = LANG_ABBREV_MAP[abbrev]
-        return LANG_ABBREV_PAT.sub(r'\1{}\3'.format(lang), text)
-    return text
-
-
-def get_artist_title(node: Node, entry_page: WikiPage):
-    if isinstance(node, Link):
-        return node.title
-    elif isinstance(node, CompoundNode) and isinstance(node[0], Link):
-        return node[0].title
-    else:
-        log.debug(f'Unexpected member format on page={entry_page}: {node}')
-        return None
-
-
-def rm_lang_prefix(text: str) -> str:
-    return LANG_PREFIX_SUB('', text).strip()
-
-
 def _strify_node(node: CompoundNode):
     # log.debug(f'_strify_node({node!r})')
     parts = []
@@ -67,8 +45,12 @@ def _strify_node(node: CompoundNode):
             parts.append(n.show)
         elif isinstance(n, String):
             parts.append(n.value)
-        elif isinstance(n, Template) and isinstance(n.value, String):
-            parts.append(n.value.value)
+        elif isinstance(n, Template):
+            if isinstance(n.value, String):
+                parts.append(n.value.value)
+            elif n.name.lower() == 'korean' and isinstance(n.value, MappingNode):
+                if value := n.value.get('hangul'):
+                    parts.append(value.value)
         else:
             break
     return ' '.join(parts)
@@ -204,3 +186,25 @@ def find_language(node: Node, lang: Optional[str], langs: Set[str]) -> Optional[
                 if len(matching_langs) == 1:
                     return next(iter(matching_langs))
     return None
+
+
+def replace_lang_abbrev(text: str) -> str:
+    if m := LANG_ABBREV_PAT.search(text):
+        abbrev = m.group(2).lower()
+        lang = LANG_ABBREV_MAP[abbrev]
+        return LANG_ABBREV_PAT.sub(r'\1{}\3'.format(lang), text)
+    return text
+
+
+def get_artist_title(node: Node, entry_page: WikiPage):
+    if isinstance(node, Link):
+        return node.title
+    elif isinstance(node, CompoundNode) and isinstance(node[0], Link):
+        return node[0].title
+    else:
+        log.debug(f'Unexpected member format on page={entry_page}: {node}')
+        return None
+
+
+def rm_lang_prefix(text: str) -> str:
+    return LANG_PREFIX_SUB('', text).strip()

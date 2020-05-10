@@ -3,6 +3,7 @@
 import logging
 import sys
 from pathlib import Path
+from unittest import skip
 from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
@@ -80,6 +81,12 @@ class IntroNameParsingTest(NameTestCaseBase):
         page = fake_page(as_node("""'''Apink''' ({{lang-ko\n    | 1 = 에이핑크\n}}, {{lang-ja\n    | 1 = エーピンク\n}}) is a South Korean [[girl group]] formed by [[Play M Entertainment]] (formerly A Cube Entertainment and Plan A Entertainment). The group debuted on April 19, 2011, with the [[extended play]] (EP) ''[[Seven Springs of Apink]]'' and with seven members: [[Park Cho-rong]], [[Yoon Bo-mi]], [[Jung Eun-ji]], [[Son Na-eun]], Hong Yoo-kyung, [[Kim Nam-joo (singer)|Kim Nam-joo]] and [[Oh Ha-young]]. Hong left the group in April 2013 to focus on her studies."""))
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Apink', '에이핑크'), Name('Apink', 'エーピンク')})
+
+    @skip('Disabled until as_node is fixed to prevent erroneous list creation')
+    def test_better_known_as(self):
+        page = fake_page(as_node("""'''Kim Tae-hyeong''' ({{Korean\n    | hangul  = 김태형\n    | hanja   =\n    | rr      =\n    | mr      =\n    | context =\n}}; born February 11, 1988), better known as '''Paul Kim''' ({{Korean\n    | hangul  = 폴킴\n    | hanja   =\n    | rr      =\n    | mr      =\n    | context =\n}}) is a South Korean singer. He debuted in 2014 and has released two extended plays and one full-length album in two parts: ''The Road'' (2017) and ''Tunnel'' (2018)."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Kim Tae-hyeong', '김태형'), Name('Paul Kim', '폴킴')})
 
 
 if __name__ == '__main__':

@@ -21,6 +21,8 @@ from .wiki_info import print_de_part
 
 __all__ = ['show_matches', 'find_artists', 'find_album', 'test_match']
 log = logging.getLogger(__name__)
+mlog = logging.getLogger(f'{__name__}.matching')
+mlog.setLevel(logging.WARNING)
 
 
 def test_match(paths: Paths, identifier: str):
@@ -140,19 +142,19 @@ def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[Di
                 if alb_name and alb_name.matches(entry.name):
                     entry_parts = list(entry.parts())
                     pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
-                    log.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
+                    mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
                     if pkg_match_parts:
                         candidates.extend(pkg_match_parts)
                     else:
                         if entry_parts:
                             pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
-                            log.debug(f'Found no matching parts for {entry=}: {pkg_repr}')
+                            mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}')
                         else:
-                            log.debug(f'Found no parts for {entry=}')
+                            mlog.debug(f'Found no parts for {entry=}')
                 elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
                     if parts := list(entry.parts()):
                         candidates.extend(parts)
                 else:
-                    log.debug(f'{alb_name!r} does not match {entry} ({entry._pages})')
+                    mlog.debug(f'{alb_name!r} does not match {entry} ({entry._pages})')
 
     return candidates

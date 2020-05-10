@@ -108,6 +108,7 @@ def parser():
         bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
 
     parser.include_common_args('verbosity', 'dry_run')
+    parser.add_argument('--match_log', '-M', action='store_true', help='Enable debug logging for the album match processing logger')
     return parser
 
 
@@ -115,6 +116,8 @@ def main():
     args = parser().parse_args()
     init_logging(args.verbose, log_path=None, names=None)
     # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
+    if args.match_log:
+        logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
     action, sub_action = args.action, getattr(args, 'sub_action', None)
     if action == 'show':

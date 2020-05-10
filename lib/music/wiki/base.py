@@ -184,7 +184,9 @@ class WikiEntity(ClearableCachedPropertyMixin):
         return cls._by_category(page, *args, **kwargs)
 
     @classmethod
-    def _from_multi_site_pages(cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2) -> WE:
+    def _from_multi_site_pages(
+            cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2, **kwargs
+    ) -> WE:
         # log.debug(f'Processing {len(pages)} multi-site pages')
         entity = None
         page_link_map = {}
@@ -205,7 +207,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
                     log.log(logging.WARNING if strict else logging.DEBUG, e, extra={'color': 9})
             else:
                 if entity is None:
-                    entity = cat_cls(page_name(page), page)
+                    entity = cat_cls(page_name(page), page, **kwargs)
                 else:
                     entity._add_page(page)
 
@@ -227,7 +229,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     @classmethod
     def from_title(
             cls: Type[WE], title: str, sites: StrOrStrs = None, search=True, research=False,
-            name: Optional[Name] = None, strict=2
+            name: Optional[Name] = None, strict=2, **kwargs
     ) -> WE:
         """
         :param str title: A page title
@@ -242,13 +244,15 @@ class WikiEntity(ClearableCachedPropertyMixin):
         sites = _sites(sites)
         pages, errors = MediaWikiClient.get_multi_site_page(title, sites, search=search)
         if pages:
-            entity = cls._from_multi_site_pages(pages.values(), name, strict=strict)
+            entity = cls._from_multi_site_pages(pages.values(), name, strict=strict, **kwargs)
             if search and research:
                 if 0 < len(entity._pages) < len(sites):
                     # noinspection PyUnboundLocalVariable
                     if (name := entity.name) and (eng := name.english) and eng != title:
                         log.debug(f'Returning {cls.__name__}.from_title for {eng=!r}')
-                        research_entity = cls.from_title(eng, set(sites).difference(entity._pages), search, False)
+                        research_entity = cls.from_title(
+                            eng, set(sites).difference(entity._pages), search, False, **kwargs
+                        )
                         research_entity._add_pages(entity._pages)
                         return research_entity
             return entity
@@ -328,13 +332,13 @@ class WikiEntity(ClearableCachedPropertyMixin):
         return title_entity_map
 
     @classmethod
-    def from_url(cls: Type[WE], url: str) -> WE:
-        return cls._by_category(MediaWikiClient.page_for_article(url))
+    def from_url(cls: Type[WE], url: str, **kwargs) -> WE:
+        return cls._by_category(MediaWikiClient.page_for_article(url), **kwargs)
 
     @classmethod
-    def from_link(cls: Type[WE], link: Link) -> WE:
+    def from_link(cls: Type[WE], link: Link, **kwargs) -> WE:
         mw_client, title = link_client_and_title(link)
-        return cls._by_category(mw_client.get_page(title))
+        return cls._by_category(mw_client.get_page(title), **kwargs)
 
     @classmethod
     def find_from_links(cls: Type[WE], links: Iterable[Link]) -> WE:

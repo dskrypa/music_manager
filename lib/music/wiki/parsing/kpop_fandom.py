@@ -5,7 +5,6 @@
 import logging
 import re
 from datetime import datetime, date
-from traceback import format_exc
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Any, Tuple, Union, Type
 
 from ds_tools.unicode import LangCat
@@ -41,7 +40,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         yield from name_from_intro(artist_page)
         if _infobox := artist_page.infobox:
-            log.debug(f'Found infobox for {artist_page}')
+            # log.debug(f'Found infobox for {artist_page}')
             infobox = _infobox.value
             if birth_name := infobox.get('birth_name'):
                 if isinstance(birth_name, String):
@@ -90,13 +89,13 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         except KeyError:
             return
 
+        err_msg = f'Unexpected error processing {section=} on {artist_page}'
         if section.depth == 1:
             for alb_type, alb_type_section in section.children.items():
                 try:
                     cls._process_disco_section(artist_page, finder, alb_type_section, alb_type)
                 except Exception as e:
-                    msg = f'Unexpected error processing section={section}: {format_exc()}'
-                    log.error(msg, extra={'color': 'red'})
+                    log.error(err_msg, exc_info=True, extra={'color': 'red'})
         elif section.depth == 2:  # key = language, value = sub-section
             for lang, lang_section in section.children.items():
                 for alb_type, alb_type_section in lang_section.children.items():
@@ -104,8 +103,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     try:
                         cls._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
                     except Exception as e:
-                        msg = f'Unexpected error processing section={section}: {format_exc()}'
-                        log.error(msg, extra={'color': 'red'})
+                        log.error(err_msg, exc_info=True, extra={'color': 'red'})
         else:
             log.warning(f'Unexpected section depth: {section.depth}')
 
@@ -126,49 +124,59 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                 raise TypeError(f'Unexpected content on {artist_page}: {content!r}')
 
         for entry in content.iter_flat():
+            # log.debug(f'Processing {artist_page} {entry=!r}')
             # {primary artist} - {album or single} [(with collabs)] (year)
             if isinstance(entry, String):
-                year_str = entry.value.rsplit(maxsplit=1)[1]
+                entry_str = entry.value
+                year_str = entry_str.rsplit(maxsplit=1)[1]
             else:
+                entry_str = None
                 try:
-                    year_str = entry[-1].value.split()[-1]
+                    entry_str = entry[-1].value
+                    year_str = entry_str.rsplit(maxsplit=1)[-1]
                 except AttributeError:
                     log.debug(f'Unable to parse year from {entry=!r} on {artist_page}')
                     year_str = None
 
-            year = datetime.strptime(year_str, '(%Y)').year if year_str else 0
-            disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
-
-            if isinstance(entry, CompoundNode):
-                links = list(entry.find_all(Link, True))
-                if alb_type == 'Features':
-                    # {primary artist} - {album or single} [(with collabs)] (year)
-                    if isinstance(entry[1], String):
-                        entry_1 = entry[1].value.strip()
-                        if entry_1 == '-' and cls._check_type(entry, 2, Link):
-                            link = entry[2]
-                            links = [link]
-                            disco_entry.title = link.show
-                        elif entry_1.startswith('-'):
-                            disco_entry.title = entry_1[1:].strip(' "')
-                    elif isinstance(entry[1], Link):
-                        disco_entry.title = entry[1].show
+            try:
+                year = datetime.strptime(year_str, '(%Y)').year if year_str else 0
+            except ValueError:
+                if entry_str and entry_str.endswith('album') and find_ordinal(entry_str) and entry_str.count(' ') == 1:
+                    continue
                 else:
-                    if isinstance(entry[0], Link):
-                        disco_entry.title = entry[0].show
-                    elif isinstance(entry[0], String):
-                        disco_entry.title = entry[0].value.strip(' "')
-
-                if links:
-                    for link in links:
-                        finder.add_entry_link(link, disco_entry)
-                else:
-                    finder.add_entry(disco_entry, entry)
-            elif isinstance(entry, String):
-                disco_entry.title = entry.value.split('(')[0].strip(' "')
-                finder.add_entry(disco_entry, entry)
+                    log.warning(f'Unexpected disco {entry=!r} on {artist_page}', extra={'color': 'red'})
             else:
-                log.warning(f'On page={artist_page}, unexpected type for entry={entry!r}')
+                disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
+                if isinstance(entry, CompoundNode):
+                    links = list(entry.find_all(Link, True))
+                    if alb_type == 'Features':
+                        # {primary artist} - {album or single} [(with collabs)] (year)
+                        if isinstance(entry[1], String):
+                            entry_1 = entry[1].value.strip()
+                            if entry_1 == '-' and cls._check_type(entry, 2, Link):
+                                link = entry[2]
+                                links = [link]
+                                disco_entry.title = link.show
+                            elif entry_1.startswith('-'):
+                                disco_entry.title = entry_1[1:].strip(' "')
+                        elif isinstance(entry[1], Link):
+                            disco_entry.title = entry[1].show
+                    else:
+                        if isinstance(entry[0], Link):
+                            disco_entry.title = entry[0].show
+                        elif isinstance(entry[0], String):
+                            disco_entry.title = entry[0].value.strip(' "')
+
+                    if links:
+                        for link in links:
+                            finder.add_entry_link(link, disco_entry)
+                    else:
+                        finder.add_entry(disco_entry, entry)
+                elif isinstance(entry, String):
+                    disco_entry.title = entry.value.split('(')[0].strip(' "')
+                    finder.add_entry(disco_entry, entry)
+                else:
+                    log.warning(f'On page={artist_page}, unexpected type for {entry=!r}')
 
     @classmethod
     def _album_page_name(cls, page: WikiPage) -> Union[Name, str]:

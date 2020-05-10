@@ -113,7 +113,9 @@ class DiscographyEntryFinder:
                 src_site = disco_entry.source.site
                 try:
                     # log.debug(f'Creating DiscographyEntry for page={page} with entry={disco_entry}')
-                    discography[src_site].append(DiscographyEntry.from_page(page, disco_entry=disco_entry))
+                    discography[src_site].append(
+                        DiscographyEntry.from_page(page, disco_entry=disco_entry, artist=self.artist)
+                    )
                 except (EntityTypeError, AmbiguousPageError) as e:
                     self.remaining[disco_entry] -= 1
                     if self.created_entry[disco_entry]:
@@ -124,7 +126,7 @@ class DiscographyEntryFinder:
                     else:
                         log.log(9, f'{e}, and no other links are available')
                         # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
-                        discography[src_site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                        discography[src_site].append(DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist))
                         self.created_entry[disco_entry] = True
                 except Exception as e:
                     self.remaining[disco_entry] -= 1
@@ -139,7 +141,9 @@ class DiscographyEntryFinder:
                 if not self.created_entry[disco_entry]:
                     log.log(9, f'No page found for {title=!r} / {link=} / entry={disco_entry}')
                     # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
-                    discography[disco_entry.source.site].append(DiscographyEntry.from_disco_entry(disco_entry))
+                    discography[disco_entry.source.site].append(
+                        DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist)
+                    )
                     self.created_entry[disco_entry] = True
 
         for site, disco_entries in self.no_link_entries.items():
@@ -147,7 +151,7 @@ class DiscographyEntryFinder:
             for disco_entry in disco_entries:
                 if not self.created_entry[disco_entry]:
                     # log.debug(f'Creating DiscographyEntry for page=[no links] entry={disco_entry}')
-                    site_discography.append(DiscographyEntry.from_disco_entry(disco_entry))
+                    site_discography.append(DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist))
                     self.created_entry[disco_entry] = True
 
         if (artist := self.artist) is not None:         # Ensure the disco entries have the artist with all known pages
@@ -169,8 +173,12 @@ class Discography(EntertainmentEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
     _categories = ('discography', 'discographies')
 
+    def __init__(self, *args, artist=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.artist = artist
+
     def _finder_with_entries(self) -> DiscographyEntryFinder:
-        finder = DiscographyEntryFinder()
+        finder = DiscographyEntryFinder(self.artist)
         self._process_entries(finder)
         return finder
 

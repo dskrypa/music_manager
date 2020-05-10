@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
-from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError
+from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError, CompoundNode, String
 from ..common import DiscoEntryType
 from ..text import combine_with_parens, Name
 from .base import EntertainmentEntity, Pages
@@ -168,14 +168,13 @@ class DiscographyEntry(EntertainmentEntity):
         self.clear_cached_properties()
 
     @classmethod
-    def from_disco_entry(cls, disco_entry: 'DiscoEntry') -> 'DiscographyEntry':
-        # log.debug(f'Creating {cls.__name__} from {disco_entry} with categories={categories}')
+    def from_disco_entry(cls, disco_entry: 'DiscoEntry', **kwargs) -> 'DiscographyEntry':
+        # log.debug(f'Creating {cls.__name__} from {disco_entry} with {kwargs=}', extra={'color': 14})
         try:
-            return cls._by_category(disco_entry, disco_entry=disco_entry)
+            return cls._by_category(disco_entry, disco_entry=disco_entry, **kwargs)
         except EntityTypeError as e:
-            # err_msg = f'Failed to create {cls.__name__} from {disco_entry}: {"".join(format_stack())}\n{e}'
-            err_msg = f'Failed to create {cls.__name__} from {disco_entry}: {e}'
-            log.error(err_msg, extra={'color': 'red'})
+            log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', extra={'color': 9})
+            # log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', stack_info=True, extra={'color': 9})
 
     @cached_property
     def editions(self) -> List['DiscographyEntryEdition']:
@@ -285,16 +284,20 @@ class DiscographyEntryEdition:
         artists = set()
         if isinstance(self._artist, Artist):
             artists.add(self._artist)
-        elif isinstance(self._artist, set):
+        elif isinstance(self._artist, (set, CompoundNode)):
             artist_links, artist_strs = set(), set()
             for artist in self._artist:
                 if isinstance(artist, Link):
                     artist_links.add(artist)
+                elif isinstance(artist, String) and artist.value == ',':
+                    pass
                 else:
                     artist_strs.add(artist)
             if artist_strs:
                 log.debug(f'Found non-link artist values for {self._basic_repr}: {artist_strs}', extra={'color': 11})
-            artists.update(Artist.from_links(artist_links).values())
+
+            # log.debug(f'Looking for artists from links: {artist_links}')
+            artists.update(Artist.from_links(artist_links, strict=1).values())
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))

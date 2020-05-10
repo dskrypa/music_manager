@@ -85,7 +85,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                             log.debug(f'Unexpected {disco_page_link=} format on {artist_page}')
                             return
 
-                    disco_entity = Discography.from_link(disco_page_link)
+                    disco_entity = Discography.from_link(disco_page_link, artist=finder.artist)
                     disco_entity._process_entries(finder)
             else:
                 log.debug(f'Unexpected discography section format on {artist_page}')

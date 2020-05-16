@@ -93,6 +93,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Tell Me Your Wish (Genie)')})
 
+    def test_ignore_short_for(self):
+        page = fake_page(as_node("""'''RM''' (short for Real Me<ref>[https://www.etonline.com/bts-answers-fans-biggest-burning-questions-and-rm-reveals-why-he-changed-his-name-rap-monster-91173 BTS Answers Fans' Biggest Burning Questions – And RM Reveals Why He Changed His Name From Rap Monster!]</ref>, formerly '''Rap Monster''') is a South Korean rapper-songwriter, composer and producer under [[Big Hit Entertainment]]. He is the leader and main rapper of the boy group [[BTS]]."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('RM')})
+
 
 if __name__ == '__main__':
     main()

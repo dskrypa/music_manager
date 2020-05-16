@@ -78,8 +78,8 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         # log.debug(f'Found multi-lang name match: {m}')
         # noinspection PyUnboundLocalVariable
         cleaned = rm_lang_prefix(m_str)
-        if '(stylized' in cleaned:
-            cleaned = cleaned.partition('(stylized')[0].strip()
+        if split_prefix := next((p for p in ('(stylized', '(short for') if p in cleaned), None):
+            cleaned = cleaned.partition(split_prefix)[0].strip()
 
         # log.debug(f'Cleaned name: {cleaned!r}')
         parts = split_enclosed(cleaned, maxsplit=1)

@@ -88,6 +88,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Kim Tae-hyeong', '김태형'), Name('Paul Kim', '폴킴')})
 
+    def test_all_eng_parens(self):
+        page = fake_page(as_node("""'''''Tell Me Your Wish (Genie)''''' is the second mini album by [[Girls' Generation]], released on June 25, 2009 with "Tell Me Your Wish (Genie)" serving as the album's title track."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Tell Me Your Wish (Genie)')})
+
 
 if __name__ == '__main__':
     main()

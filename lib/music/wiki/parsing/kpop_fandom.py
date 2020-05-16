@@ -92,6 +92,9 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         err_msg = f'Unexpected error processing {section=} on {artist_page}'
         if section.depth == 1:
             for alb_type, alb_type_section in section.children.items():
+                if alb_type.lower().startswith('dvd'):
+                    log.debug(f'Skipping {alb_type=!r}')
+                    continue
                 try:
                     cls._process_disco_section(artist_page, finder, alb_type_section, alb_type)
                 except Exception as e:
@@ -99,7 +102,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         elif section.depth == 2:  # key = language, value = sub-section
             for lang, lang_section in section.children.items():
                 for alb_type, alb_type_section in lang_section.children.items():
-                    # log.debug(f'{at_section}: {at_section.content}')
+                    if alb_type.lower().startswith('dvd'):
+                        log.debug(f'Skipping {alb_type=!r}')
+                        continue
+                    # log.debug(f'{alb_type}: {alb_type_section.content}')
                     try:
                         cls._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
                     except Exception as e:
@@ -179,15 +185,15 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     log.warning(f'On page={artist_page}, unexpected type for {entry=!r}')
 
     @classmethod
-    def _album_page_name(cls, page: WikiPage) -> Union[Name, str]:
+    def _album_page_name(cls, page: WikiPage) -> Name:
         if (names := list(name_from_intro(page))) and len(names) > 0:
             return names[0]
         else:
             infobox = page.infobox
             try:
-                return infobox['name'].value
+                return Name.from_enclosed(infobox['name'].value)
             except KeyError:
-                return page.title
+                return Name(page.title)
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:

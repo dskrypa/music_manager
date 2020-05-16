@@ -158,14 +158,29 @@ class Name(ClearableCachedPropertyMixin):
             other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
         # log.debug(f'Scoring match:\n{self.full_repr()}._score(\n{other.full_repr()})')
         scores = []
+        ep_score = None
         if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
-            scores.append(revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace))
+            score = revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace)
+            if score == 100 and self._english and other._english:
+                ep_score = self._score_eng_parts(other)
+                score = (score + ep_score) // 2
+            # log.debug(f'score({self.non_eng_nospace=!r}, {other.non_eng_nospace=!r}) => {score}')
+            scores.append(score)
         if self.eng_fuzzed_nospace and other.eng_fuzzed_nospace:
             scores.append(revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace))
+            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]}')
         if self.non_eng_nospace and other.eng_fuzzed_nospace and self.has_romanization(other.eng_fuzzed_nospace, False):
-            scores.append(romanization_match)
+            if ep_score is not None:
+                scores.append((romanization_match + ep_score) // 2)
+            else:
+                scores.append(romanization_match)
+            # log.debug(f'score({self.non_eng_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]} [rom]')
         if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
-            scores.append(romanization_match)
+            if ep_score is not None:
+                scores.append((romanization_match + ep_score) // 2)
+            else:
+                scores.append(romanization_match)
+            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.non_eng_nospace=!r}) => {scores[-1]} [rom]')
 
         if s_versions := self.versions:
             for version in s_versions:
@@ -177,6 +192,14 @@ class Name(ClearableCachedPropertyMixin):
 
         # log.debug(f'{self!r}.matches({other!r}) {scores=}')
         return scores
+
+    def _score_eng_parts(self, other: 'Name'):
+        o_eng_parts = other.eng_parts
+        scores = []
+        for s_part in self.eng_parts:
+            for o_part in o_eng_parts:
+                scores.append(revised_weighted_ratio(s_part, o_part))
+        return max(scores) if scores else 100
 
     def matches(self, other: Union['Name', str], threshold=90, agg_func: Callable = max, romanization_match=95):
         scores = self._score(other, romanization_match)
@@ -321,6 +344,10 @@ class Name(ClearableCachedPropertyMixin):
         return ''.join(fuzzed.split()) if fuzzed else None
 
     @cached_property
+    def eng_parts(self) -> Set[str]:
+        return set(filter(None, (self._english, self.lit_translation, self.romanized)))
+
+    @cached_property
     def non_eng_nospace(self) -> Optional[str]:
         non_eng = self.non_eng
         return ''.join(non_eng.split()) if non_eng else None
@@ -406,9 +433,8 @@ class Name(ClearableCachedPropertyMixin):
             parts = (name,)
         return cls.from_parts(parts, **kwargs)
 
-    @classmethod
-    def split(cls, name: str, **kwargs) -> 'Name':
-        return cls.from_parts(LangCat.split(name), **kwargs)
+    def split(self) -> 'Name':
+        return self.from_parts(LangCat.split(self.english), versions={self, Name(non_eng=self.english)})
 
     @classmethod
     def from_parts(cls, parts: Iterable[str], **kwargs) -> 'Name':

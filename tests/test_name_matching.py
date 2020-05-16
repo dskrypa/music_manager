@@ -76,6 +76,16 @@ class NameMatchingTest(NameTestCaseBase):
         self.assertTrue(a.is_version_of(b, True))
         self.assertTrue(b.is_version_of(a, True))
 
+    def test_require_more_than_just_hangul(self):
+        a = Name.from_enclosed('So Nyeo Si Dae (소녀시대)')
+        b = Name('Heart 2 Heart with 소녀시대')
+        self.assertFalse(a.matches(b))
+        self.assertFalse(b.matches(a))
+
+        c = b.split()
+        self.assertFalse(a.matches(c))
+        self.assertFalse(c.matches(a))
+
 
 if __name__ == '__main__':
     main()

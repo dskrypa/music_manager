@@ -125,18 +125,22 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
 
     artists = artists or find_artists(album_dir)
     log.debug(f'Processing album for {album_dir} with {album_name=!r} ({repackage=}) and {artists=}')
-    candidates = _find_album(alb_name, artists, album_dir.type, repackage, album_name.number)
+    candidates = _find_album(album_dir, alb_name, artists, album_dir.type, repackage, album_name.number)
     if not candidates and alb_name.eng_lang == LangCat.MIX and alb_name.eng_langs.intersection(LangCat.non_eng_cats):
-        split = Name.split(alb_name.english, versions={alb_name, Name(non_eng=alb_name.english)})
+        split = alb_name.split()
         log.log(19, f'Re-attempting album match with name={split.full_repr()}')
-        candidates = _find_album(split, artists, album_dir.type, repackage, album_name.number)
+        candidates = _find_album(album_dir, split, artists, album_dir.type, repackage, album_name.number)
 
     return choose_item(
         candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
     )
 
 
-def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num):
+def _find_album(
+        album_dir: AlbumDir, alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage,
+        num
+):
+    track_count = len(album_dir)
     candidates = set()
     for artist in artists:
         for entry in artist.all_discography_entries:
@@ -144,19 +148,28 @@ def _find_album(alb_name: Name, artists: Iterable[Artist], alb_type: Optional[Di
                 if alb_name and alb_name.matches(entry.name):
                     entry_parts = list(entry.parts())
                     pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
-                    mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
+                    # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
                     if pkg_match_parts:
-                        candidates.update(pkg_match_parts)
+                        mlog.debug(
+                            f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}',
+                            extra={'color': 11}
+                        )
+                        for part in pkg_match_parts:
+                            if track_count == len(part) \
+                                    or any(pt.name.matches(at.tag_title) for pt, at in zip(part, album_dir)):
+                                mlog.debug(f'{part=} matches {alb_name}', extra={'color': 11})
+                                candidates.add(part)
                     else:
                         if entry_parts:
                             pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
-                            mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}')
+                            mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}', extra={'color': 8})
                         else:
-                            mlog.debug(f'Found no parts for {entry=}')
+                            mlog.debug(f'Found no parts for {entry=}', extra={'color': 8})
                 elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
                     if parts := list(entry.parts()):
+                        mlog.debug(f'{entry=} has {len(parts)} parts that match by type + number', extra={'color': 11})
                         candidates.update(parts)
                 else:
-                    mlog.debug(f'{alb_name!r} does not match {entry} ({entry._pages})')
+                    mlog.debug(f'{alb_name!r} does not match {entry} ({entry._pages})', extra={'color': 8})
 
     return candidates

@@ -384,6 +384,9 @@ class DiscographyEntryPart:
     def __bool__(self):
         return bool(self.tracks)
 
+    def __len__(self):
+        return len(self.track_names)
+
     @cached_property
     def repackage(self):
         return bool(self.edition.repackage)

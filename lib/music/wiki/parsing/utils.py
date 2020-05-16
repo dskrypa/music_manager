@@ -84,7 +84,12 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         # log.debug(f'Cleaned name: {cleaned!r}')
         parts = split_enclosed(cleaned, maxsplit=1)
         if len(parts) == 2:
-            yield from _multi_lang_names(*parts)
+            # log.debug(f'Yielding from _multi_lang_names for {parts=}')
+            names = _multi_lang_names(*parts)
+            if names:
+                yield from names
+            else:
+                yield Name(cleaned)
         else:
             yield Name.from_enclosed(cleaned)
     else:

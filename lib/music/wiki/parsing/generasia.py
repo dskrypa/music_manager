@@ -230,7 +230,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             lang = section_prefix.strip() if section_prefix in ('Korean ', 'Japanese ') else None
             for alb_type, alb_type_section in section.children.items():
                 lc_alb_type = alb_type.lower()
-                if any(val in lc_alb_type for val in ('video', 'dvd')) or lc_alb_type == 'other':
+                if any(val in lc_alb_type for val in ('video', 'dvd', 'vinyls')) or lc_alb_type == 'other':
                     continue
                 de_type = DiscoEntryType.for_name(alb_type)
                 content = alb_type_section.content

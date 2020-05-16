@@ -108,7 +108,7 @@ def parser():
         bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
 
     parser.include_common_args('verbosity', 'dry_run')
-    parser.add_argument('--match_log', '-M', action='store_true', help='Enable debug logging for the album match processing logger')
+    parser.add_common_sp_arg('--match_log', '-M', action='store_true', help='Enable debug logging for the album match processing logger')
     return parser
 
 

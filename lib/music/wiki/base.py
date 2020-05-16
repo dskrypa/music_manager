@@ -126,7 +126,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
             raise error
         elif cls is not WikiEntity:
             # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories
-            if isinstance(obj, WikiPage) and obj.disambiguation_link or obj.similar_name_link:
+            if isinstance(obj, WikiPage) and (obj.disambiguation_link or obj.similar_name_link):
                 log.debug(f'{cls.__name__}._validate found a possible disambiguation link from: {obj}')
                 link = obj.disambiguation_link or obj.similar_name_link
                 try:

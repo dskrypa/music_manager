@@ -402,6 +402,11 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         name = parse_kf_track_name(entry)
         self.assertNamesEqual(name, Name('A Song From The Past', '이 노랜 꽤 오래된 거야', extra={'length': '3:55'}))
 
+    def test_acoustic_rnb_version(self):
+        entry = as_node(""""☆★☆''' (별별별)'''" '''(Acoustic R&B Version)''' - 4:28""")
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(name, Name('☆★☆', '별별별', extra={'length': '4:28', 'version': 'Acoustic R&B Version'}))
+
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
     root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})
@@ -590,7 +595,7 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         entry = as_node("""[[7989]] ([[Kangta]] & [[Taeyeon]] (강타&태연))""", root=self.root)
         name = parse_generasia_track_name(entry)
         expected = Name(
-            '7989', extra={'collabs': as_node("""( [[Kangta]] & [[Taeyeon]] (강타&태연))""", root=self.root)}
+            '7989', extra={'artists': as_node("""( [[Kangta]] & [[Taeyeon]] (강타&태연))""", root=self.root)}
         )
         self.assertNamesEqual(name, expected)
 

@@ -562,6 +562,8 @@ def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:
     if lc_text.startswith(('inst.', 'instrumental')):
         return 'instrumental', True
     elif lc_text.startswith('acoustic'):
+        if lc_text.endswith(('version', 'ver.')) and not lc_text[8:].strip().startswith('ver'):
+            return 'version', text
         return 'acoustic', True
     elif lc_text.endswith(('version', 'ver.')):
         return 'version', text

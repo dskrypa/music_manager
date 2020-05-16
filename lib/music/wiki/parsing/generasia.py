@@ -96,7 +96,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         else:
             raise TypeError(f'Unexpected node type following date: {node}')
 
-        collabs = None
+        artists = None
         node = next(nodes, None)
         if node and isinstance(node, String):
             node_str = node.value
@@ -118,17 +118,17 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         log.debug(f'Error retrieving EntertainmentEntity from {node}: {e}')
                     else:
                         if entity._categories in (GROUP_CATEGORIES, SINGER_CATEGORIES):
-                            collabs = [String(node_str), node]
+                            artists = [String(node_str), node]
                             while node := next(nodes, None):
-                                collabs.append(node)
+                                artists.append(node)
                                 if isinstance(node, String) and node.value.endswith(')'):
                                     break
                             node = next(nodes, None)
 
         title, non_eng, lit_translation, extras, incomplete_extra = _split_name_parts(title, node)
         # log.debug(f'{title=!r} {non_eng=!r} {lit_translation=!r} {extras=} {incomplete_extra=!r}')
-        if collabs:
-            extras['collabs'] = CompoundNode.from_nodes(collabs, delim=' ')
+        if artists:
+            extras['artists'] = CompoundNode.from_nodes(artists, delim=' ')
 
         if incomplete_extra:
             recombined = process_incomplete_extra(extras, incomplete_extra, nodes)

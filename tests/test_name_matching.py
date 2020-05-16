@@ -86,6 +86,13 @@ class NameMatchingTest(NameTestCaseBase):
         self.assertFalse(a.matches(c))
         self.assertFalse(c.matches(a))
 
+    def test_mix_replace(self):
+        # a = Name('Heart 2 Heart with Girls\' Generation')
+        a = Name('Heart 2 Heart with So Nyeo Si Dae')
+        b = Name('Heart 2 Heart with 소녀시대')
+        self.assertTrue(a.matches(b))
+        self.assertTrue(b.matches(a))
+
 
 if __name__ == '__main__':
     main()

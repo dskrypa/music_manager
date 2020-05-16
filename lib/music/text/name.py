@@ -153,7 +153,7 @@ class Name(ClearableCachedPropertyMixin):
     def __hash__(self):
         return hash(self.__parts)
 
-    def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True):
+    def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True, try_alt=True):
         if isinstance(other, str):
             other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
         # log.debug(f'Scoring match:\n{self.full_repr()}._score(\n{other.full_repr()})')
@@ -182,13 +182,27 @@ class Name(ClearableCachedPropertyMixin):
                 scores.append(romanization_match)
             # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.non_eng_nospace=!r}) => {scores[-1]} [rom]')
 
+        if try_alt:
+            if not self.non_eng and self.eng_lang == LangCat.MIX and self.eng_langs.intersection(LangCat.asian_cats):
+                alt_self = self.split()
+                o_eng_fuzz, s_eng_fuzz = other.eng_fuzzed_nospace, alt_self.eng_fuzzed_nospace
+                # log.debug(f'Trying {alt_self=} / {o_eng_fuzz[len(s_eng_fuzz):]!r}')
+                if o_eng_fuzz.startswith(s_eng_fuzz) and alt_self.has_romanization(o_eng_fuzz[len(s_eng_fuzz):]):
+                    scores.append(romanization_match)
+            elif not other.non_eng and other.eng_lang == LangCat.MIX and other.eng_langs.intersection(LangCat.asian_cats):
+                alt_other = other.split()
+                o_eng_fuzz, s_eng_fuzz = alt_other.eng_fuzzed_nospace, self.eng_fuzzed_nospace
+                # log.debug(f'Trying {alt_other=} / {s_eng_fuzz[len(o_eng_fuzz):]!r}')
+                if s_eng_fuzz.startswith(o_eng_fuzz) and alt_other.has_romanization(s_eng_fuzz[len(o_eng_fuzz):]):
+                    scores.append(romanization_match)
+
         if s_versions := self.versions:
             for version in s_versions:
-                scores.extend(version._score(other, romanization_match=romanization_match))
+                scores.extend(version._score(other, romanization_match, try_alt=try_alt))
         if other_versions:
             if o_versions := other.versions:
                 for version in o_versions:
-                    scores.extend(self._score(version, romanization_match=romanization_match, other_versions=False))
+                    scores.extend(self._score(version, romanization_match, other_versions=False, try_alt=try_alt))
 
         # log.debug(f'{self!r}.matches({other!r}) {scores=}')
         return scores

@@ -13,7 +13,7 @@ from wiki_nodes import (
 )
 from wiki_nodes.nodes import N, AnyNode
 from ...common import DiscoEntryType
-from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal
+from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal, has_unpaired
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
@@ -30,6 +30,7 @@ NodeTypes = Union[Type[AnyNode], Tuple[Type[AnyNode], ...]]
 
 DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
+ORD_ALBUM_MATCH = re.compile(r'^\S+(?:st|nd|rd|th)\s+album:?$', re.IGNORECASE).match
 RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
 REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
 VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
@@ -147,7 +148,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             try:
                 year = datetime.strptime(year_str, '(%Y)').year if year_str else 0
             except ValueError:
-                if entry_str and entry_str.endswith('album') and find_ordinal(entry_str) and entry_str.count(' ') == 1:
+                if entry_str and ORD_ALBUM_MATCH(entry_str):
                     continue
                 else:
                     log.warning(f'Unexpected disco {entry=!r} on {artist_page}', extra={'color': 'red'})
@@ -408,12 +409,28 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
             else:
                 raise ValueError(f'Unexpected second node value for track={orig_node!r} {node=!r}')
         else:
-            split_name = split_enclosed(node.value, maxsplit=1)
-            # log.debug(f'split_enclosed({node.value!r}) => {split_name}')
+            value = node.value
+            # noinspection PyUnresolvedReferences
+            if len(nodes) > 1 and value.startswith('"') and has_unpaired(value) and isinstance(nodes[1], String)\
+                    and '"' in nodes[1].value and has_unpaired(nodes[1].value):
+                value = value[1:]
+                # noinspection PyUnresolvedReferences
+                nodes[1].value = nodes[1].value.replace('"', '')
+            else:
+                log.debug(f'{nodes=}')
+            split_name = split_enclosed(value, maxsplit=1)
+            # log.debug(f'split_enclosed({value!r}) => {split_name}')
             if len(split_name) == 1:
                 base_name = split_name[0]
             else:
                 base_name, remainder = split_name
+                if prefix := next((k for k in REMAINDER_ARTIST_EXTRA_TYPE_MAP if k in remainder and k != '('), None):
+                    # log.debug(f'Found {prefix=!r}')
+                    if not remainder.startswith(prefix):
+                        non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
+                        base_name = f'{base_name} {non_eng}'
+                        remainder = f'{extra_prefix} {after}'.strip()
+
     elif isinstance(node, Link):
         base_name = node.show
     else:

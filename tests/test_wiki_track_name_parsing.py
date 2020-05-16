@@ -403,9 +403,17 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         self.assertNamesEqual(name, Name('A Song From The Past', '이 노랜 꽤 오래된 거야', extra={'length': '3:55'}))
 
     def test_acoustic_rnb_version(self):
-        entry = as_node(""""☆★☆''' (별별별)'''" '''(Acoustic R&B Version)''' - 4:28""")
+        entry = as_node(""""☆★☆''' (별별별)'''" '''(Acoustic R&B Version)''' - 4:28""", root=self.root)
         name = parse_kf_track_name(entry)
         self.assertNamesEqual(name, Name('☆★☆', '별별별', extra={'length': '4:28', 'version': 'Acoustic R&B Version'}))
+
+    def test_eng_cjk_feat(self):
+        entry = as_node(""""Winter Flower (雪中梅) (feat. [[RM]])" - 3:41""", root=self.root)
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(
+            name,
+            Name('Winter Flower', '雪中梅', extra={'length': '3:41', 'feat': as_node("""[[RM]]""", root=self.root)})
+        )
 
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):

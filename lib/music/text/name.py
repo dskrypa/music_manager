@@ -186,15 +186,17 @@ class Name(ClearableCachedPropertyMixin):
             if not self.non_eng and self.eng_lang == LangCat.MIX and self.eng_langs.intersection(LangCat.asian_cats):
                 alt_self = self.split()
                 o_eng_fuzz, s_eng_fuzz = other.eng_fuzzed_nospace, alt_self.eng_fuzzed_nospace
-                # log.debug(f'Trying {alt_self=} / {o_eng_fuzz[len(s_eng_fuzz):]!r}')
-                if o_eng_fuzz.startswith(s_eng_fuzz) and alt_self.has_romanization(o_eng_fuzz[len(s_eng_fuzz):]):
-                    scores.append(romanization_match)
+                if o_eng_fuzz and s_eng_fuzz:
+                    # log.debug(f'Trying {alt_self=} / {o_eng_fuzz[len(s_eng_fuzz):]!r}')
+                    if o_eng_fuzz.startswith(s_eng_fuzz) and alt_self.has_romanization(o_eng_fuzz[len(s_eng_fuzz):]):
+                        scores.append(romanization_match)
             elif not other.non_eng and other.eng_lang == LangCat.MIX and other.eng_langs.intersection(LangCat.asian_cats):
                 alt_other = other.split()
                 o_eng_fuzz, s_eng_fuzz = alt_other.eng_fuzzed_nospace, self.eng_fuzzed_nospace
-                # log.debug(f'Trying {alt_other=} / {s_eng_fuzz[len(o_eng_fuzz):]!r}')
-                if s_eng_fuzz.startswith(o_eng_fuzz) and alt_other.has_romanization(s_eng_fuzz[len(o_eng_fuzz):]):
-                    scores.append(romanization_match)
+                if o_eng_fuzz and s_eng_fuzz:
+                    # log.debug(f'Trying {alt_other=} / {s_eng_fuzz[len(o_eng_fuzz):]!r}')
+                    if s_eng_fuzz.startswith(o_eng_fuzz) and alt_other.has_romanization(s_eng_fuzz[len(o_eng_fuzz):]):
+                        scores.append(romanization_match)
 
         if s_versions := self.versions:
             for version in s_versions:

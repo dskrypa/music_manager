@@ -6,6 +6,7 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 
 import logging
 from collections import defaultdict
+from itertools import chain
 from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping, Set
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -22,7 +23,7 @@ __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 GROUP_CATEGORIES = ('group', 'subunits', 'duos')
-SINGER_CATEGORIES = ('singer', 'actor', 'actress', 'member', 'rapper', 'lyricist')
+SINGER_CATEGORIES = ('singer', 'actor', 'actress', 'member', 'rapper', 'lyricist', 'pianist')
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
 
@@ -304,16 +305,30 @@ class WikiEntity(ClearableCachedPropertyMixin):
                         for site in set(sites).difference(entity._pages).union({'kindie.fandom.com'}):
                             research_query_map[site].append(eng)
 
+            if not title_entity_map:
+                for title in set(chain(titles, title_name_map)):
+                    if title.upper() == title:
+                        tc_title = title.title()
+                        new_orig_title_map[tc_title] = title
+                        research_title_name_map[tc_title] = title_name_map.get(title)
+                        for site in sites:
+                            research_query_map[site].append(tc_title)
+
             if research_query_map:
                 fmt = 'Re-attempting retrieval of {}s from sites={} with titles={}'
                 log.debug(fmt.format(cls.__name__, sorted(research_query_map), list(new_orig_title_map)))
                 new_title_entity_map = cls._from_site_title_map(
                     research_query_map, search, strict, research_title_name_map
                 )
-                for eng, entity in new_title_entity_map.items():
+                for eng_or_name, entity in new_title_entity_map.items():
                     # log.debug(f'Found re-search result for {eng=!r} {entity=!r}')
-                    orig = title_entity_map[new_orig_title_map[eng]]
-                    orig._add_pages(entity._pages)
+                    orig_title = new_orig_title_map.get(eng_or_name, eng_or_name)
+                    try:
+                        orig = title_entity_map[orig_title]
+                    except KeyError:
+                        title_entity_map[orig_title] = entity
+                    else:
+                        orig._add_pages(entity._pages)
 
         return title_entity_map
 
@@ -322,6 +337,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
             cls: Type[WE], site_title_map: Mapping[Union[str, MediaWikiClient], Iterable[str]], search=False, strict=2,
             title_name_map=None
     ) -> Dict[Union[str, Name], WE]:
+        # log.debug(f'{cls.__name__}._from_site_title_map({site_title_map=},\n{search=}, {strict=},\n{title_name_map=})')
         title_name_map = title_name_map or {}
         results, _errors = MediaWikiClient.get_multi_site_pages(site_title_map, search=search)
         for title, error in _errors.items():

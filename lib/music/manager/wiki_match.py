@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import List, Iterable, Optional
+from typing import List, Iterable, Optional, Set
 
 from ds_tools.core import Paths
 from ds_tools.input import choose_item
@@ -139,7 +139,7 @@ def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) 
 def _find_album(
         album_dir: AlbumDir, alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage,
         num
-):
+) -> Set[DiscographyEntryPart]:
     track_count = len(album_dir)
     candidates = set()
     for artist in artists:
@@ -171,5 +171,29 @@ def _find_album(
                         candidates.update(parts)
                 else:
                     mlog.debug(f'{alb_name!r} does not match {entry}', extra={'color': 8})
+
+    if len(candidates) > 1:
+        candidates = _filter_candidates(album_dir, candidates)
+    return candidates
+
+
+def _filter_candidates(album_dir: AlbumDir, candidates: Set[DiscographyEntryPart]) -> Set[DiscographyEntryPart]:
+    mlog.debug('Initial candidates ({}):\n{}'.format(len(candidates), '\n'.join(f' - {c}' for c in candidates)))
+
+    track_count = len(album_dir)
+    _candidates, candidates = candidates, set()
+    for part in _candidates:
+        if track_count == len(part):
+            candidates.add(part)
+    if not candidates:
+        mlog.debug(f'No candidates had matching track counts')
+        candidates = _candidates
+
+    _candidates, candidates = candidates, set()
+    for part in _candidates:
+        track_match_pct = sum(1 for pt, at in zip(part, album_dir) if pt.name.matches(at.tag_title)) / track_count
+        mlog.debug(f'{part=} tracks with names matching {album_dir}: {track_match_pct:.2%}')
+        if track_match_pct > 0.7:
+            candidates.add(part)
 
     return candidates

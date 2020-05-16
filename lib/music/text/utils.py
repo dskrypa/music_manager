@@ -17,7 +17,7 @@ ORDINAL_TO_INT.update((f'{i}{num_suffix(i)}', i) for i in range(1, 21))
 ORDINAL_SEARCH = re.compile('({})'.format('|'.join(ORDINAL_TO_INT)), re.IGNORECASE).search
 
 
-def combine_with_parens(parts: Iterable[str]):
+def combine_with_parens(parts: Iterable[str]) -> str:
     if not isinstance(parts, Sequence):
         parts = list(parts)
     if len(parts) == 1:

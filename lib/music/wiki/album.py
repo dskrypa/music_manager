@@ -278,7 +278,9 @@ class DiscographyEntryEdition:
     def name(self):
         return Name.from_parts(tuple(map(combine_with_parens, _name_parts(self.name_base, self.edition))))
 
-    def full_name(self, hide_edition=False):
+    def full_name(self, hide_edition=False) -> str:
+        if (edition := self.edition) and edition.lower().endswith(' repackage'):    # Named repackage
+            return edition[:-10].strip()
         return combine_with_parens(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
 
     @cached_property
@@ -407,11 +409,14 @@ class DiscographyEntryPart:
     def full_name(self, hide_edition=False):
         ed = self.edition
         edition_str = ed.edition
-        if self.repackage:
-            edition_str = f'{edition_str} - Repackage' if edition_str else 'Repackage'
-        return combine_with_parens(
-            map(combine_with_parens, _name_parts(ed.name_base, edition_str, hide_edition, self._name))
-        )
+        if edition_str.lower().endswith(' repackage'):    # Named repackage
+            base = Name(edition_str[:-10].strip())
+            edition_str = None
+        else:
+            base = ed.name_base
+            if self.repackage:
+                edition_str = f'{edition_str} - Repackage' if edition_str else 'Repackage'
+        return combine_with_parens(map(combine_with_parens, _name_parts(base, edition_str, hide_edition, self._name)))
 
     @cached_property
     def track_names(self) -> List[Name]:

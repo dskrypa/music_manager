@@ -45,6 +45,15 @@ class DiscoEntryType(Enum):
     def __lt__(self, other: 'DiscoEntryType'):
         return self._members.index(self) < self._members.index(other)
 
+    def compatible_with(self, other: 'DiscoEntryType') -> bool:
+        if self == other:
+            return True
+
+        types = {self, other}
+        if DiscoEntryType.ExtendedPlay in types:
+            return bool(types.intersection({DiscoEntryType.MiniAlbum, DiscoEntryType.SingleAlbum}))
+        return False
+
     # noinspection PyMethodParameters
     @cached_classproperty
     def _members(cls) -> List['DiscoEntryType']:

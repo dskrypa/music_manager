@@ -257,8 +257,12 @@ class DiscographyEntryEdition:
     def __bool__(self):
         return bool(self.parts)
 
+    @property
+    def __cmp_tuple(self):
+        return self.page, self.artist, self.date, self._name, self.edition
+
     def __lt__(self, other: 'DiscographyEntryEdition') -> bool:
-        return (self.artist, self.date, self._name, self.edition) < (other.artist, other.date, other._name, other.edition)
+        return self.__cmp_tuple < other.__cmp_tuple
 
     @cached_property
     def lang(self) -> Optional[str]:

@@ -144,7 +144,7 @@ def _find_album(
     candidates = set()
     for artist in artists:
         for entry in artist.all_discography_entries_editions:
-            if not alb_type or alb_type == entry.type:
+            if not alb_type or alb_type.compatible_with(entry.type):
                 if alb_name and alb_name.matches(entry.name):
                     entry_parts = list(entry.parts() if isinstance(entry, DiscographyEntry) else entry)
                     pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]

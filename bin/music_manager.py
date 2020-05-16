@@ -93,6 +93,7 @@ def parser():
     upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
     upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
     upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
+    upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
 
     match_parser = wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info')
     match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -142,7 +143,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination
+                args.destination, args.title_case
             )
         elif sub_action == 'match':
             show_matches(args.path)

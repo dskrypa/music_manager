@@ -3,6 +3,7 @@
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Union, Optional, Dict, Any, Tuple
 
@@ -26,11 +27,12 @@ TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
 ArtistType = Union[Artist, Group, Singer, 'ArtistSet']
 TrackUpdates = Dict[SongFile, Dict[str, Any]]
 UpdateCounts = Dict[str, Dict[Tuple[Any, Any], int]]
+UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 
 def update_tracks(
         paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
-        url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None
+        url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None, title_case=False
 ):
     if not isinstance(collab_mode, CM):
         collab_mode = CM(collab_mode)
@@ -43,11 +45,13 @@ def update_tracks(
             raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
 
         entry = DiscographyEntry.from_url(url)
-        AlbumUpdater(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode).update(dest_base_dir, add_bpm)
+        AlbumUpdater(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, title_case).update(
+            dest_base_dir, add_bpm
+        )
     else:
         for album_dir in iter_album_dirs(paths):
             try:
-                updater = AlbumUpdater.for_album_dir(album_dir, dry_run, soloist, hide_edition, collab_mode)
+                updater = AlbumUpdater.for_album_dir(album_dir, dry_run, soloist, hide_edition, collab_mode, title_case)
             except MatchException as e:
                 log.log(e.lvl, e, extra={'color': 9})
                 log.debug(e, exc_info=True)
@@ -58,7 +62,7 @@ def update_tracks(
 class AlbumUpdater:
     def __init__(
             self, album_dir: AlbumDir, album: DiscoObj, dry_run=False, soloist=False, hide_edition=False,
-            collab_mode: CM = CM.ARTIST
+            collab_mode: CM = CM.ARTIST, title_case=False
     ):
         self.soloist = soloist
         self.hide_edition = hide_edition
@@ -66,10 +70,12 @@ class AlbumUpdater:
         self.dry_run = dry_run
         self.album_dir = album_dir
         self.album = album
+        self.title_case = title_case
 
     @classmethod
     def for_album_dir(
-            cls, album_dir: AlbumDir, dry_run=False, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST
+            cls, album_dir: AlbumDir, dry_run=False, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST,
+            title_case=False
     ) -> 'AlbumUpdater':
         try:
             album = find_album(album_dir)
@@ -80,7 +86,7 @@ class AlbumUpdater:
                 raise MatchException(40, f'Error finding an album match for {album_dir}: {e}') from e
         else:
             log.info(f'Matched {album_dir} to {album}')
-            return cls(album_dir, album, dry_run, soloist, hide_edition, collab_mode)
+            return cls(album_dir, album, dry_run, soloist, hide_edition, collab_mode, title_case)
 
     @cached_property
     def disco_part(self) -> DiscographyEntryPart:
@@ -136,11 +142,17 @@ class AlbumUpdater:
             return f'{artist.name} ({self.album_artist_name})'
         return str(artist.name)
 
+    def _normalize_name(self, name: str) -> str:
+        if self.title_case and UPPER_CHAIN_SEARCH(name) or name.lower() == name:
+            name = name.title().replace("I'M ", "I'm ")
+        return name
+
     def _get_track_updates(self) -> TrackUpdates:
         disk_num = self.disco_part.disc
+        alb_name = self._normalize_name(self.disco_part.full_name(self.hide_edition))
         values = {
             'album_artist': self.album_artist_name, 'artist': self.artist_name, 'disk': disk_num,
-            'date': self.edition.date.strftime('%Y%m%d'), 'album': self.disco_part.full_name(self.hide_edition)
+            'date': self.edition.date.strftime('%Y%m%d'), 'album': alb_name
         }
         if lang := self.edition.lang:
             lang = LANG_ABBREV_MAP.get(lang.lower())
@@ -150,7 +162,8 @@ class AlbumUpdater:
         updates = {}
         for file, track in self.file_track_map.items():
             updates[file] = file_values = values.copy()
-            file_values['title'] = track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH))
+            track_name = self._normalize_name(track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH)))
+            file_values['title'] = track_name
             file_values['artist'] = track.artist_name(self.artist_name, self.collab_mode in (CM.ARTIST, CM.BOTH))
             if file.tag_type == 'mp4':
                 file_values['track'] = (track.num, len(self.file_track_map))        # TODO: Handle incomplete file set
@@ -168,8 +181,8 @@ class AlbumUpdater:
             track = self.file_track_map[file]
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             file.update_tags(values, self.dry_run, no_log=common_changes)
-
-            filename = TRACK_NAME_FORMAT(track=track.full_name(True), ext=file.ext, num=track.num)
+            track_name = self._normalize_name(track.full_name(True))
+            filename = TRACK_NAME_FORMAT(track=track_name, ext=file.ext, num=track.num)
             if file.path.name != filename:
                 rel_path = Path(file.rel_path)
                 log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')

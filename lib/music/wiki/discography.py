@@ -42,6 +42,12 @@ class DiscographyMixin(ABC):
         for site, entries in self.discography_entries.items():
             yield from entries
 
+    @property
+    def all_discography_editions(self) -> Iterator[DiscographyEntryEdition]:
+        for site, entries in self.discography_entries.items():
+            for entry in entries:
+                yield from entry
+
     @cached_property
     def discography(self) -> List[DiscographyEntry]:
         merged = []

@@ -443,6 +443,12 @@ class GenerasiaTrackNameReprTest(NameTestCaseBase):
         expected = 'Boys & Girls (화성인 바이러스) (feat. Key (키) (SHINee (샤이니)))'
         self.assertEqual(track.full_name(collabs=True), expected)
 
+    def test_remix_feat_repr(self):
+        entry = as_node("""[[Bad Girl (Girls' Generation)|BAD GIRL (The Cataracs Remix)]] feat. [[DEV]]""", root=self.root)
+        track = Track(3, parse_generasia_track_name(entry), None)
+        expected = 'BAD GIRL (The Cataracs Remix) (feat. DEV)'
+        self.assertEqual(track.full_name(collabs=True), expected)
+
 
 class GenerasiaTrackNameParsingTest(NameTestCaseBase):
     root = MagicMock(site='www.generasia.com')
@@ -572,6 +578,13 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         feat = as_node("""[[Key]] ( [[SHINee]] )""")
         log.debug(f'Expected feat={feat.raw.string!r}')
         self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit, extra={'feat': feat})
+
+    def test_remix_feat(self):
+        entry = as_node("""[[Bad Girl (Girls' Generation)|BAD GIRL (The Cataracs Remix)]] feat. [[DEV]]""", root=self.root)
+        name = parse_generasia_track_name(entry)
+        self.assertNamesEqual(
+            name, Name('BAD GIRL', extra={'remix': 'The Cataracs Remix', 'feat': as_node("""[[DEV]]""", root=self.root)})
+        )
 
 
 if __name__ == '__main__':

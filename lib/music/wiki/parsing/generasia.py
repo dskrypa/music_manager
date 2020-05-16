@@ -115,15 +115,16 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         if incomplete_extra:
             recombined = process_incomplete_extra(extras, incomplete_extra, nodes)
-            if non_eng is None and lit_translation is None and isinstance(recombined[-1], String):
-                last_val = recombined[-1].value                                 # type: str
-                if last_val.startswith(')') and String('(') in recombined:
-                    recombined[-1] = String(')')
-                    extras[incomplete_extra] = CompoundNode.from_nodes(recombined.children, delim=' ')
-                    last_val = last_val[1:].strip()
-                    if last_val.startswith(')'):
+            if non_eng is None and lit_translation is None:
+                if recombined.__class__ is CompoundNode and isinstance(recombined[-1], String):
+                    last_val = recombined[-1].value                                 # type: str
+                    if last_val.startswith(')') and String('(') in recombined:
+                        recombined[-1] = String(')')
+                        extras[incomplete_extra] = CompoundNode.from_nodes(recombined.children, delim=' ')
                         last_val = last_val[1:].strip()
-                    non_eng, lit_translation = _split_non_eng_lit(last_val)
+                        if last_val.startswith(')'):
+                            last_val = last_val[1:].strip()
+                        non_eng, lit_translation = _split_non_eng_lit(last_val)
             incomplete_extra = None
 
         # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
@@ -310,7 +311,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         langs.add(lang)
                         break
                 else:
-                    log.debug(f'Unrecognized release category: {cat!r}')
+                    log.debug(f'Unrecognized release category: {cat!r} on {entry_page}')
 
         repackage = False
         for node in processed:
@@ -566,7 +567,12 @@ def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter
                 break
         nodes.append(node)
 
-    extras[incomplete_extra_type] = recombined = CompoundNode.from_nodes(nodes, delim=' ')
+    if len(nodes) == 1:
+        recombined = nodes[0]
+    else:
+        recombined = CompoundNode.from_nodes(nodes, delim=' ')
+
+    extras[incomplete_extra_type] = recombined
     return recombined
 
 

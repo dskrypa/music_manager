@@ -337,6 +337,10 @@ class DiscographyEntryEdition:
             log.debug(f'No discography entry part extraction is configured for {self.page}')
             return []
 
+    @property
+    def number(self) -> Optional[int]:
+        return self.entry.number
+
     @cached_property
     def numbered_type(self) -> Optional[str]:
         if (num := self.entry.number) and self.type:

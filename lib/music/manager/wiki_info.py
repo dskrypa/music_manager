@@ -109,6 +109,12 @@ def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False, l
     prefix = ' ' * indent
     suffix = '' if disco_entry.editions else ' [{} info unavailable]'.format('Edition' if editions else 'Part')
     uprint(f'{prefix}- {disco_entry}:{suffix}')
+    if names := disco_entry.names:
+        uprint(f'{prefix}  Names:')
+        for name in names:
+            # uprint(f'{prefix}    - {name}')
+            uprint(f'{prefix}    - {name.full_repr(include_versions=False)}')
+
     counter = count(1)
     if editions:
         for edition in disco_entry:
@@ -123,6 +129,7 @@ def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False, l
             else:
                 uprint(f'{prefix}      Parts: [Unavailable]')
     else:
+        uprint(f'{prefix}  Parts:')
         for part in disco_entry.parts():
             print_de_part(part, indent + 4, track_info)
             if limit and next(counter) == limit:

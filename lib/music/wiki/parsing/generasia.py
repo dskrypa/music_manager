@@ -6,8 +6,7 @@ import logging
 import re
 from datetime import datetime, date
 from os.path import commonprefix
-from traceback import format_exc
-from typing import TYPE_CHECKING, Iterator, Optional, Set, Tuple, Dict, Any, List
+from typing import TYPE_CHECKING, Iterator, Optional, Tuple, Dict, Any, List
 
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Template, ListEntry, List as ListNode
@@ -16,7 +15,7 @@ from wiki_nodes.utils import strip_style
 from ...common import DiscoEntryType
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
-from ..base import TemplateEntity
+from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 from .utils import LANG_ABBREV_MAP, name_from_intro, get_artist_title, find_language
@@ -97,6 +96,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         else:
             raise TypeError(f'Unexpected node type following date: {node}')
 
+        collabs = None
         node = next(nodes, None)
         if node and isinstance(node, String):
             node_str = node.value
@@ -109,9 +109,26 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     raise TypeError(f'Unexpected node type following date: {node}')
                 node = next(nodes, None)
+            elif node_str == '(':
+                node = next(nodes, None)
+                if isinstance(node, Link):
+                    try:
+                        entity = EntertainmentEntity.from_link(node)
+                    except Exception as e:
+                        log.debug(f'Error retrieving EntertainmentEntity from {node}: {e}')
+                    else:
+                        if entity._categories in (GROUP_CATEGORIES, SINGER_CATEGORIES):
+                            collabs = [String(node_str), node]
+                            while node := next(nodes, None):
+                                collabs.append(node)
+                                if isinstance(node, String) and node.value.endswith(')'):
+                                    break
+                            node = next(nodes, None)
 
         title, non_eng, lit_translation, extras, incomplete_extra = _split_name_parts(title, node)
-        # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
+        # log.debug(f'{title=!r} {non_eng=!r} {lit_translation=!r} {extras=} {incomplete_extra=!r}')
+        if collabs:
+            extras['collabs'] = CompoundNode.from_nodes(collabs, delim=' ')
 
         if incomplete_extra:
             recombined = process_incomplete_extra(extras, incomplete_extra, nodes)
@@ -127,7 +144,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         non_eng, lit_translation = _split_non_eng_lit(last_val)
             incomplete_extra = None
 
-        # log.debug(f'title={title!r} non_eng={non_eng!r} lit={lit_translation!r} ex={extras} inc={incomplete_extra!r}')
+        # log.debug(f'{title=!r} {non_eng=!r} {lit_translation=!r} {extras=} {incomplete_extra=!r}')
 
         if not title.endswith(')') and ')' in title:
             pos = title.rindex(')') + 1
@@ -164,6 +181,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                                 incomplete_extra = process_extra(extras, b)
                             else:
                                 name._english = f'{name._english} ({b})' if name._english else b
+                    elif name.has_romanization(b):
+                        name.set_eng_or_rom(b)
+                        if is_extra(a):
+                            incomplete_extra = process_extra(extras, a)
+                        else:
+                            name._english = f'{name._english} ({a})' if name._english else a
                     elif name.non_eng and is_english(b) and not is_english(a):
                         name.romanized = a      # Assume that it is a romanization
                         if is_extra(b):
@@ -509,6 +532,7 @@ def _split_name_parts(
     :param Node|None node: The node to split
     :return tuple:
     """
+    # log.debug(f'_split_name_parts({title=!r}, {node=!r})')
     original_title = title
     non_eng, lit_translation, name_parts_str, extra = None, None, None, None
     if isinstance(node, String):
@@ -520,7 +544,7 @@ def _split_name_parts(
             except ValueError:
                 pass
 
-    # log.debug(f'title={title!r} name_parts={name_parts!r}')
+    # log.debug(f'{title=!r} {name_parts_str=!r}')
     if name_parts_str:
         non_eng, lit_translation = _split_non_eng_lit(name_parts_str)
     if non_eng is None and lit_translation is None:
@@ -532,7 +556,7 @@ def _split_name_parts(
     extras = {}
     incomplete_extra = None
     if extra:
-        # log.info(f'node={node!r} => extra={extra!r}', extra={'color': 'red'})
+        # log.info(f'{node=!r} => {extra=!r}', extra={'color': 'red'})
         incomplete_extra = process_extra(extras, extra)
 
     # log.debug(f'node={node!r} => title={title!r} non_eng={non_eng!r} lit={lit_translation!r} extras={extras}')

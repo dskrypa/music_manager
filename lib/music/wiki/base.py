@@ -6,7 +6,7 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping
+from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping, Set
 
 from ds_tools.caching import ClearableCachedPropertyMixin
 from ds_tools.compat import cached_property
@@ -22,6 +22,7 @@ __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 GROUP_CATEGORIES = ('group', 'subunits', 'duos')
+SINGER_CATEGORIES = ('singer', 'actor', 'actress', 'member', 'rapper', 'lyricist')
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
 
@@ -91,7 +92,8 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _validate(
-            cls: Type[WE], obj: PageEntry, existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True
+            cls: Type[WE], obj: PageEntry, existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True,
+            visited: Optional[Set[Link]] = None
     ) -> Tuple[Type[WE], PageEntry]:
         """
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
@@ -99,6 +101,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
           disambiguation page links, if the given page is a disambiguation page
         :param Name name: A Name to use during disambiguation page resolution
         :param bool prompt: Attempt to interactively resolve disambiguation pages if unable to do so automatically
+        :param visited: A set of links that have already been visited for disambiguation resolution
         :return tuple: Tuple of (WikiEntity subclass, page/entry)
         """
         if isinstance(obj, WikiPage):
@@ -129,18 +132,24 @@ class WikiEntity(ClearableCachedPropertyMixin):
             if isinstance(obj, WikiPage) and (obj.disambiguation_link or obj.similar_name_link):
                 log.debug(f'{cls.__name__}._validate found a possible disambiguation link from: {obj}')
                 link = obj.disambiguation_link or obj.similar_name_link
-                try:
-                    return cls._handle_disambiguation_link(link, existing, name, prompt)
-                except PageMissingError as e:
-                    log.debug(f'The disambiguation link was not found: {e}')
+                visited = visited or set()
+                if link not in visited:
+                    try:
+                        return cls._handle_disambiguation_link(link, existing, name, prompt, visited)
+                    except PageMissingError as e:
+                        log.debug(f'The disambiguation link was not found: {e}')
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
             raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
         return cls, obj
 
     @classmethod
-    def _handle_disambiguation_link(cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt):
+    def _handle_disambiguation_link(
+            cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: Optional[Set[Link]] = None
+    ) -> Tuple[Type[WE], PageEntry]:
+        visited = visited or set()
+        visited.add(link)
         mw_client, title = link_client_and_title(link)
-        return cls._validate(mw_client.get_page(title), existing, name, prompt)
+        return cls._validate(mw_client.get_page(title), existing, name, prompt, visited)
 
     @classmethod
     def _resolve_ambiguous(

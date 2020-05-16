@@ -586,6 +586,19 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
             name, Name('BAD GIRL', extra={'remix': 'The Cataracs Remix', 'feat': as_node("""[[DEV]]""", root=self.root)})
         )
 
+    def test_unzipped_collabs(self):
+        entry = as_node("""[[7989]] ([[Kangta]] & [[Taeyeon]] (강타&태연))""", root=self.root)
+        name = parse_generasia_track_name(entry)
+        expected = Name(
+            '7989', extra={'collabs': as_node("""( [[Kangta]] & [[Taeyeon]] (강타&태연))""", root=self.root)}
+        )
+        self.assertNamesEqual(name, expected)
+
+    def test_eng_han_rom_lit_track(self):
+        entry = as_node("""[[Perfect for You (Sowon)|Honey (Sowon)]] (소원; ''Wish'')""", root=self.root)
+        name = parse_generasia_track_name(entry)
+        self.assertNamesEqual(name, Name('Honey', '소원', romanized='Sowon', lit_translation='Wish'))
+
 
 if __name__ == '__main__':
     main()

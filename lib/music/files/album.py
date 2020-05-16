@@ -5,7 +5,7 @@
 import atexit
 import logging
 import os
-from collections import defaultdict
+from collections import defaultdict, Counter
 from concurrent import futures
 from datetime import date
 from itertools import chain
@@ -135,8 +135,13 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
     @cached_property
     def album_artist(self) -> Optional[Name]:
-        if (artists := self.album_artists) and len(artists) == 1:
-            return next(iter(artists))
+        if artists := self.album_artists:
+            if len(artists) == 1:
+                return next(iter(artists))
+
+            artists = Counter(chain.from_iterable(music_file.album_artists for music_file in self.songs))
+            artist = max(artists.items(), key=lambda kv: kv[1])[0]
+            return artist
         return None
 
     @cached_property
@@ -151,8 +156,15 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
     @cached_property
     def name(self) -> Optional[AlbumName]:
-        if (names := self.names) and len(names) == 1:
-            return next(iter(names))
+        if names := self.names:
+            if len(names) == 1:
+                return next(iter(names))
+
+            names = Counter(music_file.album for music_file in self.songs)
+            name = max(names.items(), key=lambda kv: kv[1])[0]
+            return name
+
+        log.debug(f'{self}.names => {names}')
         return None
 
     @cached_property

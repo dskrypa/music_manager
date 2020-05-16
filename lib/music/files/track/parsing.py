@@ -228,7 +228,9 @@ class AlbumName:
                     _parts = tuple(map(str.strip, part.split(' - ', 1)))
                     ni, ai = (1, 0) if artist.english in _parts[0] else (0, 1)
                     name_parts.append(_parts[ni])
-                    collabs.extend(n for n in split_artists(_parts[ai]) if not artist.matches(n))
+                    collab_part = _parts[ai]
+                    if not collab_part.lower().endswith('repackage'):
+                        collabs.extend(n for n in split_artists(collab_part) if not artist.matches(n))
                 else:
                     # log.debug(f'No cases matched {part=!r}')
                     name_parts.append(part)

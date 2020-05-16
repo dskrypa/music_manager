@@ -12,7 +12,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ..text import Name
-from .base import PersonOrGroup, GROUP_CATEGORIES
+from .base import PersonOrGroup, GROUP_CATEGORIES, SINGER_CATEGORIES
 from .discography import DiscographyEntryFinder, DiscographyMixin
 from .parsing.utils import LANGUAGES
 
@@ -99,7 +99,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
 
 class Singer(Artist):
-    _categories = ('singer', 'actor', 'actress', 'member', 'rapper', 'lyricist')
+    _categories = SINGER_CATEGORIES
     _not_categories = ('groups', 'record labels')
 
     @cached_property

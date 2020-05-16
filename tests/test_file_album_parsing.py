@@ -89,6 +89,9 @@ ALBUM_TEST_CASES = {
     ('Re:package Album “GIRLS\' GENERATION"~The Boys~', 'Girls\' Generation'): AlbumName(
         'GIRLS\' GENERATION ~The Boys~', repackage=True, alb_type='Album'
     ),
+    ('BABY BABY - Girls\' Generation Repackage', '소녀시대 (Girls\' Generation)'): AlbumName(
+        'BABY BABY', repackage=True
+    ),
 }
 
 UNCOMMON_TEST_CASES = {

@@ -9,7 +9,7 @@ from typing import Tuple, Optional
 
 __all__ = [
     'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
-    'get_unpaired'
+    'get_unpaired', 'strip_unpaired'
 ]
 log = logging.getLogger(__name__)
 
@@ -58,6 +58,12 @@ def has_unpaired(text: str, reverse=True, exclude=_NotSet) -> bool:
 
 
 def get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[str]:
+    if (i := _get_unpaired(text, reverse, exclude)) is not None:
+        return text[i]
+    return None
+
+
+def _get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[int]:
     exclude = DASH_CHARS if exclude is _NotSet else '' if exclude is None else exclude
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
@@ -67,23 +73,36 @@ def get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[str]:
 
     opened = defaultdict(int)
     closed = defaultdict(int)
+    pairs = []
+    last = defaultdict(list)
     for i, c in enumerate(text):
+        _open = True
         if c in o2c:
             if c in c2o:
                 for k in c2o[c]:
                     if opened[k] > closed[k]:
+                        _open = False
+                        pairs.append((i, last[k].pop()))
                         closed[k] += 1
-            opened[c] += 1
+            if _open:
+                opened[c] += 1
+                last[c].append(i)
         elif c in c2o:
             for k in c2o[c]:
                 if opened[k] > closed[k]:
+                    pairs.append((i, last[k].pop()))
                     closed[k] += 1
                 elif k not in exclude:
-                    return c
+                    last[c].append(i)
+                    break
 
-    for c, num_open in opened.items():
-        if closed[c] != num_open and c not in exclude:
-            return c
+    last = {k: v[0] for k, v in last.items() if v and k not in exclude}
+    if last:
+        i = min(last.values())
+        if reverse:
+            i = len(text) - 1 - i
+        # log.debug(f'{text=!r} contains enclosing {pairs=} with unclosed={last} => {i} / {text[i]!r}')
+        return i
     return None
 
 
@@ -108,19 +127,32 @@ def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str
     return None
 
 
-def strip_enclosed(text: str) -> str:
+def strip_enclosed(text: str, unpaired=False) -> str:
     """
     If the given string is fully enclosed, i.e., its first and last characters are a matching pair of opener and closer
     characters as defined above, then those characters will be stripped from the returned string.  If the first and last
     characters are not a matching pair, then no action will be taken.
 
     :param str text: A string
+    :param bool unpaired: Also strip unpaired enclosing characters
     :return str: The string without the enclosing characters
     """
     if enclosing := ends_with_enclosed(text):
         opener, closer = enclosing
         if text.startswith(opener):
-            return text[1:-1]
+            return text[1:-1].strip()
+
+    if unpaired:
+        return strip_unpaired(text)
+    return text
+
+
+def strip_unpaired(text: str, reverse=False, exclude=_NotSet) -> str:
+    if (i := _get_unpaired(text, reverse, exclude)) is not None:
+        if i == 0:
+            return text[1:].strip()
+        elif i == len(text) - 1:
+            return text[:-1].strip()
     return text
 
 

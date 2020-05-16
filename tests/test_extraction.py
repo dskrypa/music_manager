@@ -8,7 +8,7 @@ from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.text.extraction import (
-    partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed, strip_enclosed
+    partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed, strip_enclosed, _get_unpaired
 )
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,19 @@ class MiscExtractionTestCase(TestCaseBase):
         for text, unpaired in cases.items():
             self.assertIs(has_unpaired(text), unpaired, f'Failed for {text=!r}')
 
+    def test__get_unpaired_reverse(self):
+        cases = {
+            '()': None, ')(': 1,
+            '(a)': None, ')a(': 2,
+            'a()': None, '()a': None,
+            'a)(': 2, ')(a': 1,
+            '())': 2, '(()': 0,
+            '(())': None,
+            '(a)b [(c)d-e]': None
+        }
+        for text, unpaired in cases.items():
+            self.assertEqual(_get_unpaired(text, True), unpaired, f'Failed for {text=!r}')
+
     def test_get_unpaired_reverse(self):
         cases = {
             '()': None, ')(': '(',
@@ -40,6 +53,19 @@ class MiscExtractionTestCase(TestCaseBase):
         }
         for text, unpaired in cases.items():
             self.assertEqual(get_unpaired(text, True), unpaired, f'Failed for {text=!r}')
+
+    def test__get_unpaired_forward(self):
+        cases = {
+            '()': None, ')(': 0,
+            '(a)': None, ')a(': 0,
+            'a()': None, '()a': None,
+            'a)(': 1, ')(a': 0,
+            '())': 2, '(()': 0,
+            '(())': None,
+            '(a)b [(c)d-e]': None
+        }
+        for text, unpaired in cases.items():
+            self.assertEqual(_get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
 
     def test_get_unpaired_forward(self):
         cases = {
@@ -69,6 +95,7 @@ class MiscExtractionTestCase(TestCaseBase):
         self.assertEqual(strip_enclosed('""'), '')
         self.assertEqual(strip_enclosed('"a" b "c"'), 'a" b "c')    # Not ideal... but this is not analyzing closely
         self.assertEqual(strip_enclosed('"a b "c"'), 'a b "c')
+        self.assertEqual(strip_enclosed('"a b c', True), 'a b c')
 
 
 class ExtractEnclosedTestCase(TestCaseBase):

@@ -10,7 +10,9 @@ from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Opti
 from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
 from ...common import DiscoEntryType
-from ...text import Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired, find_ordinal
+from ...text import (
+    Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired, find_ordinal, strip_unpaired
+)
 
 __all__ = ['AlbumName', 'split_artists', 'UnexpectedListFormat']
 log = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ NTH_ALB_TYPE_MATCH = re.compile(
     r'^(.*?)(?:the)?\s*([0-9]+(?:st|nd|rd|th))\s+(.*?album\s*(?:repackage)?)$', re.IGNORECASE
 ).match
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
+REPACKAGE_ALBUM_MATCH = re.compile(r'^re:?package\salbum\s(.*)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
 
 DELIMS_PAT = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE)
@@ -202,6 +205,13 @@ class AlbumName:
                     if part:
                         # log.debug(f'Re-inserting {part=!r}')
                         parts.insert(0, part)
+                elif m := REPACKAGE_ALBUM_MATCH(part):
+                    self.repackage = True
+                    self.alb_type = 'Album'
+                    part = m.group(1).strip()
+                    if part:
+                        # log.debug(f'Re-inserting {part=!r}')
+                        parts.insert(0, part)
                 elif m := SPECIAL_PREFIX_MATCH(part):
                     self.alb_type, part = map(clean, m.groups())
                     if part:
@@ -210,7 +220,10 @@ class AlbumName:
                     versions.append(Name.from_enclosed(part))
                     name_parts.append(part.split('.')[0])
                 elif name_parts and artist and artist.matches(part):
-                    log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
+                    if len(name_parts) == 1 and name.endswith(f'~{name_parts[0]}~'):
+                        name_parts[0] = f'{strip_unpaired(part)} ~{name_parts[0]}~'
+                    else:
+                        log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
                 elif artist and artist.english and len(orig_parts) == 1 and ' - ' in part and artist.english in part:
                     _parts = tuple(map(str.strip, part.split(' - ', 1)))
                     ni, ai = (1, 0) if artist.english in _parts[0] else (0, 1)

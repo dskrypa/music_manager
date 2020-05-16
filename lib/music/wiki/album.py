@@ -409,7 +409,7 @@ class DiscographyEntryPart:
     def full_name(self, hide_edition=False):
         ed = self.edition
         edition_str = ed.edition
-        if edition_str.lower().endswith(' repackage'):    # Named repackage
+        if edition_str and edition_str.lower().endswith(' repackage'):  # Named repackage
             base = Name(edition_str[:-10].strip())
             edition_str = None
         else:

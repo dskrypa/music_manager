@@ -143,10 +143,10 @@ def _find_album(
     track_count = len(album_dir)
     candidates = set()
     for artist in artists:
-        for entry in artist.all_discography_editions:
+        for entry in artist.all_discography_entries_editions:
             if not alb_type or alb_type == entry.type:
                 if alb_name and alb_name.matches(entry.name):
-                    entry_parts = list(entry)
+                    entry_parts = list(entry.parts() if isinstance(entry, DiscographyEntry) else entry)
                     pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
                     # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
                     if pkg_match_parts:
@@ -166,7 +166,7 @@ def _find_album(
                         else:
                             mlog.debug(f'Found no parts for {entry=}', extra={'color': 8})
                 elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
-                    if parts := list(entry):
+                    if parts := list(entry.parts() if isinstance(entry, DiscographyEntry) else entry):
                         mlog.debug(f'{entry=} has {len(parts)} parts that match by type + number', extra={'color': 11})
                         candidates.update(parts)
                 else:
@@ -195,5 +195,9 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Set[DiscographyEntryPart
         mlog.debug(f'{part=} tracks with names matching {album_dir}: {track_match_pct:.2%}')
         if track_match_pct > 0.7:
             candidates.add(part)
+
+    if not candidates:
+        mlog.debug(f'No candidates had matching track names')
+        candidates = _candidates
 
     return candidates

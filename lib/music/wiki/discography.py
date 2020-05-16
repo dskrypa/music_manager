@@ -5,7 +5,7 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
-from typing import TYPE_CHECKING, Dict, List, Iterable, Iterator, Optional
+from typing import TYPE_CHECKING, Dict, List, Iterable, Iterator, Optional, Union
 
 from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, Link
@@ -46,6 +46,13 @@ class DiscographyMixin(ABC):
     def all_discography_editions(self) -> Iterator[DiscographyEntryEdition]:
         for site, entries in self.discography_entries.items():
             for entry in entries:
+                yield from entry
+
+    @property
+    def all_discography_entries_editions(self) -> Iterator[Union[DiscographyEntry, DiscographyEntryEdition]]:
+        for site, entries in self.discography_entries.items():
+            for entry in entries:
+                yield entry
                 yield from entry
 
     @cached_property

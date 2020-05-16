@@ -314,7 +314,7 @@ class DiscographyEntryEdition:
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))
-            except (BadLinkError, PageMissingError) as e:
+            except (BadLinkError, PageMissingError, EntityTypeError) as e:
                 log.debug(f'Error getting artist={self._artist} for {self._basic_repr}: {e}')
         else:
             log.debug(f'Found unexpected value for {self._basic_repr}._artist: {self._artist!r}', extra={'color': 11})

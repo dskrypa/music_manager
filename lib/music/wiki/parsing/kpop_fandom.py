@@ -501,6 +501,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
 
 
 def _process_track_string(text: str, extra_content: Optional[str] = None) -> Name:
+    # log.debug(f'Processing track str={text!r} with {extra_content=!r}')
     extra = {}
     if extra_content:
         extra.update(_process_track_extras(extra_content))
@@ -508,6 +509,9 @@ def _process_track_string(text: str, extra_content: Optional[str] = None) -> Nam
         text, extra['length'], after = map(str.strip, m.groups())
         if after:
             extra.update(_process_track_extras(after))
+
+    if text.startswith('"') and not text.endswith('"') and text.count('"') == 1:
+        text += '"'
 
     parts = split_enclosed(text)
     if (part_count := len(parts)) == 1:
@@ -517,6 +521,7 @@ def _process_track_string(text: str, extra_content: Optional[str] = None) -> Nam
             extra.update(_process_track_extras(part))
         parts = split_enclosed(parts[0])
 
+    # log.debug(f'{parts=}')
     tmp_parts = []
     non_eng = []
     for part in parts:

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
 from music.test_common import NameTestCaseBase, main
+from music.text import Name
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 from music.wiki.track import Track
@@ -395,6 +396,11 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         name = parse_kf_track_name(entry)
         eng, han = 'Only I Didn\'t Know', '나만 몰랐던 이야기'
         self.assertAll(name, eng, eng, han, han, extra={'collabs': as_node("""[[Kim Kwang Min]]""", root=self.root)})
+
+    def test_unpaired_quote(self):
+        entry = as_node(""""A Song From The Past (이 노랜 꽤 오래된 거야) - 3:55""", root=self.root)
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(name, Name('A Song From The Past', '이 노랜 꽤 오래된 거야', extra={'length': '3:55'}))
 
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):

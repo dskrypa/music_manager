@@ -140,7 +140,7 @@ class SongFile(BaseSongFile):
         except TagException:
             if calculate:
                 if not (bpm := self._bpm):
-                    bpm = self._bpm = get_bpm(self.path)
+                    bpm = self._bpm = get_bpm(self.path, self.sample_rate)
                 if save:
                     self.set_text_tag('bpm', bpm)
                     log.debug(f'Saving {bpm=} for {self}')

@@ -38,6 +38,9 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tags = MusicFileProperty('tags')
     filename = __fspath__ = MusicFileProperty('filename')               # type: str
     length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
+    channels = MusicFileProperty('info.channels')                       # type: int
+    bitrate = MusicFileProperty('info.bitrate')                         # type: int
+    sample_rate = MusicFileProperty('info.sample_rate')                 # type: int
     tag_artist = TextTagProperty('artist', default=None)                # type: Optional[str]
     tag_album_artist = TextTagProperty('album_artist', default=None)    # type: Optional[str]
     tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]

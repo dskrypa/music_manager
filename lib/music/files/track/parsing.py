@@ -24,7 +24,8 @@ CHANNELS = tuple(map(str.lower, ('SBS', 'KBS', 'tvN', 'MBC')))
 
 ALB_TYPE_DASH_SUFFIX_MATCH = re.compile(r'(.*)\s[-X]\s*((?:EP|Single|SM[\s-]?STATION))$', re.IGNORECASE).match
 NTH_ALB_TYPE_MATCH = re.compile(
-    r'^(.*?)(?:the)?\s*([0-9]+(?:st|nd|rd|th))\s+(.*?album\s*(?:repackage)?)$', re.IGNORECASE
+    r'^(.*?)(?:the)?\s*((?:(?:japan|china?)(?:ese)?|korean?)?\s*[0-9]+(?:st|nd|rd|th))\s+(.*?album\s*(?:repackage)?)(.*)$',
+    re.IGNORECASE
 ).match
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
 REPACKAGE_ALBUM_MATCH = re.compile(r'^re:?package\salbum\s(.*)$', re.IGNORECASE).match
@@ -195,16 +196,16 @@ class AlbumName:
                     if part:
                         name_parts.append(part)
                 elif m := NTH_ALB_TYPE_MATCH(part):
-                    groups = m.groups()
-                    # log.debug(f'Found NTH_ALB_TYPE_MATCH({part!r}) => {groups}')
-                    self.alb_num = '{} {}'.format(*groups[1:])
-                    self.alb_type = m.group(3)
-                    part = groups[0].strip()
-                    if part.endswith('-'):
-                        part = part[:-1].strip()
-                    if part:
-                        # log.debug(f'Re-inserting {part=!r}')
-                        parts.insert(0, part)
+                    # log.debug(f'Found NTH_ALB_TYPE_MATCH({part!r}) => {m.groups()}')
+                    before, num, alb_type, after = map(str.strip, m.groups())
+                    self.alb_num = f'{num} {alb_type}'
+                    self.alb_type = alb_type
+                    for part in (after, before):
+                        if part.endswith('-'):
+                            part = part[:-1].strip()
+                        if part:
+                            # log.debug(f'Re-inserting {part=!r}')
+                            parts.insert(0, part)
                 elif m := REPACKAGE_ALBUM_MATCH(part):
                     self.repackage = True
                     self.alb_type = 'Album'

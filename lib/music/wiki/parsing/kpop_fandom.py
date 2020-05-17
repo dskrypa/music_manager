@@ -113,7 +113,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
                     except Exception as e:
                         log.error(err_msg, exc_info=True, extra={'color': 'red'})
         else:
-            log.warning(f'Unexpected section depth: {section.depth}')
+            log.warning(f'Unexpected section depth: {section.depth} on {artist_page}')
 
     @classmethod
     def _process_disco_section(

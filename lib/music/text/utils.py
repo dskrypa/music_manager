@@ -26,6 +26,6 @@ def combine_with_parens(parts: Iterable[str]) -> str:
 
 
 def find_ordinal(text: str) -> Optional[int]:
-    if m := ORDINAL_SEARCH(text):
+    if m := ORDINAL_SEARCH(text.lower()):
         return ORDINAL_TO_INT[m.group(1)]
     return None

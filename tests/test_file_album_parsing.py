@@ -92,6 +92,7 @@ ALBUM_TEST_CASES = {
     ('BABY BABY - Girls\' Generation Repackage', '소녀시대 (Girls\' Generation)'): AlbumName(
         'BABY BABY', repackage=True
     ),
+    ('JAPAN 3rd ALBUM Eternally', 'OH MY GIRL'): AlbumName('Eternally', alb_num='JAPAN 3rd ALBUM', alb_type='ALBUM'),
 }
 
 UNCOMMON_TEST_CASES = {

@@ -33,6 +33,7 @@ MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units':
 ORD_ALBUM_MATCH = re.compile(r'^\S+(?:st|nd|rd|th)\s+album:?$', re.IGNORECASE).match
 RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
 REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
+UNCLOSED_PAREN_MATCH = re.compile(r'^(.+?)(\([^()]*)$').match
 VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
 
 
@@ -460,10 +461,12 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                 raise TypeError(f'Unexpected tag value node type for track={orig_node!r} {node=!r}')
         elif isinstance(node, String):
             remainder = node.value
-        elif isinstance(node, Link) and base_name.endswith('('):
-            remainder = '('
-            base_name = base_name[:-1].strip()
-            nodes.insert(0, node)
+        elif isinstance(node, Link):
+            if m := UNCLOSED_PAREN_MATCH(base_name):
+                base_name, remainder = map(str.strip, m.groups())
+                nodes.insert(0, node)
+            else:
+                raise TypeError(f'Unexpected node type after track name for track={orig_node!r} {node=!r}')
         else:
             raise TypeError(f'Unexpected node type after track name for track={orig_node!r} {node=!r}')
 

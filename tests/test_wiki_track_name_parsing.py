@@ -427,6 +427,15 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
             name, Name('Wonderful Love', extra={'length': '3:26', 'version': ['EDM Version', 'Japanese ver.']})
         )
 
+    def test_feat_link_inside_quotes(self):
+        entry = as_node(""""Starry Night (feat. [[Crush (singer)|Crush]])" - 3:31""", root=self.root)
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(
+            name, Name('Starry Night', extra={
+                'length': '3:31', 'feat': as_node("""[[Crush (singer)|Crush]]""", root=self.root)
+            })
+        )
+
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
     root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})

@@ -52,9 +52,17 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         else:
             profile_content = section.content
             if isinstance(profile_content, ListNode):
-                profile = profile_content.as_mapping(multiline=False)
+                try:
+                    profile = profile_content.as_mapping(multiline=False)
+                except Exception as e:
+                    log.debug(f'Error processing profile on {artist_page}: {e}')
+                    return
             elif isinstance(profile_content, CompoundNode) and isinstance(profile_content[0], ListNode):
-                profile = profile_content[0].as_mapping(multiline=False)
+                try:
+                    profile = profile_content[0].as_mapping(multiline=False)
+                except Exception as e:
+                    log.debug(f'Error processing profile on {artist_page}: {e}')
+                    return
             else:
                 log.debug(f'Unexpected {profile_content=!r} on {artist_page}')
                 return

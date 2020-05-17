@@ -558,7 +558,16 @@ def _process_track_string(text: str, extra_content: Optional[str] = None) -> Nam
     for part in parts:
         extra_type, part = _classify_track_part(part)
         if extra_type:
-            extra[extra_type] = part
+            if extra_type == 'version' and (current := extra.get(extra_type)):
+                # noinspection PyUnboundLocalVariable
+                if isinstance(current, list):
+                    # noinspection PyUnboundLocalVariable
+                    current.append(part)
+                else:
+                    # noinspection PyUnboundLocalVariable
+                    extra[extra_type] = [current, part]
+            else:
+                extra[extra_type] = part
         else:
             if LangCat.contains_any(part, LangCat.non_eng_cats):
                 non_eng.append(part)

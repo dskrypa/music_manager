@@ -420,6 +420,13 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         name = parse_kf_track_name(entry)
         self.assertNamesEqual(name, Name('BBoom BBoom', extra={'length': '3:30', 'version': 'Japanese ver.'}))
 
+    def test_multiple_versions(self):
+        entry = as_node(""""Wonderful Love (EDM Version) -Japanese ver.-" - 3:26""", root=self.root)
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(
+            name, Name('Wonderful Love', extra={'length': '3:26', 'version': ['EDM Version', 'Japanese ver.']})
+        )
+
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
     root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})
@@ -443,6 +450,11 @@ class KpopFandomTrackNameReprTest(NameTestCaseBase):
         )
         track = Track(4, name, None)
         self.assertEqual(track.full_name(collabs=True), 'Be Calm (덤덤해지네) (Hwa Sa (화사) solo)')
+
+    def test_multiple_versions_repr(self):
+        name = Name('Wonderful Love', extra={'length': '3:26', 'version': ['EDM Version', 'Japanese ver.']})
+        track = Track(7, name, None)
+        self.assertEqual(track.full_name(collabs=True), 'Wonderful Love (EDM Version) (Japanese ver.)')
 
 
 class GenerasiaTrackNameReprTest(NameTestCaseBase):

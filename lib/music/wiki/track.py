@@ -5,7 +5,7 @@
 import logging
 from itertools import chain
 from functools import partialmethod
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable
 
 from ds_tools.compat import cached_property
 from wiki_nodes import CompoundNode, String, Link
@@ -105,7 +105,12 @@ class Track:
 
             for key in ('version', 'edition', 'remix'):
                 if value := extras.get(key):
-                    parts.append(replace_lang_abbrev(value))
+                    if isinstance(value, str):
+                        parts.append(replace_lang_abbrev(value))
+                    elif isinstance(value, Iterable):
+                        parts.extend(replace_lang_abbrev(v) for v in value)
+                    else:
+                        log.debug(f'Unexpected value for {self}.name.extra[{key!r}]: {value!r}')
 
             if collabs:
                 parts.extend(self.collab_parts)

@@ -415,6 +415,11 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
             Name('Winter Flower', '雪中梅', extra={'length': '3:41', 'feat': as_node("""[[RM]]""", root=self.root)})
         )
 
+    def test_dash_enclosed_japanese_ver(self):
+        entry = as_node(""""[[BBoom BBoom (single)|BBoom BBoom -Japanese ver.-]]" - 3:30""", root=self.root)
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(name, Name('BBoom BBoom', extra={'length': '3:30', 'version': 'Japanese ver.'}))
+
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
     root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})

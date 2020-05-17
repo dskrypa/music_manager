@@ -286,6 +286,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def parse_track_name(cls, node: N) -> Name:
         if isinstance(node, String):
+            # log.debug(f'Processing track name from String {node=}')
             return _process_track_string(node.value)
         elif node.__class__ is CompoundNode:
             if has_item_types(node, String, Tag) and is_node_with(node[1], Tag, String, name='small'):
@@ -403,7 +404,10 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                     remainder = node.value
                     if remainder.count('"') == 1:
                         name_part, remainder = map(str.strip, remainder.split('"', 1))
+                        # log.debug(f'{base_name=!r} {name_part=!r} {remainder=!r}')
                         base_name = f'{base_name} {name_part}'
+                    # else:
+                    #     log.debug(f'{base_name=!r} {remainder=!r}')
                 else:
                     raise TypeError(f'Unexpected third node type for track={orig_node!r} {node=!r}')
             else:
@@ -430,9 +434,13 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
                         non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
                         base_name = f'{base_name} {non_eng}'
                         remainder = f'{extra_prefix} {after}'.strip()
-
     elif isinstance(node, Link):
-        base_name = node.show
+        split_name = split_enclosed(node.show, maxsplit=1)
+        # log.debug(f'split_enclosed({value!r}) => {split_name}')
+        if len(split_name) == 1:
+            base_name = split_name[0]
+        else:
+            base_name, remainder = split_name
     else:
         raise TypeError(f'Unexpected first node type for track={orig_node!r} {node=!r}')
 

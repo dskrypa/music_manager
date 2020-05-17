@@ -125,22 +125,27 @@ class AlbumUpdater:
         return artist
 
     @cached_property
-    def album_artist(self) -> ArtistType:
+    def _artist_group(self) -> Optional[Group]:
         artist = self.artist
         if isinstance(artist, Singer) and artist.groups and not self.soloist:
-            artist = choose_item(artist.groups, 'group', before=f'Found multiple groups for {artist}')
-        return artist
+            return choose_item(artist.groups, 'group', before=f'Found multiple groups for {artist}')
+        return None
+
+    @cached_property
+    def album_artist(self) -> ArtistType:
+        return self._artist_group or self.artist
 
     @cached_property
     def album_artist_name(self) -> str:
+        if group := self._artist_group:
+            return f'{self.artist.name} ({group.name})'
         return str(self.album_artist.name)
 
     @cached_property
     def artist_name(self) -> str:
-        artist = self.artist
-        if isinstance(artist, Singer) and artist.groups and not self.soloist:
-            return f'{artist.name} ({self.album_artist_name})'
-        return str(artist.name)
+        if group := self._artist_group:
+            return f'{self.artist.name} ({group.name})'
+        return str(self.artist.name)
 
     def _normalize_name(self, name: str) -> str:
         if self.title_case and UPPER_CHAIN_SEARCH(name) or name.lower() == name:
@@ -175,7 +180,7 @@ class AlbumUpdater:
 
     def _apply_track_updates(self):
         updates = self._get_track_updates()
-        common_changes = get_common_changes(self.album_dir, updates, extra_newline=True)
+        common_changes = get_common_changes(self.album_dir, updates, extra_newline=True, dry_run=self.dry_run)
         prefix = '[DRY RUN] Would rename' if self.dry_run else 'Renaming'
         for file, values in updates.items():
             track = self.file_track_map[file]
@@ -204,7 +209,8 @@ class AlbumUpdater:
 
         expected_rel_dir = rel_dir_fmt(
             artist=alb_artist_name, type_dir=edition.type.directory, album_num=edition.numbered_type,
-            album=self.disco_part.full_name(self.hide_edition), date=edition.date, singer=artist_name
+            album=self.disco_part.full_name(self.hide_edition), date=edition.date.strftime('%Y.%m.%d'),
+            singer=artist_name
         )
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)
         if expected_dir != self.album_dir.path:

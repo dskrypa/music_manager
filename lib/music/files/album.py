@@ -273,7 +273,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
     def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         updates = {file: file.get_tag_updates(tag_ids, value, patterns=patterns, partial=partial) for file in self}
         if any(values for values in updates.values()):
-            common_changes = get_common_changes(self, updates)
+            common_changes = get_common_changes(self, updates, dry_run=dry_run)
             for file, values in updates.items():
                 file.update_tags(values, dry_run, no_log=common_changes, none_level=20)
         else:

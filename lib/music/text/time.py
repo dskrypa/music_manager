@@ -6,7 +6,7 @@ from datetime import datetime, date
 from typing import Union
 
 __all__ = ['parse_date', 'DateResult']
-DATE_FORMATS = ('%Y-%b-%d', '%Y-%m-%d', '%Y.%m.%d', '%B %d, %Y', '%d %B %Y', '%B %Y')
+DATE_FORMATS = ('%Y-%b-%d', '%Y-%m-%d', '%Y.%m.%d', '%B %d, %Y', '%d %B %Y', '%B %Y', '%B, %Y', '%Y')
 DateObj = Union[date, datetime, str, None]
 DateResult = Union[date, 'FutureDate']
 

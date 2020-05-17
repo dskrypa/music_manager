@@ -13,7 +13,9 @@ from wiki_nodes import (
 )
 from wiki_nodes.nodes import N, AnyNode
 from ...common import DiscoEntryType
-from ...text import Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal, has_unpaired
+from ...text import (
+    Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal, has_unpaired, parse_date
+)
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
@@ -31,7 +33,7 @@ NodeTypes = Union[Type[AnyNode], Tuple[Type[AnyNode], ...]]
 DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 ORD_ALBUM_MATCH = re.compile(r'^\S+(?:st|nd|rd|th)\s+album:?$', re.IGNORECASE).match
-RELEASE_DATE_FINDITER = re.compile(r'([a-z]+ \d+, \d{4})', re.IGNORECASE).finditer
+RELEASE_DATE_FINDITER = re.compile(r'((?:[a-z]+(?: \d+)?, )?\d{4})', re.IGNORECASE).finditer
 REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
 UNCLOSED_PAREN_MATCH = re.compile(r'^(.+?)(\([^()]*)$').match
 VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
@@ -655,7 +657,7 @@ def _find_release_dates(infobox: Template) -> List[date]:
     dates = []
     if released := infobox.value.get('released'):
         for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
-            dates.append(datetime.strptime(dt_str.group(1), '%B %d, %Y').date())
+            dates.append(parse_date(dt_str.group(1)))
     return dates
 
 

@@ -229,7 +229,10 @@ class DiscographyEntryEdition:
     @property
     def _basic_repr(self):
         # Used in logs from .artists and .artist to avoid circular references that depend on artist being set
-        _date = self.release_dates[0].strftime('%Y-%m-%d')
+        try:
+            _date = self.release_dates[0].strftime('%Y-%m-%d')
+        except IndexError:
+            _date = None
         edition = f'[edition={self.edition!r}]' if self.edition else ''
         lang = f'[lang={self._lang!r}]' if self._lang else ''
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{edition}{lang}>'
@@ -333,7 +336,11 @@ class DiscographyEntryEdition:
 
     @cached_property
     def date(self) -> date:
-        return min(self.release_dates)
+        try:
+            return min(self.release_dates)
+        except ValueError as e:
+            log.error(f'Error determining release date for {self._basic_repr}: {e}')
+            raise
 
     @cached_property
     def parts(self) -> List['DiscographyEntryPart']:

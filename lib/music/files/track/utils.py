@@ -135,8 +135,8 @@ class TextTagProperty(ClearableCachedProperty):
     def __get__(self, instance: 'BaseSongFile', cls: Type['BaseSongFile']):
         if instance is None:
             return self
-        value = instance.tag_text(self.tag_name, default=self.default)
-        value = value.replace('\xa0', ' ')
+        if value := instance.tag_text(self.tag_name, default=self.default):
+            value = value.replace('\xa0', ' ')
         if self.cast_func is not None:
             value = self.cast_func(value)
         instance.__dict__[self.name] = value

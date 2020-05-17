@@ -459,8 +459,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
-        if edition._tracks[0].children:
-            for node in edition._tracks:
+        if (tracks := edition._tracks) and tracks[0].children:
+            for node in tracks:
                 yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
         else:
             yield DiscographyEntryPart(None, edition, edition._tracks)
@@ -468,8 +468,13 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
         entry_page.sections.processed()                     # Necessary to populate the Information section
-        info = entry_page.sections['Information'].content
-        return find_ordinal(info.raw.string)
+        try:
+            info = entry_page.sections['Information'].content
+        except KeyError:
+            log.debug(f'No Information section found on {entry_page}')
+            return None
+        else:
+            return find_ordinal(info.raw.string)
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:

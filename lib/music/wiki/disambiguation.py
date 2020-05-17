@@ -33,10 +33,10 @@ def handle_disambiguation_candidates(
     :param bool prompt: Prompt to interactively resolve ambiguous candidates after filtering
     :return tuple: Tuple of (WikiEntity subclass, WikiPage)
     """
-    # log.debug(f'handle_disambiguation_candidates({page=}, len(candidates)={len(candidates)}, {existing=}, {name=})')
+    # log.debug(f'handle_disambiguation_candidates({page=}, len(candidates)={len(candidates)}, {existing=}, {name=})', extra={'color': 13}, stack_info=True)
     if len(candidates) == 1:
         cat_cls, resolved_page = next(iter(candidates.values()))
-        log.debug(f'Resolved ambiguous page={page} -> {resolved_page}')
+        # log.debug(f'Resolved ambiguous page={page} -> {resolved_page}', stack_info=True)
         return cat_cls, resolved_page
     elif existing and candidates:
         matches = _filtered_candidates(existing.name, candidates, existing)

@@ -261,11 +261,14 @@ class AlbumDir(ClearableCachedPropertyMixin):
             except KeyError as e:
                 raise TypeError(f'Unhandled tag type: {music_file.tag_type}') from e
 
-            # noinspection PyArgumentList
-            if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
-                if i:
-                    log.debug('')
-            i += int(music_file.remove_tags(to_remove, dry_run))
+            if music_file.tag_type == 'flac':
+                log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
+            else:
+                # noinspection PyArgumentList
+                if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
+                    if i:
+                        log.debug('')
+                i += int(music_file.remove_tags(to_remove, dry_run))
 
         if not i:
             log.debug(f'None of the songs in {self} had any tags that needed to be removed')

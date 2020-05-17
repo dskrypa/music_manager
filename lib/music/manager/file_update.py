@@ -4,6 +4,7 @@
 
 import logging
 import re
+from concurrent import futures
 from fnmatch import translate as fnmatch_to_regex_str
 
 from ds_tools.core import Paths
@@ -55,7 +56,24 @@ def path_to_tag(paths: Paths, dry_run=False, skip_prompt=False, title=False):
 def clean_tags(paths: Paths, dry_run=False, add_bpm=False):
     for album_dir in iter_album_dirs(paths):
         album_dir.remove_bad_tags(dry_run)
-        album_dir.fix_song_tags(dry_run, add_bpm)
+        album_dir.fix_song_tags(dry_run, add_bpm=False)
+
+    if add_bpm:
+        prefix, add_msg = ('[DRY RUN] ', 'Would add') if dry_run else ('', 'Adding')
+
+        def bpm_func(_file):
+            bpm = _file.bpm(False, False)
+            if bpm is None:
+                bpm = _file.bpm(not dry_run, calculate=True)
+                log.info(f'{prefix}{add_msg} BPM={bpm} to {_file}')
+
+        with futures.ThreadPoolExecutor(max_workers=16) as executor:
+            _futures = [
+                executor.submit(bpm_func, music_file) for music_file in iter_music_files(paths)
+                if music_file.tag_type != 'flac'
+            ]
+            for future in futures.as_completed(_futures):
+                future.result()
 
 
 def remove_tags(paths: Paths, tag_ids, dry_run=False):

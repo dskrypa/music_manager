@@ -107,7 +107,7 @@ def main():
                     userRating=0,
                     genre__like_exact='k-?pop',
                     genre__not_like='christmas',
-                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix',
+                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix|snow',
                     parentTitle__not_like='christmas|santa',
                     duration__gte=60000,
                 ).unique()
@@ -118,7 +118,7 @@ def main():
                     userRating=0,
                     genre__like_exact='k-?pop',
                     genre__not_like='christmas',
-                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix',
+                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix|snow',
                     parentTitle__not_like='christmas|santa',
                     duration__gte=60000,
                 ).unique()

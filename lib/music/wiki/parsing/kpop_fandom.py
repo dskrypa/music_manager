@@ -320,6 +320,15 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             pass
         else:
             name.update(extra={'length': length})
+        try:
+            artist = infobox['artist']
+        except KeyError:
+            pass
+        else:
+            if isinstance(artist, CompoundNode):
+                extra, remainder, artists = _process_track_extra_nodes(artist.children, 'artists', page)
+                if extra:
+                    name.update_extra(extra)
 
         return name
 
@@ -358,10 +367,15 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
     @classmethod
     def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         if intro := artist_page.intro():
-
+            log.debug(f'Looking for groups in intro for {artist_page}', extra={'color': 11})
             for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True), strict=1).items():
+                if entity._categories == GROUP_CATEGORIES:
+                    log.debug(f'Found link from {artist_page} to group={entity}', extra={'color': 11})
+
                 # noinspection PyUnresolvedReferences
                 if entity._categories == GROUP_CATEGORIES and (members := entity.members):
+                    # noinspection PyUnboundLocalVariable
+                    log.debug(f'Found link from {artist_page} to group={entity} with {members=}', extra={'color': 11})
                     # noinspection PyUnboundLocalVariable
                     if any(artist_page == page for m in members for page in m.pages):
                         yield link
@@ -451,10 +465,12 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
     if not remainder and nodes:
         node = nodes.pop(0)
         if is_node_with(node, (Tag, Template), (CompoundNode, String), name='small'):
+            # noinspection PyUnresolvedReferences
             if isinstance(node.value, String):
                 # noinspection PyUnresolvedReferences
                 node = node.value
             else:
+                # noinspection PyUnresolvedReferences
                 nodes = list(node.value) + nodes
                 node = nodes.pop(0)
             if isinstance(node, String):
@@ -476,41 +492,7 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
     if remainder:
         if extra_type := REMAINDER_ARTIST_EXTRA_TYPE_MAP.get(remainder.lower()):
             # log.debug(f'Found {remainder=!r} => {extra_type=!r}')
-            remainder = None
-            artists = []
-            while nodes:
-                node = nodes.pop(0)
-                # log.debug(f'Processing {node=!r}')
-                if isinstance(node, Link):
-                    artists.append(node)
-                elif isinstance(node, String):
-                    if start_str := next((val for val in (')', 'duet)', 'solo)') if node.value.startswith(val)), None):
-                        if len(artists) == 1:
-                            extra[extra_type] = artists[0]
-                        else:
-                            extra[extra_type] = CompoundNode.from_nodes(artists, root=orig_node.root, delim=' ')
-                        remainder = node.value[len(start_str):].strip()
-                        break
-                    elif node.value.startswith('feat.') and node.value.endswith(')'):
-                        if len(artists) == 1:
-                            extra[extra_type] = artists[0]
-                        else:
-                            extra[extra_type] = CompoundNode.from_nodes(artists, root=orig_node.root, delim=' ')
-                        extra['feat'] = node.value[5:-1].strip()
-                        break
-                    elif m := VERSION_SEARCH(node.value):
-                        # log.debug(f'Found version match={m}')
-                        version_parts = [m.group(1)]
-                        if artists and not extra:
-                            version_parts = [a.show for a in artists] + version_parts
-                            artists = []
-                        extra['version'] = ' '.join(version_parts)
-                    else:
-                        # log.debug(f'Assuming {node=!r} is part of artists')
-                        artists.append(node)
-                else:
-                    raise TypeError(f'Unexpected artist node type for track={orig_node!r} {node=!r}')
-
+            extra, remainder, artists = _process_track_extra_nodes(nodes, extra_type, orig_node)
             # log.debug(f'Found {artists=} {remainder=!r} {nodes=} {extra=}')
 
     remainder = remainder or ''
@@ -534,6 +516,70 @@ def _process_track_complex(orig_node: CompoundNode) -> Name:
     name = Name.from_enclosed(base_name, extra=extra or None)
     # log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
     return name
+
+
+def _process_track_extra_nodes(nodes: List[N], extra_type: str, source: Union[WikiPage, N]):
+    root = source if isinstance(source, WikiPage) else source.root
+    extra = {}
+    artists = []
+    remainder = None
+    while nodes:
+        node = nodes.pop(0)
+        # log.debug(f'Processing {node=!r}')
+        if isinstance(node, Link):
+            artists.append(node)
+        elif isinstance(node, String):
+            if start_str := next((val for val in (')', 'duet)', 'solo)') if node.value.startswith(val)), None):
+                if len(artists) == 1:
+                    extra[extra_type] = artists[0]
+                else:
+                    extra[extra_type] = CompoundNode.from_nodes(artists, root=root, delim=' ')
+                remainder = node.value[len(start_str):].strip()
+                break
+            elif node.value.startswith('feat.') and node.value.endswith(')'):
+                if len(artists) == 1:
+                    extra[extra_type] = artists[0]
+                else:
+                    extra[extra_type] = CompoundNode.from_nodes(artists, root=root, delim=' ')
+                extra['feat'] = node.value[5:-1].strip()
+                break
+            elif m := VERSION_SEARCH(node.value):
+                # log.debug(f'Found version match={m}')
+                version_parts = [m.group(1)]
+                if artists and not extra:
+                    version_parts = [a.show for a in artists] + version_parts
+                    artists = []
+                extra['version'] = ' '.join(version_parts)
+            elif node.value == '(feat.' and nodes:
+                feat = []
+                while nodes:
+                    _node = nodes.pop(0)
+                    if isinstance(_node, String) and ')' in _node.value:
+                        before, _, after = map(str.strip, _node.value.partition(')'))
+                        if before:
+                            feat.append(String(before, root=root))
+                        if after:
+                            nodes.insert(0, String(after, root=root))
+                        break
+                    else:
+                        feat.append(_node)
+
+                if feat:
+                    if len(feat) == 1:
+                        extra['feat'] = feat[0]
+                    else:
+                        extra['feat'] = CompoundNode.from_nodes(feat, root=root, delim=' ')
+            else:
+                # log.debug(f'Assuming {node=!r} is part of artists')
+                artists.append(node)
+        elif is_node_with(node, Template, CompoundNode) and node.value.__class__ is CompoundNode:
+            _nodes = node.value.children.copy()
+            _nodes.extend(nodes)
+            nodes = _nodes
+        else:
+            raise TypeError(f'Unexpected artist node type for track={source!r} {node=!r}')
+
+    return extra, remainder, artists
 
 
 def _process_track_string(text: str, extra_content: Optional[str] = None) -> Name:

@@ -3,19 +3,23 @@
 """
 
 import logging
+from unittest.mock import MagicMock
 
 from ds_tools.test_common import TestCaseBase, main
 from ds_tools.output import colored
 
-from wiki_nodes import Node
+from wiki_nodes import Node, as_node
 
 from .text import Name
 
-__all__ = ['NameTestCaseBase', 'main', 'TestCaseBase']
+__all__ = ['NameTestCaseBase', 'main', 'TestCaseBase', 'fake_page']
 log = logging.getLogger(__name__)
 
 
 class NameTestCaseBase(TestCaseBase):
+    _site = None
+    _interwiki_map = None
+
     def assertIsOrEqual(self, name, attr, expected):
         value = getattr(name, attr)
         if isinstance(value, dict) and isinstance(expected, dict):
@@ -72,6 +76,9 @@ class NameTestCaseBase(TestCaseBase):
             ]
             raise AssertionError('\n'.join(error_parts)) from None
 
+    def _fake_page(self, *args, **kwargs):
+        return fake_page(*args, site=self._site, _interwiki_map=self._interwiki_map, **kwargs)
+
 
 def _to_set(value):
     if isinstance(value, set):
@@ -80,3 +87,17 @@ def _to_set(value):
         return {value}
     else:
         return set(value)
+
+
+def fake_page(intro, infobox=None, site=None, _interwiki_map=None, **kwargs):
+    kwargs.setdefault('sections', MagicMock(find=lambda *a, **kw: None))
+    page = MagicMock(site=site, _interwiki_map=_interwiki_map, **kwargs)
+    if not isinstance(intro, Node):
+        intro = as_node(intro, root=page)
+    if intro is not None:
+        page.intro = lambda *a, **kw: intro
+    if infobox is not None and not isinstance(infobox, Node):
+        infobox = as_node(infobox, root=page)
+    if infobox is not None:
+        page.infobox = infobox
+    return page

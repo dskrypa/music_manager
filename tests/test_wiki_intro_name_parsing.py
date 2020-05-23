@@ -4,19 +4,14 @@ import logging
 import sys
 from pathlib import Path
 from unittest import skip
-from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
-from music.test_common import main, NameTestCaseBase
+from music.test_common import main, NameTestCaseBase, fake_page
 from music.text import Name
 from music.wiki.parsing.utils import name_from_intro
 
 log = logging.getLogger(__name__)
-
-
-def fake_page(intro):
-    return MagicMock(intro=lambda s: intro)
 
 
 class IntroNameParsingTest(NameTestCaseBase):

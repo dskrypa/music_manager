@@ -6,9 +6,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from wiki_nodes.nodes import as_node
+from wiki_nodes.nodes import as_node, Link
 from music.test_common import NameTestCaseBase, main
 from music.text import Name
+from music.wiki.album import DiscographyEntry
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 from music.wiki.track import Track
@@ -20,7 +21,9 @@ parse_kf_track_name = KpopFandomParser.parse_track_name
 
 
 class KpopFandomTrackNameParsingTest(NameTestCaseBase):
-    root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})
+    _site = 'kpop.fandom.com'
+    _interwiki_map = {'w': 'https://community.fandom.com/wiki/$1'}
+    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
 
     def test_link_title(self):
         entry = as_node(""""[[Black Swan]]" - 3:18""", root=self.root)
@@ -436,9 +439,30 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
             })
         )
 
+    def test_single_feat(self):
+        page = self._fake_page(
+            """"'''Eight'''" (에잇) is the seventh digital single by [[IU]]. It was released on May 6, 2020 and features [[Suga]].""",
+            """{{Infobox single\n| name        = Eight\n| artist      = [[IU]] {{small\n|(feat. [[Suga]])\n}}\n| released    = May 6, 2020\n| length      = 2:47\n}}""",
+            title='Eight',
+            categories={'single article stubs', 'singles', 'digital singles', 'iu', '2020 releases', '2020 digital singles'}
+        )
+        de = DiscographyEntry('Eight', {self._site: page})
+        parts = list(de.parts())
+        self.assertEqual(len(parts), 1)
+        part = parts[0]
+        tracks = part.tracks
+        self.assertEqual(len(tracks), 1)
+        track = tracks[0]
+        self.assertNamesEqual(
+            track.name, Name('Eight', '에잇', extra={'length': '2:47', 'feat': Link.from_title('Suga', page)})
+        )
+        self.assertEqual(track.full_name(), 'Eight (에잇) (feat. Suga (슈가))')
+
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
-    root = MagicMock(site='kpop.fandom.com', _interwiki_map={'w': 'https://community.fandom.com/wiki/$1'})
+    _site = 'kpop.fandom.com'
+    _interwiki_map = {'w': 'https://community.fandom.com/wiki/$1'}
+    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
 
     def test_feat_interwiki_repr(self):
         entry = as_node(""""Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root)
@@ -467,7 +491,9 @@ class KpopFandomTrackNameReprTest(NameTestCaseBase):
 
 
 class GenerasiaTrackNameReprTest(NameTestCaseBase):
-    root = MagicMock(site='www.generasia.com')
+    _site = 'www.generasia.com'
+    _interwiki_map = {}
+    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
     # These feat tests are not ideal because they need to pull info from the wiki to look up the artist names, rather
     # than being fully self-contained.
 
@@ -490,7 +516,9 @@ class GenerasiaTrackNameReprTest(NameTestCaseBase):
 
 
 class GenerasiaTrackNameParsingTest(NameTestCaseBase):
-    root = MagicMock(site='www.generasia.com')
+    _site = 'www.generasia.com'
+    _interwiki_map = {}
+    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
 
     def test_lit_slash_eng(self):
         entry = as_node("""[[Neona Hae]] (너나 해; ''You Do It'' / ''Egotistic'')""")

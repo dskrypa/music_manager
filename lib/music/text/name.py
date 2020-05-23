@@ -6,7 +6,8 @@ import logging
 import re
 from copy import copy, deepcopy
 from typing import (
-    Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Collection, Mapping, TypeVar, Dict
+    Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Collection, TypeVar, Dict, MutableMapping,
+    Mapping
 )
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -53,12 +54,12 @@ class Name(ClearableCachedPropertyMixin):
     romanized = NamePart(str)
     lit_translation = NamePart(str)
     versions = NamePart(Set)
-    extra = NamePart(Mapping)
+    extra = NamePart(MutableMapping)
 
     def __init__(
             self, eng: Optional[str] = None, non_eng: Optional[str] = None, romanized: Optional[str] = None,
             lit_translation: Optional[str] = None, versions: Optional[Collection['Name']] = None,
-            extra: Optional[Mapping[str, Any]] = None
+            extra: Optional[MutableMapping[str, Any]] = None
     ):
         self._english = eng
         self.non_eng = non_eng
@@ -251,6 +252,13 @@ class Name(ClearableCachedPropertyMixin):
                 setattr(self, key, val)
             else:
                 raise ValueError(f'Invalid name part: {key!r}')
+
+    def update_extra(self, extra: Optional[Mapping] = None, **kwargs):
+        if self.extra is None and (extra or kwargs):
+            self.extra = {}
+        for data in (extra, kwargs):
+            if data:
+                self.extra.update(data)
 
     def with_part(self, **kwargs):
         _copy = copy(self)

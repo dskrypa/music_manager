@@ -4,14 +4,16 @@
 
 import logging
 import re
-from concurrent import futures
 from fnmatch import translate as fnmatch_to_regex_str
+from functools import partial
+from multiprocessing import Pool
 
 from ds_tools.core import Paths
 from ds_tools.input import get_input
-from ..files import iter_album_dirs, iter_music_files, TagException, iter_albums_or_files
+from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
+from ..files import iter_album_dirs, iter_music_files, TagException, iter_albums_or_files, SongFile
 
-__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags']
+__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags', 'add_track_bpm']
 log = logging.getLogger(__name__)
 
 
@@ -53,29 +55,35 @@ def path_to_tag(paths: Paths, dry_run=False, skip_prompt=False, title=False):
             log.log(19, f'Skipping file with already correct title: {music_file.filename}')
 
 
-def clean_tags(paths: Paths, dry_run=False, add_bpm=False):
+def clean_tags(paths: Paths, dry_run=False, add_bpm=False, verbosity=0):
     for album_dir in iter_album_dirs(paths):
         album_dir.remove_bad_tags(dry_run)
         album_dir.fix_song_tags(dry_run, add_bpm=False)
 
     if add_bpm:
-        prefix, add_msg = ('[DRY RUN] ', 'Would add') if dry_run else ('', 'Adding')
-
-        def bpm_func(_file):
-            bpm = _file.bpm(False, False)
-            if bpm is None:
-                bpm = _file.bpm(not dry_run, calculate=True)
-                log.info(f'{prefix}{add_msg} BPM={bpm} to {_file}')
-
-        with futures.ThreadPoolExecutor(max_workers=16) as executor:
-            _futures = [
-                executor.submit(bpm_func, music_file) for music_file in iter_music_files(paths)
-                if music_file.tag_type != 'flac'
-            ]
-            for future in futures.as_completed(_futures):
-                future.result()
+        add_track_bpm(paths, dry_run=dry_run, verbosity=verbosity)
 
 
 def remove_tags(paths: Paths, tag_ids, dry_run=False):
     for music_file in iter_music_files(paths):
         music_file.remove_tags(tag_ids, dry_run, logging.INFO)
+
+
+def add_track_bpm(paths: Paths, parallel=4, dry_run=False, verbosity=0):
+    _init_logging = partial(init_logging, verbosity, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
+    add_bpm_func = partial(_add_bpm, dry_run=dry_run)
+    # Using a list instead of an iterator because pool.map needs to be able to chunk the items
+    tracks = [f for f in iter_music_files(paths) if f.tag_type != 'flac']
+    # May result in starvation if one proc finishes first due to less work, but it's simpler than a queue-based approach
+    with Pool(parallel, _init_logging) as pool:
+        pool.map(add_bpm_func, tracks)
+
+
+def _add_bpm(track: SongFile, dry_run=False):
+    prefix, add_msg = ('[DRY RUN] ', 'Would add') if dry_run else ('', 'Adding')
+    bpm = track.bpm(False, False)
+    if bpm is None:
+        bpm = track.bpm(not dry_run, calculate=True)
+        log.info(f'{prefix}{add_msg} BPM={bpm} to {track}')
+    else:
+        log.log(19, f'{track} already has BPM={bpm}')

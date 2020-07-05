@@ -76,6 +76,13 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def __repr__(self):
         return '<{}({!r})>'.format(self.__class__.__name__, self.rel_path)
 
+    def __getnewargs__(self):
+        # noinspection PyRedundantParentheses
+        return (self.path.as_posix(),)
+
+    def __getstate__(self):
+        return None  # prevents calling __setstate__ on unpickle; simpler for rebuilt obj to re-calculate cached attrs
+
     def rename(self, dest_path: Union[Path, str]):
         old_path = self.path.as_posix()
         if not isinstance(dest_path, Path):

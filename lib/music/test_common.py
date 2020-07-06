@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 from ds_tools.test_common import TestCaseBase, main
 from ds_tools.output import colored
 
-from wiki_nodes import Node, as_node
+from wiki_nodes import Node, as_node, Root
 
 from .text import Name
 
@@ -78,6 +78,9 @@ class NameTestCaseBase(TestCaseBase):
 
     def _fake_page(self, *args, **kwargs):
         return fake_page(*args, site=self._site, _interwiki_map=self._interwiki_map, **kwargs)
+
+    def _make_root(self, page_text, site=None, interwiki_map=None):
+        return Root(page_text, site=site or self._site, interwiki_map=interwiki_map or self._interwiki_map)
 
 
 def _to_set(value):

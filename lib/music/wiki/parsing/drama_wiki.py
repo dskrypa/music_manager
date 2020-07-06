@@ -25,7 +25,16 @@ SONG_OST_YEAR_MATCH = re.compile(r'^(.+?)\s-\s(.+?)\s\(((?:19|20)\d{2})\)$').mat
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        raise NotImplementedError
+        try:
+            section = artist_page.sections.find('Profile')
+        except KeyError:
+            pass
+        else:
+            profile = section.content.as_mapping()
+            keys = ('Name', 'Real name')
+            for key in keys:
+                if value := profile.get(key):
+                    yield Name.from_parts(value.value.split(' / '))
 
     @classmethod
     def parse_album_name(cls, node: N) -> Name:

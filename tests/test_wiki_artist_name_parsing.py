@@ -11,6 +11,7 @@ sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.text import Name
 from music.test_common import main, NameTestCaseBase
 from music.wiki.parsing.utils import name_from_intro
+from music.wiki.parsing.drama_wiki import DramaWikiParser
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 
@@ -18,10 +19,20 @@ log = logging.getLogger(__name__)
 
 parse_generasia_artist_name = GenerasiaParser.parse_artist_name
 parse_kf_artist_name = KpopFandomParser.parse_artist_name
+parse_dw_artist_name = DramaWikiParser.parse_artist_name
 
 
 def fake_page(intro):
     return MagicMock(intro=lambda s: intro)
+
+
+class DramaWikiArtistNameParsingTest(NameTestCaseBase):
+    _site = 'wiki.d-addicts.com'
+
+    def test_solo_artist(self):
+        page = self._make_root("""==Profile==\n*'''Name:''' 조이 / Joy\n*'''Real name:''' 박수영 / Park Soo Young\n*'''Profession:''' Singer, actress\n""")
+        names = set(parse_dw_artist_name(page))
+        self.assertNamesEqual(names, {Name('Joy', '조이'), Name('Park Soo Young', '박수영')})
 
 
 class GenerasiaArtistNameParsingTest(NameTestCaseBase):

@@ -17,7 +17,6 @@ __all__ = ['DiscoEntry']
 log = logging.getLogger(__name__)
 
 
-
 class DiscoEntry:
     """
     A basic entry in an :class:`Artist<.artist.Artist>` or :class:`Discography<.discography.Discography>` page.

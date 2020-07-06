@@ -91,6 +91,8 @@ def main():
             pprint_wiki_page(args.url, args.mode)
         elif sub_action == 'test':
             test_match(args.path, args.url)
+        elif sub_action == 'raw':
+            pprint_wiki_page(args.url, 'raw')
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
     elif action == 'path2tag':
@@ -158,6 +160,9 @@ def _add_wiki_actions(parser: ArgParser):
     pp_parser = wiki_parser.add_subparser('sub_action', 'pprint', help='Pretty-print the parsed page content')
     pp_parser.add_argument('url', help='A wiki entity URL')
     pp_parser.add_argument('--mode', '-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode (default: %(default)s)')
+
+    ppr_parser = wiki_parser.add_subparser('sub_action', 'raw', help='Print the raw page content')
+    ppr_parser.add_argument('url', help='A wiki entity URL')
 
     ws_parser = wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL')
     ws_parser.add_argument('identifier', help='A wiki URL or title/name')

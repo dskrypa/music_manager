@@ -5,7 +5,7 @@
 import logging
 import re
 from datetime import datetime, date
-from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable
+from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable, Any
 
 from ordered_set import OrderedSet
 
@@ -169,7 +169,7 @@ class DiscographyEntry(EntertainmentEntity):
 
     @classmethod
     def from_disco_entry(cls, disco_entry: 'DiscoEntry', **kwargs) -> 'DiscographyEntry':
-        # log.debug(f'Creating {cls.__name__} from {disco_entry} with {kwargs=}', extra={'color': 14})
+        log.debug(f'Creating {cls.__name__} from {disco_entry} with {kwargs=}', extra={'color': 14})
         try:
             return cls._by_category(disco_entry, disco_entry=disco_entry, **kwargs)
         except EntityTypeError as e:
@@ -212,7 +212,7 @@ class DiscographyEntryEdition:
     """An edition of an album"""
     def __init__(
             self, name: NameType, page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
-            artist: NodeOrNodes, release_dates: Sequence[date], tracks: ListOrLists, edition: Optional[str] = None,
+            artist: NodeOrNodes, release_dates: Sequence[date], content: Any, edition: Optional[str] = None,
             lang: Optional[str] = None, repackage=False
     ):
         self._name = name                                                                   # type: NameType
@@ -221,7 +221,7 @@ class DiscographyEntryEdition:
         self.type = entry_type                                                              # type: DiscoEntryType
         self._artist = artist                                                               # type: NodeOrNodes
         self.release_dates = release_dates                                                  # type: Sequence[date]
-        self._tracks = tracks                                                               # type: ListOrLists
+        self._content = content
         self.edition = edition                                                              # type: Optional[str]
         self.repackage = repackage                                                          # type: bool
         self._lang = lang                                                                   # type: Optional[str]

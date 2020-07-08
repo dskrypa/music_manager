@@ -459,11 +459,11 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
-        if (tracks := edition._tracks) and tracks[0].children:
+        if (tracks := edition._content) and tracks[0].children:
             for node in tracks:
                 yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
         else:
-            yield DiscographyEntryPart(None, edition, edition._tracks)
+            yield DiscographyEntryPart(None, edition, edition._content)
 
     @classmethod
     def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:

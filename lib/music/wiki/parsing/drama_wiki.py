@@ -4,9 +4,11 @@
 
 import logging
 import re
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
+from collections import Counter
+from datetime import datetime
+from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
 
-from wiki_nodes import WikiPage, Link, String, MappingNode
+from wiki_nodes import WikiPage, Link, String, MappingNode, Section
 from wiki_nodes.nodes import N, ContainerNode
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -20,8 +22,9 @@ if TYPE_CHECKING:
 __all__ = ['DramaWikiParser']
 log = logging.getLogger(__name__)
 
-YEAR_MATCH = re.compile(r'-?(.*?)\(((?:19|20)\d{2})\)$').match
+OST_PART_MATCH = re.compile(r'^(.+) (Part \d+)$', re.IGNORECASE).match
 SONG_OST_YEAR_MATCH = re.compile(r'^(.+?)\s-\s(.+?)\s\(((?:19|20)\d{2})\)$').match
+YEAR_MATCH = re.compile(r'-?(.*?)\(((?:19|20)\d{2})\)$').match
 
 
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
@@ -111,7 +114,40 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
-        raise NotImplementedError
+        ost_parts, ost_full, ost_name = split_sections(entry_page)
+        if not (ost_full or ost_parts):
+            log.warning(f'Did not find any OST content for {entry=} / {entry_page!r}')
+
+        if ost_parts:
+            languages = Counter()
+            dates = set()
+            artists = set()
+            for part in ost_parts:
+                info = part.content[2].as_mapping()
+                if langs := info.get('Language'):
+                    languages.update(map(str.strip, langs.value.split(',')))
+                if part_date := info.get('Release Date'):
+                    dates.add(datetime.strptime(part_date.value, '%Y-%b-%d'))
+                if artist := info.get('Artist'):
+                    artists.add(artist)
+
+            info = ost_parts[0].content[2].as_mapping()
+            non_eng_title = info['Title'][0].value  # type: str  # TODO: handle other cases
+            if non_eng_title.endswith('/'):
+                non_eng_title = non_eng_title[:-1].strip()
+
+            non_eng_name = OST_PART_MATCH(non_eng_title).group(1)  # TODO: handle other cases
+            name = Name.from_parts((non_eng_name, ost_name))
+            language = max(languages, key=lambda k: languages[k])
+
+            # track_table = part_1.content[4]
+            # need artists from all parts
+            yield DiscographyEntryEdition(
+                name, entry_page, entry, entry._type, artists, sorted(dates), ost_parts, '[OST Parts]', language
+            )
+
+        if ost_full:
+            pass
 
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
@@ -140,3 +176,22 @@ def get_section_map(page: WikiPage, title: str) -> Optional[MappingNode]:
         return None
     else:
         return section.content.as_mapping()
+
+
+def split_sections(page: WikiPage) -> Tuple[List[Section], Optional[Section], Optional[str]]:
+    ost_full = None
+    ost_parts = []
+    ost_name = None
+    for section in page.sections:
+        if m := OST_PART_MATCH(section.title):
+            if ost_name is None:
+                ost_name = m.group(1)
+            # part_name = m.group(2)
+            # ost_parts.append((part_name, section))
+            ost_parts.append(section)
+        elif ost_name and section.title == ost_name:
+            ost_full = section
+        else:
+            break
+
+    return ost_parts, ost_full, ost_name

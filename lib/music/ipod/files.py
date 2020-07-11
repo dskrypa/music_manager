@@ -140,11 +140,10 @@ class iPodIOBase(RawIOBase):
         return not self.closed and self._mode in CAN_WRITE
 
     def seekable(self):
-        return False
+        return True
 
     def seek(self, offset, whence=0):
-        raise UnsupportedOperation
-        # return self._afc.file_seek(self._f, offset)
+        return self._afc.file_seek(self._f, offset, whence)
 
     def tell(self):
         return self._afc.file_tell(self._f)

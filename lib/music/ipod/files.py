@@ -14,7 +14,6 @@ from pymobiledevice.afc import (
 from .exceptions import iPodIOException, iPodFileClosed
 
 if TYPE_CHECKING:
-    from .ipod import iPod
     from .path import iPath
 
 __all__ = ['open_ipod_file']
@@ -109,8 +108,6 @@ class iPodIOBase(RawIOBase):
     def write(self, data: bytes):
         if self.closed:
             raise iPodFileClosed(self._path)
-        # if isinstance(data, str) and self.encoding:
-        #     data = data.encode(self.encoding)
 
         hh = struct.pack('<Q', self._f)
         pos = 0
@@ -147,9 +144,10 @@ class iPodIOBase(RawIOBase):
 
     def seek(self, offset, whence=0):
         raise UnsupportedOperation
+        # return self._afc.file_seek(self._f, offset)
 
     def tell(self):
-        raise UnsupportedOperation
+        return self._afc.file_tell(self._f)
 
     def truncate(self, size=None):
         raise UnsupportedOperation

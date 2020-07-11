@@ -22,7 +22,10 @@ optional_dependencies = {
     ],
     'bpm': [                    # Used for BPM calculation; on Win10 with Python 3.8, requires VS 2019 build tools:
         'aubio',                # https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019
-        'ffmpeg-python'         # Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
+        'ffmpeg-python',        # Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
+    ],
+    'ipod': [
+        'pymobiledevice@ git+git://github.com/dskrypa/pymobiledevice',  # contains multiple improvements over upstream
     ],
 }
 

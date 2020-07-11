@@ -58,8 +58,6 @@ def main():
     if args.match_log:
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
-    # TODO: Add bpm action that uses multiple processes instead of threads
-
     action, sub_action = args.action, getattr(args, 'sub_action', None)
     if action == 'show':
         if sub_action == 'info':

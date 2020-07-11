@@ -6,7 +6,7 @@ from typing import Union
 from pymobiledevice.afc import AFCClient, AFC_HARDLINK
 
 from .exceptions import AccessorError
-from .files import iPodFile
+from .files import open_ipod_file
 
 __all__ = ['iPath']
 log = logging.getLogger(__name__)
@@ -24,8 +24,12 @@ class iPath(Path, PurePosixPath):
     def _init(self, ipod=None):
         if ipod is None:
             ipod = iPod.find()
+        self._closed = False
         self._ipod = ipod
         self._accessor = iPodAccessor(ipod)
+
+    def open(self, *args, **kwargs):
+        return open_ipod_file(self, *args, **kwargs)
 
 
 def _str(path: Union[Path, str]) -> str:
@@ -46,7 +50,8 @@ class iPodAccessor:
     def listdir(self, path):
         return self.afc.read_directory(_str(path))
 
-    open = iPodFile
+    def open(self, *args, **kwargs):
+        raise NotImplementedError
 
     def scandir(self, path):
         raise NotImplementedError

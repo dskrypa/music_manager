@@ -3,6 +3,10 @@ class AccessorError(Exception):
     pass
 
 
-class iPodIOException(Exception):
+class iPodIOException(OSError):
+    pass
+
+
+class iPodFileClosed(iPodIOException):
     pass
 

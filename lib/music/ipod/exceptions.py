@@ -1,8 +1,4 @@
 
-class AccessorError(Exception):
-    pass
-
-
 class iPodIOException(OSError):
     pass
 

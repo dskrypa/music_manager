@@ -1,13 +1,13 @@
 
 import logging
-from errno import ENOENT
+from errno import ENOENT, EINVAL
+from functools import cached_property, partialmethod
 from pathlib import Path, PurePosixPath
 from stat import S_IFDIR, S_IFCHR, S_IFBLK, S_IFREG, S_IFIFO, S_IFLNK, S_IFSOCK
-from typing import Union
+from typing import Union, Optional
 
 from pymobiledevice.afc import AFCClient, AFC_HARDLINK
 
-from .exceptions import AccessorError
 from .files import open_ipod_file
 
 __all__ = ['iPath']
@@ -33,15 +33,18 @@ class iPath(Path, PurePosixPath):
         self._init(ipod)
         return self
 
-    def _init(self, ipod=None):
-        if ipod is None:
-            ipod = iPod.find()
+    def _init(self, ipod=None, template: Optional['iPath'] = None):
         self._closed = False
-        self._ipod = ipod
-        self._accessor = iPodAccessor(ipod)
+        if template is not None:
+            self._ipod = template._ipod
+            self._accessor = template._accessor
+        else:
+            if ipod is None:
+                ipod = iPod.find()
+            self._ipod = ipod
+            self._accessor = iPodAccessor(ipod)
 
-    def open(self, *args, **kwargs):
-        return open_ipod_file(self, *args, **kwargs)
+    open = partialmethod(open_ipod_file)
 
 
 def _str(path: Union[Path, str]) -> str:
@@ -52,6 +55,7 @@ def _str(path: Union[Path, str]) -> str:
 
 class iPodAccessor:
     def __init__(self, ipod):
+        self.ipod = ipod
         self.afc = ipod.afc  # type: AFCClient
 
     def stat(self, path):
@@ -68,7 +72,11 @@ class iPodAccessor:
         raise NotImplementedError
 
     def scandir(self, path):
-        raise NotImplementedError
+        if not isinstance(path, iPath):
+            path = iPath(path, ipod=self.ipod)
+        for sub_path in path.iterdir():
+            # noinspection PyTypeChecker
+            yield iPodScandirEntry(sub_path.relative_to(path))
 
     def chmod(self, *args, **kwargs):
         raise NotImplementedError
@@ -103,20 +111,20 @@ class iPodAccessor:
         if info := self.afc.get_file_info(path):
             if info['st_ifmt'] == 'S_IFLNK':
                 return info['LinkTarget']
-            return path
-        raise AccessorError(f'Path does not exist and is not a link: {path}')
+            raise OSError(EINVAL, f'Not a link: {path}')
+        raise OSError(EINVAL, f'Path does not exist: {path}')
 
 
 class iPodStatResult:
     def __init__(self, info):
-        self.__info = info
+        self._info = info
 
     def __repr__(self):
-        return 'iPodStatResult[{}]'.format(', '.join(f'{k}={getattr(self, k)!r}' for k in sorted(self.__info)))
+        return 'iPodStatResult[{}]'.format(', '.join(f'{k}={getattr(self, k)!r}' for k in sorted(self._info)))
 
     def __getattr__(self, item: str):
         try:
-            value = self.__info[item]
+            value = self._info[item]
         except KeyError:
             raise AttributeError(f'iPodStatResult has no attribute {item!r}') from None
 
@@ -134,6 +142,38 @@ class iPodStatResult:
             return STAT_MODES[self.st_ifmt]
         except KeyError:
             raise AttributeError('Unable to convert {self.st_ifmt=!r} to st_mode')
+
+
+class iPodScandirEntry:
+    def __init__(self, path: iPath):
+        self._path = path
+
+    @cached_property
+    def path(self):
+        return self._path.as_posix()
+
+    @property
+    def name(self):
+        return self._path.name
+
+    @cached_property
+    def _stat(self):
+        return self._path.stat()
+
+    def stat(self, *, follow_symlinks=True):
+        return self._stat
+
+    def inode(self):
+        return None
+
+    def is_dir(self):
+        return self._path.is_dir()
+
+    def is_file(self):
+        return self._path.is_file()
+
+    def is_symlink(self):
+        return self._path.is_symlink()
 
 
 # Down here due to circular dependency

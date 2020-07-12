@@ -24,7 +24,7 @@ def parser():
 @wrap_main
 def main():
     args = parser().parse_args()
-    init_logging(args.verbose, log_path=None, names=None)
+    init_logging(args.verbose or 1, log_path=None, names=None)
 
     iPodShell().cmdloop()
 

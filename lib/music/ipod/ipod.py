@@ -16,14 +16,14 @@ log = logging.getLogger(__name__)
 class iPod:
     _instance = None
     name = DictAttrProperty('info', 'DeviceName')
-    version = DictAttrProperty('info', 'ProductVersion')
+    ios_version = DictAttrProperty('info', 'ProductVersion')
 
     def __init__(self, udid):
         self.udid = udid
         self.__finalizer = finalize(self, self.__close)
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}[name={self.name!r}, version={self.version}]>'
+        return f'<{self.__class__.__name__}[name={self.name!r}, ios_version={self.ios_version}]>'
 
     @classmethod
     def find(cls) -> 'iPod':

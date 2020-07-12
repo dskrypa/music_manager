@@ -181,8 +181,8 @@ class iPodShell(Cmd):
         def print_path(path, rel=None):
             rel = rel or self._rel_to_cwd(path)
             if long:
-                perm_chars = 'dx' if sub_path.is_dir() else '--'
-                stat = sub_path.stat()
+                perm_chars = 'dx' if path.is_dir() else '--'
+                stat = path.stat()
                 mtime = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M')
                 size = readable_bytes(stat.st_size)[:-1]
                 perms = '{}rw-rw-rw-{}'.format(*perm_chars)

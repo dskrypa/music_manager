@@ -1,18 +1,12 @@
 #!/usr/bin/env python
 
-import os
-import sys
-from pathlib import Path
-
-venv_path = Path(__file__).resolve().parents[1].joinpath('venv')
-if not os.environ.get('VIRTUAL_ENV') and venv_path.exists():
-    from subprocess import Popen
-    os.environ.update(PYTHONHOME='', VIRTUAL_ENV=venv_path.as_posix())
-    os.environ['PATH'] = '{}:{}'.format(venv_path.joinpath('Scripts').as_posix(), os.environ['PATH'])
-    sys.exit(Popen([venv_path.joinpath('Scripts', 'python.exe').as_posix()] + sys.argv, env=os.environ).wait())
+from _venv import maybe_activate_venv
+maybe_activate_venv()
 
 import argparse
 import logging
+import sys
+from pathlib import Path
 
 from plexapi import DEFAULT_CONFIG_PATH
 from plexapi.base import OPERATORS

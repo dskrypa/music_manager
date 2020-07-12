@@ -1,19 +1,11 @@
 #!/usr/bin/env python
 
-import sys
-from os import environ as env
-from pathlib import Path
-
-venv_path = Path(__file__).resolve().parents[1].joinpath('venv')
-if not env.get('VIRTUAL_ENV') and venv_path.exists():
-    import platform
-    from subprocess import Popen
-    ON_WINDOWS = platform.system().lower() == 'windows'
-    bin_path = venv_path.joinpath('Scripts' if ON_WINDOWS else 'bin')
-    env.update(PYTHONHOME='', VIRTUAL_ENV=venv_path.as_posix(), PATH='{}:{}'.format(bin_path.as_posix(), env['PATH']))
-    sys.exit(Popen([bin_path.joinpath('python.exe' if ON_WINDOWS else 'python').as_posix()] + sys.argv, env=env).wait())
+from _venv import maybe_activate_venv
+maybe_activate_venv()
 
 import logging
+import sys
+from pathlib import Path
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.core import wrap_main

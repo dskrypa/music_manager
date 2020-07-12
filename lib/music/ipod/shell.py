@@ -9,7 +9,7 @@ from cmd import Cmd
 from datetime import datetime
 from functools import cached_property, wraps
 from pprint import pprint
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 
 from ds_tools.output import colored, readable_bytes
 
@@ -33,12 +33,15 @@ def cmd_command(func):
 
 
 class iPodShell(Cmd):
-    def __init__(self, ipod: iPod, completekey='tab', stdin=None, stdout=None):
+    def __init__(self, ipod: Optional[iPod] = None, completekey='tab', stdin=None, stdout=None):
         super().__init__(completekey=completekey, stdin=stdin, stdout=stdout)
-        self.ipod = ipod
-        self.cwd = ipod.get_path('/')  # type: iPath
+        self.ipod = ipod or iPod.find()
+        self.cwd = self.ipod.get_path('/')  # type: iPath
         self.complete_cat = self._complete
         self.complete_ls = self._complete
+
+    def cmdloop(self, intro: Optional[str] = None):
+        return super().cmdloop(intro or f'Interactive iPod Session - Connected to: {self.ipod}')
 
     @property
     def prompt(self):

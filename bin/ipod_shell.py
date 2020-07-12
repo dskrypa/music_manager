@@ -10,6 +10,7 @@ from ds_tools.argparsing import ArgParser
 from ds_tools.core import wrap_main
 from ds_tools.logging import init_logging
 
+# sys.path.insert(0, 'C:/Users/dougs/git/pymobiledevice')
 sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
 from music.ipod.shell import iPodShell

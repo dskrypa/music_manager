@@ -2,7 +2,7 @@
 import logging
 import shlex
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from cmd import Cmd
 from datetime import datetime
 from functools import cached_property, wraps
@@ -25,6 +25,13 @@ class ArgError(Exception):
 
 class _ShellArgParser(ArgumentParser):
     """Raises an exception on errors instead of exiting"""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('formatter_class', ArgumentDefaultsHelpFormatter)
+        super().__init__(*args, **kwargs)
+
+    def exit(self, status=0, message=None):
+        raise ArgError(message)
+
     def error(self, message: str):
         self.print_usage(sys.stderr)
         raise ArgError(f'{self.prog}: error: {message}')
@@ -43,7 +50,8 @@ def cmd_command(func):
                 kwargs.setdefault(key, val)
             return func(self, **kwargs)
         except ArgError as e:
-            _stderr(e)
+            if e.args and e.args[0]:
+                _stderr(e)
             return None
     return wrapper
 
@@ -59,7 +67,6 @@ class iPodShell(Cmd):
         self.cwd = self.ipod.get_path('/')  # type: iPath
         # self.complete_cat = self._complete
         # self.complete_ls = self._complete
-        self._printer = Printer('pseudo-json')
         self._term = Terminal()
         print(colored('=' * (self._term.width - 1), 6))
 
@@ -112,8 +119,19 @@ class iPodShell(Cmd):
 
         rm_parser = parsers['rm'] = _ShellArgParser('rm', description='Remove (unlink) the FILE(s).')
         rm_parser.add_argument('file', nargs='*', help='The files or directorties to list')
+
+        stat_parser = parsers['stat'] = _ShellArgParser('stat', description='Display file or file system status.')
+        stat_parser.add_argument('file', help='The files to stat')
+        stat_parser.add_argument('--format', '-f', dest='out_fmt', choices=Printer.formats, default='yaml', help='The output format to use')
+
+        info_parser = parsers['info'] = _ShellArgParser('info', description='Display device info')
+        info_parser.add_argument('--format', '-f', dest='out_fmt', choices=Printer.formats, default='yaml', help='The output format to use')
         # fmt: on
         return parsers
+
+    @cmd_command
+    def do_info(self, out_fmt='yaml'):
+        Printer(out_fmt).pprint(self.ipod.info)
 
     def _rel_path(self, loc) -> iPath:
         # noinspection PyUnboundLocalVariable
@@ -149,11 +167,12 @@ class iPodShell(Cmd):
         else:
             _stderr(f'cd: {directory}: No such file or directory')
 
-    def do_stat(self, file):
+    @cmd_command
+    def do_stat(self, file: str, out_fmt='yaml'):
         path = self._rel_path(file)
         if path.exists():
             # noinspection PyUnresolvedReferences
-            self._printer.pprint(path.stat()._info)
+            Printer(out_fmt).pprint(path.stat().as_dict())
         else:
             _stderr(f'stat: cannot stat {file}: No such file or directory')
 

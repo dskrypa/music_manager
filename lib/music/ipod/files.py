@@ -1,3 +1,9 @@
+"""
+This module implements file IO functionality for files that exist on an iPod and are accessed via an AFC client as if
+they were native files opened via :func:`open`.
+
+:author: Doug Skrypa
+"""
 
 import logging
 import struct
@@ -6,8 +12,9 @@ from typing import TYPE_CHECKING
 from weakref import finalize
 
 # noinspection PyPackageRequirements
-from pymobiledevice.afc import (
-    AFC_FOPEN_RDONLY, AFC_FOPEN_RW, AFC_FOPEN_WRONLY, AFC_FOPEN_WR, AFC_FOPEN_APPEND, AFC_FOPEN_RDAPPEND, AFCClient,
+from pymobiledevice.afc import AFCClient
+from pymobiledevice.afc.constants import (
+    AFC_FOPEN_RDONLY, AFC_FOPEN_RW, AFC_FOPEN_WRONLY, AFC_FOPEN_WR, AFC_FOPEN_APPEND, AFC_FOPEN_RDAPPEND,
     AFC_OP_READ, AFC_OP_WRITE, AFC_E_SUCCESS
 )
 

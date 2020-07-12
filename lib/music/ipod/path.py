@@ -1,3 +1,9 @@
+"""
+This module provides a subclass of Path that allows iPod paths accessed via an AFC client to be handled as if they were
+native Path objects.
+
+:author: Doug Skrypa
+"""
 
 import logging
 from errno import ENOENT, EINVAL
@@ -6,7 +12,8 @@ from pathlib import Path, PurePosixPath
 from stat import S_IFDIR, S_IFCHR, S_IFBLK, S_IFREG, S_IFIFO, S_IFLNK, S_IFSOCK
 from typing import Union, Optional
 
-from pymobiledevice.afc import AFCClient, AFC_HARDLINK
+from pymobiledevice.afc import AFCClient
+from pymobiledevice.afc.constants import AFC_HARDLINK
 
 from .files import open_ipod_file
 
@@ -120,7 +127,10 @@ class iPodStatResult:
         self._info = info
 
     def __repr__(self):
-        return 'iPodStatResult[{}]'.format(', '.join(f'{k}={getattr(self, k)!r}' for k in sorted(self._info)))
+        return 'iPodStatResult[{}]'.format(', '.join(f'{k}={v!r}' for k, v in self.as_dict().items()))
+
+    def as_dict(self):
+        return {k: getattr(self, k) for k in sorted(self._info)}
 
     def __getattr__(self, item: str):
         try:

@@ -1,6 +1,8 @@
 
 import logging
+from errno import ENOENT
 from pathlib import Path, PurePosixPath
+from stat import S_IFDIR, S_IFCHR, S_IFBLK, S_IFREG, S_IFIFO, S_IFLNK, S_IFSOCK
 from typing import Union
 
 from pymobiledevice.afc import AFCClient, AFC_HARDLINK
@@ -10,6 +12,16 @@ from .files import open_ipod_file
 
 __all__ = ['iPath']
 log = logging.getLogger(__name__)
+
+STAT_MODES = {
+    'S_IFDIR': S_IFDIR,
+    'S_IFCHR': S_IFCHR,
+    'S_IFBLK': S_IFBLK,
+    'S_IFREG': S_IFREG,
+    'S_IFIFO': S_IFIFO,
+    'S_IFLNK': S_IFLNK,
+    'S_IFSOCK': S_IFSOCK,
+}
 
 
 class iPath(Path, PurePosixPath):
@@ -43,7 +55,9 @@ class iPodAccessor:
         self.afc = ipod.afc  # type: AFCClient
 
     def stat(self, path):
-        return iPodStatResult(self.afc.get_file_info(_str(path)))
+        if stat_dict := self.afc.get_file_info(_str(path)):
+            return iPodStatResult(stat_dict)
+        raise FileNotFoundError(ENOENT, f'The system cannot find the file specified')
 
     lstat = stat
 
@@ -113,6 +127,13 @@ class iPodStatResult:
                 return int(value)
             except (ValueError, TypeError):
                 return value
+
+    @property
+    def st_mode(self):
+        try:
+            return STAT_MODES[self.st_ifmt]
+        except KeyError:
+            raise AttributeError('Unable to convert {self.st_ifmt=!r} to st_mode')
 
 
 # Down here due to circular dependency

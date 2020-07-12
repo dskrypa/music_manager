@@ -2,7 +2,7 @@
 import logging
 import struct
 from io import UnsupportedOperation, RawIOBase, BufferedReader, BufferedWriter, BufferedRWPair, TextIOWrapper
-from typing import TYPE_CHECKING, Union, Iterable, Optional
+from typing import TYPE_CHECKING
 from weakref import finalize
 
 # noinspection PyPackageRequirements
@@ -122,10 +122,6 @@ class iPodIOBase(RawIOBase):
             remaining -= size
 
         return len(data)
-
-    # def writelines(self, lines: Iterable[Union[str, bytes]]):
-    #     for line in lines:
-    #         self.write(line)
 
     def flush(self):
         return None

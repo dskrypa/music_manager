@@ -247,6 +247,11 @@ class iPodShell(Cmd):
                     else:
                         print('\n'.join(f.read().splitlines()[:lines]))
 
+    def do_touch(self, file: str):
+        path = self._rel_path(file)
+        if self._is_file(path, 'touch', 'touch'):
+            path.touch()
+
     # def do_mkdir(self, p):
     #     print(self.afc.make_directory(p))
     #

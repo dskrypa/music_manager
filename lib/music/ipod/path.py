@@ -6,6 +6,7 @@ native Path objects.
 """
 
 import logging
+import time
 from errno import ENOENT, EINVAL
 from functools import cached_property, partialmethod
 from pathlib import Path, PurePosixPath
@@ -52,6 +53,9 @@ class iPath(Path, PurePosixPath):
             self._accessor = iPodAccessor(ipod)
 
     open = partialmethod(open_ipod_file)
+
+    def touch(self, mode=None, exist_ok=True):
+        self._ipod.afc.file_set_mtime(self.resolve().as_posix(), int(time.time()))
 
 
 def _str(path: Union[Path, str]) -> str:

@@ -27,10 +27,10 @@ STAT_MODES = {
 class iPath(Path, PurePosixPath):
     __slots__ = ('_ipod',)
 
-    def __new__(cls, *args, ipod=None, **kwargs):
+    def __new__(cls, *args, ipod=None, template=None, **kwargs):
         # noinspection PyUnresolvedReferences
         self = cls._from_parts(args, init=False)
-        self._init(ipod)
+        self._init(ipod, template)
         return self
 
     def _init(self, ipod=None, template: Optional['iPath'] = None):
@@ -147,6 +147,8 @@ class iPodStatResult:
 class iPodScandirEntry:
     def __init__(self, path: iPath):
         self._path = path
+        self._stat_sym = None  # type: Optional[iPodStatResult]
+        self._stat = None  # type: Optional[iPodStatResult]
 
     @cached_property
     def path(self):
@@ -156,11 +158,16 @@ class iPodScandirEntry:
     def name(self):
         return self._path.name
 
-    @cached_property
-    def _stat(self):
-        return self._path.stat()
-
     def stat(self, *, follow_symlinks=True):
+        if self._stat is None:
+            self._stat = self._path.stat()
+        # noinspection PyUnresolvedReferences
+        if follow_symlinks and self._stat.st_ifmt == 'S_IFLNK':
+            if self._stat_sym is None:
+                # noinspection PyUnresolvedReferences
+                path = iPath(self._stat._info['LinkTarget'], template=self._path)
+                self._stat_sym = path.stat()
+            return self._stat_sym
         return self._stat
 
     def inode(self):

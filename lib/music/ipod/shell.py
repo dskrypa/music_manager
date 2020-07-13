@@ -3,14 +3,18 @@ import logging
 import shlex
 import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from cmd import Cmd
 from datetime import datetime
 from functools import cached_property, wraps
 from itertools import count
-from typing import Dict, Iterable, Optional, List
+from typing import Dict, Iterable, Optional, List, Callable
 
-from tz_aware_dt import now
+from prompt_toolkit import prompt, ANSI
+from prompt_toolkit.completion import CompleteEvent, Completer, Completion
+from prompt_toolkit.document import Document
+
 from ds_tools.output import colored, readable_bytes, Printer, Terminal
+from pymobiledevice.afc.exceptions import iOSError
+from tz_aware_dt import now
 
 from .ipod import iPod
 from .path import iPath
@@ -56,41 +60,90 @@ def cmd_command(func):
     return wrapper
 
 
-class iPodShell(Cmd):
-    def __init__(self, ipod: Optional[iPod] = None, completekey='tab', stdin=None, stdout=None):
-        super().__init__(completekey=completekey, stdin=stdin, stdout=stdout)
+class FileCompleter(Completer):
+    def __init__(self, get_file_names: Callable):
+        self.get_file_names = get_file_names
+
+    def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterable[Completion]:
+        cmd, mid, last = '', '', ''
+        text_before_cursor = document.text_before_cursor.lower()
+        try:
+            cmd, remainder = text_before_cursor.split(maxsplit=1)
+        except ValueError:
+            cmd = text_before_cursor
+            if not text_before_cursor.endswith(' '):
+                return
+        else:
+            try:
+                mid, last = remainder.rsplit(maxsplit=1)
+            except ValueError:
+                last = remainder
+
+        if file_names := self.get_file_names(cmd):
+            for file_name in file_names:
+                if file_name.lower().startswith(last):
+                    yield Completion(file_name, -len(last))
+
+
+class iPodShell:
+    def __init__(self, ipod: Optional[iPod] = None):
         self.ipod = ipod or iPod.find()
         self._num = count()
         self._ps1 = '{} iPod[{}]: {} {}{} '.format(
             colored('{}', 11), colored(self.ipod.name, 14), colored('{}', 11), colored('{}', 10), colored('$', 11)
         )
         self.cwd = self.ipod.get_path('/')  # type: iPath
-        # self.complete_cat = self._complete
-        # self.complete_ls = self._complete
+        self.completer = FileCompleter(self._complete)
         self._term = Terminal()
         print(colored('=' * (self._term.width - 1), 6))
+        # self._sqlite_cache = {}  # TODO: store sqlite DBs as they are read in memory or temp files
+        self._commands = {a[3:] for a in dir(self) if a.startswith('do_')}
+        self._complete_with_files = {'cd', 'stat', 'ls', 'lst', 'cat', 'rm', 'head', 'touch'}
+        self._cwd_paths = list(self.cwd.iterdir())
 
     def cmdloop(self, intro: Optional[str] = None):
-        return super().cmdloop(intro or f'Interactive iPod Session - Connected to: {self.ipod}')
+        print(intro or f'Interactive iPod Session - Connected to: {self.ipod}')
+        while True:
+            try:
+                self._handle_input()
+            except (KeyboardInterrupt, StopIteration):
+                break
+
+    def _handle_input(self):
+        # noinspection PyTypeChecker
+        if input_line := prompt(ANSI(self.prompt), completer=self.completer).strip():
+            if input_line in ('exit', 'quit'):
+                raise StopIteration
+            else:
+                try:
+                    cmd, arg_str = input_line.split(maxsplit=1)
+                except ValueError:
+                    cmd = input_line
+                    arg_str = ''
+
+                try:
+                    getattr(self, f'do_{cmd}')(arg_str)
+                except AttributeError:
+                    _stderr(f'Unknown command: {cmd}')
+                except iOSError as e:
+                    _stderr(f'{cmd}: error: {e}')
 
     @property
     def prompt(self):
         return self._ps1.format(now('[%H:%M:%S]'), self.cwd, next(self._num))
 
-    def do_exit(self, arg_str):
-        return True
-
-    def do_quit(self, arg_str):
-        return True
+    def do_help(self, arg_str):
+        print('Available commands:')
+        for cmd in sorted(self._commands):
+            print(cmd)
 
     def do_pwd(self, arg_str):
         print(self.cwd)
 
-    # def _complete(self, text, line, begidx, endidx):
-    #     print(f'_complete({text=!r}, {line=!r}, {begidx=!r}, {endidx=!r})')
-    #     filename = text.split('/')[-1]
-    #     dirname = '/'.join(text.split('/')[:-1])
-    #     return [p.as_posix() for p in self.cwd.joinpath(dirname).iterdir() if p.name.startswith(filename)]
+    def _complete(self, cmd: str):
+        if cmd in self._complete_with_files:
+            return [p.name for p in self._cwd_paths]
+        return None
 
     @cached_property
     def _parsers(self) -> Dict[str, _ShellArgParser]:
@@ -162,6 +215,7 @@ class iPodShell(Cmd):
         # noinspection PyUnboundLocalVariable
         if path.is_dir():
             self.cwd = path.resolve()
+            self._cwd_paths = list(self.cwd.iterdir())
         elif path.exists():
             _stderr(f'cd: {directory}: Not a directory')
         else:

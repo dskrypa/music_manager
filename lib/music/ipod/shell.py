@@ -99,7 +99,8 @@ class iPodShell:
         # self._sqlite_cache = {}  # TODO: store sqlite DBs as they are read in memory or temp files
         self._commands = {a[3:] for a in dir(self) if a.startswith('do_')}
         self._complete_with_dirs = {'cd'}
-        self._complete_with_files = {'stat', 'ls', 'lst', 'cat', 'rm', 'head', 'touch'}
+        self._complete_with_files = {'cat', 'rm', 'head', 'touch'}
+        self._complete_with_any = {'stat', 'ls', 'lst'}
         self._cwd_paths = []
 
     def cmdloop(self, intro: Optional[str] = None):
@@ -146,6 +147,8 @@ class iPodShell:
         if cmd in self._complete_with_dirs:
             return [p.name for p in self._cwd_paths if p.is_dir()]
         elif cmd in self._complete_with_files:
+            return [p.name for p in self._cwd_paths if p.is_file()]
+        elif cmd in self._complete_with_any:
             return [p.name for p in self._cwd_paths]
         return None
 

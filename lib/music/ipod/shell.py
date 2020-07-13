@@ -98,8 +98,9 @@ class iPodShell:
         print(colored('=' * (self._term.width - 1), 6))
         # self._sqlite_cache = {}  # TODO: store sqlite DBs as they are read in memory or temp files
         self._commands = {a[3:] for a in dir(self) if a.startswith('do_')}
-        self._complete_with_files = {'cd', 'stat', 'ls', 'lst', 'cat', 'rm', 'head', 'touch'}
-        self._cwd_paths = list(self.cwd.iterdir())
+        self._complete_with_dirs = {'cd'}
+        self._complete_with_files = {'stat', 'ls', 'lst', 'cat', 'rm', 'head', 'touch'}
+        self._cwd_paths = []
 
     def cmdloop(self, intro: Optional[str] = None):
         print(intro or f'Interactive iPod Session - Connected to: {self.ipod}')
@@ -110,6 +111,7 @@ class iPodShell:
                 break
 
     def _handle_input(self):
+        self._cwd_paths = list(self.cwd.iterdir())
         # noinspection PyTypeChecker
         if input_line := prompt(ANSI(self.prompt), completer=self.completer).strip():
             if input_line in ('exit', 'quit'):
@@ -141,7 +143,9 @@ class iPodShell:
         print(self.cwd)
 
     def _complete(self, cmd: str):
-        if cmd in self._complete_with_files:
+        if cmd in self._complete_with_dirs:
+            return [p.name for p in self._cwd_paths if p.is_dir()]
+        elif cmd in self._complete_with_files:
             return [p.name for p in self._cwd_paths]
         return None
 
@@ -215,7 +219,6 @@ class iPodShell:
         # noinspection PyUnboundLocalVariable
         if path.is_dir():
             self.cwd = path.resolve()
-            self._cwd_paths = list(self.cwd.iterdir())
         elif path.exists():
             _stderr(f'cd: {directory}: Not a directory')
         else:

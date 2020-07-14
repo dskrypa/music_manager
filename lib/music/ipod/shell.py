@@ -289,30 +289,18 @@ class FileCompleter(Completer):
         return self
 
     def _get_paths(self, cmd: str, path: str):
-        # TODO: This is not working for absolute paths (some of the below was very quickly added to try to make it work)
         if cmd in self._complete_cmds:
-            if len(path) > 1 and '/' in path:
+            if '/' in path:
                 if not path.endswith('/'):
-                    path = path.rsplit('/', 1)[0]
-
-                if path.startswith('/'):
-                    cwd = iPath(path, template=self.cwd)
-                else:
-                    cwd = self.cwd.joinpath(path).resolve()
+                    path = path.rsplit('/', 1)[0] or '/'
+                cwd = self.cwd.joinpath(path).resolve()
             else:
-                if path.startswith('/'):
-                    if not path.endswith('/'):
-                        path = path.rsplit('/', 1)[0]
-                    cwd = iPath(path, template=self.cwd)
-                else:
-                    cwd = self.cwd
+                cwd = self.cwd
 
             if cwd not in self._path_cache:
-                prefix = cwd.as_posix()[1:]
+                prefix = cwd.as_posix() if path.startswith('/') and path != '/' else cwd.as_posix()[1:]
                 self._path_cache[cwd] = [f'{prefix}/{p.name}' for p in cwd.iterdir()]
 
-            if path.startswith('/'):
-                return [p if p.startswith('/') else f'/{p}' for p in self._path_cache[cwd]]
             return self._path_cache[cwd]
         return None
 

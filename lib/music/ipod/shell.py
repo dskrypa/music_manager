@@ -277,30 +277,48 @@ class FileCompleter(Completer):
     _complete_with_dirs = {'cd'}
     _complete_with_files = {'cat', 'rm', 'head', 'touch'}
     _complete_with_any = {'stat', 'ls', 'lst'}
+    _complete_cmds = _complete_with_dirs.union(_complete_with_files).union(_complete_with_any)
 
     def __init__(self):
         self.cwd = None  # type: Optional[iPath]
-        self._cwd_paths = []
+        self._path_cache = {}
 
     def __call__(self, cwd: iPath):
         self.cwd = cwd
-        self._cwd_paths = list(self.cwd.iterdir())
+        self._path_cache = {self.cwd: [p.name for p in self.cwd.iterdir()]}
         return self
 
-    def _get_paths(self, cmd):
-        # TODO: handle completion after a trailing /, or for an absolute path
-        # TODO: in directories with lots of files, this causes lag
-        if cmd in self._complete_with_dirs:
-            return [p.name for p in self._cwd_paths if p.is_dir()]
-        elif cmd in self._complete_with_files:
-            return [p.name for p in self._cwd_paths if p.is_file()]
-        elif cmd in self._complete_with_any:
-            return [p.name for p in self._cwd_paths]
+    def _get_paths(self, cmd: str, path: str):
+        # TODO: This is not working for absolute paths (some of the below was very quickly added to try to make it work)
+        if cmd in self._complete_cmds:
+            if len(path) > 1 and '/' in path:
+                if not path.endswith('/'):
+                    path = path.rsplit('/', 1)[0]
+
+                if path.startswith('/'):
+                    cwd = iPath(path, template=self.cwd)
+                else:
+                    cwd = self.cwd.joinpath(path).resolve()
+            else:
+                if path.startswith('/'):
+                    if not path.endswith('/'):
+                        path = path.rsplit('/', 1)[0]
+                    cwd = iPath(path, template=self.cwd)
+                else:
+                    cwd = self.cwd
+
+            if cwd not in self._path_cache:
+                prefix = cwd.as_posix()[1:]
+                self._path_cache[cwd] = [f'{prefix}/{p.name}' for p in cwd.iterdir()]
+
+            if path.startswith('/'):
+                return [p if p.startswith('/') else f'/{p}' for p in self._path_cache[cwd]]
+            return self._path_cache[cwd]
         return None
 
     def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterable[Completion]:
         cmd, mid, last = '', '', ''
-        text_before_cursor = document.text_before_cursor.lower()
+        text_before_cursor = document.text_before_cursor
         try:
             cmd, remainder = text_before_cursor.split(maxsplit=1)
         except ValueError:
@@ -313,9 +331,10 @@ class FileCompleter(Completer):
             except ValueError:
                 last = remainder
 
-        if file_names := self._get_paths(cmd):
+        lower_last = last.lower()
+        if file_names := self._get_paths(cmd, last):
             for file_name in file_names:
-                if file_name.lower().startswith(last):
+                if file_name.lower().startswith(lower_last):
                     yield Completion(file_name, -len(last))
 
 

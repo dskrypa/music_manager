@@ -1,3 +1,8 @@
+"""
+A basic shell implementation to facilitate browsing files on an iPod.
+
+:author: Doug Skrypa
+"""
 
 import logging
 import shlex
@@ -8,7 +13,7 @@ from functools import cached_property, wraps
 from itertools import count
 from typing import Dict, Iterable, Optional, List, Callable
 
-from prompt_toolkit import prompt, ANSI
+from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
 
@@ -21,24 +26,6 @@ from .path import iPath
 
 __all__ = ['iPodShell']
 log = logging.getLogger(__name__)
-
-
-class ArgError(Exception):
-    pass
-
-
-class _ShellArgParser(ArgumentParser):
-    """Raises an exception on errors instead of exiting"""
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault('formatter_class', ArgumentDefaultsHelpFormatter)
-        super().__init__(*args, **kwargs)
-
-    def exit(self, status=0, message=None):
-        raise ArgError(message)
-
-    def error(self, message: str):
-        self.print_usage(sys.stderr)
-        raise ArgError(f'{self.prog}: error: {message}')
 
 
 def cmd_command(func):
@@ -60,31 +47,6 @@ def cmd_command(func):
     return wrapper
 
 
-class FileCompleter(Completer):
-    def __init__(self, get_file_names: Callable):
-        self.get_file_names = get_file_names
-
-    def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterable[Completion]:
-        cmd, mid, last = '', '', ''
-        text_before_cursor = document.text_before_cursor.lower()
-        try:
-            cmd, remainder = text_before_cursor.split(maxsplit=1)
-        except ValueError:
-            cmd = text_before_cursor
-            if not text_before_cursor.endswith(' '):
-                return
-        else:
-            try:
-                mid, last = remainder.rsplit(maxsplit=1)
-            except ValueError:
-                last = remainder
-
-        if file_names := self.get_file_names(cmd):
-            for file_name in file_names:
-                if file_name.lower().startswith(last):
-                    yield Completion(file_name, -len(last))
-
-
 class iPodShell:
     def __init__(self, ipod: Optional[iPod] = None):
         self.ipod = ipod or iPod.find()
@@ -93,30 +55,26 @@ class iPodShell:
             colored('{}', 11), colored(self.ipod.name, 14), colored('{}', 11), colored('{}', 10), colored('$', 11)
         )
         self.cwd = self.ipod.get_path('/')  # type: iPath
-        self.completer = FileCompleter(self._complete)
+        self.completer = FileCompleter()
         self._term = Terminal()
         print(colored('=' * (self._term.width - 1), 6))
         # self._sqlite_cache = {}  # TODO: store sqlite DBs as they are read in memory or temp files
-        self._commands = {a[3:] for a in dir(self) if a.startswith('do_')}
-        self._complete_with_dirs = {'cd'}
-        self._complete_with_files = {'cat', 'rm', 'head', 'touch'}
-        self._complete_with_any = {'stat', 'ls', 'lst'}
-        self._cwd_paths = []
+        self.prompt_session = PromptSession()
 
     def cmdloop(self, intro: Optional[str] = None):
         print(intro or f'Interactive iPod Session - Connected to: {self.ipod}')
         while True:
             try:
                 self._handle_input()
-            except (KeyboardInterrupt, StopIteration):
+            except (KeyboardInterrupt, ExitLoop):
                 break
 
     def _handle_input(self):
-        self._cwd_paths = list(self.cwd.iterdir())
+        prompt = self._ps1.format(now('[%H:%M:%S]'), self.cwd, next(self._num))
         # noinspection PyTypeChecker
-        if input_line := prompt(ANSI(self.prompt), completer=self.completer).strip():
+        if input_line := self.prompt_session.prompt(ANSI(prompt), completer=self.completer(self.cwd)).strip():
             if input_line in ('exit', 'quit'):
-                raise StopIteration
+                raise ExitLoop
             else:
                 try:
                     cmd, arg_str = input_line.split(maxsplit=1)
@@ -131,29 +89,17 @@ class iPodShell:
                 except iOSError as e:
                     _stderr(f'{cmd}: error: {e}')
 
-    @property
-    def prompt(self):
-        return self._ps1.format(now('[%H:%M:%S]'), self.cwd, next(self._num))
-
     def do_help(self, arg_str):
         print('Available commands:')
-        for cmd in sorted(self._commands):
+        commands = {a[3:] for a in dir(self) if a.startswith('do_')}
+        for cmd in sorted(commands):
             print(cmd)
 
     def do_pwd(self, arg_str):
         print(self.cwd)
 
-    def _complete(self, cmd: str):
-        if cmd in self._complete_with_dirs:
-            return [p.name for p in self._cwd_paths if p.is_dir()]
-        elif cmd in self._complete_with_files:
-            return [p.name for p in self._cwd_paths if p.is_file()]
-        elif cmd in self._complete_with_any:
-            return [p.name for p in self._cwd_paths]
-        return None
-
     @cached_property
-    def _parsers(self) -> Dict[str, _ShellArgParser]:
+    def _parsers(self) -> Dict[str, '_ShellArgParser']:
         parsers = {}
         # fmt: off
         ls_parser = parsers['ls'] = _ShellArgParser('ls', description='List information about the FILEs (the current directory by default).')
@@ -283,9 +229,9 @@ class iPodShell:
     def do_cat(self, file: Iterable[str]):
         for path in self._rel_paths(file, False, True):
             if self._is_file(path, 'cat', 'read'):
-                with path.open() as f:
+                with path.open('rb') as f:
                     contents = f.read()     # readline is slow right now
-                sys.stdout.write(contents)
+                sys.stdout.write(contents.decode('utf-8', 'replace'))
                 sys.stdout.flush()
 
     @cmd_command
@@ -301,11 +247,11 @@ class iPodShell:
                 if (i or verbose) and not quiet:
                     print(f'\n==> {self._rel_to_cwd(path)} <==')
 
-                with path.open() as f:
+                with path.open('rb') as f:
                     if byte_count:
-                        print(f.read(byte_count))
+                        print(f.read(byte_count).decode('utf-8', 'replace'))
                     else:
-                        print('\n'.join(f.read().splitlines()[:lines]))
+                        print('\n'.join(f.read().decode('utf-8', 'replace').splitlines()[:lines]))
 
     def do_touch(self, file: str):
         path = self._rel_path(file)
@@ -318,10 +264,6 @@ class iPodShell:
     # def do_rmdir(self, p):
     #     return self.afc.remove_directory(p)
     #
-    # def do_deviceinfo(self, p):
-    #     for k, v in self.afc.get_device_infos().items():
-    #         print(k, '\t:\t', v)
-    #
     # def do_mv(self, p):
     #     t = p.split()
     #     return self.afc.file_rename(t[0], t[1])
@@ -329,6 +271,74 @@ class iPodShell:
     # def do_link(self, p):
     #     z = p.split()
     #     self.afc.make_link(AFC_SYMLINK, z[0], z[1])
+
+
+class FileCompleter(Completer):
+    _complete_with_dirs = {'cd'}
+    _complete_with_files = {'cat', 'rm', 'head', 'touch'}
+    _complete_with_any = {'stat', 'ls', 'lst'}
+
+    def __init__(self):
+        self.cwd = None  # type: Optional[iPath]
+        self._cwd_paths = []
+
+    def __call__(self, cwd: iPath):
+        self.cwd = cwd
+        self._cwd_paths = list(self.cwd.iterdir())
+        return self
+
+    def _get_paths(self, cmd):
+        # TODO: handle completion after a trailing /, or for an absolute path
+        # TODO: in directories with lots of files, this causes lag
+        if cmd in self._complete_with_dirs:
+            return [p.name for p in self._cwd_paths if p.is_dir()]
+        elif cmd in self._complete_with_files:
+            return [p.name for p in self._cwd_paths if p.is_file()]
+        elif cmd in self._complete_with_any:
+            return [p.name for p in self._cwd_paths]
+        return None
+
+    def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterable[Completion]:
+        cmd, mid, last = '', '', ''
+        text_before_cursor = document.text_before_cursor.lower()
+        try:
+            cmd, remainder = text_before_cursor.split(maxsplit=1)
+        except ValueError:
+            cmd = text_before_cursor
+            if not text_before_cursor.endswith(' '):
+                return
+        else:
+            try:
+                mid, last = remainder.rsplit(maxsplit=1)
+            except ValueError:
+                last = remainder
+
+        if file_names := self._get_paths(cmd):
+            for file_name in file_names:
+                if file_name.lower().startswith(last):
+                    yield Completion(file_name, -len(last))
+
+
+class ExitLoop(StopIteration):
+    pass
+
+
+class ArgError(Exception):
+    pass
+
+
+class _ShellArgParser(ArgumentParser):
+    """Raises an exception on errors instead of exiting"""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('formatter_class', ArgumentDefaultsHelpFormatter)
+        super().__init__(*args, **kwargs)
+
+    def exit(self, status=0, message=None):
+        raise ArgError(message)
+
+    def error(self, message: str):
+        self.print_usage(sys.stderr)
+        raise ArgError(f'{self.prog}: error: {message}')
 
 
 def _stderr(*args, **kwargs):

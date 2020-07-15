@@ -101,6 +101,20 @@ class ShellCommand(ABC):
             return True
         return False
 
+    def _get_cross_platform_paths(self, source: Iterable[str], dest: str, mode: str = 'ipod'):
+        if mode == 'i2p':
+            sources = self._rel_paths(source)
+            dest = Path(dest).resolve()
+        elif mode == 'p2i':
+            sources = [Path(p).resolve() for p in source]
+            dest = self._rel_path(dest)
+        elif mode == 'ipod':
+            sources = self._rel_paths(source)
+            dest = self._rel_path(dest)
+        else:
+            raise ExecutionError(self.name, f'Unexpected {mode=}')
+        return sources, dest
+
 
 class Exit(ShellCommand, cmd='exit'):
     parser = ShellArgParser('exit', description='Exit the shell')
@@ -276,22 +290,8 @@ class Copy(ShellCommand, cmd='cp'):
     parser.add_argument('--mode', '-m', choices=('ipod', 'i2p', 'p2i'), default='ipod', help='Copy files locally on the ipod, from the ipod to PC, or from PC to the ipod')
     parser.add_argument('--dry_run', '-D', action='store_true', help='Print actions that would be taken instead of taking them')
 
-    def _get_paths(self, source: Iterable[str], dest: str, mode: str = 'ipod'):
-        if mode == 'i2p':
-            sources = self._rel_paths(source)
-            dest = Path(dest).resolve()
-        elif mode == 'p2i':
-            sources = [Path(p).resolve() for p in source]
-            dest = self._rel_path(dest)
-        elif mode == 'ipod':
-            sources = self._rel_paths(source)
-            dest = self._rel_path(dest)
-        else:
-            raise ExecutionError(self.name, f'Unexpected {mode=}')
-        return sources, dest
-
     def __call__(self, source: Iterable[str], dest: str, mode: str = 'ipod', dry_run=False):
-        sources, dest = self._get_paths(source, dest, mode)
+        sources, dest = self._get_cross_platform_paths(source, dest, mode)
         if len(sources) > 1 and not dest.is_dir():
             raise ExecutionError(self.name, 'When multiple source files are specified, dest must be a directory')
 
@@ -326,14 +326,38 @@ class Mkdir(ShellCommand, cmd='mkdir'):
                 if not dry_run:
                     path.mkdir(parents=parents)
 
-    #
-    # def do_rmdir(self, p):
-    #     return self.afc.remove_directory(p)
-    #
-    # def do_mv(self, p):
-    #     t = p.split()
-    #     return self.afc.file_rename(t[0], t[1])
 
-    # def do_link(self, p):
-    #     z = p.split()
-    #     self.afc.make_link(AFC_SYMLINK, z[0], z[1])
+# class Rmdir(ShellCommand, cmd='rmdir'):
+#     parser = ShellArgParser('rmdir', description='Remove the DIRECTORY(ies), if they are empty.')
+#     parser.add_argument('directory', nargs='+', help='One or more directories to be deleted')
+#     parser.add_argument('--dry_run', '-D', action='store_true', help='Print actions that would be taken instead of taking them')
+#
+#     def __call__(self, directory: Iterable[str], dry_run=False):
+#         pass
+#
+#
+# class Move(ShellCommand, cmd='mv'):
+#     block_size = 10485760  # 10 MB
+#     parser = ShellArgParser('mv', description='Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.')
+#     parser.add_argument('source', nargs='+', help='One or more files to be copied')
+#     parser.add_argument('dest', help='The target filename or directory')
+#     parser.add_argument('--mode', '-m', choices=('ipod', 'i2p', 'p2i'), default='ipod', help='Copy files locally on the ipod, from the ipod to PC, or from PC to the ipod')
+#     parser.add_argument('--dry_run', '-D', action='store_true', help='Print actions that would be taken instead of taking them')
+#
+#     def __call__(self, source: Iterable[str], dest: str, mode: str = 'ipod', dry_run=False):
+#         sources, dest = self._get_cross_platform_paths(source, dest, mode)
+#         if len(sources) > 1 and not dest.is_dir():
+#             raise ExecutionError(self.name, 'When multiple source files are specified, dest must be a directory')
+#
+#         prefix = '[DRY RUN] Would move' if dry_run else 'Moving'
+#         for path in sources:
+#             if self._is_file(path, 'move'):
+#                 dest_file = dest.joinpath(path.name) if dest.is_dir() else dest
+#                 if dest_file == path:
+#                     self.error(f'Error: the source and destination are the same: {path}')
+#                 else:
+#                     self.print(f'{prefix} {path} -> {dest_file}')
+#                     if not dry_run:
+#                         with path.open('rb') as src, dest_file.open('wb') as dst:
+#                             while buf := src.read(self.block_size):
+#                                 dst.write(buf)

@@ -4,9 +4,10 @@ A basic shell implementation to facilitate browsing files on an iPod.
 :author: Doug Skrypa
 """
 
+import logging
 import sys
 from itertools import count
-from traceback import print_exc
+from traceback import print_exc, format_exc
 from typing import Optional
 
 from prompt_toolkit import PromptSession, ANSI
@@ -20,6 +21,7 @@ from .completion import FileCompleter
 from .exceptions import ExitLoop, CommandError
 
 __all__ = ['iPodShell']
+log = logging.getLogger(__name__)
 
 
 class iPodShell:
@@ -55,27 +57,8 @@ class iPodShell:
             except ExitLoop:
                 raise
             except CommandError as e:
+                log.debug(format_exc())
                 print(e, file=sys.stderr)
             except Exception as e:
                 print_exc()
                 print(colored(f'Unexpected error: {e}', 9), file=sys.stderr)
-
-            # if input_line in ('exit', 'quit'):
-            #     raise ExitLoop
-            # else:
-            #     try:
-            #         cmd, arg_str = input_line.split(maxsplit=1)
-            #     except ValueError:
-            #         cmd = input_line
-            #         arg_str = ''
-            #
-            #     try:
-            #         getattr(self, f'do_{cmd}')(arg_str)
-            #     except AttributeError:
-            #         _stderr(f'Unknown command: {cmd}')
-            #     except iOSError as e:
-            #         _stderr(f'{cmd}: error: {e}')
-
-
-def _stderr(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)

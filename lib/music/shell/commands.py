@@ -299,11 +299,14 @@ class Copy(ShellCommand, cmd='cp'):
         for path in sources:
             if self._is_file(path, 'copy'):
                 dest_file = dest.joinpath(path.name) if dest.is_dir() else dest
-                self.print(f'{prefix} {path} -> {dest_file}')
-                if not dry_run:
-                    with path.open('rb') as src, dest_file.open('wb') as dst:
-                        while buf := src.read(self.block_size):
-                            dst.write(buf)
+                if dest_file == path:
+                    self.error(f'Error: the source and destination are the same: {path}')
+                else:
+                    self.print(f'{prefix} {path} -> {dest_file}')
+                    if not dry_run:
+                        with path.open('rb') as src, dest_file.open('wb') as dst:
+                            while buf := src.read(self.block_size):
+                                dst.write(buf)
 
 
 class Mkdir(ShellCommand, cmd='mkdir'):
@@ -314,7 +317,8 @@ class Mkdir(ShellCommand, cmd='mkdir'):
 
     def __call__(self, directory: Iterable[str], parents=False, dry_run=False):
         prefix = '[DRY RUN] Would create' if dry_run else 'Creating'
-        for path in self._rel_paths(directory, False, True):
+        for dir_name in directory:
+            path = self.cwd.joinpath(dir_name).resolve()
             if path.exists():
                 self.error(f'{self.name}: cannot create {self._rel_to_cwd(path)!r}: File exists')
             else:

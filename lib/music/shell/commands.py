@@ -1,13 +1,12 @@
 
 import logging
 import shlex
-import sys
 from abc import ABC, abstractmethod
 from datetime import datetime
-from functools import cached_property, wraps
 from io import StringIO, BytesIO, TextIOBase, RawIOBase
+from pathlib import Path
 from sys import stdout as out, stderr as err
-from typing import Dict, Iterable, List, Optional, Union, AnyStr, Type, Any
+from typing import Dict, Iterable, List, Optional, Union, Type, Any
 
 from ds_tools.output import colored, readable_bytes, Printer
 from pymobiledevice.afc.exceptions import iOSError
@@ -46,6 +45,7 @@ class ShellCommand(ABC):
 
     def __init__(self, cwd: iPath, stdin: Optional[IO] = None, stdout: IO = out, stderr: IO = err):
         self.cwd = cwd
+        self.ipod = cwd._ipod
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
@@ -91,6 +91,15 @@ class ShellCommand(ABC):
             return path.relative_to(self.cwd).as_posix()
         except Exception:
             return path.as_posix()
+
+    def _is_file(self, path: iPath, action: str) -> bool:
+        if path.is_dir():
+            self.error(f'{self.name}: cannot {action} {self._rel_to_cwd(path)!r}: Is a directory')
+        elif not path.exists():
+            self.error(f'{self.name}: cannot {action} {self._rel_to_cwd(path)!r}: No such file or directory')
+        else:
+            return True
+        return False
 
 
 class Exit(ShellCommand, cmd='exit'):
@@ -169,126 +178,150 @@ class Ls(ShellCommand, cmd='ls'):
                 print_path(path)
 
 
-#
-# def cmd_command(func):
-#     name = func.__name__
-#     command = name[3:]
-#
-#     @wraps(func)
-#     def wrapper(self, arg_str, **kwargs):
-#         parser = self._parsers[command]
-#         try:
-#             args = parser.parse_args(shlex.split(arg_str))
-#             for key, val in args._get_kwargs():
-#                 kwargs.setdefault(key, val)
-#             return func(self, **kwargs)
-#         except ArgError as e:
-#             if e.args and e.args[0]:
-#                 _stderr(e)
-#             return None
-#     return wrapper
-#
-#
-#
-# class iPodShell(_iPodShell):
-#     @cached_property
-#     def _parsers(self) -> Dict[str, ShellArgParser]:
-#         # TODO: Move these closer to their functions somehow... probably need to refactor to have each cmd be a class
-#         parsers = {}
-#         # fmt: off
-#         cat_parser = parsers['cat'] = ShellArgParser('cat', description='Concatenate FILE(s) to standard output.')
-#         cat_parser.add_argument('file', nargs='+', help='The files to print')
-#
-#         head_parser = parsers['head'] = ShellArgParser('head', description='Print the first 10 lines of each FILE to standard output.\nWith more than one FILE, precede each with a header giving the file name.')
-#         head_parser.add_argument('file', nargs='+', help='The files to print')
-#         head_count_group = head_parser.add_mutually_exclusive_group()
-#         head_count_group.add_argument('--lines', '-n', metavar='NUM', type=int, default=10, help='Print the first NUM lines instead of the first 10; with the leading \'-\', print all but the last NUM lines of each file')
-#         head_count_group.add_argument('--bytes', '-c', dest='byte_count', metavar='NUM', type=int, help='Print the first NUM bytes of each file; with the leading \'-\', print all but the last NUM bytes of each file')
-#         head_verbosity_group = head_parser.add_mutually_exclusive_group()
-#         head_verbosity_group.add_argument('--quiet', '-q', action='store_true', help='Never print headers giving file names')
-#         head_verbosity_group.add_argument('--verbose', '-v', action='store_true', help='Always print headers giving file names')
-#
-#         rm_parser = parsers['rm'] = ShellArgParser('rm', description='Remove (unlink) the FILE(s).')
-#         rm_parser.add_argument('file', nargs='*', help='The files or directorties to list')
-#
-#         stat_parser = parsers['stat'] = ShellArgParser('stat', description='Display file or file system status.')
-#         stat_parser.add_argument('file', help='The files to stat')
-#         stat_parser.add_argument('--format', '-f', dest='out_fmt', choices=Printer.formats, default='yaml', help='The output format to use')
-#
-#         info_parser = parsers['info'] = ShellArgParser('info', description='Display device info')
-#         info_parser.add_argument('--format', '-f', dest='out_fmt', choices=Printer.formats, default='yaml', help='The output format to use')
-#
-#         cp_parser = parsers['cp'] = ShellArgParser('cp', description='Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.')
-#         cp_parser.add_argument('source', nargs='+', help='One or more files to be copied')
-#         cp_parser.add_argument('dest', help='The target filename or directory')
-#         cp_parser.add_argument('--mode', '-m', choices=('ipod', 'i2p', 'p2i'), default='ipod', help='Copy files locally on the ipod, from the ipod to PC, or from PC to the ipod')
-#         # fmt: on
-#         return parsers
-#
-#     @cmd_command
-#     def do_info(self, out_fmt='yaml'):
-#         Printer(out_fmt).pprint(self.ipod.info)
-#
-#     @cmd_command
-#     def do_stat(self, file: str, out_fmt='yaml'):
-#         path = self._rel_path(file)
-#         if path.exists():
-#             # noinspection PyUnresolvedReferences
-#             Printer(out_fmt).pprint(path.stat().as_dict())
-#         else:
-#             _stderr(f'stat: cannot stat {file}: No such file or directory')
-#
-#     def do_lst(self, arg_str):
-#         return self.do_ls(arg_str, show_all=True, long=True)
-#
-#     def _is_file(self, path, cmd, action):
-#         if path.is_dir():
-#             _stderr(f'{cmd}: cannot {action} {self._rel_to_cwd(path)!r}: Is a directory')
-#         elif not path.exists():
-#             _stderr(f'{cmd}: cannot {action} {self._rel_to_cwd(path)!r}: No such file or directory')
-#         else:
-#             return True
-#         return False
-#
-#     @cmd_command
-#     def do_cat(self, file: Iterable[str]):
-#         for path in self._rel_paths(file, False, True):
-#             if self._is_file(path, 'cat', 'read'):
-#                 with path.open('rb') as f:
-#                     contents = f.read()     # readline is slow right now
-#                 sys.stdout.write(contents.decode('utf-8', 'replace'))
-#                 sys.stdout.flush()
-#
-#     @cmd_command
-#     def do_rm(self, file: Iterable[str]):
-#         for path in self._rel_paths(file, False, True):
-#             if self._is_file(path, 'rm', 'remove'):
-#                 path.unlink()
-#
-#     @cmd_command
-#     def do_head(self, file: Iterable[str], lines=10, byte_count=None, quiet=False, verbose=False):
-#         for i, path in enumerate(self._rel_paths(file, False, True)):
-#             if self._is_file(path, 'head', 'read'):
-#                 if (i or verbose) and not quiet:
-#                     print(f'\n==> {self._rel_to_cwd(path)} <==')
-#
-#                 with path.open('rb') as f:
-#                     if byte_count:
-#                         print(f.read(byte_count).decode('utf-8', 'replace'))
-#                     else:
-#                         print('\n'.join(f.read().decode('utf-8', 'replace').splitlines()[:lines]))
-#
-#     def do_touch(self, file: str):
-#         path = self._rel_path(file)
-#         if self._is_file(path, 'touch', 'touch'):
-#             path.touch()
-#
-#     @cmd_command
-#     def do_cp(self, source: Iterable[str], dest: str, mode: str = 'ipod'):
-#         pass
+class Lst(Ls, cmd='lst'):
+    def __call__(self, **kwargs):
+        kwargs['show_all'] = True
+        kwargs['long'] = True
+        return super().__call__(**kwargs)
 
-    # def do_mkdir(self, p):
-    #     print(self.afc.make_directory(p))
+
+class Cat(ShellCommand, cmd='cat'):
+    parser = ShellArgParser('cat', description='Concatenate FILE(s) to standard output.')
+    parser.add_argument('file', nargs='+', help='The files to print')
+
+    def __call__(self, file: Iterable[str]):
+        for path in self._rel_paths(file, False, True):
+            if self._is_file(path, 'read'):
+                with path.open('rb') as f:
+                    contents = f.read()     # readline is slow right now
+                self.stdout.write(contents.decode('utf-8', 'replace'))
+                self.stdout.flush()
+
+
+class Head(ShellCommand, cmd='head'):
+    parser = ShellArgParser('head', description='Print the first 10 lines of each FILE to standard output.\nWith more than one FILE, precede each with a header giving the file name.')
+    parser.add_argument('file', nargs='+', help='The files to print')
+    head_count_group = parser.add_mutually_exclusive_group()
+    head_count_group.add_argument('--lines', '-n', metavar='NUM', type=int, default=10, help='Print the first NUM lines instead of the first 10; with the leading \'-\', print all but the last NUM lines of each file')
+    head_count_group.add_argument('--bytes', '-c', dest='byte_count', metavar='NUM', type=int, help='Print the first NUM bytes of each file; with the leading \'-\', print all but the last NUM bytes of each file')
+    head_verbosity_group = parser.add_mutually_exclusive_group()
+    head_verbosity_group.add_argument('--quiet', '-q', action='store_true', help='Never print headers giving file names')
+    head_verbosity_group.add_argument('--verbose', '-v', action='store_true', help='Always print headers giving file names')
+
+    def __call__(self, file: Iterable[str], lines=10, byte_count=None, quiet=False, verbose=False):
+        for i, path in enumerate(self._rel_paths(file, False, True)):
+            if self._is_file(path, 'read'):
+                if (i or verbose) and not quiet:
+                    self.print(f'\n==> {self._rel_to_cwd(path)} <==')
+
+                with path.open('rb') as f:
+                    if byte_count:
+                        self.print(f.read(byte_count).decode('utf-8', 'replace'))
+                    else:
+                        self.print('\n'.join(f.read().decode('utf-8', 'replace').splitlines()[:lines]))
+
+
+class Remove(ShellCommand, cmd='rm'):
+    parser = ShellArgParser('rm', description='Remove (unlink) the FILE(s).')
+    parser.add_argument('file', nargs='+', help='The files to delete')
+    parser.add_argument('--dry_run', '-D', action='store_true', help='Print actions that would be taken instead of taking them')
+
+    def __call__(self, file: Iterable[str], dry_run=False):
+        prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
+        for path in self._rel_paths(file, False, True):
+            if self._is_file(path, 'remove'):
+                self.print(f'{prefix} {path}')
+                if not dry_run:
+                    path.unlink()
+
+
+class Stat(ShellCommand, cmd='stat'):
+    parser = ShellArgParser('stat', description='Display file or file system status.')
+    parser.add_argument('file', nargs='+', help='The files or directories to stat')
+    parser.add_argument('--format', '-f', dest='out_fmt', choices=Printer.formats, default='yaml', help='The output format to use')
+
+    def __call__(self, file: Iterable[str], out_fmt='yaml'):
+        printer = Printer(out_fmt)
+        for path in self._rel_paths(file, False, True):
+            if path.exists():
+                # noinspection PyUnresolvedReferences
+                printer.pprint(path.stat().as_dict())
+            else:
+                self.error(f'{self.name}: cannot stat {self._rel_to_cwd(path)!r}: No such file or directory')
+
+
+class Info(ShellCommand, cmd='info'):
+    parser = ShellArgParser('info', description='Display device info')
+    parser.add_argument('--format', '-f', dest='out_fmt', choices=Printer.formats, default='yaml', help='The output format to use')
+
+    def __call__(self, out_fmt='yaml'):
+        Printer(out_fmt).pprint(self.ipod.info)
+
+
+class Touch(ShellCommand, cmd='touch'):
+    parser = ShellArgParser('touch', description='Update the access and modification times of each FILE to the current time.')
+    parser.add_argument('file', nargs='+', help='The files to update')
+
+    def __call__(self, file: Iterable[str]):
+        for path in self._rel_paths(file, False, True):
+            if self._is_file(path, 'touch'):
+                path.touch()
+
+
+class Copy(ShellCommand, cmd='cp'):
+    block_size = 10485760  # 10 MB
+    parser = ShellArgParser('cp', description='Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.')
+    parser.add_argument('source', nargs='+', help='One or more files to be copied')
+    parser.add_argument('dest', help='The target filename or directory')
+    parser.add_argument('--mode', '-m', choices=('ipod', 'i2p', 'p2i'), default='ipod', help='Copy files locally on the ipod, from the ipod to PC, or from PC to the ipod')
+    parser.add_argument('--dry_run', '-D', action='store_true', help='Print actions that would be taken instead of taking them')
+
+    def _get_paths(self, source: Iterable[str], dest: str, mode: str = 'ipod'):
+        if mode == 'i2p':
+            sources = self._rel_paths(source)
+            dest = Path(dest).resolve()
+        elif mode == 'p2i':
+            sources = [Path(p).resolve() for p in source]
+            dest = self._rel_path(dest)
+        elif mode == 'ipod':
+            sources = self._rel_paths(source)
+            dest = self._rel_path(dest)
+        else:
+            raise ExecutionError(self.name, f'Unexpected {mode=}')
+        return sources, dest
+
+    def __call__(self, source: Iterable[str], dest: str, mode: str = 'ipod', dry_run=False):
+        sources, dest = self._get_paths(source, dest, mode)
+        if len(sources) > 1 and not dest.is_dir():
+            raise ExecutionError(self.name, 'When multiple source files are specified, dest must be a directory')
+
+        prefix = '[DRY RUN] Would copy' if dry_run else 'Copying'
+        for path in sources:
+            if self._is_file(path, 'copy'):
+                dest_file = dest.joinpath(path.name) if dest.is_dir() else dest
+                self.print(f'{prefix} {path} -> {dest_file}')
+                if not dry_run:
+                    with path.open('rb') as src, dest_file.open('wb') as dst:
+                        while buf := src.read(self.block_size):
+                            dst.write(buf)
+
+
+class Mkdir(ShellCommand, cmd='mkdir'):
+    parser = ShellArgParser('mkdir', description='Create the DIRECTORY(ies), if they do not already exist.')
+    parser.add_argument('directory', nargs='+', help='One or more directories to be created')
+    parser.add_argument('--parents', '-p', action='store_true', help='Make parent directories as needed')
+    parser.add_argument('--dry_run', '-D', action='store_true', help='Print actions that would be taken instead of taking them')
+
+    def __call__(self, directory: Iterable[str], parents=False, dry_run=False):
+        prefix = '[DRY RUN] Would create' if dry_run else 'Creating'
+        for path in self._rel_paths(directory, False, True):
+            if path.exists():
+                self.error(f'{self.name}: cannot create {self._rel_to_cwd(path)!r}: File exists')
+            else:
+                self.print(f'{prefix} {self._rel_to_cwd(path)}')
+                if not dry_run:
+                    path.mkdir(parents=parents)
+
     #
     # def do_rmdir(self, p):
     #     return self.afc.remove_directory(p)

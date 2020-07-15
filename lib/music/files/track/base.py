@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable
+from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict
 
 import mutagen
 import mutagen.id3._frames
@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 
 class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
-    __instances = {}
+    __instances = {}  # type: Dict[Path, 'BaseSongFile']
     tags = MusicFileProperty('tags')
     filename = __fspath__ = MusicFileProperty('filename')               # type: str
     length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
@@ -48,7 +48,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     date = TextTagProperty('date', parse_file_date)                     # type: Optional[date]
 
     def __new__(cls, file_path: Union[Path, str], *args, **kwargs):
-        file_path = (Path(file_path).expanduser() if isinstance(file_path, str) else file_path).as_posix()
+        file_path = Path(file_path).expanduser() if isinstance(file_path, str) else file_path
         try:
             return cls.__instances[file_path]
         except KeyError:
@@ -84,7 +84,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None  # prevents calling __setstate__ on unpickle; simpler for rebuilt obj to re-calculate cached attrs
 
     def rename(self, dest_path: Union[Path, str]):
-        old_path = self.path.as_posix()
+        old_path = self.path
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
 
@@ -112,9 +112,9 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self.path.rename(dest_path)
 
         self.clear_cached_properties()          # trigger self.path descriptor update (via FileBasedObject)
-        new_path = dest_path.as_posix()
+        new_path = dest_path
         # noinspection PyAttributeOutsideInit
-        self._f = mutagen.File(new_path)
+        self._f = mutagen.File(new_path.as_posix())
 
         cls = type(self)
         del cls.__instances[old_path]

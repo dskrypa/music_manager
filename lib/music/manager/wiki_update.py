@@ -214,6 +214,9 @@ class AlbumUpdater:
         for file, track in self.file_track_map.items():
             updates[file] = file_values = values.copy()
             file_values['title'] = self._normalize_name(track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH)))
+            if change_artist and (extras := track.name.extra):
+                # noinspection PyUnboundLocalVariable
+                extras.pop('artists', None)
             track_artist_name = track.artist_name(self.artist_name, self.collab_mode in (CM.ARTIST, CM.BOTH))
             file_values['artist'] = self.artist_name if change_artist else track_artist_name
             if file.tag_type == 'mp4':

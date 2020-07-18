@@ -210,6 +210,10 @@ class Single(DiscographyEntry):
 class Soundtrack(DiscographyEntry):
     _categories = ('ost', 'soundtrack')
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._type = DiscoEntryType.Soundtrack
+
     def split_editions(self):
         full, parts = None, None
         for edition in self.editions:
@@ -289,7 +293,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         self.edition = edition                                                              # type: Optional[str]
         self.repackage = repackage                                                          # type: bool
         self._lang = lang                                                                   # type: Optional[str]
-        log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r}')
+        log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r} {entry_type=!r}')
 
     @property
     def _basic_repr(self):

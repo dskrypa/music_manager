@@ -212,7 +212,11 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             repackage_page = repackage_page or name.extra.get('repackage', False)
         entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
         artists = _find_artist_links(infobox, entry_page)
-        dates = _find_release_dates(infobox)
+        try:
+            dates = _find_release_dates(infobox)
+        except ValueError as e:
+            log.error(f'Error parsing date on {entry_page=!r}: {e}')
+            dates = []
         langs = _find_page_languages(entry_page)
 
         tl_keys = ('Track list', 'Tracklist')

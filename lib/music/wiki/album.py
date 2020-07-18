@@ -239,7 +239,7 @@ class DiscographyEntryEdition:
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{edition}{lang}>'
 
     def __repr__(self) -> str:
-        _date = self.release_dates[0].strftime('%Y-%m-%d')
+        _date = self.release_dates[0].strftime('%Y-%m-%d') if self.release_dates else None
         _type = self.numbered_type or (repr(self.type.real_name) if self.type else None)
         alb_type = f'[type={_type}]' if _type else ''
         _edition = self.edition or ''
@@ -336,12 +336,12 @@ class DiscographyEntryEdition:
         return None
 
     @cached_property
-    def date(self) -> date:
+    def date(self) -> Optional[date]:
         try:
             return min(self.release_dates)
         except ValueError as e:
             log.error(f'Error determining release date for {self._basic_repr}: {e}')
-            raise
+            return None
 
     @cached_property
     def parts(self) -> List['DiscographyEntryPart']:

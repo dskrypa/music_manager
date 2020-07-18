@@ -14,6 +14,7 @@ from ds_tools.output import colored
 from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, get_common_changes
 from ..wiki import Track, Artist, Singer, Group, DiscographyEntry, DiscographyEntryPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
+from ..wiki.typing import StrOrStrs
 from .enums import CollabMode as CM
 from .exceptions import MatchException
 from .wiki_match import find_album
@@ -31,8 +32,9 @@ UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 
 def update_tracks(
-        paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
-        url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None, title_case=False
+    paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
+    url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None, title_case=False,
+    sites: StrOrStrs = None,
 ):
     if not isinstance(collab_mode, CM):
         collab_mode = CM(collab_mode)
@@ -75,10 +77,10 @@ class AlbumUpdater:
     @classmethod
     def for_album_dir(
             cls, album_dir: AlbumDir, dry_run=False, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST,
-            title_case=False
+            title_case=False, sites: StrOrStrs = None
     ) -> 'AlbumUpdater':
         try:
-            album = find_album(album_dir)
+            album = find_album(album_dir, sites=sites)
         except Exception as e:
             if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
                 raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e

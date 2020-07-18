@@ -16,6 +16,7 @@ from ..text import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
+from ..wiki.typing import StrOrStrs
 from .exceptions import NoArtistFoundException
 from .wiki_info import print_de_part
 
@@ -47,11 +48,11 @@ def test_match(paths: Paths, identifier: str):
                 uprint(f'      - {part}: {p_score}')
 
 
-def show_matches(paths: Paths):
+def show_matches(paths: Paths, sites: StrOrStrs = None):
     for album_dir in iter_album_dirs(paths):
         uprint(f'- Album: {album_dir}')
         try:
-            artists = find_artists(album_dir)
+            artists = find_artists(album_dir, sites=sites)
         except NoArtistFoundException:
             log.error(f'    - Artist: No artist could be found', extra={'color': 11})
         except Exception as e:
@@ -76,13 +77,14 @@ def show_matches(paths: Paths):
                 print_de_part(album, 4)
 
 
-def find_artists(album_dir: AlbumDir) -> List[Artist]:
+def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> List[Artist]:
     if artists := album_dir.all_artists:
         log.debug(f'Processing artists in {album_dir}: {artists}')
         remaining = set(artists)
         artist_objs = []
         if groups := album_dir._groups:
-            for title, group_obj in Group.from_titles(set(groups), search=True, strict=1, research=True).items():
+            wiki_groups = Group.from_titles(set(groups), search=True, strict=1, research=True, sites=sites)
+            for title, group_obj in wiki_groups.items():
                 log.debug(f'Found {group_obj=}', extra={'color': 10})
                 for name in groups[title]:
                     if singer := group_obj.find_member(name):
@@ -95,12 +97,12 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
             log.debug(f'Processing remaining artists in {album_dir}: {remaining}', extra={'color': 14})
             if artist_names := {a for a in artists if a.english != 'Various Artists'}:
                 try:
-                    _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True)
+                    _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=sites)
                 except (AmbiguousPageError, AmbiguousPagesError) as e:
                     if all(a.english == a.english.upper() for a in artist_names):
                         log.debug(e)
                         artist_names = {a.with_part(_english=a.english.title()) for a in artist_names}
-                        _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True)
+                        _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=sites)
                     else:
                         raise
 
@@ -116,14 +118,18 @@ def find_artists(album_dir: AlbumDir) -> List[Artist]:
     raise NoArtistFoundException(album_dir)
 
 
-def find_album(album_dir: AlbumDir, artists: Optional[Iterable[Artist]] = None) -> DiscographyEntryPart:
+def find_album(
+    album_dir: AlbumDir,
+    artists: Optional[Iterable[Artist]] = None,
+    sites: StrOrStrs = None,
+) -> DiscographyEntryPart:
     album_name = album_dir.name
     if not album_name:
         raise ValueError(f'Directories with multiple album names are not currently handled.')
     repackage = album_name.repackage
     alb_name = album_name.name
 
-    artists = artists or find_artists(album_dir)
+    artists = artists or find_artists(album_dir, sites=sites)
     log.debug(f'Processing album for {album_dir} with {album_name=!r} ({repackage=}) and {artists=}')
     candidates = _find_album(album_dir, alb_name, artists, album_dir.type, repackage, album_name.number)
     if not candidates and alb_name.eng_lang == LangCat.MIX and alb_name.eng_langs.intersection(LangCat.non_eng_cats):

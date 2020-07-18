@@ -8,6 +8,7 @@ from bin._venv import maybe_activate_venv
 maybe_activate_venv()
 
 import logging
+from datetime import date
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.core import wrap_main
@@ -25,6 +26,7 @@ from music.manager.wiki_update import update_tracks
 
 log = logging.getLogger(__name__)
 apply_mutagen_patches()
+DEFAULT_DEST_DIR = './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
 SHOW_ARGS = {
     'info': 'Show track title, length, tag version, and tags', 'meta': 'Show track title, length, and tag version',
     'count': 'Count tracks by tag', 'table': 'Show tags in a table', 'unique': 'Count tracks with unique tag values',
@@ -74,7 +76,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case
+                args.destination, args.title_case, args.sites
             )
         elif sub_action == 'match':
             show_matches(args.path)
@@ -164,12 +166,15 @@ def _add_wiki_actions(parser: ArgParser):
 
     upd_parser = wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info')
     upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    upd_parser.add_argument('--destination', '-d', metavar='PATH', help='Destination base directory for sorted files')
+    upd_parser.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
     upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
     upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
     upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
     upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
     upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
+    upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
+    upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
+    upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
 
     bpm_group = upd_parser.add_mutually_exclusive_group()
     bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')

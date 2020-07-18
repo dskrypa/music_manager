@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 
-from _venv import maybe_activate_venv
+import sys
+from pathlib import Path
+
+sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
+from bin._venv import maybe_activate_venv
 maybe_activate_venv()
 
 import argparse
 import logging
-import sys
-from pathlib import Path
+from typing import Iterable, Tuple, Dict
 
 from plexapi import DEFAULT_CONFIG_PATH
+from plexapi.audio import Track
 from plexapi.base import OPERATORS
 
 from ds_tools.argparsing import ArgParser
@@ -20,6 +24,7 @@ sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix(
 from music.__version__ import __author_email__, __version__
 from music.common import stars
 from music.plex import LocalPlexServer
+from music.plex.typing import PlexObjTypes
 from music.files.patches import apply_mutagen_patches
 
 log = logging.getLogger(__name__)
@@ -122,10 +127,12 @@ def main():
     elif args.action == 'find':
         p = Printer(args.format)
         obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
-        objects = plex.find_objects(obj_type, **kwargs)
+        objects = plex.find_objects(obj_type, **kwargs)  # type: Iterable[Track]
         if objects:
             if args.full_info:
                 p.pprint({repr(obj): obj.as_dict() for obj in objects})
+                # for obj in objects:
+                #     print(f'{obj.artist().title}\t{obj.album().title}\t{obj.title}\t{obj.userRating}')
             else:
                 print(bullet_list(objects))
         else:
@@ -150,7 +157,7 @@ def main():
         log.error('Unconfigured action')
 
 
-def parse_filters(obj_type, title, filters, escape, allow_inst):
+def parse_filters(obj_type, title, filters, escape, allow_inst) -> Tuple[PlexObjTypes, Dict[str, str]]:
     """
     :param str obj_type: Type of Plex object to find (tracks, albums, artists, etc)
     :param list title: Parts of the name of the object(s) to find, if searching by title__like2
@@ -180,6 +187,7 @@ def parse_filters(obj_type, title, filters, escape, allow_inst):
         filters.setdefault('title__not_like', 'inst(?:\.?|rumental)')
 
     log.debug('obj_type={}, title={!r} => query={}'.format(obj_type, title, filters))
+    # noinspection PyTypeChecker
     return obj_type, filters
 
 

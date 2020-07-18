@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable
 
 from ds_tools.compat import cached_property
 from wiki_nodes import CompoundNode, String, Link
-from ..text import Name, combine_with_parens
+from ..text import Name, combine_with_parens, strip_enclosed
 from .parsing.utils import replace_lang_abbrev
 from .artist import Artist
 
@@ -99,7 +99,7 @@ class Track:
         :return str: This track's full name
         """
         name_obj = self.name
-        parts = [str(name_obj)]
+        parts = [strip_enclosed(str(name_obj), exclude='])')]
         if extras := name_obj.extra:
             parts.extend(val for key, val in EXTRA_VALUE_MAP.items() if extras.get(key))
 

@@ -43,16 +43,15 @@ class AlbumDir(ClearableCachedPropertyMixin):
         if not isinstance(path, Path):
             path = Path(path).expanduser().resolve()
 
-        str_path = path.as_posix()
-        if str_path not in cls.__instances:
+        if path not in cls.__instances:
             if any(p.is_dir() for p in path.iterdir()):
-                raise InvalidAlbumDir('Invalid album dir - contains directories: {}'.format(path.as_posix()))
+                raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
 
             obj = super().__new__(cls)
-            cls.__instances[str_path] = obj
+            cls.__instances[path] = obj
             return obj
         else:
-            return cls.__instances[str_path]
+            return cls.__instances[path]
 
     def __init__(self, path: Union[Path, str]):
         """
@@ -68,7 +67,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
     def __repr__(self) -> str:
         try:
             rel_path = self.path.relative_to(Path('.').resolve()).as_posix()
-        except Exception as e:
+        except Exception:
             rel_path = self.path.as_posix()
         return '<{}({!r})>'.format(type(self).__name__, rel_path)
 
@@ -88,8 +87,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
         if dest_path.exists():
             raise ValueError(f'Destination for {self} already exists: {dest_path}')
 
+        del self.__class__.__instances[self.path]
         self.path.rename(dest_path)
         self.path = dest_path
+        self.__class__.__instances[self.path] = self
         self.clear_cached_properties()
 
     @cached_property

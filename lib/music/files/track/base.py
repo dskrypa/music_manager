@@ -48,7 +48,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
     date = TextTagProperty('date', parse_file_date)                     # type: Optional[date]
 
     def __new__(cls, file_path: Union[Path, str], *args, **kwargs):
-        file_path = Path(file_path).expanduser() if isinstance(file_path, str) else file_path
+        file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path
         try:
             return cls.__instances[file_path]
         except KeyError:
@@ -61,6 +61,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 return None             # file path - it may return None
             obj = super().__new__(cls)
             obj._f = music_file
+            obj.__dict__['path'] = file_path  # Prevent Path->str->Path conversion for custom Path subtypes
             cls.__instances[file_path] = obj
             return obj
 

@@ -13,7 +13,7 @@ from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError, CompoundNode, String
 from ..common import DiscoEntryType
-from ..text import combine_with_parens, Name
+from ..text import combine_with_parens, Name, strip_enclosed
 from .base import EntertainmentEntity, Pages
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, BadLinkError
@@ -461,10 +461,16 @@ class SoundtrackPart(DiscographyEntryPart):
     pass
 
 
+def _strip(text):
+    if text:
+        return strip_enclosed(text, exclude='])')
+    return text
+
+
 def _name_parts(
         base: Name, edition: Optional[str] = None, hide_edition=False, part: Optional[str] = None
 ) -> Tuple[Tuple[str, ...], ...]:
-    eng, non_eng = (base.english, base.non_eng)
+    eng, non_eng = (_strip(base.english), _strip(base.non_eng))
     edition = None if hide_edition else edition
     part_filter = lambda *parts: tuple(filter(None, parts))
     if eng and non_eng:

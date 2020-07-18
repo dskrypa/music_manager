@@ -43,6 +43,7 @@ class SafePath:
             self.parts = parts
 
     def __call__(self, **kwargs) -> str:
+        # log.debug('Generating safe path for: {}'.format(json.dumps(kwargs, sort_keys=True, indent=4)))
         return '/'.join(sanitize_path(part.format(**kwargs)) for part in self.parts)
 
     def __repr__(self):

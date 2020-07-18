@@ -431,6 +431,12 @@ class SpecialEvent(EntertainmentEntity):
 class TVSeries(EntertainmentEntity):
     _categories = ('television program', 'television series', 'drama', 'survival show', 'music shows')
 
+    def soundtrack_links(self) -> List[Link]:
+        links = []
+        for page, parser in self.page_parsers('parse_soundtrack_links'):
+            links.extend(parser.parse_soundtrack_links(page))
+        return links
+
 
 class TemplateEntity(WikiEntity):
     _categories = ()

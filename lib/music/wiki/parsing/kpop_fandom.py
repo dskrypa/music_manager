@@ -393,6 +393,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
         # This site does not use discography pages.
         return None
 
+    @classmethod
+    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
 
 # noinspection PyAbstractClass
 class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):

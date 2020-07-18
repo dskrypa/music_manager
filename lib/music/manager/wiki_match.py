@@ -13,7 +13,7 @@ from wiki_nodes.http import URL_MATCH
 from ..common import DiscoEntryType
 from ..files import AlbumDir, iter_album_dirs
 from ..text import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
 from ..wiki.typing import StrOrStrs
@@ -177,6 +177,13 @@ def _find_album(
                         candidates.update(parts)
                 else:
                     mlog.debug(f'{alb_name!r} does not match {entry}', extra={'color': 8})
+
+    if not candidates and alb_type == DiscoEntryType.Soundtrack:
+        if name_str := alb_name.english or alb_name.non_eng:
+            try:
+                candidates.add(Soundtrack.from_name(name_str))
+            except Exception as e:
+                log.debug(f'Error finding soundtrack for {name_str=!r}: {e}')
 
     if len(candidates) > 1:
         candidates = _filter_candidates(album_dir, candidates)

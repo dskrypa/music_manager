@@ -525,6 +525,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         # This site does not use discography pages.
         return None
 
+    @classmethod
+    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
 
 def clean_common_prefix(strs) -> str:
     prefix = commonprefix(strs).strip()     # type: str

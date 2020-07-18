@@ -96,6 +96,11 @@ class WikiParser(ABC):
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
+    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    @classmethod
     def _check_type(cls, node, index, clz):
         try:
             return isinstance(node[index], clz)

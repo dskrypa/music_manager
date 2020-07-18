@@ -205,6 +205,15 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
         raise NotImplementedError
 
+    @classmethod
+    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        if details := get_section_map(page, 'Details'):
+            if ost_link := details.get('Original Soundtrack'):
+                if isinstance(ost_link, Link):
+                    yield ost_link
+                else:
+                    log.warning(f'An {ost_link=!r} was found on {page=!r} but it was not a Link')
+
 
 def get_section_map(page: WikiPage, title: str) -> Optional[MappingNode]:
     try:

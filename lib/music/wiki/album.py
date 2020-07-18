@@ -11,10 +11,11 @@ from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
-from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError, CompoundNode, String, Table
+from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
+from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table
 from ..common import DiscoEntryType
 from ..text import combine_with_parens, Name, strip_enclosed
-from .base import EntertainmentEntity, Pages
+from .base import EntertainmentEntity, Pages, TVSeries
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, BadLinkError
 from .parsing import WikiParser
@@ -223,6 +224,24 @@ class Soundtrack(DiscographyEntry):
             else:
                 parts = edition
         return full, parts
+
+    @classmethod
+    def from_name(cls, name: str) -> 'Soundtrack':
+        client = MediaWikiClient('wiki.d-addicts.com')
+        results = client.get_pages(name, search=True, gsrwhat='text')
+        log.debug(f'Search results for {name=!r}: {results}')
+        for title, page in results.items():
+            try:
+                return cls._by_category(page)
+            except EntityTypeError:
+                try:
+                    show = TVSeries._by_category(page)
+                except EntityTypeError:
+                    log.debug(f'Found {page=!r} that is neither an OST or a TVSeries')
+                else:
+                    return cls.find_from_links(show.soundtrack_links())
+
+        raise ValueError(f'No pages were found for OSTs matching {name!r}')
 
 
 # noinspection PyUnresolvedReferences

@@ -207,6 +207,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                     disco_entry.title = title[0].value
                 finder.add_entry(disco_entry, row, not expected)
 
+    @classmethod
+    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
 
 class TitleNotFound(Exception):
     """Exception that indicates a title column could not be found"""

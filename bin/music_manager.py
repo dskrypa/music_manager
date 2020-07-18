@@ -3,9 +3,9 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
-from bin._venv import maybe_activate_venv
-maybe_activate_venv()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, PROJECT_ROOT.joinpath('bin').as_posix())
+import _venv  # This will activate the venv, if it exists and is not already active
 
 import logging
 from datetime import date
@@ -14,6 +14,7 @@ from ds_tools.argparsing import ArgParser
 from ds_tools.core import wrap_main
 from ds_tools.logging import init_logging
 
+sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
 from music.files import apply_mutagen_patches
 from music.manager.file_info import (

@@ -32,3 +32,6 @@ def maybe_activate_venv():
         )
         cmd = [bin_path.joinpath('python.exe' if on_windows else 'python').as_posix()] + sys.argv
         sys.exit(call(cmd, env=environ))
+
+
+maybe_activate_venv()

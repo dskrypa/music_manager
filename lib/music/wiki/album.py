@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
-from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError, CompoundNode, String
+from wiki_nodes import WikiPage, Node, Link, List as ListNode, PageMissingError, CompoundNode, String, Table
 from ..common import DiscoEntryType
 from ..text import combine_with_parens, Name, strip_enclosed
 from .base import EntertainmentEntity, Pages
@@ -21,14 +21,16 @@ from .parsing import WikiParser
 from .utils import short_site
 
 __all__ = [
-    'DiscographyEntry', 'Album', 'Single', 'SoundtrackPart', 'Soundtrack', 'DiscographyEntryEdition',
-    'DiscographyEntryPart'
+    'DiscographyEntry', 'DiscographyEntryEdition', 'DiscographyEntryPart',
+    'Soundtrack', 'SoundtrackEdition', 'SoundtrackPart',
+    'Album', 'Single',
 ]
 log = logging.getLogger(__name__)
 OST_MATCH = re.compile(r'^(.*? OST) (PART.?\s?\d+)$').match
 NodeOrNodes = Union[Node, Iterable[Node], None]
 ListOrLists = Union[ListNode, Iterable[ListNode], None]
 NameType = Union[str, Name, None]
+TrackNodes = Union[Table, ListNode, None]
 
 
 class DiscographyEntry(EntertainmentEntity):
@@ -208,13 +210,74 @@ class Single(DiscographyEntry):
 class Soundtrack(DiscographyEntry):
     _categories = ('ost', 'soundtrack')
 
+    def split_editions(self):
+        full, parts = None, None
+        for edition in self.editions:
+            # noinspection PyUnresolvedReferences
+            if edition.full_ost:
+                full = edition
+            else:
+                parts = edition
+        return full, parts
 
-class DiscographyEntryEdition:
+
+# noinspection PyUnresolvedReferences
+class _ArtistMixin:
+    @cached_property
+    def artists(self) -> Set['Artist']:
+        artists = set()
+        if isinstance(self._artist, Artist):
+            artists.add(self._artist)
+        elif isinstance(self._artist, (set, CompoundNode)):
+            artist_links, artist_strs = set(), set()
+            for artist in self._artist:
+                if isinstance(artist, Link):
+                    artist_links.add(artist)
+                elif isinstance(artist, String) and artist.value == ',':
+                    pass
+                else:
+                    artist_strs.add(artist)
+            if artist_strs:
+                log.debug(f'Found non-link artist values for {self._basic_repr}: {artist_strs}', extra={'color': 11})
+
+            # log.debug(f'Looking for artists from links: {artist_links}')
+            strict = 0 if artists or len(artist_links) > 1 else 1
+            artists.update(Artist.from_links(artist_links, strict=strict).values())
+        elif isinstance(self._artist, Link):
+            try:
+                artists.add(Artist.from_link(self._artist))
+            except (BadLinkError, PageMissingError, EntityTypeError) as e:
+                log.debug(f'Error getting artist={self._artist} for {self._basic_repr}: {e}')
+        else:
+            log.debug(f'Found unexpected value for {self._basic_repr}._artist: {self._artist!r}', extra={'color': 11})
+        return artists
+
+    @cached_property
+    def artist(self) -> Optional['Artist']:
+        if artists := self.artists:
+            if len(artists) == 1:
+                return next(iter(artists))
+            else:
+                log.debug(f'Multiple artists found for {self._basic_repr}: {artists}')
+        else:
+            log.debug(f'No artists found for {self._basic_repr}')
+        return None
+
+
+class DiscographyEntryEdition(_ArtistMixin):
     """An edition of an album"""
     def __init__(
-            self, name: NameType, page: WikiPage, entry: DiscographyEntry, entry_type: 'DiscoEntryType',
-            artist: NodeOrNodes, release_dates: Sequence[date], content: Any, edition: Optional[str] = None,
-            lang: Optional[str] = None, repackage=False
+        self,
+        name: NameType,
+        page: WikiPage,
+        entry: DiscographyEntry,
+        entry_type: 'DiscoEntryType',
+        artist: NodeOrNodes,
+        release_dates: Sequence[date],
+        content: Any,
+        edition: Optional[str] = None,
+        lang: Optional[str] = None,
+        repackage=False,
     ):
         self._name = name                                                                   # type: NameType
         self.page = page                                                                    # type: WikiPage
@@ -226,6 +289,7 @@ class DiscographyEntryEdition:
         self.edition = edition                                                              # type: Optional[str]
         self.repackage = repackage                                                          # type: bool
         self._lang = lang                                                                   # type: Optional[str]
+        log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r}')
 
     @property
     def _basic_repr(self):
@@ -296,46 +360,6 @@ class DiscographyEntryEdition:
         return self.entry.cls_type_name + 'Edition'
 
     @cached_property
-    def artists(self) -> Set['Artist']:
-        artists = set()
-        if isinstance(self._artist, Artist):
-            artists.add(self._artist)
-        elif isinstance(self._artist, (set, CompoundNode)):
-            artist_links, artist_strs = set(), set()
-            for artist in self._artist:
-                if isinstance(artist, Link):
-                    artist_links.add(artist)
-                elif isinstance(artist, String) and artist.value == ',':
-                    pass
-                else:
-                    artist_strs.add(artist)
-            if artist_strs:
-                log.debug(f'Found non-link artist values for {self._basic_repr}: {artist_strs}', extra={'color': 11})
-
-            # log.debug(f'Looking for artists from links: {artist_links}')
-            strict = 0 if artists or len(artist_links) > 1 else 1
-            artists.update(Artist.from_links(artist_links, strict=strict).values())
-        elif isinstance(self._artist, Link):
-            try:
-                artists.add(Artist.from_link(self._artist))
-            except (BadLinkError, PageMissingError, EntityTypeError) as e:
-                log.debug(f'Error getting artist={self._artist} for {self._basic_repr}: {e}')
-        else:
-            log.debug(f'Found unexpected value for {self._basic_repr}._artist: {self._artist!r}', extra={'color': 11})
-        return artists
-
-    @cached_property
-    def artist(self) -> Optional['Artist']:
-        if artists := self.artists:
-            if len(artists) == 1:
-                return next(iter(artists))
-            else:
-                log.debug(f'Multiple artists found for {self._basic_repr}: {artists}')
-        else:
-            log.debug(f'No artists found for {self._basic_repr}')
-        return None
-
-    @cached_property
     def date(self) -> Optional[date]:
         try:
             return min(self.release_dates)
@@ -370,13 +394,21 @@ class DiscographyEntryEdition:
         return None
 
 
+class SoundtrackEdition(DiscographyEntryEdition):
+    """An edition of a soundtrack (full / parts)"""
+
+    @property
+    def full_ost(self):
+        return self.edition == '[Full OST]'
+
+
 class DiscographyEntryPart:
     _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
-    def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: Optional[ListNode]):
+    def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: TrackNodes):
         self._name = name                               # type: Optional[str]
         self.edition = edition                          # type: DiscographyEntryEdition
-        self._tracks = tracks                           # type: Optional[ListNode]
+        self._tracks = tracks                           # type: TrackNodes
         m = self._disc_match(name) if name else None
         self.disc = int(m.group(1)) if m else 1         # type: int
 
@@ -404,6 +436,8 @@ class DiscographyEntryPart:
 
     def __len__(self):
         return len(self.track_names)
+
+    _basic_repr = property(__repr__)
 
     @cached_property
     def repackage(self):
@@ -439,7 +473,11 @@ class DiscographyEntryPart:
                 else:
                     log.debug(f'No tracks found for {self}')
             else:
-                return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
+                if isinstance(self._tracks, Table):
+                    return [parser.parse_track_name(row) for row in self._tracks]
+                else:
+                # if isinstance(self._tracks, ListNode):
+                    return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')
         return []
@@ -457,9 +495,12 @@ class DiscographyEntryPart:
         return tracks
 
 
-class SoundtrackPart(DiscographyEntryPart):
+class SoundtrackPart(DiscographyEntryPart, _ArtistMixin):
     """A part of a multi-part soundtrack"""
-    pass
+    def __init__(self, part: Optional[int], *args, artist: NodeOrNodes = None, **kwargs):
+        DiscographyEntryPart.__init__(self, *args, **kwargs)
+        self.part = part
+        self._artist = artist
 
 
 def _strip(text):

@@ -176,6 +176,7 @@ def _add_wiki_actions(parser: ArgParser):
     upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
     upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
     upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
+    upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
     bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
     bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
     bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')

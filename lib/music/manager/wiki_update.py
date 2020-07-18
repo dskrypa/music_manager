@@ -13,7 +13,8 @@ from ds_tools.core import Paths
 from ds_tools.input import choose_item
 from ds_tools.output import colored
 from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, get_common_changes
-from ..wiki import Track, Artist, Singer, Group, DiscographyEntry, DiscographyEntryPart
+from ..wiki import Track, Artist, Singer, Group
+from ..wiki.album import DiscographyEntry, DiscographyEntryPart, Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from ..wiki.typing import StrOrStrs
 from .enums import CollabMode as CM
@@ -99,8 +100,23 @@ class AlbumUpdater:
             return cls(album_dir, album, dry_run, soloist, hide_edition, collab_mode, title_case)
 
     @cached_property
-    def disco_part(self) -> DiscographyEntryPart:
-        return get_disco_part(self.album)
+    def disco_part(self) -> Union[DiscographyEntryPart, SoundtrackPart]:
+        if isinstance(self.album, Soundtrack):
+            full, parts = self.album.split_editions()
+            full_len = len(full.parts[0]) if full and full.parts else None
+            entry = full if full_len and len(self.album_dir) == full_len else parts
+        else:
+            entry = self.album
+        if isinstance(entry, SoundtrackEdition):
+            if len(entry.parts) == 1:
+                entry = entry.parts[0]
+            elif alb_part := self.album_dir.name.part:
+                for part in entry.parts:
+                    # noinspection PyUnresolvedReferences
+                    if part.part == alb_part:
+                        entry = part
+                        break
+        return get_disco_part(entry)
 
     @cached_property
     def edition(self):
@@ -112,8 +128,14 @@ class AlbumUpdater:
         return {file: track for file, track in ft_iter}
 
     @cached_property
+    def _artists(self):
+        if isinstance(self.disco_part, SoundtrackPart):
+            return sorted(self.disco_part.artists)
+        return sorted(self.edition.artists)
+
+    @cached_property
     def artist(self) -> ArtistType:
-        artists = sorted(self.edition.artists)
+        artists = self._artists
         if len(artists) > 1:
             others = set(artists)
             artist = choose_item(artists + ['[combine all]'], 'artist', self.disco_part)

@@ -8,10 +8,10 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
 
-from wiki_nodes import WikiPage, Link, String, MappingNode, Section
+from wiki_nodes import WikiPage, Link, String, MappingNode, Section, CompoundNode
 from wiki_nodes.nodes import N, ContainerNode
 from ...text import Name
-from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
+from ..album import Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..base import EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 __all__ = ['DramaWikiParser']
 log = logging.getLogger(__name__)
 
-OST_PART_MATCH = re.compile(r'^(.+) (Part \d+)$', re.IGNORECASE).match
+OST_PART_MATCH = re.compile(r'^(.+ OST) ?((?:Part \d+)?)$', re.IGNORECASE).match
 SONG_OST_YEAR_MATCH = re.compile(r'^(.+?)\s-\s(.+?)\s\(((?:19|20)\d{2})\)$').match
 YEAR_MATCH = re.compile(r'-?(.*?)\(((?:19|20)\d{2})\)$').match
 
@@ -46,7 +46,30 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     @classmethod
     def parse_track_name(cls, node: N) -> Name:
-        raise NotImplementedError
+        if not isinstance(node, MappingNode):
+            raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=!r}')
+        title = node['Song Title']
+        extra = {'artists': node['Artist']}
+        if isinstance(title, String):
+            title = title.value
+            if title.lower().endswith('(inst.)'):
+                title = title[:-7].strip()
+                extra['instrumental'] = True
+            return Name(title, extra=extra)
+        else:
+            try:
+                eng, br, non_eng = title
+            except Exception as e:
+                raise ValueError(f'Unexpected track node content for {node=!r}')
+            else:
+                eng, non_eng = eng.value, non_eng.value
+                if eng.lower().endswith('(inst.)'):
+                    eng = eng[:-7].strip()
+                    extra['instrumental'] = True
+                if non_eng.lower().endswith('(inst.)'):
+                    non_eng = non_eng[:-7].strip()
+                    extra['instrumental'] = True
+                return Name(eng, non_eng, extra=extra)
 
     @classmethod
     def parse_single_page_track_name(cls, page: WikiPage) -> Name:
@@ -113,45 +136,40 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                         finder.add_entry(disco_entry, entry)
 
     @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+    def process_album_editions(cls, entry: 'Soundtrack', entry_page: WikiPage) -> EditionIterator:
         ost_parts, ost_full, ost_name = split_sections(entry_page)
         if not (ost_full or ost_parts):
             log.warning(f'Did not find any OST content for {entry=} / {entry_page!r}')
 
         if ost_parts:
-            languages = Counter()
-            dates = set()
-            artists = set()
+            name, languages, dates, artists = None, Counter(), set(), set()
             for part in ost_parts:
-                info = part.content[2].as_mapping()
-                if langs := info.get('Language'):
-                    languages.update(map(str.strip, langs.value.split(',')))
-                if part_date := info.get('Release Date'):
-                    dates.add(datetime.strptime(part_date.value, '%Y-%b-%d'))
-                if artist := info.get('Artist'):
-                    artists.add(artist)
+                name = get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists)[0]
 
-            info = ost_parts[0].content[2].as_mapping()
-            non_eng_title = info['Title'][0].value  # type: str  # TODO: handle other cases
-            if non_eng_title.endswith('/'):
-                non_eng_title = non_eng_title[:-1].strip()
-
-            non_eng_name = OST_PART_MATCH(non_eng_title).group(1)  # TODO: handle other cases
-            name = Name.from_parts((non_eng_name, ost_name))
-            language = max(languages, key=lambda k: languages[k])
-
-            # track_table = part_1.content[4]
-            # need artists from all parts
-            yield DiscographyEntryEdition(
+            language = max(languages, key=lambda k: languages[k], default=None)
+            yield SoundtrackEdition(
                 name, entry_page, entry, entry._type, artists, sorted(dates), ost_parts, '[OST Parts]', language
             )
 
         if ost_full:
-            pass
+            name, languages, dates, artists = get_basic_info(ost_full.content[2].as_mapping(), ost_name)
+            language = max(languages, key=lambda k: languages[k], default=None)
+            yield SoundtrackEdition(
+                name, entry_page, entry, entry._type, String('Various Artists'), sorted(dates), ost_full, '[Full OST]',
+                language
+            )
 
     @classmethod
-    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
-        raise NotImplementedError
+    def process_edition_parts(cls, edition: 'SoundtrackEdition') -> Iterator['SoundtrackPart']:
+        if edition.edition == '[OST Parts]':
+            for i, section in enumerate(edition._content, 1):
+                content = section.content
+                yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=content[2].as_mapping().get('Artist'))
+        elif edition.edition == '[Full OST]':
+            content = edition._content.content
+            yield SoundtrackPart(None, None, edition, content[4], artist=content[2].as_mapping().get('Artist'))
+        else:
+            log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
 
     @classmethod
     def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
@@ -184,14 +202,48 @@ def split_sections(page: WikiPage) -> Tuple[List[Section], Optional[Section], Op
     ost_name = None
     for section in page.sections:
         if m := OST_PART_MATCH(section.title):
-            if ost_name is None:
-                ost_name = m.group(1)
-            # part_name = m.group(2)
-            # ost_parts.append((part_name, section))
-            ost_parts.append(section)
-        elif ost_name and section.title == ost_name:
-            ost_full = section
+            ost_name, part_name = m.groups()
+            if part_name:
+                ost_parts.append(section)
+            else:
+                ost_full = section
         else:
             break
 
     return ost_parts, ost_full, ost_name
+
+
+def get_name(info: MappingNode, ost_name: Optional[str]) -> Name:
+    non_eng_title = info['Title'][0].value  # type: str  # TODO: handle other cases
+    if non_eng_title.endswith('/'):
+        non_eng_title = non_eng_title[:-1].strip()
+
+    if m := OST_PART_MATCH(non_eng_title):
+        non_eng_name = m.group(1)
+    else:
+        raise ValueError(f'Unexpected name format: {non_eng_title!r}')
+
+    return Name.from_parts((ost_name, non_eng_name))
+
+
+def get_basic_info(
+    info: MappingNode,
+    ost_name: Optional[str],
+    languages: Optional[Counter] = None,
+    dates: Optional[set] = None,
+    artists: Optional[set] = None,
+):
+    languages = Counter() if languages is None else languages  # Need the None check to not replace empty provided value
+    dates = set() if dates is None else dates
+    artists = set() if artists is None else artists
+    if langs := info.get('Language'):
+        languages.update(map(str.strip, langs.value.split(',')))
+    if part_date := info.get('Release Date'):
+        dates.add(datetime.strptime(part_date.value, '%Y-%b-%d'))
+    if artist := info.get('Artist'):
+        if isinstance(artist, CompoundNode):
+            artist = String(' '.join(map(str, artist)))
+        artists.add(artist)
+
+    name = get_name(info, ost_name)
+    return name, languages, dates, artists

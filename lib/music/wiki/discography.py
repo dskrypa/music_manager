@@ -144,8 +144,14 @@ class DiscographyEntryFinder:
                     else:
                         log.log(9, f'{e}, and no other links are available')
                         # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
-                        discography[src_site].append(DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist))
-                        self.created_entry[disco_entry] = True
+                        try:
+                            discography[src_site].append(
+                                DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist)
+                            )
+                        except EntityTypeError:
+                            pass
+                        else:
+                            self.created_entry[disco_entry] = True
                 except Exception as e:
                     self.remaining[disco_entry] -= 1
                     msg = f'Unexpected error processing page={title!r} for {disco_entry=}:'
@@ -159,18 +165,26 @@ class DiscographyEntryFinder:
                 if not self.created_entry[disco_entry]:
                     log.log(9, f'No page found for {title=!r} / {link=} / entry={disco_entry}')
                     # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
-                    discography[disco_entry.source.site].append(
-                        DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist)
-                    )
-                    self.created_entry[disco_entry] = True
+                    try:
+                        discography[disco_entry.source.site].append(
+                            DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist)
+                        )
+                    except EntityTypeError:
+                        pass
+                    else:
+                        self.created_entry[disco_entry] = True
 
         for site, disco_entries in self.no_link_entries.items():
             site_discography = discography.setdefault(site, [])
             for disco_entry in disco_entries:
                 if not self.created_entry[disco_entry]:
                     # log.debug(f'Creating DiscographyEntry for page=[no links] entry={disco_entry}')
-                    site_discography.append(DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist))
-                    self.created_entry[disco_entry] = True
+                    try:
+                        site_discography.append(DiscographyEntry.from_disco_entry(disco_entry, artist=self.artist))
+                    except EntityTypeError:
+                        pass
+                    else:
+                        self.created_entry[disco_entry] = True
 
         # if (artist := self.artist) is not None:         # Ensure the disco entries have the artist with all known pages
         #     name_matches = artist.name.matches

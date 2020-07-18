@@ -175,6 +175,7 @@ class DiscographyEntry(EntertainmentEntity):
         except EntityTypeError as e:
             log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', extra={'color': 9})
             # log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', stack_info=True, extra={'color': 9})
+            raise
 
     @cached_property
     def editions(self) -> List['DiscographyEntryEdition']:

@@ -401,7 +401,7 @@ def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs):
     if not isinstance(obj.value, val_cls):
         return False
     if kwargs:
-        return all(getattr(obj, k) == v for k, v in kwargs.items())
+        return all(getattr(obj, k).lower() == v for k, v in kwargs.items())
     return True
 
 

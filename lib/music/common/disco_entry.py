@@ -35,6 +35,7 @@ class DiscoEntryType(Enum):
     )
     Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album'), 'Albums', True
     Collaboration = 'Collaboration', ('collaboration',), 'Collaborations', False
+    _OTHER = '_OTHER', ('others',), 'Other', False
 
     def __repr__(self):
         return f'<{type(self).__name__}: {self.value[0]!r}>'
@@ -85,9 +86,10 @@ class DiscoEntryType(Enum):
 
             if candidates:
                 if len(candidates) == 1:
-                    return next(iter(candidates))
+                    candidate = next(iter(candidates))
                 else:
-                    return min(candidates)
+                    candidate = min(candidates)
+                return cls.UNKNOWN if candidate is cls._OTHER else candidate
 
             log.debug(f'No DiscoEntryType exists for name={name!r}', stack_info=True)
         return cls.UNKNOWN

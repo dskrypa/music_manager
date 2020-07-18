@@ -55,7 +55,7 @@ class BaseSongFile(ClearableCachedPropertyMixin, FileBasedObject):
             try:
                 music_file = File(file_path, *args, **kwargs)
             except Exception as e:
-                log.debug('Error loading {}: {}'.format(file_path, e))
+                log.debug(f'Error loading {file_path}: {e}')
                 return None
             if not music_file:          # mutagen.File is a function that returns different obj types based on the given
                 return None             # file path - it may return None

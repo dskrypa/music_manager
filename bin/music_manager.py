@@ -76,7 +76,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites
+                args.destination, args.title_case, args.sites, args.dump, args.load
             )
         elif sub_action == 'match':
             show_matches(args.path)
@@ -175,10 +175,12 @@ def _add_wiki_actions(parser: ArgParser):
     upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
     upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
     upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
-
-    bpm_group = upd_parser.add_mutually_exclusive_group()
+    bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
     bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
     bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
+    upd_data = upd_parser.add_argument_group('Track Data Options').add_mutually_exclusive_group()
+    upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
+    upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
 
     match_parser = wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info')
     match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')

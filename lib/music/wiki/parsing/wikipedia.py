@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence, Iter
 
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
-from wiki_nodes.nodes import N
+from wiki_nodes.nodes import N, ContainerNode
 from ...text import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..disco_entry import DiscoEntry
@@ -199,7 +199,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         elif isinstance(title, String):
             disco_entry.title = title.value             # TODO: cleanup templates, etc
             finder.add_entry(disco_entry, row, False)
-        else:
+        elif title is not None:  # it would not be None here anyways, but this makes PyCharm happy
             links = list(title.find_all(Link, True))
             if not finder.add_entry_links(links, disco_entry):
                 expected = type(title) is CompoundNode and isinstance(title[0], String)

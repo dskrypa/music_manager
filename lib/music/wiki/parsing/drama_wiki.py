@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
 
 from wiki_nodes import WikiPage, Link, String, MappingNode, Section, CompoundNode
 from wiki_nodes.nodes import N, ContainerNode
-from ...text import Name
+from ...text import Name, ends_with_enclosed, split_enclosed
 from ..album import Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..base import EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
@@ -34,7 +34,13 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             keys = ('Name', 'Real name')
             for key in keys:
                 if value := profile.get(key):
-                    yield Name.from_parts(value.value.split(' / '))
+                    parts = value.value.split(' / ')
+                    if len(parts) == 2 and ends_with_enclosed(parts[1]):
+                        non_eng, eng = parts
+                        eng, romanized = split_enclosed(eng, maxsplit=1)
+                        yield Name.from_parts((eng, non_eng), romanized=romanized)
+                    else:
+                        yield Name.from_parts(parts)
 
     @classmethod
     def parse_album_name(cls, node: N) -> Name:

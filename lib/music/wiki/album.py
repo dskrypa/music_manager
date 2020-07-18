@@ -403,6 +403,7 @@ class SoundtrackEdition(DiscographyEntryEdition):
 
 
 class DiscographyEntryPart:
+    ost = False
     _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
     def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: TrackNodes):
@@ -462,7 +463,12 @@ class DiscographyEntryPart:
             base = ed.name_base
             if self.repackage:
                 edition_str = f'{edition_str} - Repackage' if edition_str else 'Repackage'
-        return combine_with_parens(map(combine_with_parens, _name_parts(base, edition_str, hide_edition, self._name)))
+
+        part = None if self.ost else self._name
+        full_name = combine_with_parens(map(combine_with_parens, _name_parts(base, edition_str, hide_edition, part)))
+        if self.ost and self._name:
+            full_name += f' - {self._name}'
+        return full_name
 
     @cached_property
     def track_names(self) -> List[Name]:
@@ -497,6 +503,8 @@ class DiscographyEntryPart:
 
 class SoundtrackPart(DiscographyEntryPart, _ArtistMixin):
     """A part of a multi-part soundtrack"""
+    ost = True
+
     def __init__(self, part: Optional[int], *args, artist: NodeOrNodes = None, **kwargs):
         DiscographyEntryPart.__init__(self, *args, **kwargs)
         self.part = part

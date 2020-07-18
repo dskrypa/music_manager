@@ -34,6 +34,11 @@ class DramaWikiArtistNameParsingTest(NameTestCaseBase):
         names = set(parse_dw_artist_name(page))
         self.assertNamesEqual(names, {Name('Joy', '조이'), Name('Park Soo Young', '박수영')})
 
+    def test_with_romanization(self):
+        page = self._make_root("""==Profile==\n*'''Name:''' 김청하 / Kim Chung Ha (Gim Cheong Ha)\n*'''Real name:''' 김찬미 / Kim Chan Mi\n*'''English name:''' Annie Kim\n*'''Also known as:''' Chungha, CHUNG HA\n""")
+        names = set(parse_dw_artist_name(page))
+        self.assertNamesEqual(names, {Name('Kim Chung Ha', '김청하', romanized='Gim Cheong Ha'), Name('Kim Chan Mi', '김찬미')})
+
 
 class GenerasiaArtistNameParsingTest(NameTestCaseBase):
     def test_solo_artist(self):

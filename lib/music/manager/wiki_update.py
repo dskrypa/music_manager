@@ -102,6 +102,7 @@ class AlbumUpdater:
     @cached_property
     def disco_part(self) -> Union[DiscographyEntryPart, SoundtrackPart]:
         if isinstance(self.album, Soundtrack):
+            self.hide_edition = True
             full, parts = self.album.split_editions()
             full_len = len(full.parts[0]) if full and full.parts else None
             entry = full if full_len and len(self.album_dir) == full_len else parts
@@ -134,7 +135,7 @@ class AlbumUpdater:
         return sorted(self.edition.artists)
 
     @cached_property
-    def artist(self) -> ArtistType:
+    def _artist(self) -> ArtistType:
         artists = self._artists
         if len(artists) > 1:
             others = set(artists)
@@ -154,6 +155,18 @@ class AlbumUpdater:
         else:
             artist = artists[0]
 
+        return artist
+
+    @cached_property
+    def artist(self) -> ArtistType:
+        artist = self._artist
+        # noinspection PyUnresolvedReferences
+        if isinstance(self.disco_part, SoundtrackPart) and not self.edition.full_ost:
+            if name := artist.name.english or artist.name.non_eng:
+                try:
+                    return Artist.from_title(name, sites=['kpop.fandom.com', 'www.generasia.com'])
+                except Exception as e:
+                    log.warning(f'Error finding alternate version of {artist=!r}: {e}')
         return artist
 
     @cached_property
@@ -196,12 +209,13 @@ class AlbumUpdater:
             if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin'):
                 values['genre'] = f'{lang[0]}-pop'
 
+        change_artist = self._artist != self.artist
         updates = {}
         for file, track in self.file_track_map.items():
             updates[file] = file_values = values.copy()
-            track_name = self._normalize_name(track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH)))
-            file_values['title'] = track_name
-            file_values['artist'] = track.artist_name(self.artist_name, self.collab_mode in (CM.ARTIST, CM.BOTH))
+            file_values['title'] = self._normalize_name(track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH)))
+            track_artist_name = track.artist_name(self.artist_name, self.collab_mode in (CM.ARTIST, CM.BOTH))
+            file_values['artist'] = self.artist_name if change_artist else track_artist_name
             if file.tag_type == 'mp4':
                 file_values['track'] = (track.num, len(self.file_track_map))        # TODO: Handle incomplete file set
                 file_values['disk'] = (disk_num, disk_num)                          # TODO: get actual disk count

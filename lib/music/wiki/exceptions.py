@@ -8,7 +8,7 @@ from wiki_nodes import WikiPage, Link
 
 __all__ = [
     'MusicWikiException', 'EntityTypeError', 'NoPagesFoundError', 'BadLinkError', 'NoLinkTarget', 'NoLinkSite',
-    'AmbiguousPageError', 'AmbiguousPagesError'
+    'AmbiguousPageError', 'AmbiguousPagesError', 'SiteDoesNotExist'
 ]
 
 
@@ -69,3 +69,7 @@ class NoLinkTarget(BadLinkError):
 
 class NoLinkSite(BadLinkError):
     _problem = 'No source site found'
+
+
+class SiteDoesNotExist(BadLinkError):
+    _problem = 'Site does not exist'

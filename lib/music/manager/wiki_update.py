@@ -205,7 +205,7 @@ class AlbumUpdater:
             log.info(f'Dumping track updates that would be made to {dump}')
             _updates = {file.path.as_posix(): values for file, values in updates.items()}
             with dump.open('w', encoding='utf-8') as f:
-                json.dump(_updates, f, sort_keys=True, indent=4)
+                json.dump(_updates, f, sort_keys=True, indent=4, ensure_ascii=False)
             return False
 
         common_changes = get_common_changes(self.album_dir, updates, extra_newline=True, dry_run=self.dry_run)

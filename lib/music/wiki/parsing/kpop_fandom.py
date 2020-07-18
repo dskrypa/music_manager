@@ -19,6 +19,7 @@ from ...text import (
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry
+from ..exceptions import SiteDoesNotExist
 from .abc import WikiParser, EditionIterator
 from .utils import name_from_intro, get_artist_title, LANG_ABBREV_MAP, find_language
 
@@ -179,7 +180,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
 
                     if links:
                         for link in links:
-                            finder.add_entry_link(link, disco_entry)
+                            try:
+                                finder.add_entry_link(link, disco_entry)
+                            except SiteDoesNotExist:
+                                log.log(19, f'Found bad {link=!r} on {artist_page=!r} in {section=!r}')
                     else:
                         finder.add_entry(disco_entry, entry)
                 elif isinstance(entry, String):

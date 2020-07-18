@@ -12,7 +12,7 @@ from wiki_nodes import MediaWikiClient, Link
 from .album import DiscographyEntry, DiscographyEntryEdition
 from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, AmbiguousPageError
+from .exceptions import EntityTypeError, AmbiguousPageError, SiteDoesNotExist
 from .utils import link_client_and_title
 
 if TYPE_CHECKING:
@@ -101,6 +101,11 @@ class DiscographyEntryFinder:
         return False
 
     def add_entry_link(self, link: Link, disco_entry: DiscoEntry):
+        if 'hiphip:' in link.title:
+            # added handling for this case generically in wiki_nodes, and updated the page where this was found,
+            # but it seems like a cdn is caching the old bad value or something
+            # log.warning(f'Found bad link: {link!r}', stack_info=True)
+            raise SiteDoesNotExist(f'Bad link: {link!r}')
         disco_entry.links.append(link)
         self.remaining[disco_entry] += 1
         mw_client, title = link_client_and_title(link)

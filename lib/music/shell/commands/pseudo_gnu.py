@@ -50,7 +50,7 @@ class Ls(ShellCommand, cmd='ls'):
                 mtime = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M')
                 size = readable_bytes(stat.st_size)[:-1]
                 perms = '{}rw-rw-rw-{}'.format(*perm_chars)
-                self.print(f'{perms} {size:>7s} {mtime} {rel}')
+                self.print(f'{perms} {size:>8s} {mtime} {rel}')
             else:
                 self.print(rel)
 

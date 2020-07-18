@@ -410,12 +410,21 @@ class DiscographyEntryPart:
     ost = False
     _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
-    def __init__(self, name: Optional[str], edition: DiscographyEntryEdition, tracks: TrackNodes):
-        self._name = name                               # type: Optional[str]
-        self.edition = edition                          # type: DiscographyEntryEdition
-        self._tracks = tracks                           # type: TrackNodes
-        m = self._disc_match(name) if name else None
-        self.disc = int(m.group(1)) if m else 1         # type: int
+    def __init__(
+        self,
+        name: Optional[str],
+        edition: DiscographyEntryEdition,
+        tracks: TrackNodes,
+        disc: Optional[int] = None,
+    ):
+        self._name = name                                   # type: Optional[str]
+        self.edition = edition                              # type: DiscographyEntryEdition
+        self._tracks = tracks                               # type: TrackNodes
+        if disc is not None:
+            self.disc = disc                                # type: int
+        else:
+            m = self._disc_match(name) if name else None
+            self.disc = int(m.group(1)) if m else 1         # type: int
 
     def __repr__(self) -> str:
         ed = self.edition

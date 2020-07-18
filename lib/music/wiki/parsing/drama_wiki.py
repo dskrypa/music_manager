@@ -177,8 +177,16 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 content = section.content
                 yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=content[2].as_mapping().get('Artist'))
         elif edition.edition == '[Full OST]':
-            content = edition._content.content
-            yield SoundtrackPart(None, None, edition, content[4], artist=content[2].as_mapping().get('Artist'))
+            section = edition._content
+            content = section.content
+            artist = content[2].as_mapping().get('Artist')
+            try:
+                track_table = content[4]
+            except IndexError:
+                for i, disk_section in enumerate(section, 1):
+                    yield SoundtrackPart(None, None, edition, disk_section.content[1], artist=artist, disc=i)
+            else:
+                yield SoundtrackPart(None, None, edition, track_table, artist=artist)
         else:
             log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
 

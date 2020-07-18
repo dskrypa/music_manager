@@ -24,6 +24,7 @@ from .wiki_utils import get_disco_part, DiscoObj
 
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)
+CONFIG_DIR = Path('~/.config/music_manager/').expanduser()
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
 SOLO_DIR_FORMAT = SafePath('{artist}/Solo/{singer}')
 TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
@@ -124,9 +125,29 @@ class AlbumUpdater:
         return self.disco_part.edition
 
     @cached_property
+    def ost(self):
+        return isinstance(self.disco_part, SoundtrackPart)
+
+    @cached_property
     def file_track_map(self) -> Dict[SongFile, Track]:
         ft_iter = zip(sorted(self.album_dir.songs, key=lambda sf: sf.track_num), self.disco_part.tracks)
         return {file: track for file, track in ft_iter}
+
+    @cached_property
+    def artist_name_overrides(self) -> Dict[str, str]:
+        overrides_path = CONFIG_DIR.joinpath('artist_name_overrides.json')
+        if overrides_path.exists():
+            log.debug(f'Loading {overrides_path}')
+            with overrides_path.open('r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
+
+    def normalize_artist(self, artist) -> str:
+        artist_name = str(artist)
+        if override := self.artist_name_overrides.get(artist_name):
+            log.debug(f'Overriding {artist_name=!r} with {override!r}')
+            return override
+        return artist_name
 
     @cached_property
     def _artists(self):
@@ -161,7 +182,7 @@ class AlbumUpdater:
     def artist(self) -> ArtistType:
         artist = self._artist
         # noinspection PyUnresolvedReferences
-        if isinstance(self.disco_part, SoundtrackPart) and not self.edition.full_ost:
+        if self.ost and not self.edition.full_ost:
             if name := artist.name.english or artist.name.non_eng:
                 try:
                     return Artist.from_title(name, sites=['kpop.fandom.com', 'www.generasia.com'])
@@ -183,14 +204,15 @@ class AlbumUpdater:
     @cached_property
     def album_artist_name(self) -> str:
         if group := self._artist_group:
-            return f'{self.artist.name} ({group.name})'
-        return str(self.album_artist.name)
+            return f'{self.normalize_artist(self.artist.name)} ({group.name})'
+        return self.normalize_artist(self.album_artist.name)
 
     @cached_property
     def artist_name(self) -> str:
+        artist_name = self.normalize_artist(self.artist.name)
         if group := self._artist_group:
-            return f'{self.artist.name} ({group.name})'
-        return str(self.artist.name)
+            return f'{artist_name} ({group.name})'
+        return artist_name
 
     def _normalize_name(self, name: str) -> str:
         if self.title_case and UPPER_CHAIN_SEARCH(name) or name.lower() == name:
@@ -209,16 +231,15 @@ class AlbumUpdater:
             if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin'):
                 values['genre'] = f'{lang[0]}-pop'
 
-        change_artist = self._artist != self.artist
         updates = {}
         for file, track in self.file_track_map.items():
             updates[file] = file_values = values.copy()
             file_values['title'] = self._normalize_name(track.full_name(self.collab_mode in (CM.TITLE, CM.BOTH)))
-            if change_artist and (extras := track.name.extra):
+            if self.ost and (extras := track.name.extra):
                 # noinspection PyUnboundLocalVariable
                 extras.pop('artists', None)
             track_artist_name = track.artist_name(self.artist_name, self.collab_mode in (CM.ARTIST, CM.BOTH))
-            file_values['artist'] = self.artist_name if change_artist else track_artist_name
+            file_values['artist'] = self.artist_name if self.ost else track_artist_name
             if file.tag_type == 'mp4':
                 file_values['track'] = (track.num, len(self.file_track_map))        # TODO: Handle incomplete file set
                 file_values['disk'] = (disk_num, disk_num)                          # TODO: get actual disk count
@@ -247,13 +268,14 @@ class AlbumUpdater:
                 json.dump(_updates, f, sort_keys=True, indent=4, ensure_ascii=False)
             return False
 
+        include_collabs = self._artist != self.artist
         common_changes = get_common_changes(self.album_dir, updates, extra_newline=True, dry_run=self.dry_run)
         prefix = '[DRY RUN] Would rename' if self.dry_run else 'Renaming'
         for file, values in updates.items():
             track = self.file_track_map[file]
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             file.update_tags(values, self.dry_run, no_log=common_changes)
-            track_name = self._normalize_name(track.full_name(True))
+            track_name = self._normalize_name(track.full_name(include_collabs))
             filename = TRACK_NAME_FORMAT(track=track_name, ext=file.ext, num=track.num)
             if file.path.name != filename:
                 rel_path = Path(file.rel_path)
@@ -267,11 +289,14 @@ class AlbumUpdater:
         edition = self.edition
         artist_name = self.artist.name.english
         alb_artist_name = self.album_artist.name.english
-        rel_dir_fmt = _album_format(edition.date, edition.type.numbered and edition.entry.number)
+        solo_of_group = isinstance(self.artist, Singer) and self.artist.groups and not self.soloist
+        rel_dir_fmt = _album_format(
+            edition.date, edition.type.numbered and edition.entry.number, solo_of_group and self.ost
+        )
         if dest_base_dir is None:
             dest_base_dir = self.album_dir.path.parent
         else:
-            if isinstance(self.artist, Singer) and self.artist.groups and not self.soloist:
+            if solo_of_group and not self.ost:
                 rel_dir_fmt = SOLO_DIR_FORMAT + rel_dir_fmt
             else:
                 rel_dir_fmt = ARTIST_TYPE_DIRS + rel_dir_fmt
@@ -320,12 +345,12 @@ class ArtistSet:
         return ', '.join(str(a.name) for a in self.artists)
 
 
-def _album_format(date, num):
+def _album_format(date, num, solo_ost):
     if date and num:
         return SafePath('[{date}] {album} [{album_num}]')
     elif date:
-        return SafePath('[{date}] {album}')
+        return SafePath('[{date}] {album} [{singer} solo]' if solo_ost else '[{date}] {album}')
     elif num:
         return SafePath('{album} [{album_num}]')
     else:
-        return SafePath('{album}')
+        return SafePath('{album} [{singer} solo]' if solo_ost else '{album}')

@@ -31,7 +31,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         if profile := get_section_map(artist_page, 'Profile'):
-            keys = ('Name', 'Real name')
+            keys = ('Name', 'Real name', 'Group name')
             for key in keys:
                 if value := profile.get(key):
                     parts = value.value.split(' / ')
@@ -61,21 +61,26 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             if title.lower().endswith('(inst.)'):
                 title = title[:-7].strip()
                 extra['instrumental'] = True
-            return Name(title, extra=extra)
+            return Name.from_parts((title,), extra=extra)
+        elif len(title) == 2:
+            br, non_eng = title
+            eng = None
         else:
             try:
                 eng, br, non_eng = title
             except Exception as e:
-                raise ValueError(f'Unexpected track node content for {node=!r}')
+                raise ValueError(f'Unexpected track node content for {node=!r}') from e
             else:
-                eng, non_eng = eng.value, non_eng.value
-                if eng.lower().endswith('(inst.)'):
-                    eng = eng[:-7].strip()
-                    extra['instrumental'] = True
-                if non_eng.lower().endswith('(inst.)'):
-                    non_eng = non_eng[:-7].strip()
-                    extra['instrumental'] = True
-                return Name(eng, non_eng, extra=extra)
+                eng = eng.value
+
+        non_eng = non_eng.value
+        if eng and eng.lower().endswith('(inst.)'):
+            eng = eng[:-7].strip()
+            extra['instrumental'] = True
+        if non_eng.lower().endswith('(inst.)'):
+            non_eng = non_eng[:-7].strip()
+            extra['instrumental'] = True
+        return Name.from_parts((eng, non_eng), extra=extra)
 
     @classmethod
     def parse_single_page_track_name(cls, page: WikiPage) -> Name:

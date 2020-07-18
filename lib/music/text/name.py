@@ -467,7 +467,9 @@ class Name(ClearableCachedPropertyMixin):
         extra = []
         name = None
         for part in parts:
-            if name is not None:
+            if not part:
+                continue
+            elif name is not None:
                 extra.append(part)
             elif not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
                 non_eng = part

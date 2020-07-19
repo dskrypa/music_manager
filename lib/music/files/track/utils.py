@@ -21,7 +21,7 @@ from ds_tools.output.table import mono_width
 from ...common import stars
 
 if TYPE_CHECKING:
-    from .base import BaseSongFile
+    from .track import SongFile
 
 __all__ = [
     'MusicFileProperty', 'RATING_RANGES', 'TYPED_TAG_MAP', 'FileBasedObject', 'TextTagProperty', 'print_tag_changes',
@@ -132,7 +132,7 @@ class TextTagProperty(ClearableCachedProperty):
         self.cast_func = cast_func
         self.default = default
 
-    def __get__(self, instance: 'BaseSongFile', cls: Type['BaseSongFile']):
+    def __get__(self, instance: 'SongFile', cls: Type['SongFile']):
         if instance is None:
             return self
         if value := instance.tag_text(self.tag_name, default=self.default):
@@ -149,7 +149,7 @@ class TextTagProperty(ClearableCachedProperty):
         instance.delete_tag(instance.tag_name_to_id(self.tag_name))
 
 
-def count_tag_changes(updates: Mapping['BaseSongFile', Mapping[str, Any]]) -> Dict[str, Dict[Tuple[Any, Any], int]]:
+def count_tag_changes(updates: Mapping['SongFile', Mapping[str, Any]]) -> Dict[str, Dict[Tuple[Any, Any], int]]:
     counts = defaultdict(Counter)
     for file, values in updates.items():
         for tag_name, new_val in values.items():

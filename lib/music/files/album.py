@@ -21,7 +21,7 @@ from tz_aware_dt import format_duration
 from ..common import DiscoEntryType
 from ..text import Name
 from .exceptions import *
-from .track import BaseSongFile, SongFile, AlbumName
+from .track import SongFile, AlbumName
 from .utils import iter_music_files, get_common_changes
 
 __all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs', 'iter_albums_or_files']
@@ -215,10 +215,6 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 log.debug('Multiple dates found in {}: {}'.format(self, ', '.join(sorted(map(str, dates)))))
         return None
 
-    @cached_property
-    def _is_full_ost(self) -> bool:
-        return all(f._is_full_ost for f in self.songs)
-
     def fix_song_tags(self, dry_run=False, add_bpm=False):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
 
@@ -321,7 +317,7 @@ def _cleanup_executor():
 
 
 # Note: The only time this property is not available is in interactive sessions started for the files.track.base module
-BaseSongFile.album_dir_obj = cached_property(_album_dir_obj)
+SongFile.album_dir_obj = cached_property(_album_dir_obj)
 
 
 if __name__ == '__main__':

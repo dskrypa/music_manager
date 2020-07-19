@@ -6,8 +6,8 @@ import re
 from fnmatch import translate as fnmatch_to_regex_str
 
 __all__ = [
-    'ALBUM_CLEANUP_RE_FUNCS', 'ALBUM_DIR_CLEANUP_RE_FUNCS', 'ALBUM_VOLUME_MATCH', 'EXTRACT_PART_MATCH',
-    'GROUP_TITLE_MATCH_FUNCS', 'compiled_fnmatch_patterns', 'cleanup_album_name'
+    'ALBUM_CLEANUP_RE_FUNCS', 'EXTRACT_PART_MATCH', 'GROUP_TITLE_MATCH_FUNCS', 'LYRIC_URL_MATCH',
+    'compiled_fnmatch_patterns', 'cleanup_album_name'
 ]
 
 ALBUM_CLEANUP_RE_FUNCS = (
@@ -24,16 +24,11 @@ ALBUM_CLEANUP_RE_FUNCS = (
     (re.compile(r'^(.*)\sO\.S\.T\.?(\s.*|$)', re.IGNORECASE).match, lambda m: '{} OST{}'.format(*m.groups()))
 )
 
-ALBUM_DIR_CLEANUP_RE_FUNCS = (
-    (re.compile(r'^\[\d{4}[0-9.]*\] (.*)$').match, lambda m: m.group(1).strip()),   # Begins with date
-    (re.compile(r'(.*)\s*\[.*Album\]').match, lambda m: m.group(1).strip()),        # Ends with Xth Album
-)
-
-ALBUM_VOLUME_MATCH = re.compile(r'(.*)(\((?:vol.?|volume) (?:\d+|[ivx]+)\))$', re.IGNORECASE).match
-
 EXTRACT_PART_MATCH = re.compile(r'^(.*)\s+((?:Part|Code No)\.?\s*\d+)$', re.IGNORECASE).match
 
 GROUP_TITLE_MATCH_FUNCS = [re.compile('^(.*) `(.*)`$').match, re.compile('^(.*) - (.*)$').match]
+
+LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
 
 
 def compiled_fnmatch_patterns(patterns):

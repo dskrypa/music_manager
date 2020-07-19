@@ -7,7 +7,7 @@ from itertools import chain
 from typing import TYPE_CHECKING, Iterator, Iterable, Union, Mapping, Any, Dict, Tuple
 
 from ds_tools.core.filesystem import iter_files, Paths
-from .track import BaseSongFile, SongFile, print_tag_changes, count_tag_changes
+from .track import SongFile, print_tag_changes, count_tag_changes
 
 if TYPE_CHECKING:
     from .album import AlbumDir
@@ -58,7 +58,7 @@ class SafePath:
 
 
 def get_common_changes(
-        album_dir: 'AlbumDir', updates: Mapping['BaseSongFile', Mapping[str, Any]], show=True, extra_newline=False,
+        album_dir: 'AlbumDir', updates: Mapping['SongFile', Mapping[str, Any]], show=True, extra_newline=False,
         dry_run=False
 ) -> Dict[str, Tuple[Any, Any]]:
     counts = count_tag_changes(updates)

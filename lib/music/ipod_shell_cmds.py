@@ -19,9 +19,7 @@ class TrackTags(ShellCommand, cmd='tags'):
     def __call__(self, file: Iterable[str]):
         tbl = Table(SimpleColumn('Tag'), SimpleColumn('Tag Name'), SimpleColumn('Value'), update_width=True)
         rows = []
-
         for path in self._rel_paths(file, False, True):
-            # TODO: SongFile isn't working with iPath objects yet
             music_file = SongFile(path)
             for tag, val in sorted(music_file.tags.items()):
                 if len(tag) > 4:

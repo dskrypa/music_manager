@@ -9,7 +9,7 @@ from ..ipod.path import iPath
 
 class FileCompleter(Completer):
     _complete_with_dirs = {'cd'}
-    _complete_with_files = {'cat', 'rm', 'head', 'touch', 'cp'}
+    _complete_with_files = {'cat', 'rm', 'head', 'touch', 'cp', 'tags'}
     _complete_with_any = {'stat', 'ls', 'lst', 'mkdir'}
     _complete_cmds = _complete_with_dirs.union(_complete_with_files).union(_complete_with_any)
 

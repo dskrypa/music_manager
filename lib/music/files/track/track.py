@@ -7,7 +7,7 @@ import os
 from datetime import date
 from tempfile import TemporaryDirectory
 from hashlib import sha256
-from io import BytesIO
+from io import BytesIO, RawIOBase
 from pathlib import Path
 from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict
 
@@ -61,13 +61,22 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return cls.__instances[file_path]
         except KeyError:
             options = (MP3, FLAC, MP4, ID3FileType) if options is _NotSet else options
+            ipod = hasattr(file_path, '_ipod')
+            filething = file_path.open('rb') if ipod else file_path
+            error = True
             try:
-                music_file = File(file_path, *args, options=options, **kwargs)
+                music_file = File(filething, *args, options=options, **kwargs)
             except Exception as e:
                 log.debug(f'Error loading {file_path}: {e}')
                 return None
-            if not music_file:          # mutagen.File is a function that returns different obj types based on the given
-                return None             # file path - it may return None
+            else:
+                if not music_file:          # mutagen.File is a function that returns different obj types based on the
+                    return None             # given file path - it may return None
+                error = False
+            finally:
+                if error and ipod:
+                    filething.close()
+
             obj = super().__new__(cls)
             obj._init(music_file, file_path)
             cls.__instances[file_path] = obj

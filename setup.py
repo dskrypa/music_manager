@@ -25,7 +25,7 @@ optional_dependencies = {
         'ffmpeg-python',        # Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
     ],
     'ipod': [
-        'pymobiledevice@ git+git://github.com/dskrypa/pymobiledevice',  # contains multiple improvements over upstream
+        'pypod@ git+git://github.com/dskrypa/pypod',
     ],
 }
 

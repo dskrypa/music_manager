@@ -1,2 +1,0 @@
-
-from .shell import iPodShell

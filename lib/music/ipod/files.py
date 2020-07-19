@@ -146,7 +146,25 @@ class iPodIOBase(RawIOBase):
         return True
 
     def seek(self, offset, whence=0):
-        return self._afc.file_seek(self._f, offset, whence)
+        # absolute position is calculated here instead of passing whence value because it doesn't seem to support
+        # negative offsets
+        if whence == 0:  # absolute
+            absolute = offset
+        elif whence == 1:  # from current position
+            absolute = self.tell() + offset
+            size = self._path.stat().st_size
+            if absolute < 0 or absolute > size:
+                raise ValueError(f'Resolved {absolute=} for {offset=} is invalid ({size=})')
+            log.debug(f'Seeking to pos={absolute} [{size=}]')
+        elif whence == 2:  # from end
+            if offset > 0:
+                raise ValueError(f'{offset=!r} is invalid when whence == 2')
+            size = self._path.stat().st_size
+            absolute = size + offset
+            log.debug(f'Seeking to pos={absolute} [{size=}]')
+        else:
+            raise ValueError(f'Invalid {whence=} - must be 0, 1, or 2')
+        return self._afc.file_seek(self._f, absolute, 0)
 
     def tell(self):
         return self._afc.file_tell(self._f)

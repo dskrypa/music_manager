@@ -13,7 +13,7 @@ from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC
-from mutagen.id3 import ID3, POPM, Frames, _frames
+from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4
 from plexapi.audio import Track
@@ -34,15 +34,17 @@ from .utils import (
 
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
+MutagenFile = Union[MP3, MP4, FLAC, FileType]
 
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
     __instances = {}                                                    # type: Dict[Path, 'SongFile']
     _bpm = None                                                         # type: Optional[int]
-    _f = None                                                           # type: Union[MP3, MP4, FLAC, FileType, None]
+    _f = None                                                           # type: Optional[MutagenFile]
+    _path = None                                                        # type: Optional[Path]
     tags = MusicFileProperty('tags')                                    # type: Union[ID3, MP4Tags, VCFLACDict]
-    filename = __fspath__ = MusicFileProperty('filename')               # type: str
+    filename = MusicFileProperty('filename')                            # type: str
     length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
     channels = MusicFileProperty('info.channels')                       # type: int
     bitrate = MusicFileProperty('info.bitrate')                         # type: int
@@ -53,21 +55,21 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_album = TextTagProperty('album', default=None)                  # type: Optional[str]
     date = TextTagProperty('date', parse_file_date)                     # type: Optional[date]
 
-    def __new__(cls, file_path: Union[Path, str], *args, **kwargs):
+    def __new__(cls, file_path: Union[Path, str], *args, options=_NotSet, **kwargs):
         file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path
         try:
             return cls.__instances[file_path]
         except KeyError:
+            options = (MP3, FLAC, MP4, ID3FileType) if options is _NotSet else options
             try:
-                music_file = File(file_path, *args, **kwargs)
+                music_file = File(file_path, *args, options=options, **kwargs)
             except Exception as e:
                 log.debug(f'Error loading {file_path}: {e}')
                 return None
             if not music_file:          # mutagen.File is a function that returns different obj types based on the given
                 return None             # file path - it may return None
             obj = super().__new__(cls)
-            obj._f = music_file
-            obj.__dict__['path'] = file_path  # Prevent Path->str->Path conversion for custom Path subtypes
+            obj._init(music_file, file_path)
             cls.__instances[file_path] = obj
             return obj
 
@@ -76,6 +78,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self._album_dir = None
             self._in_album_dir = False
             self.__initialized = True
+
+    def _init(self, mutagen_file: MutagenFile, path: Path):
+        self._f = mutagen_file
+        self._path = path
 
     def __getitem__(self, item):
         return self._f[item]
@@ -89,6 +95,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def __getstate__(self):
         return None  # prevents calling __setstate__ on unpickle; simpler for rebuilt obj to re-calculate cached attrs
+
+    @property
+    def path(self):
+        return self._path
 
     def rename(self, dest_path: Union[Path, str]):
         old_path = self.path
@@ -119,12 +129,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self.path.rename(dest_path)
 
         self.clear_cached_properties()          # trigger self.path descriptor update (via FileBasedObject)
-        new_path = dest_path
-        self._f = File(new_path.as_posix())
+        self._init(File(dest_path, options=(self._f.__class__,)), dest_path)
 
         cls = type(self)
         del cls.__instances[old_path]
-        cls.__instances[new_path] = self
+        cls.__instances[dest_path] = self
 
     def save(self):
         self._f.tags.save(self._f.filename)

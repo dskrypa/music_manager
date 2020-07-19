@@ -6,6 +6,7 @@ import logging
 import platform
 import re
 import string
+from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
 from datetime import datetime, date
 from pathlib import Path
@@ -81,12 +82,11 @@ def tag_repr(tag_val, max_len=None, sub_len=None):
     return tag_val
 
 
-class FileBasedObject:
-    __fspath__ = None
-
-    @cached_property
+class FileBasedObject(ABC):
+    @property
+    @abstractmethod
     def path(self) -> Path:
-        return Path(self.__fspath__).resolve()
+        raise NotImplementedError
 
     @property
     def rel_path(self) -> str:
@@ -106,6 +106,9 @@ class FileBasedObject:
     @cached_property
     def ext(self) -> str:
         return self.path.suffix[1:]
+
+    def __fspath__(self):
+        return self.path.as_posix()
 
 
 class MusicFileProperty(ClearableCachedProperty):

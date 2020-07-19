@@ -11,12 +11,11 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict
 
-import mutagen
-import mutagen.id3._frames
-from mutagen import File
-from mutagen.flac import VCFLACDict
-from mutagen.id3 import ID3, POPM, Frames
-from mutagen.mp4 import MP4Tags
+from mutagen import File, FileType
+from mutagen.flac import VCFLACDict, FLAC
+from mutagen.id3 import ID3, POPM, Frames, _frames
+from mutagen.mp3 import MP3
+from mutagen.mp4 import MP4Tags, MP4
 from plexapi.audio import Track
 
 from ds_tools.caching import ClearableCachedPropertyMixin
@@ -39,9 +38,10 @@ log = logging.getLogger(__name__)
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
-    __instances = {}  # type: Dict[Path, 'SongFile']
-    _bpm = None
-    tags = MusicFileProperty('tags')
+    __instances = {}                                                    # type: Dict[Path, 'SongFile']
+    _bpm = None                                                         # type: Optional[int]
+    _f = None                                                           # type: Union[MP3, MP4, FLAC, FileType, None]
+    tags = MusicFileProperty('tags')                                    # type: Union[ID3, MP4Tags, VCFLACDict]
     filename = __fspath__ = MusicFileProperty('filename')               # type: str
     length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
     channels = MusicFileProperty('info.channels')                       # type: int
@@ -120,8 +120,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
         self.clear_cached_properties()          # trigger self.path descriptor update (via FileBasedObject)
         new_path = dest_path
-        # noinspection PyAttributeOutsideInit
-        self._f = mutagen.File(new_path.as_posix())
+        self._f = File(new_path.as_posix())
 
         cls = type(self)
         del cls.__instances[old_path]
@@ -209,7 +208,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 raise
         elif tag_type == 'mp3':
             try:
-                tag_cls = getattr(mutagen.id3._frames, tag_id.upper())
+                tag_cls = getattr(_frames, tag_id.upper())
             except AttributeError as e:
                 raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
             else:
@@ -501,7 +500,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             tmp = BytesIO(f.read())
 
         try:
-            mutagen.File(tmp).tags.delete(tmp)
+            File(tmp).tags.delete(tmp)
         except AttributeError as e:
             log.error('Error determining tagless sha256sum for {}: {}'.format(self._f.filename, e))
             return self._f.filename

@@ -52,6 +52,7 @@ def update_tracks(
     if url:
         album_dirs = list(iter_album_dirs(paths))
         if len(album_dirs) > 1:
+            log.debug(f'Found dirs: {album_dirs}')
             raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
 
         entry = DiscographyEntry.from_url(url)

@@ -5,9 +5,9 @@
 import logging
 import re
 from dataclasses import dataclass, InitVar, fields
+from functools import cached_property
 from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
-from ds_tools.compat import cached_property
 from ds_tools.unicode.languages import LangCat
 from ...common import DiscoEntryType
 from ...text import (

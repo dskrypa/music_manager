@@ -5,11 +5,11 @@
 import logging
 import re
 from datetime import datetime, date
+from functools import cached_property
 from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable, Any
 
 from ordered_set import OrderedSet
 
-from ds_tools.compat import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
 from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table

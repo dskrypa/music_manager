@@ -3,9 +3,9 @@
 """
 
 import logging
+from functools import cached_property
 from typing import Optional, Union, Mapping, Iterable, List
 
-from ds_tools.compat import cached_property
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, Link
 from wiki_nodes.nodes import N

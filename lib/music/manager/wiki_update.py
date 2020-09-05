@@ -5,10 +5,10 @@
 import json
 import logging
 import re
+from functools import cached_property
 from pathlib import Path
 from typing import Union, Optional, Dict, Any, Tuple
 
-from ds_tools.compat import cached_property
 from ds_tools.core import Paths
 from ds_tools.input import choose_item
 from ds_tools.output import colored

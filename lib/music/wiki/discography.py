@@ -5,9 +5,9 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
+from functools import cached_property
 from typing import TYPE_CHECKING, Dict, List, Iterable, Iterator, Optional, Union
 
-from ds_tools.compat import cached_property
 from wiki_nodes import MediaWikiClient, Link
 from .album import DiscographyEntry, DiscographyEntryEdition
 from .base import EntertainmentEntity

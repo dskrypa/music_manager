@@ -5,12 +5,12 @@ Artist wiki pages.
 """
 
 import logging
+from functools import cached_property
 from itertools import chain
 from typing import MutableSet, List, Optional, Union, Set
 
 from ordered_set import OrderedSet
 
-from ds_tools.compat import cached_property
 from ..text import Name
 from .base import PersonOrGroup, GROUP_CATEGORIES, SINGER_CATEGORIES
 from .discography import DiscographyEntryFinder, DiscographyMixin

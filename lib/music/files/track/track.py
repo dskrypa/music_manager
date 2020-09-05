@@ -5,10 +5,11 @@
 import logging
 import os
 from datetime import date
-from tempfile import TemporaryDirectory
+from functools import cached_property
 from hashlib import sha256
-from io import BytesIO, RawIOBase
+from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict
 
 from mutagen import File, FileType
@@ -19,7 +20,6 @@ from mutagen.mp4 import MP4Tags, MP4
 from plexapi.audio import Track
 
 from ds_tools.caching import ClearableCachedPropertyMixin
-from ds_tools.compat import cached_property
 from tz_aware_dt import format_duration
 from ...constants import tag_name_map
 from ...text import Name

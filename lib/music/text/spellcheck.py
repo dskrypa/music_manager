@@ -6,12 +6,12 @@ import logging
 import lzma
 import pkg_resources
 import re
+from functools import cached_property
 from pathlib import Path
 
 from symspellpy import SymSpell, Verbosity
 
 from ds_tools.core import get_user_cache_dir
-from ds_tools.compat import cached_property
 
 __all__ = ['init_sym_spell', 'is_english', 'english_probability']
 log = logging.getLogger(__name__)

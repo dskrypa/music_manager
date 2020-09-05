@@ -4,10 +4,9 @@
 
 import logging
 from itertools import chain
-from functools import partialmethod
+from functools import partialmethod, cached_property
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable
 
-from ds_tools.compat import cached_property
 from wiki_nodes import CompoundNode, String, Link
 from ..text import Name, combine_with_parens, strip_enclosed
 from .parsing.utils import replace_lang_abbrev

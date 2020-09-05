@@ -4,9 +4,9 @@
 
 import logging
 from enum import Enum
+from functools import cached_property
 from typing import Iterable, Optional, Union, List
 
-from ds_tools.compat import cached_property
 from ds_tools.core.decorate import cached_classproperty
 
 __all__ = ['DiscoEntryType']

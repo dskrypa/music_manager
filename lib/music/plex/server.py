@@ -6,7 +6,7 @@ Local Plex server client implementation.
 
 import logging
 from configparser import NoSectionError
-from functools import partialmethod
+from functools import partialmethod, cached_property
 from getpass import getpass
 from pathlib import Path
 from typing import Optional, Collection, Dict, Iterable
@@ -21,7 +21,6 @@ from plexapi.utils import SEARCHTYPES
 from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
-from ds_tools.compat import cached_property
 from ds_tools.input import get_input
 from ds_tools.output import bullet_list
 from ..files.track.track import SongFile

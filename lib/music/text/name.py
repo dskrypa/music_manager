@@ -5,13 +5,13 @@
 import logging
 import re
 from copy import copy, deepcopy
+from functools import cached_property
 from typing import (
     Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Collection, TypeVar, Dict, MutableMapping,
     Mapping
 )
 
 from ds_tools.caching import ClearableCachedPropertyMixin
-from ds_tools.compat import cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
 from .extraction import split_enclosed

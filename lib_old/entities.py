@@ -9,6 +9,7 @@ import string
 import traceback
 from collections import defaultdict, OrderedDict
 from contextlib import suppress
+from functools import cached_property
 from itertools import chain
 from pathlib import Path
 from urllib.parse import urlparse
@@ -17,7 +18,6 @@ import bs4
 from cachetools import LRUCache
 
 from ds_tools.caching import cached, DictAttrProperty
-from ds_tools.compat import cached_property
 from ds_tools.http import CodeBasedRestException
 from ds_tools.unicode import LangCat, romanized_permutations, matches_permutation
 from ds_tools.utils import normalize_roman_numerals, ParentheticalParser

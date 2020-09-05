@@ -215,6 +215,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 name.set_eng_or_rom(title)
             else:
                 try:
+                    # TODO: Handle case: """~how i'm feeling~"""
                     a, b = split_enclosed(title, reverse=True, maxsplit=1)
                 except Exception:
                     log.error(f'Error splitting {title=!r}', exc_info=True)

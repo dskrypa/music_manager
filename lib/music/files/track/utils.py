@@ -9,6 +9,7 @@ import string
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
 from datetime import datetime, date
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Tuple, Any, Callable, Optional, Type, Dict
 from unicodedata import normalize
@@ -16,7 +17,6 @@ from unicodedata import normalize
 from mutagen.id3 import POPM, USLT, APIC
 
 from ds_tools.caching import ClearableCachedProperty
-from ds_tools.compat import cached_property
 from ds_tools.output import colored, uprint
 from ds_tools.output.table import mono_width
 from ...common import stars

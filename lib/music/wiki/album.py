@@ -12,7 +12,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
-from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table
+from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table, Template
 from ..common import DiscoEntryType
 from ..text import combine_with_parens, Name, strip_enclosed
 from .base import EntertainmentEntity, Pages, TVSeries
@@ -360,8 +360,27 @@ class DiscographyEntryEdition(_ArtistMixin):
         if lang := self._lang:
             return lang
         if artist := self.artist:
-            lang = artist.language
+            if self.page.site == 'www.generasia.com':
+                lang = self._get_lang_from_artist_template()
+            lang = lang or artist.language
         return 'Korean' if not lang and self.page.site == 'kpop.fandom.com' else lang
+
+    def _get_lang_from_artist_template(self):
+        for tmpl in self.page.sections.find_all(Template, True):
+            if tmpl.name == self.artist.name.english and tmpl.value is None:
+                mwc = MediaWikiClient(tmpl.root.site)
+                template = mwc.get_page(f'Template:{tmpl.name}').sections.content.zipped
+                for section, values in template.items():
+                    if lang := next((val for val in ('Korean', 'Japanese') if section.startswith(val)), None):
+                        if isinstance(values, Link):
+                            if self.page.title == values.title:
+                                return lang
+                        else:
+                            for node in values:
+                                if isinstance(node, Link) and self.page.title == node.title:
+                                    return lang
+                break
+        return None
 
     @cached_property
     def name_base(self) -> Name:

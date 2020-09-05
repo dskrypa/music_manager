@@ -20,7 +20,9 @@ from music.files import apply_mutagen_patches
 from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
 )
-from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm
+from music.manager.file_update import (
+    path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm, dump_tags
+)
 from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
 from music.manager.wiki_match import show_matches, test_match
 from music.manager.wiki_update import update_tracks
@@ -77,7 +79,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites, args.dump, args.load
+                args.destination, args.title_case, args.sites, args.dump, args.load, args.no_match
             )
         elif sub_action == 'match':
             show_matches(args.path)
@@ -100,6 +102,8 @@ def main():
         remove_tags(args.path, args.tag, args.dry_run)
     elif action == 'bpm':
         add_track_bpm(args.path, args.parallel, args.dry_run)
+    elif action == 'dump':
+        dump_tags(args.path, args.output)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
 
@@ -144,6 +148,10 @@ def _add_file_actions(parser: ArgParser):
     bpm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
     bpm_parser.include_common_args(parallel=4)
     # bpm_parser.add_argument('--parallel', '-P', type=int, default=1, help='Maximum number of workers to use in parallel (default: %(default)s)'))
+
+    dump_parser = parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json')
+    dump_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+    dump_parser.add_argument('--output', '-P', metavar='PATH', help='The destination file path')
     # fmt: on
 
 
@@ -180,7 +188,9 @@ def _add_wiki_actions(parser: ArgParser):
     bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
     bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
     bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
-    upd_data = upd_parser.add_argument_group('Track Data Options').add_mutually_exclusive_group()
+    upd_opts = upd_parser.add_argument_group('Track Data Options')
+    upd_opts.add_argument('--no_match', '-m', action='store_true', help='When --load/-L is specified, do not attempt to match with wiki pages')
+    upd_data = upd_opts.add_mutually_exclusive_group()
     upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
     upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
 

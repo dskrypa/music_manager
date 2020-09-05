@@ -5,6 +5,7 @@
 import json
 import logging
 import re
+from datetime import date, datetime
 from functools import cached_property
 from pathlib import Path
 from typing import Union, Optional, Dict, Any, Tuple
@@ -13,6 +14,7 @@ from ds_tools.core import Paths
 from ds_tools.input import choose_item
 from ds_tools.output import colored
 from ..files import iter_album_dirs, AlbumDir, SafePath, SongFile, get_common_changes
+from ..text import Name
 from ..wiki import Track, Artist, Singer, Group
 from ..wiki.album import DiscographyEntry, DiscographyEntryPart, Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
@@ -37,7 +39,7 @@ UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 def update_tracks(
     paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
     url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None, title_case=False,
-    sites: StrOrStrs = None, dump: Optional[str] = None, load: Optional[str] = None,
+    sites: StrOrStrs = None, dump: Optional[str] = None, load: Optional[str] = None, no_match=False,
 ):
     if not isinstance(collab_mode, CM):
         collab_mode = CM(collab_mode)
@@ -61,34 +63,178 @@ def update_tracks(
         )
     else:
         for album_dir in iter_album_dirs(paths):
-            try:
-                updater = AlbumUpdater.for_album_dir(
-                    album_dir, dry_run, soloist, hide_edition, collab_mode, title_case, sites
-                )
-            except MatchException as e:
-                log.log(e.lvl, e, extra={'color': 9})
-                log.debug(e, exc_info=True)
+            if load and no_match:
+                BaseAlbumUpdater(album_dir, dry_run, title_case, load).update(dest_base_dir, add_bpm, dump, load)
             else:
-                updater.update(dest_base_dir, add_bpm, dump, load)
+                try:
+                    updater = AlbumUpdater.for_album_dir(
+                        album_dir, dry_run, soloist, hide_edition, collab_mode, title_case, sites
+                    )
+                except MatchException as e:
+                    log.log(e.lvl, e, extra={'color': 9})
+                    log.debug(e, exc_info=True)
+                else:
+                    updater.update(dest_base_dir, add_bpm, dump, load)
 
 
-class AlbumUpdater:
-    def __init__(
-            self, album_dir: AlbumDir, album: DiscoObj, dry_run=False, soloist=False, hide_edition=False,
-            collab_mode: CM = CM.ARTIST, title_case=False
+class BaseAlbumUpdater:
+    def __init__(self, album_dir: AlbumDir, dry_run=False, title_case=False, load: Optional[Path] = None):
+        self.dry_run = dry_run
+        self.album_dir = album_dir
+        self.title_case = title_case
+        self.__track_info = self._get_track_updates(load) if load else None
+
+    def __get_common(self, key):
+        values = {entry[key] for entry in self.__track_info.values()}
+        if len(values) == 1:
+            return next(iter(values))
+        raise AttributeError
+
+    @cached_property
+    def _date(self) -> date:
+        return datetime.strptime(self.__get_common('date'), '%Y%m%d').date()
+
+    @cached_property
+    def _album_name(self):
+        return self.__get_common('album')
+
+    @cached_property
+    def ost(self):
+        return self.album_dir.name.ost
+
+    @cached_property
+    def album_artist_name(self) -> str:
+        return self.__get_common('album_artist')
+
+    @cached_property
+    def artist_name(self) -> str:
+        return self.__get_common('artist')
+
+    @cached_property
+    def album_artist__name(self) -> Name:
+        return Name.from_enclosed(self.album_artist_name)
+
+    @cached_property
+    def artist__name(self) -> Name:
+        return Name.from_enclosed(self.artist_name)
+
+    def _normalize_name(self, name: str) -> str:
+        if self.title_case and UPPER_CHAIN_SEARCH(name) or name.lower() == name:
+            name = name.title().replace("I'M ", "I'm ")
+        return name
+
+    def _get_track_updates(self, load: Path) -> TrackUpdates:
+        try:
+            if self.__track_info is not None:
+                return self.__track_info
+        except AttributeError:
+            pass
+        log.info(f'Loading track updates from {load}')
+        with load.open('r', encoding='utf-8') as f:
+            _updates = json.load(f)
+
+        files = {f.path.as_posix(): f for f in self.album_dir.songs}
+        return {files[k]: v for k, v in _updates.items()}
+
+    def _maybe_rename_track(self, file, track_name, num):
+        prefix = '[DRY RUN] Would rename' if self.dry_run else 'Renaming'
+        filename = TRACK_NAME_FORMAT(track=track_name, ext=file.ext, num=num)
+        if file.path.name != filename:
+            rel_path = Path(file.rel_path)
+            log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')
+            if not self.dry_run:
+                file.rename(file.path.with_name(filename))
+
+    def _apply_track_updates(self, dump: Optional[Path] = None, load: Optional[Path] = None):
+        updates = self._get_track_updates(load)
+        if dump:
+            log.info(f'Dumping track updates that would be made to {dump}')
+            _updates = {file.path.as_posix(): values for file, values in updates.items()}
+            with dump.open('w', encoding='utf-8') as f:
+                json.dump(_updates, f, sort_keys=True, indent=4, ensure_ascii=False)
+            return False
+
+        common_changes = get_common_changes(self.album_dir, updates, extra_newline=True, dry_run=self.dry_run)
+        for file, values in updates.items():
+            log.debug(f'Matched {file} to {values["title"]}')
+            file.update_tags(values, self.dry_run, no_log=common_changes)
+            track_name = self._normalize_name(values['title'])
+            self._maybe_rename_track(file, track_name, values['track'])
+
+        return True
+
+    def _move_dir(self, dest_base_dir, expected_rel_dir):
+        expected_dir = dest_base_dir.joinpath(expected_rel_dir)
+        if expected_dir != self.album_dir.path:
+            prefix = '[DRY RUN] Would move' if self.dry_run else 'Moving'
+            log.info(f'{prefix} {self.album_dir} -> {expected_dir}')
+            if not self.dry_run:
+                orig_parent_path = self.album_dir.path.parent
+                self.album_dir.move(expected_dir)
+                for path in (orig_parent_path, orig_parent_path.parent):
+                    log.log(19, f'Checking directory: {path}')
+                    if path.exists() and next(path.iterdir(), None) is None:
+                        log.log(19, f'Removing empty directory: {path}')
+                        path.rmdir()
+        else:
+            log.log(19, f'Album {self.album_dir} is already in the expected dir: {expected_dir}')
+
+    def _move_album_dir(self, dest_base_dir: Optional[Path] = None):
+        artist_name = self.artist__name.english
+        alb_artist_name = self.album_artist__name.english
+
+        rel_dir_fmt = _album_format(True, False, False)
+        if dest_base_dir is None:
+            dest_base_dir = self.album_dir.path.parent
+        else:
+            rel_dir_fmt = ARTIST_TYPE_DIRS + rel_dir_fmt
+
+        expected_rel_dir = rel_dir_fmt(
+            artist=alb_artist_name, type_dir='Unknown', album_num=False, album=self._album_name,
+            date=self._date.strftime('%Y.%m.%d'), singer=artist_name
+        )
+        self._move_dir(dest_base_dir, expected_rel_dir)
+
+    def update(
+        self,
+        dest_base_dir: Optional[Path] = None,
+        add_bpm=False,
+        dump: Optional[Path] = None,
+        load: Optional[Path] = None,
     ):
+        self.album_dir.remove_bad_tags(self.dry_run)
+        self.album_dir.fix_song_tags(self.dry_run, add_bpm)
+        if self._apply_track_updates(dump, load):
+            self._move_album_dir(dest_base_dir)
+
+
+class AlbumUpdater(BaseAlbumUpdater):
+    def __init__(
+        self,
+        album_dir: AlbumDir,
+        album: DiscoObj,
+        dry_run=False,
+        soloist=False,
+        hide_edition=False,
+        collab_mode: CM = CM.ARTIST,
+        title_case=False,
+    ):
+        super().__init__(album_dir, dry_run, title_case)
         self.soloist = soloist
         self.hide_edition = hide_edition
         self.collab_mode = collab_mode
-        self.dry_run = dry_run
-        self.album_dir = album_dir
         self.album = album
-        self.title_case = title_case
 
     @classmethod
     def for_album_dir(
-            cls, album_dir: AlbumDir, dry_run=False, soloist=False, hide_edition=False, collab_mode: CM = CM.ARTIST,
-            title_case=False, sites: StrOrStrs = None
+        cls,
+        album_dir: AlbumDir,
+        dry_run=False,
+        soloist=False,
+        hide_edition=False,
+        collab_mode: CM = CM.ARTIST,
+        title_case=False,
+        sites: StrOrStrs = None,
     ) -> 'AlbumUpdater':
         try:
             album = find_album(album_dir, sites=sites)
@@ -192,6 +338,10 @@ class AlbumUpdater:
         return artist
 
     @cached_property
+    def artist__name(self) -> Name:
+        return self.artist.name
+
+    @cached_property
     def _artist_group(self) -> Optional[Group]:
         artist = self.artist
         if isinstance(artist, Singer) and artist.groups and not self.soloist:
@@ -201,6 +351,10 @@ class AlbumUpdater:
     @cached_property
     def album_artist(self) -> ArtistType:
         return self._artist_group or self.artist
+
+    @cached_property
+    def album_artist__name(self) -> Name:
+        return self.album_artist.name
 
     @cached_property
     def album_artist_name(self) -> str:
@@ -214,11 +368,6 @@ class AlbumUpdater:
         if group := self._artist_group:
             return f'{artist_name} ({group.name})'
         return artist_name
-
-    def _normalize_name(self, name: str) -> str:
-        if self.title_case and UPPER_CHAIN_SEARCH(name) or name.lower() == name:
-            name = name.title().replace("I'M ", "I'm ")
-        return name
 
     def __get_track_updates(self) -> TrackUpdates:
         disk_num = self.disco_part.disc
@@ -251,45 +400,31 @@ class AlbumUpdater:
 
     def _get_track_updates(self, load: Optional[Path] = None) -> TrackUpdates:
         if load:
-            log.info(f'Loading track updates from {load}')
-            with load.open('r', encoding='utf-8') as f:
-                _updates = json.load(f)
-
-            files = {f.path.as_posix(): f for f in self.album_dir.songs}
-            return {files[k]: v for k, v in _updates.items()}
+            return super()._get_track_updates(load)
         else:
             return self.__get_track_updates()
 
     def _apply_track_updates(self, dump: Optional[Path] = None, load: Optional[Path] = None):
-        updates = self._get_track_updates(load)
+        log.info(f'Artist for {self.edition}: {self.artist}')
         if dump:
-            log.info(f'Dumping track updates that would be made to {dump}')
-            _updates = {file.path.as_posix(): values for file, values in updates.items()}
-            with dump.open('w', encoding='utf-8') as f:
-                json.dump(_updates, f, sort_keys=True, indent=4, ensure_ascii=False)
-            return False
+            return super()._apply_track_updates(dump, load)
 
+        updates = self._get_track_updates(load)
         include_collabs = self._artist != self.artist
         common_changes = get_common_changes(self.album_dir, updates, extra_newline=True, dry_run=self.dry_run)
-        prefix = '[DRY RUN] Would rename' if self.dry_run else 'Renaming'
         for file, values in updates.items():
             track = self.file_track_map[file]
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             file.update_tags(values, self.dry_run, no_log=common_changes)
             track_name = self._normalize_name(track.full_name(include_collabs))
-            filename = TRACK_NAME_FORMAT(track=track_name, ext=file.ext, num=track.num)
-            if file.path.name != filename:
-                rel_path = Path(file.rel_path)
-                log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')
-                if not self.dry_run:
-                    file.rename(file.path.with_name(filename))
+            self._maybe_rename_track(file, track_name, track.num)
 
         return True
 
     def _move_album_dir(self, dest_base_dir: Optional[Path] = None):
         edition = self.edition
-        artist_name = self.artist.name.english
-        alb_artist_name = self.album_artist.name.english
+        artist_name = self.artist__name.english
+        alb_artist_name = self.album_artist__name.english
         solo_of_group = isinstance(self.artist, Singer) and self.artist.groups and not self.soloist
         rel_dir_fmt = _album_format(
             edition.date, edition.type.numbered and edition.entry.number, solo_of_group and self.ost
@@ -307,33 +442,7 @@ class AlbumUpdater:
             album=self.disco_part.full_name(self.hide_edition), date=edition.date.strftime('%Y.%m.%d'),
             singer=artist_name
         )
-        expected_dir = dest_base_dir.joinpath(expected_rel_dir)
-        if expected_dir != self.album_dir.path:
-            prefix = '[DRY RUN] Would move' if self.dry_run else 'Moving'
-            log.info(f'{prefix} {self.album_dir} -> {expected_dir}')
-            if not self.dry_run:
-                orig_parent_path = self.album_dir.path.parent
-                self.album_dir.move(expected_dir)
-                for path in (orig_parent_path, orig_parent_path.parent):
-                    log.log(19, f'Checking directory: {path}')
-                    if path.exists() and next(path.iterdir(), None) is None:
-                        log.log(19, f'Removing empty directory: {path}')
-                        path.rmdir()
-        else:
-            log.log(19, f'Album {self.album_dir} is already in the expected dir: {expected_dir}')
-
-    def update(
-        self,
-        dest_base_dir: Optional[Path] = None,
-        add_bpm=False,
-        dump: Optional[Path] = None,
-        load: Optional[Path] = None,
-    ):
-        self.album_dir.remove_bad_tags(self.dry_run)
-        self.album_dir.fix_song_tags(self.dry_run, add_bpm)
-        log.info(f'Artist for {self.edition}: {self.artist}')
-        if self._apply_track_updates(dump, load):
-            self._move_album_dir(dest_base_dir)
+        self._move_dir(dest_base_dir, expected_rel_dir)
 
 
 class ArtistSet:

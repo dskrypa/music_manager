@@ -2,18 +2,21 @@
 :author: Doug Skrypa
 """
 
+import json
 import logging
 import re
 from fnmatch import translate as fnmatch_to_regex_str
 from functools import partial
 from multiprocessing import Pool
+from pathlib import Path
+from typing import Union
 
 from ds_tools.core import Paths
 from ds_tools.input import get_input
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ..files import iter_album_dirs, iter_music_files, TagException, iter_albums_or_files, SongFile
 
-__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags', 'add_track_bpm']
+__all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags', 'add_track_bpm', 'dump_tags']
 log = logging.getLogger(__name__)
 
 
@@ -87,3 +90,25 @@ def _add_bpm(track: SongFile, dry_run=False):
         log.info(f'{prefix}{add_msg} BPM={bpm} to {track}')
     else:
         log.log(19, f'{track} already has BPM={bpm}')
+
+
+def dump_tags(paths: Paths, dump_path: Union[str, Path]):
+    data = {}
+    for music_file in iter_music_files(paths):
+        data[music_file.path.as_posix()] = {
+            'album': music_file.tag_album,
+            'album_artist': music_file.tag_album_artist,
+            'artist': music_file.tag_artist,
+            'date': music_file.date.strftime('%Y%m%d'),
+            'disk': music_file.disk_num,
+            'title': music_file.tag_title,
+            'track': music_file.track_num,
+        }
+
+    dump_path = Path(dump_path)
+    if not dump_path.parent.exists():
+        dump_path.parent.mkdir(parents=True)
+
+    log.info(f'Dumping track tag info to {dump_path}')
+    with dump_path.open('w', encoding='utf-8', newline='\n') as f:
+        json.dump(data, f, sort_keys=True, indent=4, ensure_ascii=False)

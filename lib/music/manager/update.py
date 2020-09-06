@@ -170,7 +170,7 @@ class AlbumInfo:
 
     def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
         rel_fmt = _album_format(
-            self.date, self.type.numbered and self.number, self.solo_of_group and self.ost, self.disks
+            self.date, self.type.numbered and self.number, self.solo_of_group and self.ost, self.disks, self.ost
         )
         if dest_base_dir is None:
             dest_base_dir = album_dir.path.parent
@@ -210,7 +210,7 @@ def parse_date(dt_str: str) -> Optional[date]:
     return None
 
 
-def _album_format(date, num, solo_ost, disks=1):
+def _album_format(date, num, solo_ost, disks=1, ost=False):
     if date and num:
         path = SafePath('[{date}] {album} [{album_num}]')
     elif date:
@@ -220,7 +220,7 @@ def _album_format(date, num, solo_ost, disks=1):
     else:
         path = SafePath('{album} [{singer} solo]' if solo_ost else '{album}')
 
-    if disks and disks > 1:
+    if disks and disks > 1 and not ost:
         path += SafePath('Disk {disk}')
     return path
 

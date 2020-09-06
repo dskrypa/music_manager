@@ -81,12 +81,17 @@ class MiscExtractionTestCase(TestCaseBase):
             self.assertEqual(get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
 
     def test_ends_with_enclosed(self):
-        self.assertTrue(ends_with_enclosed("test 'one'"))
-        self.assertFalse(ends_with_enclosed("test one'"))
-        self.assertFalse(ends_with_enclosed("test 'one"))
-        self.assertTrue(ends_with_enclosed("test (one)"))
-        self.assertFalse(ends_with_enclosed("test one)"))
-        self.assertFalse(ends_with_enclosed("test (one"))
+        self.assertEqual("''", ends_with_enclosed("test 'one'"))
+        self.assertIsNone(ends_with_enclosed("test one'"))
+        self.assertIsNone(ends_with_enclosed("test 'one"))
+        self.assertEqual('()', ends_with_enclosed("test (one)"))
+        self.assertIsNone(ends_with_enclosed("test one)"))
+        self.assertIsNone(ends_with_enclosed("test (one"))
+        self.assertEqual('()', ends_with_enclosed("(test one)"))
+        self.assertEqual('~~', ends_with_enclosed("~test one~"))
+        self.assertEqual('~~', ends_with_enclosed("~test i'm one~"))
+        self.assertEqual('~~', ends_with_enclosed("~'test' i'm (one)~"))
+        self.assertEqual('()', ends_with_enclosed("'test' i'm (one)"))
 
     def test_strip_enclosed(self):
         self.assertEqual(strip_enclosed('"test"'), 'test')
@@ -178,6 +183,7 @@ class ExtractEnclosedTestCase(TestCaseBase):
             'a (b)': ('a', 'b'),
             'a (b) c': ('a', '(b) c'),
             'a (b) (c)': ('a', '(b) (c)'),
+            '~a i\'m b~': ('a i\'m b',)
         }
         for case, expected in cases_fwd.items():
             self.assertEqual(expected, split_enclosed(case, maxsplit=1))
@@ -188,6 +194,7 @@ class ExtractEnclosedTestCase(TestCaseBase):
             'a (b)': ('a', 'b'),
             'a (b) c': ('a (b)', 'c'),
             'a (b) (c)': ('a (b)', 'c'),
+            '~a i\'m b~': ('a i\'m b',)
         }
         for case, expected in cases_rev.items():
             self.assertEqual(expected, split_enclosed(case, maxsplit=1, reverse=True))

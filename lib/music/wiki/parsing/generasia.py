@@ -211,11 +211,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                                 incomplete_extra = process_extra(extras, b)
                             else:
                                 name._english = f'{a} ({b})'
-            elif title.startswith(opener) and title.endswith(closer) and all(title.count(c) == 1 for c in opener_closer):
+            elif title.startswith(opener) and title.endswith(closer) and no_extra_enclosers(title, opener_closer):
                 name.set_eng_or_rom(title)
             else:
                 try:
-                    # TODO: Handle case: """~how i'm feeling~"""
                     a, b = split_enclosed(title, reverse=True, maxsplit=1)
                 except Exception:
                     log.error(f'Error splitting {title=!r}', exc_info=True)
@@ -684,3 +683,12 @@ def classify_extra(text: str) -> Optional[str]:
         return 'edition'
 
     return None
+
+
+def no_extra_enclosers(title, opener_closer):
+    if all(title.count(c) == 1 for c in opener_closer):
+        return True
+    opener, closer = opener_closer
+    if opener == closer:
+        return title.count(opener) == 2
+    return False

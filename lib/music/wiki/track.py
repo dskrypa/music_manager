@@ -140,9 +140,9 @@ def artist_string(node: CompoundNode) -> Tuple[str, int]:
     for part in map(str, parts):
         if part:
             if last == ')':
-                if not part.startswith(')'):
+                if not part.startswith(')') and part != ',':
                     processed.append(' ')
-            elif last and last not in ' (':
+            elif last and last not in ' (' and part != ',':
                 processed.append(' ')
             processed.append(part)
             last = part[-1]

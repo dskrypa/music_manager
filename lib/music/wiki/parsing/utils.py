@@ -99,6 +99,8 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         except ValueError:
             if '(' in first_string:
                 name = first_string + ')'
+                if name.endswith('()'):
+                    name = name[:-2].strip()
             else:
                 name = first_string
 

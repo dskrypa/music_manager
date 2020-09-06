@@ -36,6 +36,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             yield from name_from_intro(artist_page)
         except ValueError as e:
             log.debug(e)
+        yield Name(artist_page.title)
 
     @classmethod
     def parse_album_name(cls, node: N) -> Name:

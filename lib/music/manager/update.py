@@ -21,7 +21,6 @@ from ..files import iter_album_dirs, AlbumDir, SongFile, SafePath, get_common_ch
 
 __all__ = ['TrackInfo', 'AlbumInfo']
 log = logging.getLogger(__name__)
-TagNum = Union[int, Tuple[int, int]]
 
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
 SOLO_DIR_FORMAT = SafePath('{artist}/Solo/{singer}')
@@ -38,7 +37,7 @@ class TrackInfo:
     album: 'AlbumInfo'  # The AlbumInfo that this track is in
     title: str = None   # Track title (tag)
     artist: str = None  # Artist name (if different than the album artist)
-    num: TagNum = None  # Track number
+    num: int = None     # Track number
     name: str = None    # File name to be used
     # fmt: on
 
@@ -49,12 +48,12 @@ class TrackInfo:
         tags = {
             'title': self.title,
             'artist': self.artist or self.album.artist,
-            'track': self.num,
+            'track': (self.num, len(self.album.tracks)) if self.album.mp4 else self.num,
             'date': self.album.date.strftime('%Y%m%d'),
             'genre': self.album.genre,
             'album': self.album.title,
             'album_artist': self.album.artist,
-            'disk': self.album.disk,
+            'disk': (self.album.disk, self.album.disks) if self.album.mp4 else self.album.disk,
         }
         return {k: v for k, v in tags.items() if v is not None}
 
@@ -65,7 +64,7 @@ class AlbumInfo:
     title: str = None                               # Album title (tag)
     artist: str = None                              # Album artist name
     date: date = None                               # Album release date
-    disk: TagNum = None                             # Disk number
+    disk: int = None                                # Disk number
     genre: str = None                               # Album genre
     tracks: Dict[str, TrackInfo] = default(dict)    # Mapping of {path: TrackInfo} for the tracks in this album
     name: str = None                                # Directory name to be used
@@ -75,6 +74,8 @@ class AlbumInfo:
     type: DiscoEntryType = None                     # The album type (single, album, mini album, etc.)
     number: int = None                              # This album is the Xth of its type from this artist
     numbered_type: str = None                       # The type + number within that type for this artist
+    disks: int = 1                                  # Total number of disks for this album
+    mp4: bool = False                               # Whether the files in this album are mp4s
     # fmt: on
 
     @property
@@ -86,11 +87,13 @@ class AlbumInfo:
         paths = {Path(path).parent for path in self.tracks}
         if len(paths) == 1:
             return AlbumDir(next(iter(paths)))
+        elif not paths:
+            raise ValueError('No parent paths were found')
         raise ValueError(f'Found multiple parent paths: {sorted(paths)}')
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> 'AlbumInfo':
-        kwargs = {f.name: data[f.name] for f in fields(cls) if f.name not in ('date', 'tracks', 'type')}
+        kwargs = {f.name: data.get(f.name, f.default) for f in fields(cls) if f.name not in ('date', 'tracks', 'type')}
         self = cls(**kwargs)
         if date_obj := data.get('date'):
             self.date = date_obj if isinstance(date_obj, date) else parse_date(date_obj)
@@ -151,7 +154,8 @@ class AlbumInfo:
             raise ValueError(f'Invalid {self.__class__.__name__} for {album_dir} - missing one more more files: {e}')
 
     def update_and_move(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
-        self.update_tracks(album_dir, dry_run)
+        if self.tracks:
+            self.update_tracks(album_dir, dry_run)
         self.move_album(album_dir, dest_base_dir, dry_run)
 
     def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False):
@@ -165,7 +169,9 @@ class AlbumInfo:
             maybe_rename_track(file, info.name, info.num, dry_run)
 
     def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
-        rel_fmt = _album_format(self.date, self.type.numbered and self.number, self.solo_of_group and self.ost)
+        rel_fmt = _album_format(
+            self.date, self.type.numbered and self.number, self.solo_of_group and self.ost, self.disks
+        )
         if dest_base_dir is None:
             dest_base_dir = album_dir.path.parent
         else:
@@ -178,6 +184,7 @@ class AlbumInfo:
             album=self.name,
             date=self.date.strftime('%Y.%m.%d'),
             singer=self.singer,
+            disk=self.disk,
         )
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)
         if expected_dir != album_dir.path:
@@ -203,15 +210,19 @@ def parse_date(dt_str: str) -> Optional[date]:
     return None
 
 
-def _album_format(date, num, solo_ost):
+def _album_format(date, num, solo_ost, disks=1):
     if date and num:
-        return SafePath('[{date}] {album} [{album_num}]')
+        path = SafePath('[{date}] {album} [{album_num}]')
     elif date:
-        return SafePath('[{date}] {album} [{singer} solo]' if solo_ost else '[{date}] {album}')
+        path = SafePath('[{date}] {album} [{singer} solo]' if solo_ost else '[{date}] {album}')
     elif num:
-        return SafePath('{album} [{album_num}]')
+        path = SafePath('{album} [{album_num}]')
     else:
-        return SafePath('{album} [{singer} solo]' if solo_ost else '{album}')
+        path = SafePath('{album} [{singer} solo]' if solo_ost else '{album}')
+
+    if disks and disks > 1:
+        path += SafePath('Disk {disk}')
+    return path
 
 
 def maybe_rename_track(file: SongFile, track_name: str, num: int, dry_run: bool = False):

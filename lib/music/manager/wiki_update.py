@@ -74,16 +74,15 @@ def iter_album_info(
 ) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
     if load:
         album_info = AlbumInfo.load(Path(load).expanduser().resolve())
-        yield album_info.album_dir, album_info
+        try:
+            album_dir = album_info.album_dir
+        except ValueError:
+            album_dir = get_album_dir(paths, 'load path')
+        yield album_dir, album_info
     else:
         artist = Artist.from_url(artist_url) if artist_url is not None else None
         if url:
-            album_dirs = list(iter_album_dirs(paths))
-            if len(album_dirs) > 1:
-                log.debug(f'Found dirs: {album_dirs}')
-                raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
-
-            album_dir = album_dirs[0]
+            album_dir = get_album_dir(paths, 'wiki URL')
             entry = DiscographyEntry.from_url(url)
             processor = AlbumInfoProcessor(album_dir, entry, artist, soloist, hide_edition, collab_mode, title_case)
             yield album_dir, processor.to_album_info()
@@ -98,6 +97,16 @@ def iter_album_info(
                     log.debug(e, exc_info=True)
                 else:
                     yield album_dir, processor.to_album_info()
+
+
+def get_album_dir(paths: Paths, message: str) -> AlbumDir:
+    album_dirs = list(iter_album_dirs(paths))
+    if len(album_dirs) > 1:
+        log.debug(f'Found dirs: {album_dirs}')
+        raise ValueError(f'When a {message} is provided, only one album can be processed at a time')
+    elif not album_dirs:
+        raise ValueError(f'No album dirs found for {paths}')
+    return album_dirs[0]
 
 
 class AlbumInfoProcessor:
@@ -149,12 +158,11 @@ class AlbumInfoProcessor:
         else:
             genre = None
 
-        mp4 = all(file.tag_type == 'mp4' for file in self.album_dir)
         album_info = AlbumInfo(
             title=self._normalize_name(self.disco_part.full_name(self.hide_edition)),
             artist=self.album_artist_name,
             date=self.edition.date,
-            disk=(self.disco_part.disc, self.disco_part.disc) if mp4 else self.disco_part.disc,
+            disk=self.disco_part.disc,
             genre=genre,
             name=self.disco_part.full_name(self.hide_edition),
             parent=self.album_artist.name.english,
@@ -163,10 +171,10 @@ class AlbumInfoProcessor:
             type=self.edition.type,
             number=self.edition.entry.number,
             numbered_type=self.edition.numbered_type,
+            disks=max(part.disc for part in self.edition.parts),
+            mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
         )
 
-        include_collabs = self._artist != self.artist
-        total_tracks = len(self.file_track_map)
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             title = self._normalize_name(track.full_name(self.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)))
@@ -180,8 +188,8 @@ class AlbumInfoProcessor:
                 album_info,
                 title=title,
                 artist=self.artist_name if self.ost else track_artist_name,
-                num=(track.num, total_tracks) if mp4 else track.num,
-                name=self._normalize_name(track.full_name(include_collabs)),
+                num=track.num,
+                name=self._normalize_name(track.full_name(self._artist != self.artist)),
             )
 
         return album_info

@@ -23,6 +23,7 @@ from music.manager.file_info import (
 from music.manager.file_update import (
     path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm, dump_tags
 )
+from music.manager.update import AlbumInfo
 from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
 from music.manager.wiki_match import show_matches, test_match
 from music.manager.wiki_update import update_tracks
@@ -82,8 +83,8 @@ def parser():
         # bpm_parser.add_argument('--parallel', '-P', type=int, default=1, help='Maximum number of workers to use in parallel (default: %(default)s)'))
 
     with parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json') as dump_parser:
-        dump_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        dump_parser.add_argument('--output', '-P', metavar='PATH', help='The destination file path')
+        dump_parser.add_argument('path', help='One or more paths of music files or directories containing music files')
+        dump_parser.add_argument('output', help='The destination file path')
 
     # endregion
 
@@ -197,7 +198,8 @@ def main():
     elif action == 'bpm':
         add_track_bpm(args.path, args.parallel, args.dry_run)
     elif action == 'dump':
-        dump_tags(args.path, args.output)
+        AlbumInfo.from_path(args.path).dump(args.output)
+        # dump_tags(args.path, args.output)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
 

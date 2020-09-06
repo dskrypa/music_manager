@@ -81,6 +81,11 @@ class AlbumInfo:
         for album_dir in iter_album_dirs(paths):
             yield cls.from_album_dir(album_dir)
 
+    @classmethod
+    def from_path(cls, path: Union[str, Path]) -> 'AlbumInfo':
+        album_dir = next(iter_album_dirs(path))
+        return cls.from_album_dir(album_dir)
+
     def dump(self, path: Union[str, Path]):
         path = Path(path)
         if not path.parent.exists():

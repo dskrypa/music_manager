@@ -268,7 +268,12 @@ class AlbumInfoProcessor:
                 for track in self.file_track_map.values():
                     track.add_collabs(others)
         else:
-            artist = artists[0]
+            try:
+                artist = artists[0]
+            except IndexError:
+                if self.__artist:
+                    return self.__artist
+                raise RuntimeError(f'No artist could be found for {self.album}')
 
         return artist
 

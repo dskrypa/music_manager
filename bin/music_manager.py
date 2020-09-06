@@ -20,9 +20,7 @@ from music.files import apply_mutagen_patches
 from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
 )
-from music.manager.file_update import (
-    path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm, dump_tags
-)
+from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm
 from music.manager.update import AlbumInfo
 from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
 from music.manager.wiki_match import show_matches, test_match
@@ -62,10 +60,16 @@ def parser():
 
     with parser.add_subparser('action', 'update', help='Set the value of the given tag on all music files in the given path') as set_parser:
         set_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        set_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify', required=True)
-        set_parser.add_argument('--value', '-V', help='Value to replace existing values with', required=True)
-        set_parser.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
-        set_parser.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
+
+        set_from_file = set_parser.add_argument_group('Load File Options', 'Options for loading updates from a file - may notbe combined with arguments from other option groups')
+        set_from_file.add_argument('--load', '-L', metavar='PATH', help='Load updates from a json file (may not be combined with other options)')
+        set_from_file.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
+
+        set_from_args = set_parser.add_argument_group('Tag Update Options')
+        set_from_args.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify', required=True)
+        set_from_args.add_argument('--value', '-V', help='Value to replace existing values with', required=True)
+        set_from_args.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
+        set_from_args.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
 
     with parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files') as clean_parser:
         clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -187,7 +191,10 @@ def main():
     elif action == 'path2tag':
         path_to_tag(args.path, args.dry_run, args.yes, args.title)
     elif action == 'update':
-        update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
+        if args.load:
+            AlbumInfo.load(args.load).update_and_move(dest_base_dir=args.destination, dry_run=args.dry_run)
+        else:
+            update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
     elif action == 'clean':
         bpm = aubio_installed() if args.bpm is None else args.bpm
         clean_tags(args.path, args.dry_run, bpm)
@@ -197,7 +204,6 @@ def main():
         add_track_bpm(args.path, args.parallel, args.dry_run)
     elif action == 'dump':
         AlbumInfo.from_path(args.path).dump(args.output)
-        # dump_tags(args.path, args.output)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
 

@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, fields, field
 from datetime import datetime, date
 from pathlib import Path
-from typing import Union, Optional, Dict, Mapping, Any, Iterator, Tuple
+from typing import Union, Optional, Dict, Mapping, Any, Iterator
 
 from ds_tools.core import Paths
 from ds_tools.output import colored
@@ -71,7 +71,7 @@ class AlbumInfo:
     parent: str = None                              # Artist name to use in file paths
     singer: str = None                              # Solo singer when in a group, to be sorted under that group
     solo_of_group: bool = False                     # Whether the singer is a soloist
-    type: DiscoEntryType = None                     # The album type (single, album, mini album, etc.)
+    type: DiscoEntryType = DiscoEntryType.UNKNOWN   # The album type (single, album, mini album, etc.)
     number: int = None                              # This album is the Xth of its type from this artist
     numbered_type: str = None                       # The type + number within that type for this artist
     disks: int = 1                                  # Total number of disks for this album
@@ -101,6 +101,7 @@ class AlbumInfo:
             self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
         if entry_type := data.get('type'):
             self.type = DiscoEntryType.for_name(entry_type)
+        self.name = self.name or self.title
         return self
 
     def to_dict(self):
@@ -112,8 +113,17 @@ class AlbumInfo:
 
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> 'AlbumInfo':
-        file = next(iter(album_dir))
-        self = cls(file.tag_album, file.tag_album_artist, file.date, file.disk_num)
+        file = next(iter(album_dir))  # type: SongFile
+        self = cls(
+            title=file.tag_album,
+            artist=file.tag_album_artist,
+            date=file.date,
+            disk=file.disk_num,
+            genre=file.tag_genre,
+            name=file.tag_album,
+            parent=file.tag_album_artist,
+            mp4=all(f.tag_type == 'mp4' for f in album_dir),
+        )
         self.tracks = {
             file.path.as_posix(): TrackInfo(self, file.tag_title, file.tag_artist, file.track_num) for file in album_dir
         }
@@ -153,7 +163,10 @@ class AlbumInfo:
         except KeyError as e:
             raise ValueError(f'Invalid {self.__class__.__name__} for {album_dir} - missing one more more files: {e}')
 
-    def update_and_move(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
+    def update_and_move(
+        self, album_dir: Optional[AlbumDir] = None, dest_base_dir: Optional[Path] = None, dry_run: bool = False
+    ):
+        album_dir = album_dir or self.album_dir
         if self.tracks:
             self.update_tracks(album_dir, dry_run)
         self.move_album(album_dir, dest_base_dir, dry_run)
@@ -166,7 +179,7 @@ class AlbumInfo:
         for file, info in file_info_map.items():
             log.debug(f'Matched {file} to {info.title}')
             file.update_tags(file_tag_map[file], dry_run, no_log=common_changes)
-            maybe_rename_track(file, info.name, info.num, dry_run)
+            maybe_rename_track(file, info.name or info.title, info.num, dry_run)
 
     def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
         rel_fmt = _album_format(

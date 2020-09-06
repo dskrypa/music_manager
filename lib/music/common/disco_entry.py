@@ -35,6 +35,8 @@ class DiscoEntryType(Enum):
     )
     Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album'), 'Albums', True
     Collaboration = 'Collaboration', ('collaboration',), 'Collaborations', False
+    Christmas = 'Christmas', ('christmas',), 'Christmas', False
+    Holiday = 'Holiday', ('holiday',), 'Holiday', False
     _OTHER = '_OTHER', ('others',), 'Other', False
 
     def __repr__(self):

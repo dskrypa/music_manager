@@ -172,7 +172,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites, args.dump, args.load, args.no_match, args.artist
+                args.destination, args.title_case, args.sites, args.dump, args.load, args.artist
             )
         elif sub_action == 'match':
             show_matches(args.path)

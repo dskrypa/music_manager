@@ -1,4 +1,9 @@
 """
+Classes representing tracks and albums, with methods to load from file or save to file, and to update/move the actual
+files that they represent.
+
+Unifies the way of updating files from wiki info or from a plain json file.
+
 :author: Doug Skrypa
 """
 
@@ -6,7 +11,6 @@ import json
 import logging
 from dataclasses import dataclass, fields, field
 from datetime import datetime, date
-from functools import partial
 from pathlib import Path
 from typing import Union, Optional, Dict, Mapping, Any, Iterator, Tuple
 
@@ -25,7 +29,7 @@ TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
 
 
 def default(cls):
-    return partial(field, default_factory=cls)
+    return field(default_factory=cls)
 
 
 @dataclass
@@ -46,7 +50,7 @@ class TrackInfo:
             'title': self.title,
             'artist': self.artist or self.album.artist,
             'track': self.num,
-            'date': self.album.date.strftime('%y%m%d'),
+            'date': self.album.date.strftime('%Y%m%d'),
             'genre': self.album.genre,
             'album': self.album.title,
             'album_artist': self.album.artist,

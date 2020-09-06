@@ -24,11 +24,15 @@ def default(cls):
 @dataclass
 class TrackInfo:
     # fmt: off
+    album: 'AlbumInfo'  # The AlbumInfo that this track is in
     title: str = None   # Track title (tag)
     artist: str = None  # Artist name (if different than the album artist)
     num: int = None     # Track number
     name: str = None    # File name to be used
     # fmt: on
+
+    def to_dict(self):
+        return {'title': self.title, 'artist': self.artist, 'num': self.num, 'name': self.name}
 
 
 @dataclass
@@ -54,22 +58,23 @@ class AlbumInfo:
         if date_obj := data.get('date'):
             self.date = date_obj if isinstance(date_obj, date) else parse_date(date_obj)
         if tracks := data.get('tracks'):
-            self.tracks = {path: TrackInfo(**track) for path, track in tracks.items()}
+            self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
         return self
 
     def to_dict(self):
         data = self.__dict__.copy()
         data['date'] = self.date.strftime('%Y-%m-%d')
-        data['tracks'] = {path: track.__dict__.copy() for path, track in self.tracks.items()}
+        data['tracks'] = {path: track.to_dict() for path, track in self.tracks.items()}
         return data
 
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> 'AlbumInfo':
-        tracks = {
-            file.path.as_posix(): TrackInfo(file.tag_title, file.tag_artist, file.track_num) for file in album_dir
-        }
         file = next(iter(album_dir))
-        return cls(file.tag_album, file.tag_album_artist, file.date, file.disk_num, tracks=tracks)
+        self = cls(file.tag_album, file.tag_album_artist, file.date, file.disk_num)
+        self.tracks = {
+            file.path.as_posix(): TrackInfo(self, file.tag_title, file.tag_artist, file.track_num) for file in album_dir
+        }
+        return self
 
     @classmethod
     def from_paths(cls, paths: Paths) -> Iterator['AlbumInfo']:

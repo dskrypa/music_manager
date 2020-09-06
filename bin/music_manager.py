@@ -123,9 +123,7 @@ def parser():
             bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
             bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
 
-            upd_opts = upd_parser.add_argument_group('Track Data Options')
-            upd_opts.add_argument('--no_match', '-m', action='store_true', help='When --load/-L is specified, do not attempt to match with wiki pages')
-            upd_data = upd_opts.add_mutually_exclusive_group()
+            upd_data = upd_parser.add_argument_group('Track Data Options').add_mutually_exclusive_group()
             upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
             upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
 

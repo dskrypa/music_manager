@@ -13,3 +13,8 @@ class CollabMode(Enum):
     ARTIST = 'artist'
     TITLE = 'title'
     BOTH = 'both'
+
+    @classmethod
+    def get(cls, mode):
+        # noinspection PyArgumentList
+        return mode if isinstance(mode, cls) else cls(mode)

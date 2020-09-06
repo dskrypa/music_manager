@@ -40,8 +40,102 @@ SHOW_ARGS = {
 def parser():
     # fmt: off
     parser = ArgParser(description='Music Manager')
-    _add_file_actions(parser)
-    _add_wiki_actions(parser)
+
+    # region File Actions
+    with parser.add_subparser('action', 'show', help='Show song/tag information') as show_parser:
+        for name, help_text in SHOW_ARGS.items():
+            with show_parser.add_subparser('sub_action', name, help=help_text) as _parser:
+                _parser.add_argument('path', nargs='*', default=['.'], help='Paths for music files or directories containing music files')
+                if name in ('info', 'unique', 'table'):
+                    _parser.add_argument('--tags', '-t', nargs='+', help='The tags to display', required=(name == 'unique'))
+                if name == 'info':
+                    _parser.add_argument('--no_trim', '-T', action='store_true', help='Do not trim tag IDs')
+                if name == 'processed':
+                    _parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
+                    _parser.add_argument('--only_errors', '-E', action='store_true', help='Only print entries with processing errors')
+
+    with parser.add_subparser('action', 'path2tag', help='Update tags based on the path to each file') as p2t_parser:
+        p2t_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        p2t_parser.add_argument('--title', '-t', action='store_true', help='Update title based on filename')
+        p2t_parser.add_argument('--yes', '-y', action='store_true', help='Skip confirmation prompts')
+
+    with parser.add_subparser('action', 'update', help='Set the value of the given tag on all music files in the given path') as set_parser:
+        set_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        set_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify', required=True)
+        set_parser.add_argument('--value', '-V', help='Value to replace existing values with', required=True)
+        set_parser.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
+        set_parser.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
+
+    with parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files') as clean_parser:
+        clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        bpm_group = clean_parser.add_mutually_exclusive_group()
+        bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
+        bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
+
+    with parser.add_subparser('action', 'remove', help='Remove the specified tags from the specified files') as rm_parser:
+        rm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        rm_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to remove', required=True)
+
+    with parser.add_subparser('action', 'bpm', help='Add BPM info to the specified files') as bpm_parser:
+        bpm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        bpm_parser.include_common_args(parallel=4)
+        # bpm_parser.add_argument('--parallel', '-P', type=int, default=1, help='Maximum number of workers to use in parallel (default: %(default)s)'))
+
+    with parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json') as dump_parser:
+        dump_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        dump_parser.add_argument('--output', '-P', metavar='PATH', help='The destination file path')
+
+    # endregion
+
+    # region Wiki Actions
+    with parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions') as wiki_parser:
+        with wiki_parser.add_subparser('sub_action', 'pprint', help='Pretty-print the parsed page content') as pp_parser:
+            pp_parser.add_argument('url', help='A wiki entity URL')
+            pp_parser.add_argument('--mode', '-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode (default: %(default)s)')
+
+        with wiki_parser.add_subparser('sub_action', 'raw', help='Print the raw page content') as ppr_parser:
+            ppr_parser.add_argument('url', help='A wiki entity URL')
+
+        with wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL') as ws_parser:
+            ws_parser.add_argument('identifier', help='A wiki URL or title/name')
+            ws_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
+            ws_parser.add_argument('--limit', '-L', type=int, default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
+            ws_parser.add_argument('--types', '-t', nargs='+', help='Filter albums to only those that match the specified types')
+            ws_parser.add_argument('--type', '-T', help='An EntertainmentEntity subclass to require that the given page matches')
+
+        with wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info') as upd_parser:
+            upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+            upd_parser.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
+            upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
+            upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
+            upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
+            upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
+            upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
+            upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
+
+            upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
+            upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
+            upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
+            upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
+
+            bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
+            bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
+            bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
+
+            upd_opts = upd_parser.add_argument_group('Track Data Options')
+            upd_opts.add_argument('--no_match', '-m', action='store_true', help='When --load/-L is specified, do not attempt to match with wiki pages')
+            upd_data = upd_opts.add_mutually_exclusive_group()
+            upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
+            upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
+
+        with wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info') as match_parser:
+            match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+
+        with wiki_parser.add_subparser('sub_action', 'test', help='Test matching of tracks in a given path with a given wiki URL') as test_parser:
+            test_parser.add_argument('path', help='One path of music files or directories containing music files')
+            test_parser.add_argument('url', help='A wiki URL for a page to test whether it matches the given files')
+    # endregion
+
     parser.include_common_args('verbosity', 'dry_run')
     parser.add_common_sp_arg('--match_log', '-M', action='store_true', help='Enable debug logging for the album match processing logger')
     # fmt: on
@@ -106,105 +200,6 @@ def main():
         dump_tags(args.path, args.output)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
-
-
-def _add_file_actions(parser: ArgParser):
-    # fmt: off
-    show_parser = parser.add_subparser('action', 'show', help='Show song/tag information')
-    for name, help_text in SHOW_ARGS.items():
-        _parser = show_parser.add_subparser('sub_action', name, help=help_text)
-        _parser.add_argument('path', nargs='*', default=['.'], help='Paths for music files or directories containing music files')
-        if name in ('info', 'unique', 'table'):
-            _parser.add_argument('--tags', '-t', nargs='+', help='The tags to display', required=(name == 'unique'))
-        if name == 'info':
-            _parser.add_argument('--no_trim', '-T', action='store_true', help='Do not trim tag IDs')
-        if name == 'processed':
-            _parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
-            _parser.add_argument('--only_errors', '-E', action='store_true', help='Only print entries with processing errors')
-
-    p2t_parser = parser.add_subparser('action', 'path2tag', help='Update tags based on the path to each file')
-    p2t_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    p2t_parser.add_argument('--title', '-t', action='store_true', help='Update title based on filename')
-    p2t_parser.add_argument('--yes', '-y', action='store_true', help='Skip confirmation prompts')
-
-    set_parser = parser.add_subparser('action', 'update', help='Set the value of the given tag on all music files in the given path')
-    set_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    set_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify', required=True)
-    set_parser.add_argument('--value', '-V', help='Value to replace existing values with', required=True)
-    set_parser.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
-    set_parser.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
-
-    clean_parser = parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files')
-    clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    bpm_group = clean_parser.add_mutually_exclusive_group()
-    bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
-    bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
-
-    rm_parser = parser.add_subparser('action', 'remove', help='Remove the specified tags from the specified files')
-    rm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    rm_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to remove', required=True)
-
-    bpm_parser = parser.add_subparser('action', 'bpm', help='Add BPM info to the specified files')
-    bpm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    bpm_parser.include_common_args(parallel=4)
-    # bpm_parser.add_argument('--parallel', '-P', type=int, default=1, help='Maximum number of workers to use in parallel (default: %(default)s)'))
-
-    dump_parser = parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json')
-    dump_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    dump_parser.add_argument('--output', '-P', metavar='PATH', help='The destination file path')
-    # fmt: on
-
-
-def _add_wiki_actions(parser: ArgParser):
-    # fmt: off
-    wiki_parser = parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions')
-
-    pp_parser = wiki_parser.add_subparser('sub_action', 'pprint', help='Pretty-print the parsed page content')
-    pp_parser.add_argument('url', help='A wiki entity URL')
-    pp_parser.add_argument('--mode', '-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode (default: %(default)s)')
-
-    ppr_parser = wiki_parser.add_subparser('sub_action', 'raw', help='Print the raw page content')
-    ppr_parser.add_argument('url', help='A wiki entity URL')
-
-    ws_parser = wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL')
-    ws_parser.add_argument('identifier', help='A wiki URL or title/name')
-    ws_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
-    ws_parser.add_argument('--limit', '-L', type=int, default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
-    ws_parser.add_argument('--types', '-t', nargs='+', help='Filter albums to only those that match the specified types')
-    ws_parser.add_argument('--type', '-T', help='An EntertainmentEntity subclass to require that the given page matches')
-
-    with wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info') as upd_parser:
-        upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        upd_parser.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
-        upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
-        upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
-        upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
-        upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
-        upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
-        upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
-
-        upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
-        upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
-        upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
-        upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
-
-        bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
-        bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
-        bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
-
-        upd_opts = upd_parser.add_argument_group('Track Data Options')
-        upd_opts.add_argument('--no_match', '-m', action='store_true', help='When --load/-L is specified, do not attempt to match with wiki pages')
-        upd_data = upd_opts.add_mutually_exclusive_group()
-        upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
-        upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
-
-    match_parser = wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info')
-    match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-
-    test_parser = wiki_parser.add_subparser('sub_action', 'test', help='Test matching of tracks in a given path with a given wiki URL')
-    test_parser.add_argument('path', help='One path of music files or directories containing music files')
-    test_parser.add_argument('url', help='A wiki URL for a page to test whether it matches the given files')
-    # fmt: on
 
 
 def aubio_installed():

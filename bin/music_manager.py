@@ -79,7 +79,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites, args.dump, args.load, args.no_match
+                args.destination, args.title_case, args.sites, args.dump, args.load, args.no_match, args.artist
             )
         elif sub_action == 'match':
             show_matches(args.path)
@@ -173,26 +173,30 @@ def _add_wiki_actions(parser: ArgParser):
     ws_parser.add_argument('--types', '-t', nargs='+', help='Filter albums to only those that match the specified types')
     ws_parser.add_argument('--type', '-T', help='An EntertainmentEntity subclass to require that the given page matches')
 
-    upd_parser = wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info')
-    upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-    upd_parser.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
-    upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
-    upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
-    upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
-    upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
-    upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
-    upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
-    upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
-    upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
-    upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
-    bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
-    bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
-    bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
-    upd_opts = upd_parser.add_argument_group('Track Data Options')
-    upd_opts.add_argument('--no_match', '-m', action='store_true', help='When --load/-L is specified, do not attempt to match with wiki pages')
-    upd_data = upd_opts.add_mutually_exclusive_group()
-    upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
-    upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
+    with wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info') as upd_parser:
+        upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        upd_parser.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
+        upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
+        upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
+        upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
+        upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
+        upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
+        upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
+
+        upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
+        upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
+        upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
+        upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
+
+        bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
+        bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
+        bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
+
+        upd_opts = upd_parser.add_argument_group('Track Data Options')
+        upd_opts.add_argument('--no_match', '-m', action='store_true', help='When --load/-L is specified, do not attempt to match with wiki pages')
+        upd_data = upd_opts.add_mutually_exclusive_group()
+        upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
+        upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
 
     match_parser = wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info')
     match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')

@@ -39,7 +39,7 @@ UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 def update_tracks(
     paths: Paths, dry_run=False, soloist=False, hide_edition=False, collab_mode: Union[CM, str] = CM.ARTIST,
     url: Optional[str] = None, add_bpm=False, dest_base_dir: Union[Path, str, None] = None, title_case=False,
-    sites: StrOrStrs = None, dump: Optional[str] = None, load: Optional[str] = None, no_match=False,
+    sites: StrOrStrs = None, dump: Optional[str] = None, load: Optional[str] = None, no_match=False, artist=None
 ):
     if not isinstance(collab_mode, CM):
         collab_mode = CM(collab_mode)
@@ -51,6 +51,9 @@ def update_tracks(
     if load:
         load = Path(load).expanduser().resolve()
 
+    if artist is not None:
+        artist = Artist.from_url(artist)
+
     if url:
         album_dirs = list(iter_album_dirs(paths))
         if len(album_dirs) > 1:
@@ -58,9 +61,10 @@ def update_tracks(
             raise ValueError('When a wiki URL is provided, only one album can be processed at a time')
 
         entry = DiscographyEntry.from_url(url)
-        AlbumUpdater(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, title_case).update(
-            dest_base_dir, add_bpm, dump, load
-        )
+        updater = AlbumUpdater(album_dirs[0], entry, dry_run, soloist, hide_edition, collab_mode, title_case)
+        if artist is not None:
+            updater.__dict__['artist'] = artist
+        updater.update(dest_base_dir, add_bpm, dump, load)
     else:
         for album_dir in iter_album_dirs(paths):
             if load and no_match:
@@ -74,6 +78,8 @@ def update_tracks(
                     log.log(e.lvl, e, extra={'color': 9})
                     log.debug(e, exc_info=True)
                 else:
+                    if artist is not None:
+                        updater.__dict__['artist'] = artist
                     updater.update(dest_base_dir, add_bpm, dump, load)
 
 

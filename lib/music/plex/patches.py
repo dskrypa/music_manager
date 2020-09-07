@@ -2,14 +2,13 @@
 :author: Doug Skrypa
 """
 
-import atexit
 import logging
 
 from plexapi.audio import Track, Album, Artist
 from plexapi.base import PlexObject
 from plexapi.playlist import Playlist
 
-from ..common.utils import stars
+from ..common.utils import stars, deinit_colorama as _deinit_colorama
 
 __all__ = ['apply_plex_patches', 'track_repr']
 log = logging.getLogger(__name__)
@@ -40,13 +39,7 @@ def apply_plex_patches(deinit_colorama=True):
       ``| head``.  Defaults to True.
     """
     if deinit_colorama:
-        try:
-            import colorama
-        except ImportError:
-            pass
-        else:
-            colorama.deinit()
-            atexit.unregister(colorama.initialise.reset_all)
+        _deinit_colorama()
 
     def removeItems(self, items):
         """ Remove multiple tracks from a playlist. """

@@ -2,7 +2,7 @@
 :author: Doug Skrypa
 """
 
-__all__ = ['stars']
+__all__ = ['stars', 'deinit_colorama']
 
 
 def stars(rating, out_of=10, num_stars=5, chars=('\u2605', '\u2730'), half='\u00BD'):
@@ -18,3 +18,14 @@ def stars(rating, out_of=10, num_stars=5, chars=('\u2605', '\u2730'), half='\u00
         mid = ''
     a, b = chars
     return (a * filled) + mid + (b * empty)
+
+
+def deinit_colorama():
+    try:
+        import colorama
+        import atexit
+    except ImportError:
+        pass
+    else:
+        colorama.deinit()
+        atexit.unregister(colorama.initialise.reset_all)

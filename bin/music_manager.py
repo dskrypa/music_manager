@@ -71,6 +71,8 @@ def parser():
         set_from_args.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
         set_from_args.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
 
+        set_parser.add_mutually_exclusive_arg_sets(set_from_file, set_from_args)
+
     with parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files') as clean_parser:
         clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
         bpm_group = clean_parser.add_mutually_exclusive_group()

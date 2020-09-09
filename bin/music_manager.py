@@ -66,8 +66,8 @@ def parser():
         set_from_file.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
 
         set_from_args = set_parser.add_argument_group('Tag Update Options')
-        set_from_args.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify', required=True)
-        set_from_args.add_argument('--value', '-V', help='Value to replace existing values with', required=True)
+        set_from_args.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify (required)')
+        set_from_args.add_argument('--value', '-V', help='Value to replace existing values with (required)')
         set_from_args.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
         set_from_args.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
 
@@ -196,6 +196,8 @@ def main():
         if args.load:
             AlbumInfo.load(args.load).update_and_move(dest_base_dir=args.destination, dry_run=args.dry_run)
         else:
+            if not args.tag or not args.value:
+                raise ValueError(f'Both --tag/-t and --value/-V are required')
             update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
     elif action == 'clean':
         bpm = aubio_installed() if args.bpm is None else args.bpm

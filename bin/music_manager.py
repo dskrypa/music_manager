@@ -91,10 +91,10 @@ def parser():
     with parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json') as dump_parser:
         dump_parser.add_argument('path', help='One or more paths of music files or directories containing music files')
         dump_parser.add_argument('output', help='The destination file path')
+        dump_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
 
     # endregion
 
-    # region Wiki Actions
     with parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions') as wiki_parser:
         with wiki_parser.add_subparser('sub_action', 'pprint', help='Pretty-print the parsed page content') as pp_parser:
             pp_parser.add_argument('url', help='A wiki entity URL')
@@ -139,7 +139,6 @@ def parser():
         with wiki_parser.add_subparser('sub_action', 'test', help='Test matching of tracks in a given path with a given wiki URL') as test_parser:
             test_parser.add_argument('path', help='One path of music files or directories containing music files')
             test_parser.add_argument('url', help='A wiki URL for a page to test whether it matches the given files')
-    # endregion
 
     parser.include_common_args('verbosity', 'dry_run')
     parser.add_common_sp_arg('--match_log', '-M', action='store_true', help='Enable debug logging for the album match processing logger')
@@ -207,7 +206,7 @@ def main():
     elif action == 'bpm':
         add_track_bpm(args.path, args.parallel, args.dry_run)
     elif action == 'dump':
-        AlbumInfo.from_path(args.path).dump(args.output)
+        AlbumInfo.from_path(args.path).dump(args.output, args.title_case)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
 

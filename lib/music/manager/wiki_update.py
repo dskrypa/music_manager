@@ -4,7 +4,6 @@
 
 import json
 import logging
-import re
 from functools import cached_property
 from pathlib import Path
 from typing import Union, Optional, Dict, Tuple, Iterator
@@ -18,7 +17,7 @@ from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from ..wiki.typing import StrOrStrs
 from .enums import CollabMode
 from .exceptions import MatchException
-from .update import AlbumInfo, TrackInfo
+from .update import AlbumInfo, TrackInfo, normalize_case
 from .wiki_match import find_album
 from .wiki_utils import get_disco_part, DiscoObj
 
@@ -27,7 +26,6 @@ log = logging.getLogger(__name__)
 ArtistType = Union[Artist, Group, Singer, 'ArtistSet']
 
 CONFIG_DIR = Path('~/.config/music_manager/').expanduser()
-UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 
 def update_tracks(
@@ -316,8 +314,8 @@ class AlbumInfoProcessor:
         return artist_name
 
     def _normalize_name(self, name: str) -> str:
-        if self.title_case and UPPER_CHAIN_SEARCH(name) or name.lower() == name:
-            name = name.title().replace("I'M ", "I'm ")
+        if self.title_case:
+            name = normalize_case(name)
         return name
 
 

@@ -9,6 +9,7 @@ Unifies the way of updating files from wiki info or from a plain json file.
 
 import json
 import logging
+import re
 from dataclasses import dataclass, fields, field
 from datetime import datetime, date
 from pathlib import Path
@@ -25,6 +26,7 @@ log = logging.getLogger(__name__)
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
 SOLO_DIR_FORMAT = SafePath('{artist}/Solo/{singer}')
 TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
+UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 
 def default(cls):
@@ -41,8 +43,16 @@ class TrackInfo:
     name: str = None    # File name to be used
     # fmt: on
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {'title': self.title, 'artist': self.artist, 'num': self.num, 'name': self.name}
+    def to_dict(self, title_case: bool = False) -> Dict[str, Any]:
+        if title_case:
+            return {
+                'artist': normalize_case(self.artist) if self.artist else self.artist,
+                'title': normalize_case(self.title) if self.title else self.title,
+                'name': normalize_case(self.name) if self.name else self.name,
+                'num': self.num,
+            }
+        else:
+            return {'title': self.title, 'artist': self.artist, 'num': self.num, 'name': self.name}
 
     def tags(self) -> Dict[str, Any]:
         tags = {
@@ -104,11 +114,15 @@ class AlbumInfo:
         self.name = self.name or self.title
         return self
 
-    def to_dict(self):
+    def to_dict(self, title_case: bool = False):
         data = self.__dict__.copy()
         data['date'] = self.date.strftime('%Y-%m-%d')
-        data['tracks'] = {path: track.to_dict() for path, track in self.tracks.items()}
+        data['tracks'] = {path: track.to_dict(title_case) for path, track in self.tracks.items()}
         data['type'] = self.type.real_name if self.type is not None else None
+        if title_case:
+            for key in ('title', 'artist', 'genre', 'name', 'parent', 'singer'):
+                if value := data[key]:
+                    data[key] = normalize_case(value)
         return data
 
     @classmethod
@@ -139,14 +153,14 @@ class AlbumInfo:
         album_dir = next(iter_album_dirs(path))
         return cls.from_album_dir(album_dir)
 
-    def dump(self, path: Union[str, Path]):
+    def dump(self, path: Union[str, Path], title_case: bool = False):
         path = Path(path)
         if not path.parent.exists():
             path.parent.mkdir(parents=True)
 
         log.info(f'Dumping album info to {path}')
         with path.open('w', encoding='utf-8', newline='\n') as f:
-            json.dump(self.to_dict(), f, sort_keys=True, indent=4, ensure_ascii=False)
+            json.dump(self.to_dict(title_case), f, sort_keys=True, indent=4, ensure_ascii=False)
 
     @classmethod
     def load(cls, path: Union[str, Path]) -> 'AlbumInfo':
@@ -246,3 +260,9 @@ def maybe_rename_track(file: SongFile, track_name: str, num: int, dry_run: bool 
         log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')
         if not dry_run:
             file.rename(file.path.with_name(filename))
+
+
+def normalize_case(text: str) -> str:
+    if UPPER_CHAIN_SEARCH(text) or text.lower() == text:
+        text = text.title().replace("I'M ", "I'm ")
+    return text

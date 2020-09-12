@@ -194,7 +194,7 @@ def main():
         path_to_tag(args.path, args.dry_run, args.yes, args.title)
     elif action == 'update':
         if args.load:
-            AlbumInfo.load(args.load).update_and_move(dest_base_dir=args.destination, dry_run=args.dry_run)
+            AlbumInfo.load(args.load).update_and_move(dest_base_dir=Path(args.destination), dry_run=args.dry_run)
         else:
             if not args.tag or not args.value:
                 raise ValueError(f'Both --tag/-t and --value/-V are required')

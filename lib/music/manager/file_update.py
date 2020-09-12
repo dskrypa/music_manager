@@ -64,9 +64,9 @@ def clean_tags(paths: Paths, dry_run=False, add_bpm=False, verbosity=0):
         add_track_bpm(paths, dry_run=dry_run, verbosity=verbosity)
 
 
-def remove_tags(paths: Paths, tag_ids, dry_run=False):
+def remove_tags(paths: Paths, tag_ids, dry_run=False, remove_all=False):
     for music_file in iter_music_files(paths):
-        music_file.remove_tags(tag_ids, dry_run, logging.INFO)
+        music_file.remove_tags(tag_ids, dry_run, logging.INFO, remove_all)
 
 
 def add_track_bpm(paths: Paths, parallel=4, dry_run=False, verbosity=0):

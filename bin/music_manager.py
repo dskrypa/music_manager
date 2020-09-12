@@ -21,6 +21,7 @@ from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
 )
 from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm
+from music.manager.images import extract_album_art, set_album_art, del_album_art
 from music.manager.update import AlbumInfo
 from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
 from music.manager.wiki_match import show_matches, test_match
@@ -81,7 +82,9 @@ def parser():
 
     with parser.add_subparser('action', 'remove', help='Remove the specified tags from the specified files') as rm_parser:
         rm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        rm_parser.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to remove', required=True)
+        rm_group = rm_parser.add_mutually_exclusive_group()
+        rm_group.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to remove')
+        rm_group.add_argument('--all', '-A', action='store_true', help='Remove ALL tags')
 
     with parser.add_subparser('action', 'bpm', help='Add BPM info to the specified files') as bpm_parser:
         bpm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
@@ -89,10 +92,24 @@ def parser():
         # bpm_parser.add_argument('--parallel', '-P', type=int, default=1, help='Maximum number of workers to use in parallel (default: %(default)s)'))
 
     with parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json') as dump_parser:
-        dump_parser.add_argument('path', help='One or more paths of music files or directories containing music files')
+        dump_parser.add_argument('path', help='A path for a music file or a directory containing music files')
         dump_parser.add_argument('output', help='The destination file path')
         dump_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
 
+    with parser.add_subparser('action', 'cover', help='Extract or add cover art') as cover_parser:
+        cover_parser.add_argument('path', help='A path for a music file or a directory containing music files')
+
+        dump_cover_group = cover_parser.add_argument_group('Save Cover Options')
+        dump_cover_group.add_argument('--save', '-s', metavar='PATH', help='Path to save the cover images from the specified file(s)')
+
+        load_cover_group = cover_parser.add_argument_group('Load Cover Options')
+        load_cover_group.add_argument('--load', '-L', metavar='PATH', help='Path to an image file')
+        load_cover_group.add_argument('--max_width', '-w', type=int, default=1200, help='Resize the provided image if it is larger than this value')
+
+        del_cover_group = cover_parser.add_argument_group('Save Cover Options')
+        del_cover_group.add_argument('--remove', '-R', action='store_true', help='Remove all cover images')
+
+        cover_parser.add_mutually_exclusive_arg_sets(dump_cover_group, load_cover_group, del_cover_group)
     # endregion
 
     with parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions') as wiki_parser:
@@ -202,11 +219,20 @@ def main():
         bpm = aubio_installed() if args.bpm is None else args.bpm
         clean_tags(args.path, args.dry_run, bpm)
     elif action == 'remove':
-        remove_tags(args.path, args.tag, args.dry_run)
+        if not args.tag and not args.all:
+            raise ValueError('Either --tag/-t or --all/-A must be provided')
+        remove_tags(args.path, args.tag, args.dry_run, args.all)
     elif action == 'bpm':
         add_track_bpm(args.path, args.parallel, args.dry_run)
     elif action == 'dump':
         AlbumInfo.from_path(args.path).dump(args.output, args.title_case)
+    elif action == 'cover':
+        if args.save:
+            extract_album_art(args.path, args.save)
+        elif args.load:
+            set_album_art(args.path, args.load, args.max_width, args.dry_run)
+        elif args.remove:
+            del_album_art(args.path, args.dry_run)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
 

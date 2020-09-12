@@ -52,6 +52,7 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'bpm': {'mp4': 'tmpo', 'mp3': 'TBPM', 'flac': 'BPM'},
     'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN', 'flac': 'LANGUAGE'},
     'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
+    'cover': {'mp4': 'covr', 'mp3': 'APIC'},  # flac: FLAC.pictures
     # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
 FILE_TYPE_TAG_ID_TO_NAME_MAP = {}

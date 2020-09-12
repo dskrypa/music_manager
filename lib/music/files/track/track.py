@@ -10,16 +10,18 @@ from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict
+from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict, List
 
 from mutagen import File, FileType
-from mutagen.flac import VCFLACDict, FLAC
-from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType
+from mutagen.flac import VCFLACDict, FLAC, Picture
+from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType
 from mutagen.mp3 import MP3
-from mutagen.mp4 import MP4Tags, MP4
+from mutagen.mp4 import MP4Tags, MP4, MP4Cover
+from PIL import Image
 from plexapi.audio import Track
 
 from ds_tools.caching import ClearableCachedPropertyMixin
+from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
 from ...constants import tag_name_map
 from ...text import Name
@@ -35,6 +37,7 @@ from .utils import (
 __all__ = ['SongFile']
 log = logging.getLogger(__name__)
 MutagenFile = Union[MP3, MP4, FLAC, FileType]
+ImageTag = Union[APIC, MP4Cover, Picture]
 
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
@@ -146,7 +149,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         cls.__instances[dest_path] = self
 
     def save(self):
-        self._f.tags.save(self._f.filename)
+        if self.tag_type == 'flac':
+            self._f.save(self._f.filename)
+        else:
+            self._f.tags.save(self._f.filename)
 
     @cached_property
     def length_str(self) -> str:
@@ -183,6 +189,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             return tags.__name__
 
+    # region Add/Remove/Get Tags
     def delete_tag(self, tag_id: str):
         tag_type = self.tag_type
         if tag_type == 'mp3':
@@ -192,26 +199,31 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
 
-    def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG) -> bool:
+    def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG, remove_all=False) -> bool:
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
-        to_remove = {
-            tag_id: val if isinstance(val, list) else [val]
-            for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
-        }
-        if to_remove:
-            rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
-            info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
-
-            log.info(f'{prefix} tags from {self}: {info_str}')
-            log.debug(f'\t{self}: {rm_str}')
+        if remove_all:
+            log.info(f'{prefix} ALL tags from {self}')
             if not dry_run:
-                for tag_id in to_remove:
-                    self.delete_tag(tag_id)
-                self.save()
-            return True
+                self._f.tags.delete(self._f.filename)
         else:
-            log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
-            return False
+            to_remove = {
+                tag_id: val if isinstance(val, list) else [val]
+                for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
+            }
+            if to_remove:
+                rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
+                info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
+
+                log.info(f'{prefix} tags from {self}: {info_str}')
+                log.debug(f'\t{self}: {rm_str}')
+                if not dry_run:
+                    for tag_id in to_remove:
+                        self.delete_tag(tag_id)
+                    self.save()
+                return True
+            else:
+                log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
+                return False
 
     def set_text_tag(self, tag: str, value, by_id=False):
         tag_id = tag if by_id else self.normalize_tag_id(tag)
@@ -361,6 +373,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             _tag = tag[:4] if mp3 else tag
             yield _tag, normalize_tag_name(_tag), value
 
+    # endregion
+
+    # region Tag-Related Properties
     @cached_property
     def all_artists(self) -> Set[Name]:
         return self.album_artists.union(self.artists)
@@ -513,6 +528,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 raise ValueError('Star ratings must be a multiple of 0.5; invalid value: {}'.format(value))
         else:
             self.rating = RATING_RANGES[int(value) - 1][2]
+
+    # endregion
 
     def tagless_sha256sum(self):
         with self.path.open('rb') as f:
@@ -683,6 +700,85 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         updates = self.get_tag_updates(tag_ids, value, patterns, partial)
         self.update_tags(updates, dry_run)
+
+    def get_cover_tag(self):
+        if self.tag_type == 'flac':
+            try:
+                return self._f.pictures[0]
+            except IndexError:
+                return None
+        else:
+            return self.get_tag('cover')
+
+    def get_cover_data(self) -> Tuple[bytes, str]:
+        if (cover := self.get_cover_tag()) is None:
+            raise TagNotFound(f'{self} has no album cover')
+        if self.tag_type in ('mp3', 'flac'):
+            mime = cover.mime.split('/')[-1].lower()
+            ext = 'jpg' if mime in ('jpg', 'jpeg') else mime
+            return cover.data, ext
+        elif self.tag_type == 'mp4':
+            ext = 'jpg' if cover.imageformat == MP4Cover.FORMAT_JPEG else 'png'
+            return cover, ext
+        else:
+            raise TypeError(f'{self} has unexpected type={self.tag_type!r} for album cover extraction')
+
+    def get_cover_image(self) -> Image.Image:
+        data, ext = self.get_cover_data()
+        return Image.open(BytesIO(data))
+
+    def del_cover_tag(self, save: bool = False, dry_run: bool = False):
+        prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
+        log.info(f'{prefix} tags from {self}: cover')
+        if not dry_run:
+            if self.tag_type == 'flac':
+                self._f.clear_pictures()
+            else:
+                self.delete_tag(self.normalize_tag_id('cover'))
+            if save:
+                self.save()
+
+    def _log_cover_changes(self, current: List[ImageTag], cover: ImageTag, dry_run: bool):
+        if current:
+            del_prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
+            log.info(f'{del_prefix} existing image(s) from {self}: {current}')
+
+        set_prefix = '[DRY RUN] Would add' if dry_run else 'Adding'
+        size = len(cover) if self.tag_type == 'mp4' else len(cover.data)
+        log.info(f'{set_prefix} cover image to {self}: [{readable_bytes(size)}] {cover!r}')
+        return not dry_run
+
+    def set_cover_data(self, image: Image.Image, dry_run: bool = False, data: Optional[bytes] = None):
+        if data is None:
+            bio = BytesIO()
+            image.save(bio, 'jpeg')
+            data = bio.getvalue()
+
+        if self.tag_type == 'mp3':
+            current = self._f.tags.getall('APIC')
+            cover = APIC(mime='image/jpeg', type=PictureType.COVER_FRONT, data=data)
+            if self._log_cover_changes(current, cover, dry_run):
+                self._f.tags.delall('APIC')
+                self._f.tags[cover.HashKey] = cover
+        elif self.tag_type == 'mp4':
+            current = self._f.tags['covr']
+            cover = MP4Cover(data, MP4Cover.FORMAT_JPEG)
+            if self._log_cover_changes(current, cover, dry_run):
+                self._f.tags['covr'] = [cover]
+        elif self.tag_type == 'flac':
+            current = self._f.pictures
+            cover = Picture()
+            cover.type = PictureType.COVER_FRONT
+            cover.mime = 'image/jpeg'
+            cover.width, cover.height = image.size
+            cover.depth = 1 if image.mode == '1' else 32 if image.mode in ('I', 'F') else 8 * len(image.getbands())
+            cover.data = data
+            if self._log_cover_changes(current, cover, dry_run):
+                self._f.clear_pictures()
+                self._f.add_picture(cover)
+
+        if not dry_run:
+            self.save()
 
 
 def _extract_album_part(title):

@@ -1,13 +1,14 @@
 requests_client@ git+git://github.com/dskrypa/requests_client
 wiki_nodes@ git+git://github.com/dskrypa/wiki_nodes
 ds_tools@ git+git://github.com/dskrypa/ds_tools
-cachetools
 beautifulsoup4
-requests
-mutagen
+cachetools
 fuzzywuzzy
-plexapi
-urllib3
-python-Levenshtein
+mutagen
 ordered-set
+pillow
+plexapi
+python-Levenshtein
+requests
 symspellpy
+urllib3

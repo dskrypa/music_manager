@@ -10,7 +10,7 @@ from mutagen.id3 import ID3
 from ds_tools.core import Paths
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
-from ..constants import tag_name_map
+from ..constants import typed_tag_name_map
 from ..files import iter_album_dirs, iter_music_files, tag_repr, AlbumDir
 
 __all__ = [
@@ -73,6 +73,7 @@ def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
 
         uprint(f'{music_file.filename} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
         if not meta_only:
+            tag_name_map = typed_tag_name_map[music_file.tag_type]
             tbl = Table(SimpleColumn('Tag'), SimpleColumn('Tag Name'), SimpleColumn('Value'), update_width=True)
             rows = []
             for tag, val in sorted(music_file.tags.items()):
@@ -89,17 +90,20 @@ def table_song_tags(paths: Paths, include_tags=None):
     rows = [{'path': '[Tag Description]'}, TableBar()]
     tags = set()
     values = defaultdict(Counter)
+    headers = {}
     for music_file in iter_music_files(paths):
+        tag_name_map = typed_tag_name_map[music_file.tag_type]
         row = defaultdict(str, path=music_file.rel_path)
         for tag, val in sorted(music_file.tags.items()):
             tag = ':'.join(tag.split(':')[:2])
             if not include_tags or tag in include_tags:
                 tags.add(tag)
+                headers[tag] = tag_name_map.get(tag) or tag_name_map.get(tag[:4], '[unknown]')
                 row[tag] = val_repr = tag_repr(val)
                 values[tag][val_repr] += 1
         rows.append(row)
 
-    rows[0].update({tag: tag_name_map.get(tag[:4], '[unknown]') for tag in tags})
+    rows[0].update(headers)
 
     # noinspection PyUnboundLocalVariable
     if (artists := values['TPE1']) and (alb_artists := values['TPE2']) and (artists == alb_artists):
@@ -107,11 +111,20 @@ def table_song_tags(paths: Paths, include_tags=None):
         rows[0]['TPE1/2'] = '(Album) Artist'
         for key in ('TPE1', 'TPE2'):
             tags.remove(key)
-            del rows[0][key]
+            try:
+                del rows[0][key]
+            except KeyError:
+                pass
 
         for row in rows[2:]:
-            del row['TPE2']
-            row['TPE1/2'] = row.pop('TPE1')
+            try:
+                del row['TPE2']
+            except KeyError:
+                pass
+            try:
+                row['TPE1/2'] = row.pop('TPE1')
+            except KeyError:
+                pass
 
     tbl = Table(SimpleColumn('path'), *(SimpleColumn(tag) for tag in sorted(tags)), update_width=True)
     tbl.print_rows(rows)
@@ -121,8 +134,10 @@ def table_unique_tag_values(paths: Paths, tag_ids):
     matches = FnMatcher(tag_ids, ignore_case=True).matches
     unique_vals = defaultdict(Counter)
     for music_file in iter_music_files(paths):
+        tag_name_map = typed_tag_name_map[music_file.tag_type]
         for tag, name, val in music_file.iter_clean_tags():
             if matches((tag, name)):
+                tag = (tag, tag_name_map.get(tag, '[unknown]'))
                 unique_vals[tag][str(val)] += 1
 
     tbl = Table(
@@ -130,8 +145,8 @@ def table_unique_tag_values(paths: Paths, tag_ids):
         SimpleColumn('Value'), update_width=True
     )
     rows = [
-        {'Tag': tag, 'Tag Name': tag_name_map.get(tag, '[unknown]'), 'Count': count, 'Value': tag_repr(val)}
-        for tag, val_counter in unique_vals.items() for val, count in val_counter.items()
+        {'Tag': tag, 'Tag Name': name, 'Count': count, 'Value': tag_repr(val)}
+        for (tag, name), val_counter in unique_vals.items() for val, count in val_counter.items()
     ]
     tbl.print_rows(rows)
 
@@ -143,17 +158,19 @@ def table_tag_type_counts(paths: Paths):
     for music_file in iter_music_files(paths):
         files += 1
         tag_set = set()
+        tag_name_map = typed_tag_name_map[music_file.tag_type]
         for tag, name, val in music_file.iter_clean_tags():
-            tag_set.add(tag)
-            total_tags[tag] += 1
-            unique_values[tag][str(val)] += 1
+            tag_tup = (tag, tag_name_map.get(tag, '[unknown]'))
+            tag_set.add(tag_tup)
+            total_tags[tag_tup] += 1
+            unique_values[tag_tup][str(val)] += 1
 
         unique_tags.update(tag_set)
         if isinstance(music_file.tags, ID3):
             id3_versions[music_file.tag_version] += 1
 
     tag_rows = [{
-        'Tag': tag, 'Tag Name': tag_name_map.get(tag, '[unknown]'), 'Total': total_tags[tag], 'Files': unique_tags[tag],
+        'Tag': tag[0], 'Tag Name': tag[1], 'Total': total_tags[tag], 'Files': unique_tags[tag],
         'Files %': unique_tags[tag] / files, 'Per File (overall)': total_tags[tag] / files,
         'Per File (with tag)': total_tags[tag] / unique_tags[tag], 'Unique Values': len(unique_values[tag])
         } for tag in unique_tags

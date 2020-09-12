@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 RM_TAG_MATCHERS = {
     'mp3': FnMatcher(('TXXX*', 'PRIV*', 'WXXX*', 'COMM*', 'TCOP')).match,
     'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
-    'flac': FnMatcher(('UPLOADED*',)).match
+    'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
 }
 KEEP_TAGS = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
 EXECUTOR = None     # type: Optional[futures.ThreadPoolExecutor]
@@ -260,12 +260,17 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
             if music_file.tag_type == 'flac':
                 log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
+                # noinspection PyArgumentList
+                if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
+                    if i:
+                        log.debug('')
             else:
                 # noinspection PyArgumentList
                 if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
                     if i:
                         log.debug('')
-                i += int(music_file.remove_tags(to_remove, dry_run))
+
+            i += int(music_file.remove_tags(to_remove, dry_run))
 
         if not i:
             log.debug(f'None of the songs in {self} had any tags that needed to be removed')

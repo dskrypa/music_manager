@@ -1,5 +1,5 @@
 tag_name_map = {
-    #iTunes Verified Fields
+    # iTunes Verified Fields
     'TIT2': 'Song title',
     'TALB': 'Album',
     'TPE2': 'Album Artist',
@@ -24,22 +24,26 @@ tag_name_map = {
     'TSOA': 'Album [for sorting]',
     'TSOP': 'Artist [for sorting]',
 
-    'TENC': 'Encoded by',
+    # 'POPM': 'Popularimeter',                            # See https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
+    'POPM': 'Rating',
+    'APIC': 'Album Cover',
+    'TDRC': 'Date',                                                             #V2.4
+    'COMM': 'Comments',
+    'PRIV': 'Private frame',
+    'TXXX': 'User-defined',
+    'WXXX': 'User-defined URL',
 
-    #iTunes-only Fields
+    # region Uncommon tags
+    # iTunes-only Fields
     'TDES': 'Podcast Description',
     'TGID': 'Podcast Identifier',
     'WFED': 'Podcast URL',
     'PCST': 'Podcast Flag',
 
-    #General Fields
-    # 'POPM': 'Popularimeter',                            # See https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
-    'POPM': 'Rating',
-
+    # General Fields
+    'TENC': 'Encoded by',
     'AENC': 'Audio encryption',
-    'APIC': 'Album Cover',
     'ASPI': 'Audio seek point index',
-    'COMM': 'Comments',
     'COMR': 'Commercial frame',
     'ENCR': 'Encryption method registration',
     'EQUA': 'Equalisation',                                                     #V2.3
@@ -51,7 +55,6 @@ tag_name_map = {
     'MCDI': 'Music CD identifier',
     'MLLT': 'MPEG location lookup table',
     'OWNE': 'Ownership frame',
-    'PRIV': 'Private frame',
     'PCNT': 'Play counter',
     'POSS': 'Position synchronisation frame',
     'RBUF': 'Recommended buffer size',
@@ -70,7 +73,6 @@ tag_name_map = {
     'TDAT': 'Date',                                                             #V2.3
     'TIME': 'Time',                                                             #V2.3
     'TRDA': 'Recording Date',                                                   #V2.3
-    'TDRC': 'Date',                                                             #V2.4
     'TDRL': 'Release time',
     'TDTG': 'Tagging time',
     'TEXT': 'Lyricist/Text writer',
@@ -98,7 +100,6 @@ tag_name_map = {
     'TSRC': 'ISRC (international standard recording code)',
     'TSSE': 'Encoding Settings',
     'TSST': 'Set subtitle',
-    'TXXX': 'User-defined',
     'UFID': 'Unique file identifier',
     'USER': 'Terms of use',
     'WCOM': 'Commercial info',
@@ -109,17 +110,16 @@ tag_name_map = {
     'WORS': 'Radio station\'s website',
     'WPAY': 'Payment',
     'WPUB': 'Publisher\'s website',
-    'WXXX': 'User-defined URL',
 
-    #Deprecated
-    'TSIZ': 'Size',                                                             #Deprecated in V2.4
+    # Deprecated
+    'TSIZ': 'Size',                                                             # Deprecated in V2.4
 
-    #Invalid tags discovered
+    # Invalid tags discovered
     'ITNU': 'iTunesU? [invalid]',
     'TCAT': 'Podcast Category? [invalid]',
     'MJCF': 'MediaJukebox? [invalid]',
-    'RGAD': 'Replay Gain Adjustment [invalid]',                             #Not widely supported; superseded by RVA2
-    'NCON': 'MusicMatch data [invalid]',                                    #MusicMatch proprietary binary data
+    'RGAD': 'Replay Gain Adjustment [invalid]',                             # Not widely supported; superseded by RVA2
+    'NCON': 'MusicMatch data [invalid]',                                    # MusicMatch proprietary binary data
     'XTCP': '(unknown) [invalid]',
     'XCM1': '(ripper message?) [invalid]',
     'XSOP': 'Performer Sort Order [invalid]',
@@ -128,64 +128,91 @@ tag_name_map = {
     'XDOR': 'Original Release Time [invalid]',
     'TZZZ': 'Text frame [invalid]',
     'CM1': 'Comment? [invalid]'
+    # endregion
 }
 
-"""
-TODO: MP4:
 
-    ‘\xa9nam’ – track title
-    ‘\xa9alb’ – album
-    ‘\xa9ART’ – artist
-    ‘aART’ – album artist
-    ‘\xa9wrt’ – composer
-    ‘\xa9day’ – year
-    ‘\xa9cmt’ – comment
-    ‘desc’ – description (usually used in podcasts)
-    ‘purd’ – purchase date
-    ‘\xa9grp’ – grouping
-    ‘\xa9gen’ – genre
-    ‘\xa9lyr’ – lyrics
-    ‘purl’ – podcast URL
-    ‘egid’ – podcast episode GUID
-    ‘catg’ – podcast category
-    ‘keyw’ – podcast keywords
-    ‘\xa9too’ – encoded by
-    ‘cprt’ – copyright
-    ‘soal’ – album sort order
-    ‘soaa’ – album artist sort order
-    ‘soar’ – artist sort order
-    ‘sonm’ – title sort order
-    ‘soco’ – composer sort order
-    ‘sosn’ – show sort order
-    ‘tvsh’ – show name
-    ‘\xa9wrk’ – work
-    ‘\xa9mvn’ – movement
+mp4_tag_name_map = {
+    '\xa9nam': 'Song title',
+    '\xa9alb': 'Album',
+    '\xa9ART': 'Artist',
+    'aART': 'Album Artist',
+    '\xa9wrt': 'Composer',
+    '\xa9day': 'Year',
+    '\xa9cmt': 'Comment',
+    'desc': 'Description',  # usually used in podcasts
+    'purd': 'Purchase Date',
+    '\xa9grp': 'Grouping',
+    '\xa9gen': 'Genre',
+    '\xa9lyr': 'Lyrics',
+    'purl': 'Podcast URL',
+    'egid': 'Podcast episode GUID',
+    'catg': 'Podcast category',
+    'keyw': 'Podcast keywords',
+    '\xa9too': 'Encoded by',
+    'cprt': 'Copyright',
+    'soal': 'Album [for sorting]',
+    'soaa': 'Album Artist [for sorting]',
+    'soar': 'Artist [for sorting]',
+    'sonm': 'Title [for sorting]',
+    'soco': 'Composer [for sorting]',
+    'sosn': 'Show [for sorting]',
+    'tvsh': 'Show Name',
+    '\xa9wrk': 'Work',
+    '\xa9mvn': 'Movement',
 
-Boolean values:
+    # Boolean values:
+    'cpil': 'Compilation (boolean)',
+    'pgap': 'Gapless Album (boolean)',
+    'pcst': 'Podcast (boolean)',  # iTunes reads this only on import
 
-    ‘cpil’ – part of a compilation
-    ‘pgap’ – part of a gapless album
-    ‘pcst’ – podcast (iTunes reads this only on import)
+    # Tuples of ints (multiple values per key are supported):
+    'trkn': '(Track, Total Tracks)',
+    'disk': '(Disk, Total Disks)',
 
-Tuples of ints (multiple values per key are supported):
+    # Integer values:
+    'tmpo': 'BPM / Tempo',
+    '\xa9mvc': 'Movement Count',
+    '\xa9mvi': 'Movement Index',
+    'shwm': 'Work / Movement',
+    'stik': 'Media Kind',
+    'rtng': 'Content Rating',
+    'tves': 'TV Episode',
+    'tvsn': 'TV Season',
+    'plID': '(internally used by iTunes)',
+    'cnID': '(internally used by iTunes)',
+    'geID': '(internally used by iTunes)',
+    'atID': '(internally used by iTunes)',
+    'sfID': '(internally used by iTunes)',
+    'cmID': '(internally used by iTunes)',
+    'akID': '(internally used by iTunes)',
 
-    ‘trkn’ – track number, total tracks
-    ‘disk’ – disc number, total discs
+    # Others:
+    'covr': 'Album Cover',  # list of MP4Cover objects
+    'gnre': 'ID3v1 genre. Not supported, use \'\xa9gen\' instead.',
+}
 
-Integer values:
 
-    ‘tmpo’ – tempo/BPM
-    ‘\xa9mvc’ – Movement Count
-    ‘\xa9mvi’ – Movement Index
-    ‘shwm’ – work/movement
-    ‘stik’ – Media Kind
-    ‘rtng’ – Content Rating
-    ‘tves’ – TV Episode
-    ‘tvsn’ – TV Season
-    ‘plID’, ‘cnID’, ‘geID’, ‘atID’, ‘sfID’, ‘cmID’, ‘akID’ – Various iTunes Internal IDs
+flac_tag_name_map = {
+    'album': 'Album',
+    'albumartist': 'Album Artist',
+    'albumartistsort': 'Album Artist [for sorting]',
+    'albumsort': 'Album [for sorting]',
+    'artist': 'Artist',
+    'artistsort': 'Artist [for sorting]',
+    'bpm': 'BPM',
+    'compilation': 'Compilation (boolean)',
+    'date': 'Date',
+    'discnumber': 'Disk',
+    'genre': 'Genre',
+    'grouping': 'Grouping',
+    'isrc': 'ISRC',
+    'language': 'Language',
+    'lyrics': 'Lyrics',
+    'title': 'Song title',
+    'titlesort': 'Song title [for sorting]',
+    'tracknumber': 'Track',
+}
 
-Others:
 
-    ‘covr’ – cover artwork, list of MP4Cover objects (which are tagged strs)
-    ‘gnre’ – ID3v1 genre. Not supported, use ‘\xa9gen’ instead.
-"""
+typed_tag_name_map = {'mp3': tag_name_map, 'mp4': mp4_tag_name_map, 'flac': flac_tag_name_map}

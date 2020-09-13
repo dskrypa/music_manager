@@ -16,7 +16,7 @@ from typing import Iterator, List, Union, Optional, Set, Dict
 from mutagen.id3 import TDRC
 
 from ds_tools.caching import ClearableCachedPropertyMixin
-from ds_tools.core import iter_paths, FnMatcher, Paths
+from ds_tools.core import iter_paths, FnMatcher, Paths, ReMatcher
 from tz_aware_dt import format_duration
 from ..common import DiscoEntryType
 from ..text import Name
@@ -28,7 +28,7 @@ __all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs', 'iter_albums_or_fil
 log = logging.getLogger(__name__)
 
 RM_TAG_MATCHERS = {
-    'mp3': FnMatcher(('TXXX*', 'PRIV*', 'WXXX*', 'COMM*', 'TCOP')).match,
+    'mp3': ReMatcher(('TXXX:?(?!WIKI:)', 'PRIV.*', 'WXXX.*', 'COMM.*', 'TCOP')).match,
     'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
     'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
 }

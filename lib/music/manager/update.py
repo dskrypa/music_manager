@@ -66,6 +66,8 @@ class TrackInfo:
             'album': self.album.title,
             'album_artist': self.album.artist,
             'disk': (self.album.disk, self.album.disks) if self.album.mp4 else self.album.disk,
+            'WIKI:URL': self.album.wiki_url,
+            'WIKI:ARTIST': self.album.wiki_artist,
         }
         return {k: v for k, v in tags.items() if v is not None}
 
@@ -90,6 +92,8 @@ class AlbumInfo:
     mp4: bool = False                               # Whether the files in this album are mp4s
     cover_path: str = None                          # Path to a cover image
     cover_max_width: int = 1200                     # Maximum width for new cover images
+    wiki_url: str = None                            # URL of the Wiki page that this album matches
+    wiki_artist: str = None                         # URL of the Wiki page that this album's artist matches
     # fmt: on
 
     @property

@@ -260,6 +260,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         id_upper = tag_name_or_id.upper()
         if id_upper in id_to_name:
             return id_upper
+        if id_upper.startswith('WIKI:'):
+            return f'TXXX:{id_upper}'
         if self.tag_type == 'mp3':
             if id_upper in Frames:
                 return id_upper

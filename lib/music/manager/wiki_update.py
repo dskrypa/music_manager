@@ -183,7 +183,9 @@ class AlbumInfoProcessor:
             disks=max(part.disc for part in self.edition.parts),
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
             cover_path=self.get_album_cover(),
+            wiki_url=self.edition.page.url,
         )
+        # TODO: add album artist url
 
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
@@ -342,6 +344,7 @@ class AlbumInfoProcessor:
 
         tmp_dir = None
         if len(image_titles) > 1:
+            # TODO: Compare images here and only prompt if none match?
             urls = client.get_image_urls(image_titles)
             tmp_dir = TemporaryDirectory()
             _tmp_dir = Path(tmp_dir.name)

@@ -7,7 +7,7 @@ import logging
 import webbrowser
 from functools import cached_property
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from typing import Union, Optional, Dict, Tuple, Iterator
 
 from ds_tools.core import Paths
@@ -340,29 +340,50 @@ class AlbumInfoProcessor:
         if not image_titles:
             return None
 
-        tmp_path = None
+        tmp_dir = None
         if len(image_titles) > 1:
             urls = client.get_image_urls(image_titles)
-            with NamedTemporaryFile('w', suffix='.html', delete=False) as temp:
+            tmp_dir = TemporaryDirectory()
+            _tmp_dir = Path(tmp_dir.name)
+            tmp_html = _tmp_dir.joinpath('options.html')
+            try:
+                song_file = next(iter(self.album_dir))  # type: SongFile
+                cover_data, ext = song_file.get_cover_data()
+            except Exception as e:
+                log.error(f'Unable to extract current album art: {e}')
+                tmp_img = None
+            else:
+                tmp_img = _tmp_dir.joinpath(f'current.{ext}')
+                with tmp_img.open('wb') as f:
+                    f.write(cover_data)
+
+            with tmp_html.open('w', encoding='utf-8', newline='\n') as f:
                 text = (
-                    '<html>\n<head><title>Album Cover Options</title></head>\n'
-                    '<body>\n<h1>Album cover options</h1>\n<ul>\n'
+                    '<html>\n<head><title>Album Cover Options</title></head>\n<body>\n'
+                    + (
+                        f'<h1>Current Cover</h1><img src="file:///{tmp_img.as_posix()}" style="max-width: 800;"></img>'
+                        if tmp_img else ''
+                    )
+                    + '<h1>Album Cover Options</h1>\n<ul>\n'
                     + ''.join(
                         f'<li><div>{title}</div><img src="{urls[title]}" style="max-width: 800;"></img></li>\n'
                         for title in image_titles
                     )
                     + '</ul>\n</body>\n</html>\n'
                 )
-                temp.write(text)
-                temp.flush()
-                tmp_path = Path(temp.name)
-                webbrowser.open(f'file:///{temp.name}')
+                f.write(text)
+                f.flush()
+
+            webbrowser.open(f'file:///{tmp_html.as_posix()}')
 
         try:
-            title = choose_item(image_titles, 'album cover image')
+            title = choose_item(image_titles + ['[Keep Current]'], 'album cover image')
         finally:
-            if tmp_path is not None:
-                tmp_path.unlink()
+            if tmp_dir is not None:
+                tmp_dir.cleanup()
+
+        if title == '[Keep Current]':
+            return None
 
         name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
         path = cover_dir.joinpath(name)

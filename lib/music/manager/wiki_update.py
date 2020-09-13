@@ -4,12 +4,16 @@
 
 import json
 import logging
+import webbrowser
 from functools import cached_property
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Union, Optional, Dict, Tuple, Iterator
 
 from ds_tools.core import Paths
+from ds_tools.core.filesystem import get_user_cache_dir
 from ds_tools.input import choose_item
+from wiki_nodes.http import MediaWikiClient
 from ..files import iter_album_dirs, AlbumDir, SongFile
 from ..wiki import Track, Artist, Singer, Group
 from ..wiki.album import DiscographyEntry, DiscographyEntryPart, Soundtrack, SoundtrackEdition, SoundtrackPart
@@ -42,13 +46,14 @@ def update_tracks(
     dump: Optional[str] = None,
     load: Optional[str] = None,
     artist_url=None,
+    update_cover: bool = False,
 ):
     collab_mode = CollabMode.get(collab_mode)
     if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
         dest_base_dir = Path(dest_base_dir).expanduser().resolve()
 
     for album_dir, album_info in iter_album_info(
-        paths, soloist, hide_edition, collab_mode, url, title_case, sites, load, artist_url
+        paths, soloist, hide_edition, collab_mode, url, title_case, sites, load, artist_url, update_cover
     ):
         album_dir.remove_bad_tags(dry_run)
         album_dir.fix_song_tags(dry_run, add_bpm)
@@ -69,6 +74,7 @@ def iter_album_info(
     sites: StrOrStrs = None,
     load: Optional[str] = None,
     artist_url: Optional[str] = None,
+    update_cover: bool = False,
 ) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
     if load:
         album_info = AlbumInfo.load(Path(load).expanduser().resolve())
@@ -82,13 +88,15 @@ def iter_album_info(
         if url:
             album_dir = get_album_dir(paths, 'wiki URL')
             entry = DiscographyEntry.from_url(url)
-            processor = AlbumInfoProcessor(album_dir, entry, artist, soloist, hide_edition, collab_mode, title_case)
+            processor = AlbumInfoProcessor(
+                album_dir, entry, artist, soloist, hide_edition, collab_mode, title_case, update_cover
+            )
             yield album_dir, processor.to_album_info()
         else:
             for album_dir in iter_album_dirs(paths):
                 try:
                     processor = AlbumInfoProcessor.for_album_dir(
-                        album_dir, artist, soloist, hide_edition, collab_mode, title_case, sites
+                        album_dir, artist, soloist, hide_edition, collab_mode, title_case, sites, update_cover
                     )
                 except MatchException as e:
                     log.log(e.lvl, e, extra={'color': 9})
@@ -117,6 +125,7 @@ class AlbumInfoProcessor:
         hide_edition: bool = False,
         collab_mode: CollabMode = CollabMode.ARTIST,
         title_case: bool = False,
+        update_cover: bool = False,
     ):
         self.album_dir = album_dir
         self.title_case = title_case
@@ -125,6 +134,7 @@ class AlbumInfoProcessor:
         self.collab_mode = collab_mode
         self.album = album
         self.__artist = artist
+        self.update_cover = update_cover
 
     @classmethod
     def for_album_dir(
@@ -136,6 +146,7 @@ class AlbumInfoProcessor:
         collab_mode: CollabMode = CollabMode.ARTIST,
         title_case: bool = False,
         sites: StrOrStrs = None,
+        update_cover: bool = False,
     ) -> 'AlbumInfoProcessor':
         try:
             album = find_album(album_dir, sites=sites)
@@ -146,7 +157,7 @@ class AlbumInfoProcessor:
                 raise MatchException(40, f'Error finding an album match for {album_dir}: {e}') from e
         else:
             log.info(f'Matched {album_dir} to {album}')
-            return cls(album_dir, album, artist, soloist, hide_edition, collab_mode, title_case)
+            return cls(album_dir, album, artist, soloist, hide_edition, collab_mode, title_case, update_cover)
 
     def to_album_info(self) -> AlbumInfo:
         log.info(f'Artist for {self.edition}: {self.artist}')
@@ -171,6 +182,7 @@ class AlbumInfoProcessor:
             numbered_type=self.edition.numbered_type,
             disks=max(part.disc for part in self.edition.parts),
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
+            cover_path=self.get_album_cover(),
         )
 
         for file, track in self.file_track_map.items():
@@ -317,6 +329,50 @@ class AlbumInfoProcessor:
         if self.title_case:
             name = normalize_case(name)
         return name
+
+    def get_album_cover(self) -> Optional[str]:
+        if not self.update_cover:
+            return None
+        cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
+        page = self.edition.page
+        client = MediaWikiClient(page.site)
+        image_titles = client.get_page_image_titles(page.title)[page.title]
+        if not image_titles:
+            return None
+
+        tmp_path = None
+        if len(image_titles) > 1:
+            urls = client.get_image_urls(image_titles)
+            with NamedTemporaryFile('w', suffix='.html', delete=False) as temp:
+                text = (
+                    '<html>\n<head><title>Album Cover Options</title></head>\n'
+                    '<body>\n<h1>Album cover options</h1>\n<ul>\n'
+                    + ''.join(
+                        f'<li><div>{title}</div><img src="{urls[title]}" style="max-width: 800;"></img></li>\n'
+                        for title in image_titles
+                    )
+                    + '</ul>\n</body>\n</html>\n'
+                )
+                temp.write(text)
+                temp.flush()
+                tmp_path = Path(temp.name)
+                webbrowser.open(f'file:///{temp.name}')
+
+        try:
+            title = choose_item(image_titles, 'album cover image')
+        finally:
+            if tmp_path is not None:
+                tmp_path.unlink()
+
+        name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
+        path = cover_dir.joinpath(name)
+        if path.is_file():
+            return path.as_posix()
+
+        img_data = client.get_image(title)
+        with path.open('wb') as f:
+            f.write(img_data)
+        return path.as_posix()
 
 
 class ArtistSet:

@@ -136,6 +136,7 @@ def parser():
             upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
             upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
             upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
+            upd_parser.add_argument('--update_cover', '-C', action='store_true', help='Update the cover art for the album if it does not match an image in the matched wiki page')
 
             upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
             upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
@@ -194,7 +195,7 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites, args.dump, args.load, args.artist
+                args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover
             )
         elif sub_action == 'match':
             show_matches(args.path)

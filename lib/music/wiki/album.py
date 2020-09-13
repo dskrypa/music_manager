@@ -44,8 +44,8 @@ class DiscographyEntry(EntertainmentEntity):
     _categories = ()
 
     def __init__(
-            self, name: Optional[str] = None, pages: Pages = None, disco_entry: Optional['DiscoEntry'] = None,
-            artist: Optional['Artist'] = None, entry_type: Optional['DiscoEntryType'] = None
+        self, name: Optional[str] = None, pages: Pages = None, disco_entry: Optional['DiscoEntry'] = None,
+        artist: Optional['Artist'] = None, entry_type: Optional['DiscoEntryType'] = None
     ):
         """
         :param str name: The name of this discography entry

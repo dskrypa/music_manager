@@ -58,8 +58,8 @@ class SafePath:
 
 
 def get_common_changes(
-        album_dir: 'AlbumDir', updates: Mapping['SongFile', Mapping[str, Any]], show=True, extra_newline=False,
-        dry_run=False
+    album_dir: 'AlbumDir', updates: Mapping['SongFile', Mapping[str, Any]], show=True, extra_newline=False,
+    dry_run=False
 ) -> Dict[str, Tuple[Any, Any]]:
     counts = count_tag_changes(updates)
     # noinspection PyUnboundLocalVariable

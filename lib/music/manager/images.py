@@ -7,7 +7,7 @@ Utilities for extracting and adding cover art.
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Union
+from typing import Union, Tuple
 
 from PIL import Image
 
@@ -46,18 +46,7 @@ def extract_album_art(path: Paths, output: Union[Path, str]):
 
 
 def set_album_art(path: Union[Path, str], image_path: Union[Path, str], max_width: int = 1200, dry_run: bool = False):
-    with Path(image_path).expanduser().resolve().open('rb') as f:
-        image = Image.open(f)  # type: Image.Image
-        if image.width > max_width:
-            width, height = image.size
-            new_height = int(round(max_width * height / width))
-            log.log(19, f'Resizing image from {width}x{height} to {max_width}x{new_height}')
-            image = image.resize((max_width, new_height))
-
-    bio = BytesIO()
-    image.save(bio, 'jpeg')
-    data = bio.getvalue()
-
+    image, data = _jpeg_from_path(image_path, max_width)
     path = Path(path).expanduser().resolve()
     if path.is_file():
         SongFile(path).set_cover_data(image, dry_run, data)
@@ -75,9 +64,14 @@ def del_album_art(path: Union[Path, str], dry_run: bool = False):
             song_file.del_cover_tag(True, dry_run)
 
 
+def _jpeg_from_path(path: Union[Path, str], max_width: int = 1200) -> Tuple[Image.Image, bytes]:
+    image = Image.open(Path(path).expanduser().resolve())  # type: Image.Image
+    if image.width > max_width:
+        width, height = image.size
+        new_height = int(round(max_width * height / width))
+        log.log(19, f'Resizing image from {width}x{height} to {max_width}x{new_height}')
+        image = image.resize((max_width, new_height))
 
-# def images_are_similar(img_a: Image.Image, img_b: Image.Image) -> bool:
-#     if img_a.width > img_b.width:
-#         width, height = img_b.size
-
-
+    bio = BytesIO()
+    image.save(bio, 'jpeg')
+    return image, bio.getvalue()

@@ -16,9 +16,11 @@ from pathlib import Path
 from typing import Union, Optional, Dict, Mapping, Any, Iterator
 
 from ds_tools.core import Paths
+from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
 from ..common.disco_entry import DiscoEntryType
 from ..files import iter_album_dirs, AlbumDir, SongFile, SafePath, get_common_changes
+from .images import _jpeg_from_path
 
 __all__ = ['TrackInfo', 'AlbumInfo']
 log = logging.getLogger(__name__)
@@ -86,6 +88,8 @@ class AlbumInfo:
     numbered_type: str = None                       # The type + number within that type for this artist
     disks: int = 1                                  # Total number of disks for this album
     mp4: bool = False                               # Whether the files in this album are mp4s
+    cover_path: str = None                          # Path to a cover image
+    cover_max_width: int = 1200                     # Maximum width for new cover images
     # fmt: on
 
     @property
@@ -188,11 +192,28 @@ class AlbumInfo:
     def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False):
         file_info_map = self.get_file_info_map(album_dir)
         file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
-        common_changes = get_common_changes(album_dir, file_tag_map, extra_newline=True, dry_run=dry_run)
+        if self.cover_path:
+            image, img_data = _jpeg_from_path(self.cover_path, self.cover_max_width)
+            try:
+                song_file = next(iter(file_info_map))
+                file_img = song_file.get_cover_image()
+            except Exception as e:
+                log.warning(f'Unable to compare the current cover image to {self.cover_path}: {e}')
+            else:
+                if ComparableImage(image).is_same_as(ComparableImage(file_img)):
+                    log.debug(f'The cover image for {album_dir} already matches {self.cover_path}')
+                    image, img_data = None, None
+                else:
+                    log.info(f'Would update the cover image for {album_dir} to match {self.cover_path}')
+        else:
+            image, img_data = None, None
 
+        common_changes = get_common_changes(album_dir, file_tag_map, extra_newline=True, dry_run=dry_run)
         for file, info in file_info_map.items():
             log.debug(f'Matched {file} to {info.title}')
             file.update_tags(file_tag_map[file], dry_run, no_log=common_changes)
+            if image is not None:
+                file.set_cover_data(image, dry_run, img_data)
             maybe_rename_track(file, info.name or info.title, info.num, dry_run)
 
     def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):

@@ -5,7 +5,7 @@
 import re
 from typing import Sequence, Iterable, Optional
 
-from ds_tools.utils import num_suffix
+from ds_tools.utils.misc import num_suffix
 
 __all__ = ['combine_with_parens', 'find_ordinal']
 

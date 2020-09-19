@@ -20,7 +20,7 @@ from mutagen.mp4 import MP4Tags, MP4, MP4Cover
 from PIL import Image
 from plexapi.audio import Track
 
-from ds_tools.caching import ClearableCachedPropertyMixin
+from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
 from ...constants import tag_name_map

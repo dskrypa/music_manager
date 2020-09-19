@@ -16,7 +16,7 @@ from unicodedata import normalize
 
 from mutagen.id3 import POPM, USLT, APIC
 
-from ds_tools.caching import ClearableCachedProperty
+from ds_tools.caching.mixins import ClearableCachedProperty
 from ds_tools.output import colored, uprint
 from ds_tools.output.table import mono_width
 from ...common import stars

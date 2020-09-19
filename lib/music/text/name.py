@@ -11,7 +11,7 @@ from typing import (
     Mapping
 )
 
-from ds_tools.caching import ClearableCachedPropertyMixin
+from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
 from .extraction import split_enclosed

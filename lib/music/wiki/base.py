@@ -10,7 +10,7 @@ from functools import cached_property
 from itertools import chain
 from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping, Set
 
-from ds_tools.caching import ClearableCachedPropertyMixin
+from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
 from ..text import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates

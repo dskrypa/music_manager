@@ -15,7 +15,7 @@ from typing import Iterator, List, Union, Optional, Set, Dict
 
 from mutagen.id3 import TDRC
 
-from ds_tools.caching import ClearableCachedPropertyMixin
+from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.core.patterns import FnMatcher, ReMatcher
 from ds_tools.fs.paths import iter_paths, Paths
 from tz_aware_dt import format_duration

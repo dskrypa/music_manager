@@ -9,7 +9,7 @@ from functools import cached_property
 from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.unicode.languages import LangCat
-from ...common import DiscoEntryType
+from ...common.disco_entry import DiscoEntryType
 from ...text import (
     Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired, find_ordinal, strip_unpaired
 )

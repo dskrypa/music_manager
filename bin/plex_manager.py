@@ -22,7 +22,7 @@ from ds_tools.output import bullet_list, Printer
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
-from music.common import stars
+from music.common.utils import stars
 from music.plex import LocalPlexServer
 from music.plex.typing import PlexObjTypes
 from music.files.patches import apply_mutagen_patches

@@ -12,7 +12,7 @@ from wiki_nodes import (
     WikiPage, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List as ListNode
 )
 from wiki_nodes.nodes import N, AnyNode
-from ...common import DiscoEntryType
+from ...common.disco_entry import DiscoEntryType
 from ...text import (
     Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal, has_unpaired, parse_date
 )

@@ -2,14 +2,12 @@
 :author: Doug Skrypa
 """
 
-import logging
-
 from mutagen.id3._frames import Frame
 from mutagen.mp4 import AtomDataType, MP4Cover, MP4FreeForm, MP4Tags
+
 from .track.utils import tag_repr
 
 __all__ = ['apply_mutagen_patches']
-log = logging.getLogger(__name__)
 
 
 def apply_mutagen_patches():
@@ -22,6 +20,7 @@ def apply_mutagen_patches():
     MP4Tags._MP4Tags__atoms[b'POPM'] = (MP4Tags._MP4Tags__parse_integer, MP4Tags._MP4Tags__render_integer, 1)
 
     _orig_frame_repr = Frame.__repr__
+
     def _frame_repr(self):
         kw = []
         for attr in self._framespec:

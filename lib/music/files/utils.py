@@ -15,24 +15,26 @@ if TYPE_CHECKING:
 __all__ = ['iter_music_files', 'sanitize_path', 'SafePath', 'get_common_changes']
 log = logging.getLogger(__name__)
 
-NON_MUSIC_EXTS = {'jpg', 'jpeg', 'png', 'jfif', 'part', 'pdf', 'zip', 'webp'}
-PATH_SANITIZATION_DICT = {c: '' for c in '*;?<>"'}
-PATH_SANITIZATION_DICT.update({'/': '_', ':': '-', '\\': '_', '|': '-'})
-PATH_SANITIZATION_TABLE = str.maketrans(PATH_SANITIZATION_DICT)
-
 
 def iter_music_files(paths: Paths) -> Iterator[SongFile]:
+    non_music_exts = {'jpg', 'jpeg', 'png', 'jfif', 'part', 'pdf', 'zip', 'webp'}
     for file_path in iter_files(paths):
         music_file = SongFile(file_path)
         if music_file:
             yield music_file
         else:
-            if file_path.suffix not in NON_MUSIC_EXTS:
+            if file_path.suffix not in non_music_exts:
                 log.log(5, 'Not a music file: {}'.format(file_path))
 
 
 def sanitize_path(text: str) -> str:
-    return text.translate(PATH_SANITIZATION_TABLE)
+    try:
+        table = sanitize_path._table
+    except AttributeError:
+        path_sanitization_dict = {c: '' for c in '*;?<>"'}
+        path_sanitization_dict.update({'/': '_', ':': '-', '\\': '_', '|': '-'})
+        table = sanitize_path._table = str.maketrans(path_sanitization_dict)
+    return text.translate(table)
 
 
 class SafePath:

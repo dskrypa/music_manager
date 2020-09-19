@@ -16,7 +16,7 @@ from ds_tools.logging import init_logging
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
-from music.files import apply_mutagen_patches
+from music.files.patches import apply_mutagen_patches
 from music.manager.file_info import (
     print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
 )

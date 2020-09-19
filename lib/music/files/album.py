@@ -19,21 +19,14 @@ from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.core.patterns import FnMatcher, ReMatcher
 from ds_tools.fs.paths import iter_paths, Paths
 from tz_aware_dt import format_duration
-from ..common import DiscoEntryType
+from ..common.disco_entry import DiscoEntryType
 from ..text import Name
-from .exceptions import *
+from .exceptions import InvalidAlbumDir
 from .track import SongFile, AlbumName
 from .utils import iter_music_files, get_common_changes
 
-__all__ = ['AlbumDir', 'RM_TAG_MATCHERS', 'iter_album_dirs', 'iter_albums_or_files']
+__all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
-
-RM_TAG_MATCHERS = {
-    'mp3': ReMatcher(('TXXX:?(?!WIKI:)', 'PRIV.*', 'WXXX.*', 'COMM.*', 'TCOP')).match,
-    'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
-    'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
-}
-KEEP_TAGS = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
 EXECUTOR = None     # type: Optional[futures.ThreadPoolExecutor]
 
 
@@ -247,27 +240,25 @@ class AlbumDir(ClearableCachedPropertyMixin):
             global EXECUTOR
             if EXECUTOR is None:
                 EXECUTOR = futures.ThreadPoolExecutor(max_workers=8)
+                atexit.register(EXECUTOR.shutdown)
 
             for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in self.songs}):
                 future.result()
 
     def remove_bad_tags(self, dry_run=False):
+        keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
         i = 0
         for music_file in self.songs:
-            try:
-                rm_tag_match = RM_TAG_MATCHERS[music_file.tag_type]
-            except KeyError as e:
-                raise TypeError(f'Unhandled tag type: {music_file.tag_type}') from e
-
+            rm_tag_match = _rm_tag_matcher(music_file.tag_type)
             if music_file.tag_type == 'flac':
                 log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
                 # noinspection PyArgumentList
-                if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
+                if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
                     if i:
                         log.debug('')
             else:
                 # noinspection PyArgumentList
-                if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in KEEP_TAGS}:
+                if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
                     if i:
                         log.debug('')
 
@@ -284,6 +275,21 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 file.update_tags(values, dry_run, no_log=common_changes, none_level=20)
         else:
             log.info(f'No changes to make for {self}')
+
+
+def _rm_tag_matcher(tag_type: str):
+    try:
+        matchers = _rm_tag_matcher._matchers
+    except AttributeError:
+        matchers = _rm_tag_matcher._matchers = {
+            'mp3': ReMatcher(('TXXX:?(?!WIKI:)', 'PRIV.*', 'WXXX.*', 'COMM.*', 'TCOP')).match,
+            'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
+            'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
+        }
+    try:
+        return matchers[tag_type]
+    except KeyError as e:
+        raise TypeError(f'Unhandled tag type: {tag_type}') from e
 
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:
@@ -314,12 +320,6 @@ def _album_dir_obj(self):
     except InvalidAlbumDir:
         pass
     return None
-
-
-@atexit.register
-def _cleanup_executor():
-    if EXECUTOR is not None:
-        EXECUTOR.shutdown(True)
 
 
 # Note: The only time this property is not available is in interactive sessions started for the files.track.base module

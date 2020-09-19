@@ -13,7 +13,7 @@ from ordered_set import OrderedSet
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
 from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table, Template
-from ..common import DiscoEntryType
+from ..common.disco_entry import DiscoEntryType
 from ..text import combine_with_parens, Name, strip_enclosed
 from .base import EntertainmentEntity, Pages, TVSeries
 from .disco_entry import DiscoEntry

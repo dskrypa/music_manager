@@ -12,7 +12,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Template, ListEntry, List as ListNode
 from wiki_nodes.nodes import N
 from wiki_nodes.utils import strip_style
-from ...common import DiscoEntryType
+from ...common.disco_entry import DiscoEntryType
 from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES

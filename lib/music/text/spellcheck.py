@@ -11,7 +11,7 @@ from pathlib import Path
 
 from symspellpy import SymSpell, Verbosity
 
-from ds_tools.core import get_user_cache_dir
+from ds_tools.fs.paths import get_user_cache_dir
 
 __all__ = ['init_sym_spell', 'is_english', 'english_probability']
 log = logging.getLogger(__name__)

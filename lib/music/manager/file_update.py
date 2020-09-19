@@ -8,7 +8,7 @@ from fnmatch import translate as fnmatch_to_regex_str
 from functools import partial
 from multiprocessing import Pool
 
-from ds_tools.core import Paths
+from ds_tools.fs.paths import Paths
 from ds_tools.input import get_input
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ..files import iter_album_dirs, iter_music_files, TagException, iter_albums_or_files, SongFile

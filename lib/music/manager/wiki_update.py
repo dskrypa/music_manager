@@ -10,8 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Union, Optional, Dict, Tuple, Iterator
 
-from ds_tools.core import Paths
-from ds_tools.core.filesystem import get_user_cache_dir
+from ds_tools.fs.paths import Paths, get_user_cache_dir
 from ds_tools.input import choose_item
 from wiki_nodes.http import MediaWikiClient
 from ..files import iter_album_dirs, AlbumDir, SongFile

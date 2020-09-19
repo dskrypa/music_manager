@@ -6,7 +6,7 @@ import logging
 from itertools import chain
 from typing import TYPE_CHECKING, Iterator, Iterable, Union, Mapping, Any, Dict, Tuple
 
-from ds_tools.core.filesystem import iter_files, Paths
+from ds_tools.fs.paths import iter_files, Paths
 from .track import SongFile, print_tag_changes, count_tag_changes
 
 if TYPE_CHECKING:

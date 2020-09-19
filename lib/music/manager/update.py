@@ -15,7 +15,7 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Union, Optional, Dict, Mapping, Any, Iterator
 
-from ds_tools.core import Paths
+from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
 from ..common.disco_entry import DiscoEntryType

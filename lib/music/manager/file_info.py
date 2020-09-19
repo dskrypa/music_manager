@@ -7,8 +7,8 @@ from collections import defaultdict, Counter
 
 from mutagen.id3 import ID3
 
-from ds_tools.core import Paths
 from ds_tools.core.patterns import FnMatcher
+from ds_tools.fs.paths import Paths
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
 from ..constants import typed_tag_name_map
 from ..files import iter_album_dirs, iter_music_files, tag_repr, AlbumDir

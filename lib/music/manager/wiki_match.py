@@ -5,7 +5,7 @@
 import logging
 from typing import List, Iterable, Optional, Set
 
-from ds_tools.core import Paths
+from ds_tools.fs.paths import Paths
 from ds_tools.input import choose_item
 from ds_tools.output import uprint
 from ds_tools.unicode import LangCat

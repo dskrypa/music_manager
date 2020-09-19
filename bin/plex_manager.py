@@ -96,9 +96,12 @@ def main():
             plex.sync_playlist('K-Pop 2 Stars', query=kpop_tracks.filter(userRating=4))
             plex.sync_playlist('K-Pop 3 Stars', query=kpop_tracks.filter(userRating=6))
             plex.sync_playlist('K-Pop 3+ Stars', query=kpop_tracks.filter(userRating__gte=6))
+            plex.sync_playlist('K-Pop 3\u00BD Stars', query=kpop_tracks.filter(userRating=7))
             plex.sync_playlist('K-Pop 3\u00BD+ Stars', query=kpop_tracks.filter(userRating__gte=7))
             plex.sync_playlist('K-Pop 4 Stars', query=kpop_tracks.filter(userRating=8))
             plex.sync_playlist('K-Pop 4+ Stars', query=kpop_tracks.filter(userRating__gte=8))
+            plex.sync_playlist('K-Pop 4~4\u00BD Stars', query=kpop_tracks.filter(userRating__gte=8, userRating__lte=9))
+            plex.sync_playlist('K-Pop 4\u00BD Stars', query=kpop_tracks.filter(userRating=9))
             plex.sync_playlist('K-Pop 5 Stars', query=kpop_tracks.filter(userRating__gte=10))
             plex.sync_playlist(
                 'K-Pop Unrated',

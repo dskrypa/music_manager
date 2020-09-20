@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.files.track.parsing import split_artists
+from music.files.parsing import split_artists
 from music.text.name import Name
 from music.test_common import NameTestCaseBase, main
 

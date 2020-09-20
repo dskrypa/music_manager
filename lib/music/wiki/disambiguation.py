@@ -7,7 +7,7 @@ from typing import Type, Optional, Tuple, List, Iterator
 
 from ds_tools.input import choose_item
 from wiki_nodes import MediaWikiClient, WikiPage, Link, CompoundNode, List as ListNode, Section
-from ..text import Name
+from ..text.name import Name
 from .exceptions import AmbiguousPageError
 from .typing import WE, Candidates
 from .utils import page_name

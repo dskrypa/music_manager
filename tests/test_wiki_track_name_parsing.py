@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node, Link
 from music.test_common import NameTestCaseBase, main
-from music.text import Name
+from music.text.name import Name
 from music.wiki.album import DiscographyEntry
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser

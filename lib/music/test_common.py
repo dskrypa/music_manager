@@ -10,7 +10,7 @@ from ds_tools.output import colored
 
 from wiki_nodes import Node, as_node, Root
 
-from .text import Name
+from .text.name import Name
 
 __all__ = ['NameTestCaseBase', 'main', 'TestCaseBase', 'fake_page']
 log = logging.getLogger(__name__)

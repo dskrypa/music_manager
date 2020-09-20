@@ -12,7 +12,7 @@ from xml.etree.ElementTree import Element
 
 from ds_tools.output import short_repr
 from ..files.track.track import SongFile
-from ..text import Name
+from ..text.name import Name
 from .exceptions import InvalidQueryFilter
 from .filters import check_attrs
 from .typing import PlexObjTypes, PlexObj

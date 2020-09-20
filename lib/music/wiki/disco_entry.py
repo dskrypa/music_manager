@@ -10,7 +10,7 @@ from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, Link
 from wiki_nodes.nodes import N
 from ..common.disco_entry import DiscoEntryType
-from ..text import Name
+from ..text.name import Name
 from ..text.time import parse_date, DateObj, DateResult
 
 __all__ = ['DiscoEntry']

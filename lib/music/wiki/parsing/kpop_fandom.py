@@ -13,9 +13,10 @@ from wiki_nodes import (
 )
 from wiki_nodes.nodes import N, AnyNode
 from ...common.disco_entry import DiscoEntryType
-from ...text import (
-    Name, split_enclosed, ends_with_enclosed, combine_with_parens, find_ordinal, has_unpaired, parse_date
-)
+from ...text.extraction import split_enclosed, ends_with_enclosed, has_unpaired
+from ...text.name import Name
+from ...text.time import parse_date
+from ...text.utils import combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry

@@ -12,7 +12,7 @@ from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List,
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
-from ..text import Name
+from ..text.name import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError

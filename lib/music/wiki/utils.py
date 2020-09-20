@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import Iterable, Dict, Tuple, List, Union
 
 from wiki_nodes import MediaWikiClient, WikiPage, Link, String
-from ..text import Name
+from ..text.name import Name
 from .exceptions import NoLinkSite, NoLinkTarget
 
 __all__ = [

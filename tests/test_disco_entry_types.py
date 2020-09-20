@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.common import DiscoEntryType
+from music.common.disco_entry import DiscoEntryType
 from music.wiki.disco_entry import DiscoEntry
 
 log = logging.getLogger(__name__)

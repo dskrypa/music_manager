@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 from wiki_nodes.nodes import as_node
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.text import Name
+from music.text.name import Name
 from music.test_common import main, NameTestCaseBase
 from music.wiki.parsing.utils import name_from_intro
 from music.wiki.parsing.drama_wiki import DramaWikiParser

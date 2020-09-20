@@ -25,7 +25,7 @@ from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
 from ...constants import tag_name_map, TYPED_TAG_MAP
-from ...text import Name
+from ...text.name import Name
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject

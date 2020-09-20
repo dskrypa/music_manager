@@ -8,7 +8,8 @@ from typing import Optional, Iterator, Set
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode
-from ...text import split_enclosed, Name, has_unpaired, ends_with_enclosed, strip_enclosed
+from ...text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
+from ...text.name import Name
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'name_from_intro', 'get_artist_title', 'find_language',

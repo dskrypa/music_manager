@@ -20,7 +20,7 @@ from ds_tools.core.patterns import FnMatcher, ReMatcher
 from ds_tools.fs.paths import iter_paths, Paths
 from tz_aware_dt import format_duration
 from ..common.disco_entry import DiscoEntryType
-from ..text import Name
+from ..text.name import Name
 from .changes import get_common_changes
 from .exceptions import InvalidAlbumDir
 from .parsing import AlbumName

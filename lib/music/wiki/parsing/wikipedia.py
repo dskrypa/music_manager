@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence, Iter
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
 from wiki_nodes.nodes import N, ContainerNode
-from ...text import Name
+from ...text.name import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..disco_entry import DiscoEntry
 from ..discography import Discography

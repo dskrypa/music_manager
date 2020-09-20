@@ -8,7 +8,9 @@ from functools import partialmethod, cached_property
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable
 
 from wiki_nodes import CompoundNode, String, Link
-from ..text import Name, combine_with_parens, strip_enclosed
+from ..text.extraction import strip_enclosed
+from ..text.name import Name
+from ..text.utils import combine_with_parens
 from .parsing.utils import replace_lang_abbrev
 from .artist import Artist
 

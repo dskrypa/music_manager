@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
 
 from wiki_nodes import WikiPage, Link, String, MappingNode, Section, CompoundNode
 from wiki_nodes.nodes import N, ContainerNode
-from ...text import Name, ends_with_enclosed, split_enclosed
+from ...text.extraction import ends_with_enclosed, split_enclosed
+from ...text.name import Name
 from ..album import Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..base import EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry

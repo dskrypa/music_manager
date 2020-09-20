@@ -13,7 +13,10 @@ from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Templa
 from wiki_nodes.nodes import N
 from wiki_nodes.utils import strip_style
 from ...common.disco_entry import DiscoEntryType
-from ...text import parenthesized, split_enclosed, ends_with_enclosed, Name, is_english, find_ordinal
+from ...text.extraction import parenthesized, split_enclosed, ends_with_enclosed
+from ...text.name import Name
+from ...text.spellcheck import is_english
+from ...text.utils import find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
 from ..disco_entry import DiscoEntry

@@ -216,3 +216,60 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Set[DiscographyEntryPart
         candidates = _candidates
 
     return candidates
+
+
+"""
+Notes from old find_ost function:
+
+norm_title_rx = re.compile(r'^(.*)\s+(?:Part|Code No)\.?\s*\d+$', re.IGNORECASE)
+if m := norm_title_rx.match(title):
+    title = m.group(1).strip()
+    if title.endswith(' -'):
+        title = title[:-1].strip()
+    log.log(2, 'find_ost: normalized {!r} -> {!r}'.format(orig_title, title))
+
+
+if title.endswith(' OST'):
+    show_title = ' '.join(title.split()[:-1])
+elif LangCat.categorize(title) == LangCat.MIX and 'OST' in title.upper():
+    show_title = re.sub(r'\sOST(?!$|[!a-zA-Z])', ' ', title, flags=re.IGNORECASE)
+    show_title = ' '.join(show_title.split())
+else:
+    show_title = title
+
+search_title = show_title
+if 'love' in show_title.lower():
+    search_title = '|'.join([show_title, re.sub('love', 'luv', show_title, flags=re.IGNORECASE)])
+elif 'luv' in show_title.lower():
+    search_title = '|'.join([show_title, re.sub('luv', 'love', show_title, flags=re.IGNORECASE)])
+
+try:
+    series = WikiTVSeries(link_uri_path, client)
+except WikiTypeError:
+    actor = WikiArtist(link_uri_path, client)
+    for _series in actor.tv_shows:
+        if _series.matches(show_title):
+            series = _series
+            break
+
+if not series.matches(show_title):
+    log.debug('{} does not match {!r}'.format(series, show_title))
+elif series.ost_hrefs:
+    for ost_href in series.ost_hrefs:
+        ost = WikiSongCollection(ost_href, d_client, disco_entry=disco_entry, artist_context=artist)
+        if len(series.ost_hrefs) == 1 or ost.matches(title):
+            return ost
+
+for alt_title in series.aka:
+    if alt_uri_path := d_client.normalize_name(alt_title + ' OST'):
+        log.debug('Found alternate uri_path for {!r}: {!r}'.format(title, alt_uri_path))
+        return WikiSongCollection(alt_uri_path, d_client, disco_entry=disco_entry, artist_context=artist)
+
+if results := w_client.search(show_title):   # At this point, there was no exact match for this search
+    series = WikiTVSeries(results[0][1], w_client)
+    if series.matches(show_title):
+        if alt_uri_path := d_client.normalize_name(series.name + ' OST'):
+            log.debug('Found alternate uri_path for {!r}: {!r}'.format(title, alt_uri_path))
+            return WikiSongCollection(alt_uri_path, d_client, disco_entry=disco_entry, artist_context=artist)
+
+"""

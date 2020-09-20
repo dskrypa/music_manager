@@ -9,32 +9,28 @@ from functools import cached_property
 from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.unicode.languages import LangCat
-from ...common.disco_entry import DiscoEntryType
-from ...text import (
-    Name, split_enclosed, has_unpaired, sort_name_parts, ends_with_enclosed, get_unpaired, find_ordinal, strip_unpaired
-)
+from ..common.disco_entry import DiscoEntryType
+from ..text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, get_unpaired, strip_unpaired
+from ..text.name import Name, sort_name_parts
+from ..text.utils import find_ordinal
 
 __all__ = ['AlbumName', 'split_artists', 'UnexpectedListFormat']
 log = logging.getLogger(__name__)
 
 ATTR_NAMES = {'alb_type': 'type', 'sm_station': 'SM', 'version': 'ver', 'alb_num': 'num', 'ost': 'OST'}
 APOSTROPHES = "'`՚՛՜՝‘’"
-APOSTROPHES_TRANS = str.maketrans({c: "'" for c in APOSTROPHES})
-CHANNELS = tuple(map(str.lower, ('SBS', 'KBS', 'tvN', 'MBC')))
+CHANNELS = ('sbs', 'kbs', 'tvn', 'mbc')
 
 ALB_TYPE_DASH_SUFFIX_MATCH = re.compile(r'(.*)\s[-X]\s*((?:EP|Single|SM[\s-]?STATION))$', re.IGNORECASE).match
 NTH_ALB_TYPE_MATCH = re.compile(
-    r'^(.*?)(?:the)?\s*((?:(?:japan|china?)(?:ese)?|korean?)?\s*[0-9]+(?:st|nd|rd|th))\s+(.*?album\s*(?:repackage)?)(.*)$',
-    re.IGNORECASE
+    r'^(.*?)(?:the)?\s*((?:(?:japan|china?)(?:ese)?|korean?)?\s*[0-9]+(?:st|nd|rd|th))\s+'
+    r'(.*?album\s*(?:repackage)?)(.*)$',
+    re.IGNORECASE,
 ).match
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
 REPACKAGE_ALBUM_MATCH = re.compile(r'^re:?package\salbum\s(.*)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
-
-DELIMS_PAT = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE)
-CONTAINS_DELIM = DELIMS_PAT.search
-DELIM_FINDITER = DELIMS_PAT.finditer
-UNZIPPED_LIST_MATCH = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search
+CONTAINS_DELIM = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE).search
 
 
 @dataclass
@@ -135,14 +131,14 @@ class AlbumName:
         try:
             parts = list(filter(None, map(clean, reversed(split_enclosed(name, reverse=True)))))
         except ValueError:
-            name_parts = (name.translate(APOSTROPHES_TRANS),)
+            name_parts = (fix_apostrophes(name),)
         else:
             orig_parts = parts.copy()
             name_parts = []
             i = -1
             while parts:
                 i += 1
-                part = parts.pop(0).translate(APOSTROPHES_TRANS)
+                part = fix_apostrophes(parts.pop(0))
                 lc_part = part.lower()
                 # log.debug(f'Processing part={part!r} / lc_part={lc_part!r}')
                 if self.ost and part == '영화':   # movie
@@ -276,11 +272,24 @@ def clean(text):
     return text.strip(' -"')
 
 
+def fix_apostrophes(text: str) -> str:
+    try:
+        table = fix_apostrophes._table
+    except AttributeError:
+        table = fix_apostrophes._table = str.maketrans({c: "'" for c in APOSTROPHES})
+    return text.translate(table)
+
+
 def _split_str_list(text: str) -> Iterator[str]:
     """Split a list of artists on common delimiters"""
+    try:
+        delim_finditer = _split_str_list._delim_finditer
+    except AttributeError:
+        delim_finditer = _split_str_list._delim_finditer = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE).finditer
+
     last = 0
     after = None
-    for m in DELIM_FINDITER(text):
+    for m in delim_finditer(text):
         start, end = m.span()
         before = text[last:start]
         delim = text[start:end]
@@ -305,7 +314,7 @@ def split_str_list(text: str):
     processed = []
     processing = []
     for i, part in enumerate(_split_str_list(text)):
-        part = part.translate(APOSTROPHES_TRANS)
+        part = fix_apostrophes(part)
         kwargs = {'exclude': "'"} if part.count("'") % 2 == 1 else {}
         if has_unpaired(part, **kwargs):
             if processing:
@@ -394,7 +403,12 @@ def _artist_name(part: Union[str, Sequence[str]]) -> Name:
 
 
 def _unzipped_list_pairs(text: str):
-    if UNZIPPED_LIST_MATCH(text):
+    try:
+        unzipped = _unzipped_list_pairs._unzipped
+    except AttributeError:
+        unzipped = _unzipped_list_pairs._unzipped = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search
+
+    if unzipped(text):
         parts = split_enclosed(text, True, maxsplit=1)
         # log.debug(f'Found unzipped list:\n > a = {parts[0]!r}\n > b = {parts[1]!r}')
         if parts[0].count(',') == parts[1].count(','):

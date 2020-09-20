@@ -23,7 +23,8 @@ from ..common.disco_entry import DiscoEntryType
 from ..text import Name
 from .changes import get_common_changes
 from .exceptions import InvalidAlbumDir
-from .track import SongFile, AlbumName, iter_music_files
+from .track import SongFile, iter_music_files
+from .track.parsing import AlbumName
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)

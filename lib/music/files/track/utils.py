@@ -9,6 +9,7 @@ from unicodedata import normalize
 
 from mutagen.id3 import POPM, USLT, APIC
 
+from ds_tools.output.formatting import readable_bytes
 from ...common.utils import stars
 
 __all__ = ['RATING_RANGES', 'tag_repr', 'stars_from_256', 'parse_file_date', 'tag_id_to_name_map_for_type']
@@ -22,7 +23,14 @@ def tag_repr(tag_val, max_len=None, sub_len=None):
         # noinspection PyUnresolvedReferences
         return stars(stars_from_256(tag_val.rating, 10))
     elif isinstance(tag_val, APIC) and max_len is None and sub_len is None:
-        return '<APIC>'
+        # noinspection PyUnresolvedReferences
+        size = readable_bytes(len(tag_val.data))
+        # noinspection PyUnresolvedReferences
+        img_type = tag_val.type._pprint()
+        if img_type.startswith('cover'):
+            img_type = '{} ({})'.format(*img_type.split())
+        # noinspection PyUnresolvedReferences
+        return f'<APIC[mime={tag_val.mime!r}, type={img_type!r}, desc={tag_val.desc!r}, size={size}]>'
     elif isinstance(tag_val, USLT) and max_len is None and sub_len is None:
         max_len, sub_len = 45, 20
     else:

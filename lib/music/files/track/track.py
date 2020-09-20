@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Optional, Union, Iterator, Tuple, Set, Any, It
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
-from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType
+from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType, Encoding
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover
 from plexapi.audio import Track
@@ -241,13 +241,30 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 log.error(f'Error setting tag={tag_id!r} on {self} to {value=!r}: {e}')
                 raise
         elif tag_type == 'mp3':
+            """
+            Args:
+                TXXX: encoding, desc, text
+                WXXX: encoding, desc, url
+                TextFrame: encoding, text
+            """
+            tag_id = tag_id.upper()
+            if tag_id.startswith(('TXXX:', 'WXXX:')):
+                tag_id, desc = tag_id.split(':', 1)
+                kwargs = {
+                    'encoding': Encoding.UTF8,
+                    'desc': desc,
+                    'text' if tag_id[0] == 'T' else 'url': str(value),
+                }
+            else:
+                kwargs = {'encoding': Encoding.UTF8, 'text': str(value)}
+
             try:
-                tag_cls = getattr(_frames, tag_id.upper())
+                tag_cls = getattr(_frames, tag_id)
             except AttributeError as e:
                 raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
             else:
                 # log.debug(f'{self}: Setting {tag_cls.__name__} = {value!r}')
-                tags[tag_id] = tag_cls(text=str(value))
+                tags[tag_id] = tag_cls(**kwargs)
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 

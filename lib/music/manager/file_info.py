@@ -11,7 +11,9 @@ from ds_tools.core.patterns import FnMatcher
 from ds_tools.fs.paths import Paths
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
 from ..constants import typed_tag_name_map
-from ..files import iter_album_dirs, iter_music_files, tag_repr, AlbumDir
+from ..files.track.track import iter_music_files
+from ..files.track.utils import tag_repr
+from ..files.album import iter_album_dirs, AlbumDir
 
 __all__ = [
     'print_track_info', 'table_song_tags', 'table_unique_tag_values', 'table_tag_type_counts', 'print_processed_info'
@@ -71,7 +73,7 @@ def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
         if i and not meta_only:
             print()
 
-        uprint(f'{music_file.filename} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
+        uprint(f'{music_file.path.as_posix()} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
         if not meta_only:
             tag_name_map = typed_tag_name_map[music_file.tag_type]
             tbl = Table(SimpleColumn('Tag'), SimpleColumn('Tag Name'), SimpleColumn('Value'), update_width=True)

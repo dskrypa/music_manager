@@ -2,7 +2,6 @@
 :author: Doug Skrypa
 """
 
-import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Union
@@ -19,12 +18,11 @@ except ImportError:
     aubio = None
 
 __all__ = ['get_bpm', 'BPMDetectionError']
-log = logging.getLogger(__name__)
 
 
 def get_bpm(path: Union[str, Path], sample_rate=44100, window_size=1024, hop_size=512) -> int:
     if aubio is None:
-        raise RuntimeError('aubio is required to calculate bpm')
+        raise RuntimeError('aubio and numpy are required to calculate bpm')
     if not isinstance(path, Path):
         path = Path(path)
 

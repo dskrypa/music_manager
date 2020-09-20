@@ -68,8 +68,8 @@ class TrackInfo:
             'album': self.album.title,
             'album_artist': self.album.artist,
             'disk': (self.album.disk, self.album.disks) if self.album.mp4 else self.album.disk,
-            'WIKI:URL': self.album.wiki_url,
-            'WIKI:ARTIST': self.album.wiki_artist,
+            'wiki:url': self.album.wiki_url,
+            'wiki:artist': self.album.wiki_artist,
         }
         return {k: v for k, v in tags.items() if v is not None}
 

@@ -24,7 +24,7 @@ from ..text.name import Name
 from .changes import get_common_changes
 from .exceptions import InvalidAlbumDir
 from .parsing import AlbumName
-from .track import SongFile, iter_music_files
+from .track.track import SongFile, iter_music_files
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
@@ -283,7 +283,7 @@ def _rm_tag_matcher(tag_type: str):
         matchers = _rm_tag_matcher._matchers
     except AttributeError:
         matchers = _rm_tag_matcher._matchers = {
-            'mp3': ReMatcher(('TXXX:?(?!WIKI:)', 'PRIV.*', 'WXXX.*', 'COMM.*', 'TCOP')).match,
+            'mp3': ReMatcher(('TXXX(?::|$)(?!WIKI:)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:)', 'COMM.*', 'TCOP')).match,
             'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
             'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
         }

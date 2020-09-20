@@ -19,6 +19,8 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN', 'flac': 'LANGUAGE'},
     'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
     'cover': {'mp4': 'covr', 'mp3': 'APIC'},  # flac: FLAC.pictures
+    'wiki:url': {'mp4': 'WIKI:URL', 'mp3': 'WXXX:WIKI:URL', 'flac': 'WIKI:URL'},
+    'wiki:artist': {'mp4': 'WIKI:ARTIST', 'mp3': 'WXXX:WIKI:ARTIST', 'flac': 'WIKI:ARTIST'},
     # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
 

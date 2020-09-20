@@ -113,6 +113,24 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return set(chain.from_iterable(music_file.all_artists for music_file in self.songs))
 
     @cached_property
+    def artist_url(self):
+        urls = set(music_file.artist_url for music_file in self.songs)
+        if len(urls) == 1:
+            return next(iter(urls))
+        elif urls:
+            log.debug(f'Found too many ({len(urls)}) artist URLs for {self}')
+        return None
+
+    @cached_property
+    def album_url(self):
+        urls = set(music_file.album_url for music_file in self.songs)
+        if len(urls) == 1:
+            return next(iter(urls))
+        elif urls:
+            log.debug(f'Found too many ({len(urls)}) album URLs for {self}')
+        return None
+
+    @cached_property
     def album_artists(self) -> Set[Name]:
         return set(chain.from_iterable(music_file.album_artists for music_file in self.songs))
 
@@ -283,7 +301,7 @@ def _rm_tag_matcher(tag_type: str):
         matchers = _rm_tag_matcher._matchers
     except AttributeError:
         matchers = _rm_tag_matcher._matchers = {
-            'mp3': ReMatcher(('TXXX(?::|$)(?!WIKI:)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:)', 'COMM.*', 'TCOP')).match,
+            'mp3': ReMatcher(('TXXX(?::|$)(?!WIKI:A)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
             'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
             'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
         }

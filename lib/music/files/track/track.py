@@ -61,6 +61,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_album = TextTagProperty('album', default=None)                  # type: Optional[str]
     tag_genre = TextTagProperty('genre', default=None)                  # type: Optional[str]
     date = TextTagProperty('date', parse_file_date)                     # type: Optional[date]
+    album_url = TextTagProperty('wiki:album')                           # type: Optional[str]
+    artist_url = TextTagProperty('wiki:artist')                         # type: Optional[str]
 
     def __new__(cls, file_path: Union[Path, str], *args, options=_NotSet, **kwargs):
         file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path

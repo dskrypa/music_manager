@@ -183,7 +183,7 @@ class AlbumInfoProcessor:
             disks=max(part.disc for part in self.edition.parts),
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
             cover_path=self.get_album_cover(),
-            wiki_url=self.edition.page.url,
+            wiki_album=self.edition.page.url,
             wiki_artist=self.edition.artist.url,
         )
 

@@ -78,8 +78,10 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
 
 
 def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> List[Artist]:
-    # TODO: Look at TXXX:WIKI:ARTIST tag
-    if artists := album_dir.all_artists:
+    if artist_url := album_dir.artist_url:
+        log.debug(f'Found artist URL via tag for {album_dir}: {artist_url}', extra={'color': 10})
+        return [Artist.from_url(artist_url)]
+    elif artists := album_dir.all_artists:
         log.debug(f'Processing artists in {album_dir}: {artists}')
         remaining = set(artists)
         artist_objs = []
@@ -124,10 +126,17 @@ def find_album(
     artists: Optional[Iterable[Artist]] = None,
     sites: StrOrStrs = None,
 ) -> DiscographyEntryPart:
-    # TODO: Look at TXXX:WIKI:URL tag
+    if album_url := album_dir.album_url:
+        log.debug(f'Found album URL via tag for {album_dir}: {album_url}', extra={'color': 10})
+        candidates = list(DiscographyEntry.from_url(album_url).parts())
+        return choose_item(
+            candidates, 'candidate', before=f'\nFound multiple possible matches for {album_dir}', before_color=14
+        )
+
     album_name = album_dir.name
     if not album_name:
         raise ValueError(f'Directories with multiple album names are not currently handled.')
+
     repackage = album_name.repackage
     alb_name = album_name.name
 

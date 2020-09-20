@@ -11,7 +11,9 @@ from multiprocessing import Pool
 from ds_tools.fs.paths import Paths
 from ds_tools.input import get_input
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
-from ..files import iter_album_dirs, iter_music_files, TagException, iter_albums_or_files, SongFile
+from ..files.album import iter_album_dirs, iter_albums_or_files
+from ..files.exceptions import TagException
+from ..files.track.track import iter_music_files, SongFile
 
 __all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags', 'add_track_bpm']
 log = logging.getLogger(__name__)

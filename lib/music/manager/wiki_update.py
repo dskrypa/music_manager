@@ -13,7 +13,8 @@ from typing import Union, Optional, Dict, Tuple, Iterator
 from ds_tools.fs.paths import Paths, get_user_cache_dir
 from ds_tools.input import choose_item
 from wiki_nodes.http import MediaWikiClient
-from ..files import iter_album_dirs, AlbumDir, SongFile
+from ..files.album import iter_album_dirs, AlbumDir
+from ..files.track.track import SongFile
 from ..wiki import Track, Artist, Singer, Group
 from ..wiki.album import DiscographyEntry, DiscographyEntryPart, Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
@@ -183,8 +184,8 @@ class AlbumInfoProcessor:
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
             cover_path=self.get_album_cover(),
             wiki_url=self.edition.page.url,
+            wiki_artist=self.edition.artist.url,
         )
-        # TODO: add album artist url
 
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')

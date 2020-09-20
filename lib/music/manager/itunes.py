@@ -11,7 +11,7 @@ from html import unescape
 from pathlib import Path
 from urllib.parse import unquote
 
-from ..files import SongFile
+from ..files.track.track import SongFile
 
 __all__ = ['ItunesLibrary']
 log = logging.getLogger(__name__)

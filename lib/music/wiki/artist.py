@@ -97,6 +97,17 @@ class Artist(PersonOrGroup, DiscographyMixin):
         log.debug(f'Unable to determine primary language for {self} - found {langs=}')
         return None
 
+    @cached_property
+    def url(self) -> Optional[str]:
+        if pages := self._pages:
+            for site in ('kpop.fandom.com', 'www.generasia.com', 'en.wikipedia.org', 'wiki.d-addicts.com'):
+                if page := pages.get(site):
+                    return page.url
+            else:  # It has a page from a different site
+                site, page = next(iter(sorted(pages.items())))
+                return page.url
+        return None
+
 
 class Singer(Artist):
     _categories = SINGER_CATEGORIES

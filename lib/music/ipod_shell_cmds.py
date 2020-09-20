@@ -7,7 +7,8 @@ from pypod.shell.commands.base import ShellCommand
 
 from ds_tools.output import Table, SimpleColumn
 from .constants import tag_name_map
-from .files.track import SongFile, tag_repr
+from .files.track.track import SongFile
+from .files.track.utils import tag_repr
 
 log = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ from ds_tools.output import uprint
 from ds_tools.unicode import LangCat
 from wiki_nodes.http import URL_MATCH
 from ..common.disco_entry import DiscoEntryType
-from ..files import AlbumDir, iter_album_dirs
+from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack
 from ..wiki.artist import Artist, Group

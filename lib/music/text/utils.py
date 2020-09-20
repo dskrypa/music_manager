@@ -2,19 +2,9 @@
 :author: Doug Skrypa
 """
 
-import re
 from typing import Sequence, Iterable, Optional
 
-from ds_tools.utils.misc import num_suffix
-
 __all__ = ['combine_with_parens', 'find_ordinal']
-
-ORDINAL_TO_INT = {
-    'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9,
-    'tenth': 10, 'debut': 1
-}
-ORDINAL_TO_INT.update((f'{i}{num_suffix(i)}', i) for i in range(1, 21))
-ORDINAL_SEARCH = re.compile('({})'.format('|'.join(ORDINAL_TO_INT)), re.IGNORECASE).search
 
 
 def combine_with_parens(parts: Iterable[str]) -> str:
@@ -26,6 +16,19 @@ def combine_with_parens(parts: Iterable[str]) -> str:
 
 
 def find_ordinal(text: str) -> Optional[int]:
-    if m := ORDINAL_SEARCH(text.lower()):
-        return ORDINAL_TO_INT[m.group(1)]
+    try:
+        ord_search = find_ordinal._ord_search
+        ordinal_to_int = find_ordinal._ordinal_to_int
+    except AttributeError:
+        import re
+        from ds_tools.utils.misc import num_suffix
+        ordinal_to_int = find_ordinal._ordinal_to_int = {
+            'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7, 'eighth': 8,
+            'ninth': 9, 'tenth': 10, 'debut': 1
+        }
+        ordinal_to_int.update((f'{i}{num_suffix(i)}', i) for i in range(1, 21))
+        ord_search = find_ordinal._ord_search = re.compile(f'({"|".join(ordinal_to_int)})', re.IGNORECASE).search
+
+    if m := ord_search(text.lower()):
+        return ordinal_to_int[m.group(1)]
     return None

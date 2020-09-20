@@ -11,14 +11,13 @@ from io import BytesIO
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict, List
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict, List
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
 from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover
-from PIL import Image
 from plexapi.audio import Track
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
@@ -28,13 +27,14 @@ from tz_aware_dt import format_duration
 from ...constants import tag_name_map, TYPED_TAG_MAP
 from ...text import Name
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
-from ..changes import print_tag_changes
+from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
-from .bpm import get_bpm
 from .descriptors import MusicFileProperty, TextTagProperty, _NotSet
-from .parsing import split_artists, AlbumName
 from .patterns import EXTRACT_PART_MATCH, LYRIC_URL_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 from .utils import RATING_RANGES, stars_from_256, tag_repr, parse_file_date, tag_id_to_name_map_for_type
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
@@ -625,6 +625,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             bpm = int(self.tag_text('bpm'))
         except TagException:
             if calculate:
+                from .bpm import get_bpm
                 if not (bpm := self._bpm):
                     bpm = self._bpm = get_bpm(self.path, self.sample_rate)
                 if save:
@@ -650,6 +651,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 to_update[tag_name] = (file_value, new_value)
 
         if to_update:
+            from ..changes import print_tag_changes
             no_log = no_log or ()
             if to_log := {k: v for k, v in to_update.items() if k not in no_log}:
                 print_tag_changes(self, to_log, dry_run)
@@ -728,7 +730,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             raise TypeError(f'{self} has unexpected type={self.tag_type!r} for album cover extraction')
 
-    def get_cover_image(self) -> Image.Image:
+    def get_cover_image(self) -> 'Image.Image':
+        from PIL import Image
         data, ext = self.get_cover_data()
         return Image.open(BytesIO(data))
 
@@ -753,7 +756,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         log.info(f'{set_prefix} cover image to {self}: [{readable_bytes(size)}] {cover!r}')
         return not dry_run
 
-    def set_cover_data(self, image: Image.Image, dry_run: bool = False, data: Optional[bytes] = None):
+    def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, data: Optional[bytes] = None):
+        from PIL import Image
         if data is None:
             bio = BytesIO()
             image.save(bio, 'jpeg')

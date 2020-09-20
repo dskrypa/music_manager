@@ -22,14 +22,10 @@ from ds_tools.output import bullet_list, Printer
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
-from music.common.utils import stars
 from music.plex import LocalPlexServer
 from music.plex.typing import PlexObjTypes
-from music.files.patches import apply_mutagen_patches
 
 log = logging.getLogger(__name__)
-
-apply_mutagen_patches()
 
 
 def parser():
@@ -74,8 +70,11 @@ def parser():
 
 @wrap_main
 def main():
-    args, dynamic = parser().parse_with_dynamic_args('query')
+    args, dynamic = parser().parse_with_dynamic_args('query', req_subparser_value=True)
     init_logging(args.verbose, log_path=None, names=None)
+
+    from music.files.patches import apply_mutagen_patches
+    apply_mutagen_patches()
 
     plex = LocalPlexServer(
         args.server_url, args.username, args.server_path_root, args.config_path, args.music_library, args.dry_run
@@ -141,6 +140,7 @@ def main():
         else:
             log.warning('No results.')
     elif args.action == 'rate':
+        from music.common.utils import stars
         if args.rating < 0 or args.rating > 10:
             raise ValueError('Ratings must be between 0 and 10')
         obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)

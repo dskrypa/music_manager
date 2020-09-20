@@ -8,7 +8,7 @@ from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 # from music_manager.files.track.patterns import cleanup_album_name
-from music.files.track.parsing import AlbumName
+from music.files.parsing import AlbumName
 from music.text.name import Name, sort_name_parts
 
 log = logging.getLogger(__name__)

@@ -31,15 +31,14 @@ from .typing import PlexObjTypes, PlexObj
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
 
-disable_urllib3_warnings()
-apply_plex_patches()
-
 
 class LocalPlexServer:
     def __init__(
-            self, url=None, user=None, server_path_root=None, config_path=DEFAULT_CONFIG_PATH, music_library=None,
-            dry_run=False
+        self, url=None, user=None, server_path_root=None, config_path=DEFAULT_CONFIG_PATH, music_library=None,
+        dry_run=False
     ):
+        disable_urllib3_warnings()
+        apply_plex_patches()
         self._config_path = Path(config_path).expanduser().resolve()
         log.debug(f'Reading PlexAPI config from {self._config_path}')
         if not self._config_path.exists():

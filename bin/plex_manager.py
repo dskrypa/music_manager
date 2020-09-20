@@ -9,11 +9,7 @@ import _venv  # This will activate the venv, if it exists and is not already act
 
 import argparse
 import logging
-from typing import Iterable, Tuple, Dict
-
-from plexapi import DEFAULT_CONFIG_PATH
-from plexapi.audio import Track
-from plexapi.base import OPERATORS
+from typing import TYPE_CHECKING, Iterable, Tuple, Dict
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.core import wrap_main
@@ -22,8 +18,10 @@ from ds_tools.output import bullet_list, Printer
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
-from music.plex import LocalPlexServer
-from music.plex.typing import PlexObjTypes
+
+if TYPE_CHECKING:
+    from plexapi.audio import Track
+    from music.plex.typing import PlexObjTypes
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +37,10 @@ def parser():
     playlists_parser = sync_parser.add_subparser('sync_action', 'playlists', help='Sync playlists with custom filters')
 
     obj_types = ('track', 'artist', 'album', 'tracks', 'artists', 'albums')
-    ops = ', '.join(sorted(list(OPERATORS) + ['like']))
+    ops = (
+        'contains, endswith, exact, exists, gt, gte, icontains, iendswith, iexact, in, iregex, istartswith, like, lt, '
+        'lte, ne, regex, startswith'
+    )
 
     find_parser = parser.add_subparser('action', 'find', help='Find Plex information')
     find_parser.add_argument('obj_type', choices=obj_types, help='Object type')
@@ -61,7 +62,7 @@ def parser():
     parser.add_common_sp_arg('--server_path_root', '-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
     parser.add_common_sp_arg('--server_url', '-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
     parser.add_common_sp_arg('--username', '-n', help='Plex username (only needed when a token is not already cached)')
-    parser.add_common_sp_arg('--config_path', '-c', metavar='PATH', default=DEFAULT_CONFIG_PATH, help='Config file in which your token and server_path_root / server_url are stored (default: %(default)s)')
+    parser.add_common_sp_arg('--config_path', '-c', metavar='PATH', default='~/.config/plexapi/config.ini', help='Config file in which your token and server_path_root / server_url are stored (default: %(default)s)')
     parser.add_common_sp_arg('--music_library', '-m', default=None, help='Name of the Music library to use (default: Music)')
 
     parser.include_common_args('verbosity', 'dry_run')
@@ -76,6 +77,7 @@ def main():
     from music.files.patches import apply_mutagen_patches
     apply_mutagen_patches()
 
+    from music.plex import LocalPlexServer
     plex = LocalPlexServer(
         args.server_url, args.username, args.server_path_root, args.config_path, args.music_library, args.dry_run
     )
@@ -160,7 +162,7 @@ def main():
         log.error('Unconfigured action')
 
 
-def parse_filters(obj_type, title, filters, escape, allow_inst) -> Tuple[PlexObjTypes, Dict[str, str]]:
+def parse_filters(obj_type, title, filters, escape, allow_inst) -> Tuple['PlexObjTypes', Dict[str, str]]:
     """
     :param str obj_type: Type of Plex object to find (tracks, albums, artists, etc)
     :param list title: Parts of the name of the object(s) to find, if searching by title__like2

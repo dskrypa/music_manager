@@ -16,19 +16,8 @@ from ds_tools.logging import init_logging
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
-from music.files.patches import apply_mutagen_patches
-from music.manager.file_info import (
-    print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
-)
-from music.manager.file_update import path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm
-from music.manager.images import extract_album_art, set_album_art, del_album_art
-from music.manager.update import AlbumInfo
-from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
-from music.manager.wiki_match import show_matches, test_match
-from music.manager.wiki_update import update_tracks
 
 log = logging.getLogger(__name__)
-apply_mutagen_patches()
 DEFAULT_DEST_DIR = './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
 SHOW_ARGS = {
     'info': 'Show track title, length, tag version, and tags', 'meta': 'Show track title, length, and tag version',
@@ -168,12 +157,19 @@ def parser():
 def main():
     args = parser().parse_args(req_subparser_value=True)
     init_logging(args.verbose, log_path=None, names=None)
+
+    from music.files.patches import apply_mutagen_patches
+    apply_mutagen_patches()
+
     # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
     if args.match_log:
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
     action, sub_action = args.action, getattr(args, 'sub_action', None)
     if action == 'show':
+        from music.manager.file_info import (
+            print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
+        )
         if sub_action == 'info':
             print_track_info(args.path, args.tags, trim=not args.no_trim)
         elif sub_action == 'meta':
@@ -188,46 +184,59 @@ def main():
             print_processed_info(args.path, args.expand, args.only_errors)
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
+    elif action in ('path2tag', 'clean', 'remove', 'bpm') or (action == 'update' and not args.load):
+        from music.manager.file_update import (
+            path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm
+        )
+        if action == 'path2tag':
+            path_to_tag(args.path, args.dry_run, args.yes, args.title)
+        elif action == 'clean':
+            bpm = aubio_installed() if args.bpm is None else args.bpm
+            clean_tags(args.path, args.dry_run, bpm)
+        elif action == 'remove':
+            if not args.tag and not args.all:
+                raise ValueError('Either --tag/-t or --all/-A must be provided')
+            remove_tags(args.path, args.tag, args.dry_run, args.all)
+        elif action == 'bpm':
+            add_track_bpm(args.path, args.parallel, args.dry_run)
+        elif action == 'update':
+            if not args.tag or not args.value:
+                raise ValueError('Both --tag/-t and --value/-V are required')
+            update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
     elif action == 'wiki':
-        if sub_action == 'show':
-            show_wiki_entity(args.identifier, args.expand, args.limit, args.types, args.type)
-        elif sub_action == 'update':
+        if sub_action == 'update':
+            from music.manager.wiki_update import update_tracks
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
                 args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover
             )
-        elif sub_action == 'match':
-            show_matches(args.path)
-        elif sub_action == 'pprint':
-            pprint_wiki_page(args.url, args.mode)
-        elif sub_action == 'test':
-            test_match(args.path, args.url)
-        elif sub_action == 'raw':
-            pprint_wiki_page(args.url, 'raw')
+        elif sub_action in ('match', 'test'):
+            from music.manager.wiki_match import show_matches, test_match
+            if sub_action == 'match':
+                show_matches(args.path)
+            elif sub_action == 'test':
+                test_match(args.path, args.url)
+        elif sub_action in ('show', 'pprint', 'raw'):
+            from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
+            if sub_action == 'show':
+                show_wiki_entity(args.identifier, args.expand, args.limit, args.types, args.type)
+            elif sub_action == 'pprint':
+                pprint_wiki_page(args.url, args.mode)
+            elif sub_action == 'raw':
+                pprint_wiki_page(args.url, 'raw')
         else:
             raise ValueError(f'Unexpected sub-action: {sub_action!r}')
-    elif action == 'path2tag':
-        path_to_tag(args.path, args.dry_run, args.yes, args.title)
-    elif action == 'update':
-        if args.load:
+    elif action in ('update', 'dump'):
+        from music.manager.update import AlbumInfo
+        if action == 'dump':
+            AlbumInfo.from_path(args.path).dump(args.output, args.title_case)
+        elif action == 'update':
+            if not args.load:
+                raise ValueError('--load PATH is required')
             AlbumInfo.load(args.load).update_and_move(dest_base_dir=Path(args.destination), dry_run=args.dry_run)
-        else:
-            if not args.tag or not args.value:
-                raise ValueError(f'Both --tag/-t and --value/-V are required')
-            update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
-    elif action == 'clean':
-        bpm = aubio_installed() if args.bpm is None else args.bpm
-        clean_tags(args.path, args.dry_run, bpm)
-    elif action == 'remove':
-        if not args.tag and not args.all:
-            raise ValueError('Either --tag/-t or --all/-A must be provided')
-        remove_tags(args.path, args.tag, args.dry_run, args.all)
-    elif action == 'bpm':
-        add_track_bpm(args.path, args.parallel, args.dry_run)
-    elif action == 'dump':
-        AlbumInfo.from_path(args.path).dump(args.output, args.title_case)
     elif action == 'cover':
+        from music.manager.images import extract_album_art, set_album_art, del_album_art
         if args.save:
             extract_album_art(args.path, args.save)
         elif args.load:

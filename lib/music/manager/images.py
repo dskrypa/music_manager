@@ -12,7 +12,8 @@ from typing import Union, Tuple
 from PIL import Image
 
 from ds_tools.fs.paths import Paths
-from ..files import iter_album_dirs, SongFile, sanitize_path, TagException, AlbumDir
+from ..files import iter_album_dirs, SongFile, TagException, AlbumDir
+from ..files.paths import sanitize_path
 
 __all__ = ['extract_album_art', 'set_album_art', 'del_album_art']
 log = logging.getLogger(__name__)

@@ -9,6 +9,7 @@ from functools import cached_property
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+from platform import system
 from tempfile import TemporaryDirectory
 from typing import Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict, List
 
@@ -21,21 +22,23 @@ from PIL import Image
 from plexapi.audio import Track
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
-from ...constants import tag_name_map
+from ...constants import tag_name_map, TYPED_TAG_MAP
 from ...text import Name
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
+from ..changes import print_tag_changes
+from ..paths import FileBasedObject
 from .bpm import get_bpm
+from .descriptors import MusicFileProperty, TextTagProperty, _NotSet
 from .parsing import split_artists, AlbumName
 from .patterns import EXTRACT_PART_MATCH, LYRIC_URL_MATCH, compiled_fnmatch_patterns, cleanup_album_name
-from .utils import (
-    FileBasedObject, MusicFileProperty, RATING_RANGES, TYPED_TAG_MAP, TextTagProperty, _NotSet, ON_WINDOWS,
-    stars_from_256, tag_repr, parse_file_date, FILE_TYPE_TAG_ID_TO_NAME_MAP, print_tag_changes
-)
+from .utils import RATING_RANGES, stars_from_256, tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
-__all__ = ['SongFile']
+__all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
+ON_WINDOWS = system().lower() == 'windows'
 MutagenFile = Union[MP3, MP4, FLAC, FileType]
 ImageTag = Union[APIC, MP4Cover, Picture]
 
@@ -254,7 +257,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 return type_to_id[self.tag_type]
             except KeyError as e:
                 raise UnsupportedTagForFileType(tag_name_or_id, self) from e
-        id_to_name = FILE_TYPE_TAG_ID_TO_NAME_MAP[self.tag_type]
+        id_to_name = tag_id_to_name_map_for_type(self.tag_type)
         if tag_name_or_id in id_to_name:
             return tag_name_or_id
         id_upper = tag_name_or_id.upper()
@@ -275,10 +278,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         id_lower = tag_name_or_id.lower()
         if id_lower in TYPED_TAG_MAP:
             return id_lower
-        id_to_name = FILE_TYPE_TAG_ID_TO_NAME_MAP[self.tag_type]
+        id_to_name = tag_id_to_name_map_for_type(self.tag_type)
         for val in (tag_name_or_id, id_lower, tag_name_or_id.upper()):
-            if val in id_to_name:
-                return id_to_name[val]
+            if name := id_to_name.get(val):
+                return name
         return tag_name_or_id
 
     def tag_name_to_id(self, tag_name: str) -> str:
@@ -781,6 +784,17 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
         if not dry_run:
             self.save()
+
+
+def iter_music_files(paths: Paths) -> Iterator[SongFile]:
+    non_music_exts = {'jpg', 'jpeg', 'png', 'jfif', 'part', 'pdf', 'zip', 'webp'}
+    for file_path in iter_files(paths):
+        music_file = SongFile(file_path)
+        if music_file:
+            yield music_file
+        else:
+            if file_path.suffix not in non_music_exts:
+                log.log(5, f'Not a music file: {file_path}')
 
 
 def _extract_album_part(title):

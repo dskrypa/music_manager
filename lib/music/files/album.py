@@ -21,9 +21,9 @@ from ds_tools.fs.paths import iter_paths, Paths
 from tz_aware_dt import format_duration
 from ..common.disco_entry import DiscoEntryType
 from ..text import Name
+from .changes import get_common_changes
 from .exceptions import InvalidAlbumDir
-from .track import SongFile, AlbumName
-from .utils import iter_music_files, get_common_changes
+from .track import SongFile, AlbumName, iter_music_files
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)

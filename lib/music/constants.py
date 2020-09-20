@@ -1,3 +1,27 @@
+TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
+    'title': {'mp4': '\xa9nam', 'mp3': 'TIT2', 'flac': 'TITLE'},
+    'date': {'mp4': '\xa9day', 'mp3': 'TDRC', 'flac': 'DATE'},
+    'genre': {'mp4': '\xa9gen', 'mp3': 'TCON', 'flac': 'GENRE'},
+    'album': {'mp4': '\xa9alb', 'mp3': 'TALB', 'flac': 'ALBUM'},
+    'artist': {'mp4': '\xa9ART', 'mp3': 'TPE1', 'flac': 'ARTIST'},
+    'album_artist': {'mp4': 'aART', 'mp3': 'TPE2', 'flac': 'ALBUMARTIST'},
+    'track': {'mp4': 'trkn', 'mp3': 'TRCK', 'flac': 'TRACKNUMBER'},
+    'disk': {'mp4': 'disk', 'mp3': 'TPOS', 'flac': 'DISCNUMBER'},
+    'grouping': {'mp4': '\xa9grp', 'mp3': 'TIT1', 'flac': 'GROUPING'},
+    'album_sort_order': {'mp4': 'soal', 'mp3': 'TSOA', 'flac': 'ALBUMSORT'},
+    'track_sort_order': {'mp4': 'sonm', 'mp3': 'TSOT', 'flac': 'TITLESORT'},
+    'album_artist_sort_order': {'mp4': 'soaa', 'mp3': 'TSO2', 'flac': 'ALBUMARTISTSORT'},
+    'track_artist_sort_order': {'mp4': 'soar', 'mp3': 'TSOP', 'flac': 'ARTISTSORT'},
+    'isrc': {'mp4': '----:com.apple.iTunes:ISRC', 'mp3': 'TSRC', 'flac': 'ISRC'},  # International Standard Recording Code
+    'compilation': {'mp4': 'cpil', 'mp3': 'TCMP', 'flac': 'COMPILATION'},
+    'podcast': {'mp4': 'pcst', 'mp3': 'PCST'},  # flac: None
+    'bpm': {'mp4': 'tmpo', 'mp3': 'TBPM', 'flac': 'BPM'},
+    'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN', 'flac': 'LANGUAGE'},
+    'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
+    'cover': {'mp4': 'covr', 'mp3': 'APIC'},  # flac: FLAC.pictures
+    # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
+}
+
 tag_name_map = {
     # iTunes Verified Fields
     'TIT2': 'Song title',

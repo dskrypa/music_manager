@@ -19,7 +19,9 @@ from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
 from ..common.disco_entry import DiscoEntryType
-from ..files import iter_album_dirs, AlbumDir, SongFile, SafePath, get_common_changes
+from ..files import iter_album_dirs, AlbumDir, SongFile
+from ..files.changes import get_common_changes
+from ..files.paths import SafePath
 from .images import _jpeg_from_path
 
 __all__ = ['TrackInfo', 'AlbumInfo']

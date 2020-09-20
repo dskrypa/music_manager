@@ -9,7 +9,7 @@ from typing import Optional, Union, Mapping, Iterable, List
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, Link
 from wiki_nodes.nodes import N
-from ..common import DiscoEntryType
+from ..common.disco_entry import DiscoEntryType
 from ..text import Name
 from ..text.time import parse_date, DateObj, DateResult
 

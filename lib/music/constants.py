@@ -21,6 +21,7 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'cover': {'mp4': 'covr', 'mp3': 'APIC'},  # flac: FLAC.pictures
     'wiki:album': {'mp4': 'WIKI:ALBUM', 'mp3': 'WXXX:WIKI:ALBUM', 'flac': 'WIKI:ALBUM'},
     'wiki:artist': {'mp4': 'WIKI:ARTIST', 'mp3': 'WXXX:WIKI:ARTIST', 'flac': 'WIKI:ARTIST'},
+    'kpop:gen': {'mp4': 'KPOP:GEN', 'mp3': 'TXXX:KPOP:GEN', 'flac': 'KPOP:GEN'},
     # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
 

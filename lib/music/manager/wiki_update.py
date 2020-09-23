@@ -163,7 +163,7 @@ class AlbumInfoProcessor:
         log.info(f'Artist for {self.edition}: {self.artist}')
         if (ed_lang := self.edition.lang) and (lang := LANG_ABBREV_MAP.get(ed_lang.lower())):
             # noinspection PyUnboundLocalVariable
-            genre = f'{lang[0]}-pop' if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin') else None
+            genre = f'{lang[0]}-Pop' if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin') else None
         else:
             genre = None
 

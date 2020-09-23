@@ -97,6 +97,7 @@ class AlbumInfo:
     cover_max_width: int = 1200                     # Maximum width for new cover images
     wiki_album: str = None                          # URL of the Wiki page that this album matches
     wiki_artist: str = None                         # URL of the Wiki page that this album's artist matches
+    kpop_gen: float = None                          # K-Pop generation
     # fmt: on
 
     @property

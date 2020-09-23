@@ -301,7 +301,7 @@ def _rm_tag_matcher(tag_type: str):
         matchers = _rm_tag_matcher._matchers
     except AttributeError:
         matchers = _rm_tag_matcher._matchers = {
-            'mp3': ReMatcher(('TXXX(?::|$)(?!WIKI:A)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
+            'mp3': ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
             'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
             'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
         }

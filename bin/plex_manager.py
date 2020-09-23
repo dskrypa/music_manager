@@ -72,7 +72,7 @@ def parser():
 @wrap_main
 def main():
     args, dynamic = parser().parse_with_dynamic_args('query', req_subparser_value=True)
-    init_logging(args.verbose, log_path=None, names=None)
+    init_logging(args.verbose, log_path=None, names=None, millis=True)
 
     from music.files.patches import apply_mutagen_patches
     apply_mutagen_patches()

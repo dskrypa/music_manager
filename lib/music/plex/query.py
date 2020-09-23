@@ -97,7 +97,7 @@ class QueryResults:
                 yield obj.attrib['key'][:trim], obj
 
     def key_map(self, trim=None) -> Dict[str, Element]:
-        return {k: v for k, v in self.items(trim)}
+        return dict(self.items(trim))
 
     def in_playlist(self, name: str) -> 'QueryResults':
         if not self._type == 'track':

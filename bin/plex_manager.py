@@ -4,8 +4,7 @@
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, PROJECT_ROOT.joinpath('bin').as_posix())
+sys.path.insert(0, Path(__file__).resolve().parents[1].joinpath('lib').as_posix())
 import _venv  # This will activate the venv, if it exists and is not already active
 
 import argparse
@@ -14,9 +13,7 @@ from typing import TYPE_CHECKING, Iterable, Tuple, Dict
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.core.main import wrap_main
-from ds_tools.output import bullet_list, Printer
-
-sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
+from ds_tools.output.constants import PRINTER_FORMATS
 from music.__version__ import __author_email__, __version__
 
 if TYPE_CHECKING:
@@ -48,7 +45,7 @@ def parser():
         find_parser.add_argument('--escape', '-e', default='()', help='Escape the provided regex special characters (default: %(default)r)')
         find_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
         find_parser.add_argument('--full_info', '-F', action='store_true', help='Print all available info about the discovered objects')
-        find_parser.add_argument('--format', '-f', choices=Printer.formats, default='yaml', help='Output format to use for --full_info (default: %(default)s)')
+        find_parser.add_argument('--format', '-f', choices=PRINTER_FORMATS, default='yaml', help='Output format to use for --full_info (default: %(default)s)')
         find_parser.add_argument('query', nargs=argparse.REMAINDER, help=f'Query in the format --field[__operation] value; valid operations: {ops}')
 
     with parser.add_subparser('action', 'rate', help='Update ratings in Plex') as rate_parser:
@@ -131,6 +128,8 @@ def main():
         else:
             log.error('Unconfigured sync action')
     elif args.action == 'find':
+        from ds_tools.output import bullet_list, Printer
+
         p = Printer(args.format)
         obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
         objects = plex.find_objects(obj_type, **kwargs)  # type: Iterable[Track]

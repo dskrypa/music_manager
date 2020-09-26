@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
 
 import sys
 from pathlib import Path
@@ -12,8 +13,7 @@ import logging
 from typing import TYPE_CHECKING, Iterable, Tuple, Dict
 
 from ds_tools.argparsing import ArgParser
-from ds_tools.core import wrap_main
-from ds_tools.logging import init_logging
+from ds_tools.core.main import wrap_main
 from ds_tools.output import bullet_list, Printer
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
@@ -29,12 +29,12 @@ log = logging.getLogger(__name__)
 def parser():
     parser = ArgParser(description='Plex rating sync tool\n\nYou will be securely prompted for your password for the first login, after which a session token will be cached')
 
-    sync_parser = parser.add_subparser('action', 'sync', help='Sync Plex information')
-    ratings_parser = sync_parser.add_subparser('sync_action', 'ratings', help='Sync song rating information between Plex and files')
-    ratings_parser.add_argument('direction', choices=('to_files', 'from_files'), help='Direction to sync information')
-    ratings_parser.add_argument('--path_filter', '-f', help='If specified, paths that will be synced must contain the given text (not case sensitive)')
+    with parser.add_subparser('action', 'sync', help='Sync Plex information') as sync_parser:
+        ratings_parser = sync_parser.add_subparser('sync_action', 'ratings', help='Sync song rating information between Plex and files')
+        ratings_parser.add_argument('direction', choices=('to_files', 'from_files'), help='Direction to sync information')
+        ratings_parser.add_argument('--path_filter', '-f', help='If specified, paths that will be synced must contain the given text (not case sensitive)')
 
-    playlists_parser = sync_parser.add_subparser('sync_action', 'playlists', help='Sync playlists with custom filters')
+        playlists_parser = sync_parser.add_subparser('sync_action', 'playlists', help='Sync playlists with custom filters')
 
     obj_types = ('track', 'artist', 'album', 'tracks', 'artists', 'albums')
     ops = (
@@ -42,22 +42,22 @@ def parser():
         'lte, ne, regex, startswith'
     )
 
-    find_parser = parser.add_subparser('action', 'find', help='Find Plex information')
-    find_parser.add_argument('obj_type', choices=obj_types, help='Object type')
-    find_parser.add_argument('title', nargs='*', default=None, help='Object title (optional)')
-    find_parser.add_argument('--escape', '-e', default='()', help='Escape the provided regex special characters (default: %(default)r)')
-    find_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
-    find_parser.add_argument('--full_info', '-F', action='store_true', help='Print all available info about the discovered objects')
-    find_parser.add_argument('--format', '-f', choices=Printer.formats, default='yaml', help='Output format to use for --full_info (default: %(default)s)')
-    find_parser.add_argument('query', nargs=argparse.REMAINDER, help='Query in the format --field[__operation] value; valid operations: {}'.format(ops))
+    with parser.add_subparser('action', 'find', help='Find Plex information') as find_parser:
+        find_parser.add_argument('obj_type', choices=obj_types, help='Object type')
+        find_parser.add_argument('title', nargs='*', default=None, help='Object title (optional)')
+        find_parser.add_argument('--escape', '-e', default='()', help='Escape the provided regex special characters (default: %(default)r)')
+        find_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
+        find_parser.add_argument('--full_info', '-F', action='store_true', help='Print all available info about the discovered objects')
+        find_parser.add_argument('--format', '-f', choices=Printer.formats, default='yaml', help='Output format to use for --full_info (default: %(default)s)')
+        find_parser.add_argument('query', nargs=argparse.REMAINDER, help=f'Query in the format --field[__operation] value; valid operations: {ops}')
 
-    rate_parser = parser.add_subparser('action', 'rate', help='Update ratings in Plex')
-    rate_parser.add_argument('obj_type', choices=obj_types, help='Object type')
-    rate_parser.add_argument('rating', type=int, help='Rating out of 10')
-    rate_parser.add_argument('title', nargs='*', default=None, help='Object title (optional)')
-    rate_parser.add_argument('--escape', '-e', default='()', help='Escape the provided regex special characters (default: %(default)r)')
-    rate_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
-    rate_parser.add_argument('query', nargs=argparse.REMAINDER, help='Query in the format --field[__operation] value; valid operations: {}'.format(ops))
+    with parser.add_subparser('action', 'rate', help='Update ratings in Plex') as rate_parser:
+        rate_parser.add_argument('obj_type', choices=obj_types, help='Object type')
+        rate_parser.add_argument('rating', type=int, help='Rating out of 10')
+        rate_parser.add_argument('title', nargs='*', default=None, help='Object title (optional)')
+        rate_parser.add_argument('--escape', '-e', default='()', help='Escape the provided regex special characters (default: %(default)r)')
+        rate_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
+        rate_parser.add_argument('query', nargs=argparse.REMAINDER, help=f'Query in the format --field[__operation] value; valid operations: {ops}')
 
     parser.add_common_sp_arg('--server_path_root', '-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
     parser.add_common_sp_arg('--server_url', '-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
@@ -71,7 +71,9 @@ def parser():
 
 @wrap_main
 def main():
-    args, dynamic = parser().parse_with_dynamic_args('query', req_subparser_value=True)
+    args, dynamic = parser().parse_with_dynamic_args('query')
+
+    from ds_tools.logging import init_logging
     init_logging(args.verbose, log_path=None, names=None, millis=True)
 
     from music.files.patches import apply_mutagen_patches

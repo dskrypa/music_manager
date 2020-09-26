@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
 
 import sys
 from pathlib import Path
@@ -11,8 +12,7 @@ import logging
 from datetime import date
 
 from ds_tools.argparsing import ArgParser
-from ds_tools.core import wrap_main
-from ds_tools.logging import init_logging
+from ds_tools.core.main import wrap_main
 
 sys.path.insert(0, PROJECT_ROOT.joinpath('lib').as_posix())
 from music.__version__ import __author_email__, __version__
@@ -155,7 +155,9 @@ def parser():
 
 @wrap_main
 def main():
-    args = parser().parse_args(req_subparser_value=True)
+    args = parser().parse_args()
+
+    from ds_tools.logging import init_logging
     init_logging(args.verbose, log_path=None, names=None)
 
     from music.files.patches import apply_mutagen_patches

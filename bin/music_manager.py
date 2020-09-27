@@ -47,10 +47,11 @@ def parser():
 
     with parser.add_subparser('action', 'update', help='Set the value of the given tag on all music files in the given path') as set_parser:
         set_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
+        set_parser.add_argument('--no_album_move', '-M', action='store_true', help='Do not rename the album directory (only applies to --load/-L)')
 
         set_from_file = set_parser.add_argument_group('Load File Options', 'Options for loading updates from a file - may notbe combined with arguments from other option groups')
         set_from_file.add_argument('--load', '-L', metavar='PATH', help='Load updates from a json file (may not be combined with other options)')
-        set_from_file.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
+        set_from_file.add_argument('--destination', '-d', metavar='PATH', help=f'Destination base directory for sorted files (default: {DEFAULT_DEST_DIR})')
 
         set_from_args = set_parser.add_argument_group('Tag Update Options')
         set_from_args.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify (required)')
@@ -123,6 +124,7 @@ def parser():
             upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
             upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
             upd_parser.add_argument('--update_cover', '-C', action='store_true', help='Update the cover art for the album if it does not match an image in the matched wiki page')
+            upd_parser.add_argument('--no_album_move', '-M', action='store_true', help='Do not rename the album directory')
 
             upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
             upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
@@ -145,7 +147,7 @@ def parser():
             test_parser.add_argument('url', help='A wiki URL for a page to test whether it matches the given files')
 
     parser.include_common_args('verbosity', 'dry_run')
-    parser.add_common_sp_arg('--match_log', '-M', action='store_true', help='Enable debug logging for the album match processing logger')
+    parser.add_common_sp_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
     # fmt: on
     return parser
 
@@ -208,7 +210,8 @@ def main():
             bpm = aubio_installed() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover
+                args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover,
+                args.no_album_move
             )
         elif sub_action in ('match', 'test'):
             from music.manager.wiki_match import show_matches, test_match
@@ -233,7 +236,9 @@ def main():
         elif action == 'update':
             if not args.load:
                 raise ValueError('--load PATH is required')
-            AlbumInfo.load(args.load).update_and_move(dest_base_dir=Path(args.destination), dry_run=args.dry_run)
+            AlbumInfo.load(args.load).update_and_move(
+                dest_base_dir=args.destination, dry_run=args.dry_run, no_album_move=args.no_album_move
+            )
     elif action == 'cover':
         from music.manager.images import extract_album_art, set_album_art, del_album_art
         if args.save:

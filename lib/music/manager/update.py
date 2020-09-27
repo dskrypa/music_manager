@@ -190,12 +190,17 @@ class AlbumInfo:
             raise ValueError(f'Invalid {self.__class__.__name__} for {album_dir} - missing one more more files: {e}')
 
     def update_and_move(
-        self, album_dir: Optional[AlbumDir] = None, dest_base_dir: Optional[Path] = None, dry_run: bool = False
+        self,
+        album_dir: Optional[AlbumDir] = None,
+        dest_base_dir: Optional[Path] = None,
+        dry_run: bool = False,
+        no_album_move: bool = False,
     ):
         album_dir = album_dir or self.album_dir
         if self.tracks:
             self.update_tracks(album_dir, dry_run)
-        self.move_album(album_dir, dest_base_dir, dry_run)
+        if not no_album_move:
+            self.move_album(album_dir, dest_base_dir, dry_run)
 
     def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False):
         file_info_map = self.get_file_info_map(album_dir)
@@ -229,11 +234,7 @@ class AlbumInfo:
         rel_fmt = _album_format(
             self.date, self.type.numbered and self.number, self.solo_of_group and self.ost, self.disks, self.ost
         )
-        if dest_base_dir is None:
-            dest_base_dir = album_dir.path.parent
-        else:
-            rel_fmt = SOLO_DIR_FORMAT + rel_fmt if self.solo_of_group and not self.ost else ARTIST_TYPE_DIRS + rel_fmt
-
+        rel_fmt = SOLO_DIR_FORMAT + rel_fmt if self.solo_of_group and not self.ost else ARTIST_TYPE_DIRS + rel_fmt
         expected_rel_dir = rel_fmt(
             artist=self.parent,
             type_dir=self.type.directory,
@@ -243,6 +244,18 @@ class AlbumInfo:
             singer=self.singer,
             disk=self.disk,
         )
+
+        if dest_base_dir is None:
+            expected_parent = Path(expected_rel_dir).parent
+            log.debug(f'Comparing {expected_parent=} to {album_dir.path.parent.as_posix()}')
+            if album_dir.path.parent.as_posix().endswith(expected_parent.as_posix()):
+                dest_base_dir = album_dir.path.parents[len(expected_parent.parts)]
+            else:
+                dest_base_dir = Path('./sorted_{}'.format(date.today().strftime('%Y-%m-%d')))
+        else:
+            dest_base_dir = Path(dest_base_dir)
+
+        log.debug(f'Using {expected_rel_dir=}')
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)
         if expected_dir != album_dir.path:
             log.info(f'{"[DRY RUN] Would move" if dry_run else "Moving"} {album_dir} -> {expected_dir}')

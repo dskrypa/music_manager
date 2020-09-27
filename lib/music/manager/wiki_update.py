@@ -47,6 +47,7 @@ def update_tracks(
     load: Optional[str] = None,
     artist_url=None,
     update_cover: bool = False,
+    no_album_move: bool = False,
 ):
     collab_mode = CollabMode.get(collab_mode)
     if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
@@ -61,7 +62,7 @@ def update_tracks(
             album_info.dump(Path(dump).expanduser().resolve())
             return
         else:
-            album_info.update_and_move(album_dir, dest_base_dir, dry_run)
+            album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move)
 
 
 def iter_album_info(
@@ -173,7 +174,7 @@ class AlbumInfoProcessor:
             date=self.edition.date,
             disk=self.disco_part.disc,
             genre=genre,
-            name=self.disco_part.full_name(self.hide_edition),
+            name=self.disco_part.full_name(self.hide_edition).strip(),
             parent=self.normalize_artist(self.album_artist.name.english),
             singer=self.normalize_artist(self.artist.name.english),
             solo_of_group=isinstance(self.artist, Singer) and self.artist.groups and not self.soloist,
@@ -330,7 +331,7 @@ class AlbumInfoProcessor:
     def _normalize_name(self, name: str) -> str:
         if self.title_case:
             name = normalize_case(name)
-        return name
+        return name.strip()
 
     def get_album_cover(self) -> Optional[str]:
         if not self.update_cover:
@@ -343,7 +344,7 @@ class AlbumInfoProcessor:
             return None
 
         tmp_dir = None
-        if len(image_titles) > 1:
+        if len(image_titles) > 0:
             # TODO: Compare images here and only prompt if none match?
             urls = client.get_image_urls(image_titles)
             tmp_dir = TemporaryDirectory()

@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 
 
 def parser():
-    parser = ArgParser(description='Plex rating sync tool\n\nYou will be securely prompted for your password for the first login, after which a session token will be cached')
+    parser = ArgParser(description='Plex Manager\n\nYou will be securely prompted for your password for the first login, after which a session token will be cached')
 
     with parser.add_subparser('action', 'sync', help='Sync Plex information') as sync_parser:
         ratings_parser = sync_parser.add_subparser('sync_action', 'ratings', help='Sync song rating information between Plex and files')

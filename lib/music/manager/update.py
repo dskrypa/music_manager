@@ -201,6 +201,7 @@ class AlbumInfo:
         file_info_map = self.get_file_info_map(album_dir)
         file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
         if self.cover_path:
+            log.debug(f'Loading cover image from {self.cover_path}')
             image, img_data = _jpeg_from_path(self.cover_path, self.cover_max_width)
             try:
                 song_file = next(iter(file_info_map))

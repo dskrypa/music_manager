@@ -74,6 +74,8 @@ def _jpeg_from_path(path: Union[Path, str], max_width: int = 1200) -> Tuple[Imag
         new_height = int(round(max_width * height / width))
         log.log(19, f'Resizing image from {width}x{height} to {max_width}x{new_height}')
         image = image.resize((max_width, new_height))
+    if image.mode == 'RGBA':
+        image = image.convert('RGB')
 
     bio = BytesIO()
     image.save(bio, 'jpeg')

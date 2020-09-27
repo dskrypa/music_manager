@@ -174,8 +174,8 @@ class AlbumInfoProcessor:
             disk=self.disco_part.disc,
             genre=genre,
             name=self.disco_part.full_name(self.hide_edition),
-            parent=self.album_artist.name.english,
-            singer=self.artist.name.english,
+            parent=self.normalize_artist(self.album_artist.name.english),
+            singer=self.normalize_artist(self.artist.name.english),
             solo_of_group=isinstance(self.artist, Singer) and self.artist.groups and not self.soloist,
             type=self.edition.type,
             number=self.edition.entry.number,
@@ -184,7 +184,7 @@ class AlbumInfoProcessor:
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
             cover_path=self.get_album_cover(),
             wiki_album=self.edition.page.url,
-            wiki_artist=self.edition.artist.url,
+            wiki_artist=getattr(self.edition.artist, 'url', None),
         )
 
         for file, track in self.file_track_map.items():

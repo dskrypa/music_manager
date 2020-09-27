@@ -349,19 +349,33 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
             log.debug(f'Members section not found for {artist_page}')
             return {}
 
+        if (
+            type(members_section.content) is CompoundNode
+            and (tables := list(members_section.find_all(Table)))
+            and len(tables) == 1  # noqa
+        ):
+            log.debug(f'Members section {members_section} => {tables[0]}')
+            members_node = tables[0]
+        else:
+            members_node = members_section.content
+
         members = {'current': []}
         section = 'current'
-        if isinstance(members_section.content, Table):
-            for row in members_section.content:
+        if isinstance(members_node, Table):
+            for row in members_node:
                 # noinspection PyUnboundLocalVariable
-                if isinstance(row, MappingNode) and (name := row.get('Name')) and (title := get_artist_title(name, artist_page)):
+                if (
+                    isinstance(row, MappingNode)
+                    and (name := row.get('Name'))
+                    and (title := get_artist_title(name, artist_page))
+                ):
                     # noinspection PyUnboundLocalVariable
                     members[section].append(title)
                 elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
                     section = row.value.value
                     members[section] = []
         else:
-            for member in members_section.content.iter_flat():
+            for member in members_node.iter_flat():
                 if title := get_artist_title(member, artist_page):
                     members['current'].append(title)
 

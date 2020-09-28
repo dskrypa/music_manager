@@ -23,12 +23,13 @@ if TYPE_CHECKING:
 __all__ = ['DramaWikiParser']
 log = logging.getLogger(__name__)
 
-OST_PART_MATCH = re.compile(r'^(.+ OST) ?((?:Part \d+)?)$', re.IGNORECASE).match
+OST_PART_MATCH = re.compile(r'^(.+ OST).*?((?:Part \d+)?)$', re.IGNORECASE).match
 SONG_OST_YEAR_MATCH = re.compile(r'^(.+?)\s-\s(.+?)\s\(((?:19|20)\d{2})\)$').match
 YEAR_MATCH = re.compile(r'-?(.*?)\(((?:19|20)\d{2})\)$').match
 
 
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
+    # TODO: Date for part is not being picked up
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         if profile := get_section_map(artist_page, 'Profile'):

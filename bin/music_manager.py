@@ -15,6 +15,7 @@ from ds_tools.core.main import wrap_main
 from music.__version__ import __author_email__, __version__
 
 log = logging.getLogger(__name__)
+ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
 DEFAULT_DEST_DIR = './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
 SHOW_ARGS = {
     'info': 'Show track title, length, tag version, and tags', 'meta': 'Show track title, length, and tag version',
@@ -127,8 +128,8 @@ def parser():
             upd_parser.add_argument('--no_album_move', '-M', action='store_true', help='Do not rename the album directory')
 
             upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
-            upd_sites.add_argument('--sites', '-s', nargs='+', default=['kpop.fandom.com', 'www.generasia.com'], help='The wiki sites to search')
-            upd_sites.add_argument('--all', '-A', action='store_const', const=None, dest='sites', help='Search all sites')
+            upd_sites.add_argument('--sites', '-s', nargs='+', default=None, help='The wiki sites to search')
+            upd_sites.add_argument('--all', '-A', action='store_const', const=ALL_SITES, dest='sites', help='Search all sites')
             upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
 
             bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()

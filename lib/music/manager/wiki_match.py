@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import List, Iterable, Optional, Set
+from typing import List, Iterable, Optional, Set, Tuple
 
 from ds_tools.fs.paths import Paths
 from ds_tools.input import choose_item
@@ -83,6 +83,7 @@ def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> List[Artist]:
         return [Artist.from_url(artist_url)]
     elif artists := album_dir.all_artists:
         log.debug(f'Processing artists in {album_dir}: {artists}')
+        sites = sites or _sites_for(album_dir)
         remaining = set(artists)
         artist_objs = []
         if groups := album_dir._groups:
@@ -225,6 +226,12 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Set[DiscographyEntryPart
         candidates = _candidates
 
     return candidates
+
+
+def _sites_for(album_dir: AlbumDir) -> Tuple[str, ...]:
+    if album_dir.name.ost:
+        return ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com')
+    return ('kpop.fandom.com', 'www.generasia.com')
 
 
 """

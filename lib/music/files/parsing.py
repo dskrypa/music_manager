@@ -9,6 +9,7 @@ from functools import cached_property
 from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.unicode.languages import LangCat
+from ds_tools.unicode.hangul import HANGUL_REGEX_CHAR_CLASS
 from ..common.disco_entry import DiscoEntryType
 from ..text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, get_unpaired, strip_unpaired
 from ..text.name import Name, sort_name_parts
@@ -22,6 +23,9 @@ APOSTROPHES = "'`՚՛՜՝‘’"
 CHANNELS = ('sbs', 'kbs', 'tvn', 'mbc')
 
 ALB_TYPE_DASH_SUFFIX_MATCH = re.compile(r'(.*)\s[-X]\s*((?:EP|Single|SM[\s-]?STATION))$', re.IGNORECASE).match
+CHANNEL_PREFIX_MATCH = re.compile(
+    r'^((?:{})\d*)\s+([{}\s]+)$'.format('|'.join(CHANNELS), HANGUL_REGEX_CHAR_CLASS[1:-1]), re.IGNORECASE
+).match
 NTH_ALB_TYPE_MATCH = re.compile(
     r'^(.*?)(?:the)?\s*((?:(?:japan|china?)(?:ese)?|korean?)?\s*[0-9]+(?:st|nd|rd|th))\s+'
     r'(.*?album\s*(?:repackage)?)(.*)$',
@@ -30,7 +34,7 @@ NTH_ALB_TYPE_MATCH = re.compile(
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
 REPACKAGE_ALBUM_MATCH = re.compile(r'^re:?package\salbum\s(.*)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
-CONTAINS_DELIM = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE).search
+CONTAINS_DELIM = re.compile(r'(?:[;,&]| [x×] (?!\())', re.IGNORECASE).search
 
 
 @dataclass
@@ -168,8 +172,15 @@ class AlbumName:
                         name_parts.append(part)
                     else:
                         feat.extend(split_artists(feat_artist))
+                elif m := CHANNEL_PREFIX_MATCH(part):
+                    # log.debug(f'CHANNEL_PREFIX_MATCH({part}) => {m.groups()}')
+                    if lc_part.endswith('드라마') or '특별' in lc_part:
+                        self.network_info = part
+                    else:
+                        self.network_info, remainder = m.groups()
+                        name_parts.append(remainder)
                 elif lc_part.startswith(CHANNELS) and (lc_part.endswith('드라마') or '특별' in lc_part):
-                    self.network_info = part
+                    self.network_info = part  # This catches some cases that the above check does not
                 elif suffix := next((s for s in ('original soundtrack', ' ost') if lc_part.endswith(s)), None):
                     part = clean(part[:-len(suffix)])
                     self.ost = True

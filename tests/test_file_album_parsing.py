@@ -8,6 +8,7 @@ from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 # from music_manager.files.track.patterns import cleanup_album_name
+from ds_tools.output.color import colored
 from music.files.parsing import AlbumName
 from music.text.name import Name, sort_name_parts
 
@@ -126,6 +127,7 @@ OST_TEST_CASES = {
     'MBC 월화 특별 기획 `야경꾼 일지` OST Part 1': AlbumName('야경꾼 일지', network_info='MBC 월화 특별 기획', ost=True, part=1),
     '후아유-학교 2015 (KBS2 월화드라마) OST - Part.7': AlbumName('후아유-학교 2015', network_info='KBS2 월화드라마', ost=True, part=7),
     '닥터 이방인 Part 5 (SBS 월화 드라마)': AlbumName('닥터 이방인', network_info='SBS 월화 드라마', ost=True, part=5),
+    'SBS 기분좋은날 OST Part 1': AlbumName('기분좋은날', network_info='SBS', ost=True, part=1),
 
     '어린왕자 OST': AlbumName('어린왕자', ost=True),
     '스쿨오즈 - 홀로그램 뮤지컬 OST': AlbumName('스쿨오즈 - 홀로그램 뮤지컬', ost=True),
@@ -177,19 +179,13 @@ class FileAlbumParsingTestCase(TestCaseBase):
         total = len(cases)
         passed = 0
         for test_case, expected in cases.items():
-            log.log(19, '')
-            if isinstance(test_case, tuple):
-                parsed = AlbumName.parse(*test_case)
-            else:
-                parsed = AlbumName.parse(test_case)
-            if parsed == expected:
+            with self.subTest(f'AlbumName.parse({test_case!r})'):
+                parsed = AlbumName.parse(*test_case) if isinstance(test_case, tuple) else AlbumName.parse(test_case)
+                self.assertEqual(parsed, expected, colored(f'\n  parsed={parsed}\n!=\n{expected=}', 13))
                 passed += 1
-            else:
-                log.error(f'AlbumName.parse({test_case!r}) =>\n  parsed={parsed}\n!=\n{expected=}', extra={'color': 13})
 
         msg = f'{passed}/{total} ({passed/total:.2%}) of test cases passed'
         log.info(msg)
-        self.assertEqual(passed, total)
 
     def test_lang_sort_order(self):
         cases = [

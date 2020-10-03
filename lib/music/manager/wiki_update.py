@@ -136,6 +136,7 @@ class AlbumInfoProcessor:
         self.collab_mode = collab_mode
         self.album = album
         self.__artist = artist
+        self.__artist_from_tag = False
         self.update_cover = update_cover
 
     @classmethod
@@ -172,7 +173,7 @@ class AlbumInfoProcessor:
         album_info = AlbumInfo(
             title=self._normalize_name(self.disco_part.full_name(self.hide_edition)),
             artist=self.album_artist_name,
-            date=self.edition.date,
+            date=self.disco_part.date,
             disk=self.disco_part.disc,
             genre=genre,
             name=self.disco_part.full_name(self.hide_edition).strip(),
@@ -262,7 +263,11 @@ class AlbumInfoProcessor:
 
     @cached_property
     def _artists(self):
-        if isinstance(self.disco_part, SoundtrackPart):
+        if artist_url := self.album_dir.artist_url:
+            self.__artist_from_tag = True
+            # log.debug(f'Found artist URL via tag for {self.album_dir}: {artist_url}', extra={'color': 10})
+            return [Artist.from_url(artist_url)]
+        elif isinstance(self.disco_part, SoundtrackPart):
             return sorted(self.disco_part.artists)
         return sorted(self.edition.artists)
 
@@ -300,7 +305,7 @@ class AlbumInfoProcessor:
             return self.__artist
         artist = self._artist
         # noinspection PyUnresolvedReferences
-        if self.ost and not self.edition.full_ost:
+        if self.ost and not self.edition.full_ost and not self.__artist_from_tag:
             if name := artist.name.english or artist.name.non_eng:
                 try:
                     return Artist.from_title(name, sites=['kpop.fandom.com', 'www.generasia.com'])

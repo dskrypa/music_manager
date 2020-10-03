@@ -704,7 +704,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                     log.warning(f'Found multiple values for {tag_id}/{tag_name} in {self} - using first value')
 
                 current_val = current_vals[0]
-                current_text = current_val.text[0]
+                if tag_id.startswith('WXXX:'):
+                    current_text = current_val.url[0]
+                else:
+                    current_text = current_val.text[0]
+
                 new_text = current_text
                 if partial:
                     for pat in patterns:

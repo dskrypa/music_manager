@@ -456,10 +456,12 @@ class DiscographyEntryPart:
         edition: DiscographyEntryEdition,
         tracks: TrackNodes,
         disc: Optional[int] = None,
+        release_date: Optional[date] = None,
     ):
         self._name = name                                   # type: Optional[str]
         self.edition = edition                              # type: DiscographyEntryEdition
         self._tracks = tracks                               # type: TrackNodes
+        self._date = release_date                           # type: Optional[date]
         if disc is not None:
             self.disc = disc                                # type: int
         else:
@@ -492,6 +494,12 @@ class DiscographyEntryPart:
         return len(self.track_names)
 
     _basic_repr = property(__repr__)
+
+    @cached_property
+    def date(self):
+        if self._date:
+            return self._date
+        return self.edition.date
 
     @cached_property
     def repackage(self):

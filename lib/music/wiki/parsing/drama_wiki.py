@@ -177,18 +177,32 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         if edition.edition == '[OST Parts]':
             for i, section in enumerate(edition._content, 1):
                 content = section.content
-                yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=content[2].as_mapping().get('Artist'))
+                info = content[2].as_mapping()
+                if part_date := info.get('Release Date'):
+                    release_date = datetime.strptime(part_date.value, '%Y-%b-%d')
+                else:
+                    release_date = None
+                yield SoundtrackPart(
+                    i, f'Part {i}', edition, content[4], artist=info.get('Artist'), release_date=release_date
+                )
         elif edition.edition == '[Full OST]':
             section = edition._content
             content = section.content
-            artist = content[2].as_mapping().get('Artist')
+            info = content[2].as_mapping()
+            if part_date := info.get('Release Date'):
+                release_date = datetime.strptime(part_date.value, '%Y-%b-%d')
+            else:
+                release_date = None
+            artist = info.get('Artist')
             try:
                 track_table = content[4]
             except IndexError:
                 for i, disk_section in enumerate(section, 1):
-                    yield SoundtrackPart(None, None, edition, disk_section.content[1], artist=artist, disc=i)
+                    yield SoundtrackPart(
+                        None, None, edition, disk_section.content[1], artist=artist, disc=i, release_date=release_date
+                    )
             else:
-                yield SoundtrackPart(None, None, edition, track_table, artist=artist)
+                yield SoundtrackPart(None, None, edition, track_table, artist=artist, release_date=release_date)
         else:
             log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
 

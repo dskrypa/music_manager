@@ -23,7 +23,7 @@ def pprint_wiki_page(url: str, mode: str):
 
 
 def show_wiki_entity(
-        identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None, etype: Optional[str] = None
+    identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None, etype: Optional[str] = None
 ):
     alb_types = _album_types(alb_types)
     cls = EntertainmentEntity
@@ -55,7 +55,7 @@ def show_wiki_entity(
 
 
 def print_artist(
-        artist: Artist, indent=0, expand_disco=0, editions=False, track_info=False, alb_types: AlbTypes = None
+    artist: Artist, indent=0, expand_disco=0, editions=False, track_info=False, alb_types: AlbTypes = None
 ):
     prefix = ' ' * indent
     uprint(f'{prefix}- {artist.name}:')

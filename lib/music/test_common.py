@@ -94,7 +94,7 @@ def _to_set(value):
 
 def fake_page(intro, infobox=None, site=None, _interwiki_map=None, **kwargs):
     kwargs.setdefault('sections', MagicMock(find=lambda *a, **kw: None))
-    page = MagicMock(site=site, _interwiki_map=_interwiki_map, **kwargs)
+    page = MagicMock(site=site, _interwiki_map=_interwiki_map, raw=MagicMock(string=intro), **kwargs)
     if not isinstance(intro, Node):
         intro = as_node(intro, root=page)
     if intro is not None:

@@ -57,9 +57,13 @@ class Name(ClearableCachedPropertyMixin):
     extra = NamePart(MutableMapping)
 
     def __init__(
-            self, eng: Optional[str] = None, non_eng: Optional[str] = None, romanized: Optional[str] = None,
-            lit_translation: Optional[str] = None, versions: Optional[Collection['Name']] = None,
-            extra: Optional[MutableMapping[str, Any]] = None
+        self,
+        eng: Optional[str] = None,
+        non_eng: Optional[str] = None,
+        romanized: Optional[str] = None,
+        lit_translation: Optional[str] = None,
+        versions: Optional[Collection['Name']] = None,
+        extra: Optional[MutableMapping[str, Any]] = None,
     ):
         self._english = eng
         self.non_eng = non_eng
@@ -80,11 +84,15 @@ class Name(ClearableCachedPropertyMixin):
     def as_dict(self):
         return {attr: deepcopy(getattr(self, attr)) for attr in self._parts}
 
-    def full_repr(self, include_no_val=False, delim='', indent=1, inner=False, include_versions=True, pretty=False):
+    def full_repr(
+        self, include_no_val=False, delim='', indent=1, inner=False, include_versions=True, pretty=False, attrs=None
+    ):
         var_names = [
             'non_eng', 'romanized', 'lit_translation', 'extra', # 'non_eng_lang'
         ]
-        var_vals = [getattr(self, attr) for attr in var_names]
+        if attrs:
+            var_names.extend(attrs)
+        var_vals = [getattr(self, attr, None) for attr in var_names]
         indent_str = ' ' * indent
         if pretty and delim == '' and self.english and self.english == self._english:
             _parts = [repr(self.english)]
@@ -92,6 +100,8 @@ class Name(ClearableCachedPropertyMixin):
             _parts = [f'_english={self._english!r}']
 
         _parts.extend(f'{k}={v!r}' for k, v in zip(var_names, var_vals) if v or include_no_val)
+        if self._is_ost:
+            _parts.append('_is_ost=True')
         parts = f',{delim}{indent_str}'.join(_parts)
         if (versions := self.versions) and include_versions:
             if parts:
@@ -154,10 +164,16 @@ class Name(ClearableCachedPropertyMixin):
     def __hash__(self):
         return hash(self.__parts)
 
-    def _score(self, other: Union['Name', str], romanization_match=95, other_versions=True, try_alt=True):
+    def _score(
+        self, other: Union['Name', str], romanization_match=95, other_versions=True, try_alt=True, try_ost=True
+    ) -> List[int]:
         if isinstance(other, str):
             other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
-        # log.debug(f'Scoring match:\n{self.full_repr()}._score(\n{other.full_repr()})')
+        # log.debug(
+        #     f'Scoring match:\n{self.full_repr(attrs=["eng_langs", "non_eng_langs"])}'
+        #     f'._score(\n{other.full_repr(attrs=["eng_langs", "non_eng_langs"])})',
+        #     extra={'color': 11}
+        # )
         scores = []
         ep_score = None
         if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
@@ -165,49 +181,58 @@ class Name(ClearableCachedPropertyMixin):
             if score == 100 and self._english and other._english:
                 ep_score = self._score_eng_parts(other)
                 score = (score + ep_score) // 2
-            # log.debug(f'score({self.non_eng_nospace=!r}, {other.non_eng_nospace=!r}) => {score}')
+            # log.debug(f'score({self.non_eng_nospace=!r}, {other.non_eng_nospace=!r}) => {score}', extra={'color': (0, 8)})
             scores.append(score)
         if self.eng_fuzzed_nospace and other.eng_fuzzed_nospace:
             scores.append(revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace))
-            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]}')
+            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]}', extra={'color': (0, 8)})
         if self.non_eng_nospace and other.eng_fuzzed_nospace and self.has_romanization(other.eng_fuzzed_nospace, False):
             if ep_score is not None:
                 scores.append((romanization_match + ep_score) // 2)
             else:
                 scores.append(romanization_match)
-            # log.debug(f'score({self.non_eng_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]} [rom]')
+            # log.debug(f'score({self.non_eng_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
         if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
             if ep_score is not None:
                 scores.append((romanization_match + ep_score) // 2)
             else:
                 scores.append(romanization_match)
-            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.non_eng_nospace=!r}) => {scores[-1]} [rom]')
+            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.non_eng_nospace=!r}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
 
         if try_alt:
             if not self.non_eng and self.eng_lang == LangCat.MIX and self.eng_langs.intersection(LangCat.asian_cats):
                 alt_self = self.split()
                 o_eng_fuzz, s_eng_fuzz = other.eng_fuzzed_nospace, alt_self.eng_fuzzed_nospace
                 if o_eng_fuzz and s_eng_fuzz:
-                    # log.debug(f'Trying {alt_self=} / {o_eng_fuzz[len(s_eng_fuzz):]!r}')
+                    # log.debug(f'Trying {alt_self=} / {o_eng_fuzz[len(s_eng_fuzz):]!r}', extra={'color': (0, 8)})
                     if o_eng_fuzz.startswith(s_eng_fuzz) and alt_self.has_romanization(o_eng_fuzz[len(s_eng_fuzz):]):
                         scores.append(romanization_match)
             elif not other.non_eng and other.eng_lang == LangCat.MIX and other.eng_langs.intersection(LangCat.asian_cats):
                 alt_other = other.split()
                 o_eng_fuzz, s_eng_fuzz = alt_other.eng_fuzzed_nospace, self.eng_fuzzed_nospace
                 if o_eng_fuzz and s_eng_fuzz:
-                    # log.debug(f'Trying {alt_other=} / {s_eng_fuzz[len(o_eng_fuzz):]!r}')
+                    # log.debug(f'Trying {alt_other=} / {s_eng_fuzz[len(o_eng_fuzz):]!r}', extra={'color': (0, 8)})
                     if s_eng_fuzz.startswith(o_eng_fuzz) and alt_other.has_romanization(s_eng_fuzz[len(o_eng_fuzz):]):
                         scores.append(romanization_match)
 
         if s_versions := self.versions:
             for version in s_versions:
-                scores.extend(version._score(other, romanization_match, try_alt=try_alt))
+                scores.extend(version._score(other, romanization_match, try_alt=try_alt, try_ost=try_ost))
         if other_versions:
             if o_versions := other.versions:
                 for version in o_versions:
-                    scores.extend(self._score(version, romanization_match, other_versions=False, try_alt=try_alt))
+                    scores.extend(
+                        self._score(version, romanization_match, other_versions=False, try_alt=try_alt, try_ost=try_ost)
+                    )
+        if try_ost:
+            if self._is_ost:
+                # log.debug(f'{self!r}: Trying {self.no_suffix_version!r}._score with {other!r}', extra={'color': (0, 8)})
+                scores.extend(self.no_suffix_version._score(other, romanization_match, other_versions, try_alt, False))
+            elif other._is_ost:
+                # log.debug(f'{self!r}: Trying self._score with {other.no_suffix_version!r}', extra={'color': (0, 8)})
+                scores.extend(self._score(other.no_suffix_version, romanization_match, other_versions, try_alt, False))
 
-        # log.debug(f'{self!r}.matches({other!r}) {scores=}')
+        # log.debug(f'{self!r}.matches({other!r}) {scores=}', extra={'color': (11, 12)})
         return scores
 
     def _score_eng_parts(self, other: 'Name'):
@@ -347,6 +372,24 @@ class Name(ClearableCachedPropertyMixin):
         return self
 
     @cached_property
+    def _is_ost(self) -> bool:
+        eng = self.eng_lower
+        non_eng = self.non_eng_lower
+        if eng or non_eng:
+            return any(val.endswith(' ost') for val in filter(None, (eng, non_eng)))
+        return False
+
+    @cached_property
+    def no_suffix_version(self) -> Optional['Name']:
+        if self._is_ost:
+            stripped = {
+                key: part[:-4].strip() for key, part in self.as_dict().items() if part and part.upper().endswith(' OST')
+            }
+            # log.debug(f'{self!r}: {stripped=!r}')
+            return self.with_part(**stripped)
+        return None
+
+    @cached_property
     def english(self) -> Optional[str]:
         eng = self._english or self.lit_translation
         if not eng and not self.non_eng and self.romanized:
@@ -370,6 +413,11 @@ class Name(ClearableCachedPropertyMixin):
     @cached_property
     def eng_parts(self) -> Set[str]:
         return set(filter(None, (self._english, self.lit_translation, self.romanized)))
+
+    @cached_property
+    def non_eng_lower(self) -> Optional[str]:
+        non_eng = self.non_eng
+        return non_eng.lower() if non_eng else None
 
     @cached_property
     def non_eng_nospace(self) -> Optional[str]:

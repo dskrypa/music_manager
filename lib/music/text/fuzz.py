@@ -46,7 +46,7 @@ def fuzz_process(text, strip_special=True, space=True):
     return text
 
 
-def revised_weighted_ratio(p1, p2):
+def revised_weighted_ratio(p1, p2) -> int:
     """
     Return a measure of the sequences' similarity between 0 and 100, using different algorithms.
     **Steps in the order they occur**

@@ -90,8 +90,8 @@ class NameMatchingTest(NameTestCaseBase):
         # a = Name('Heart 2 Heart with Girls\' Generation')
         a = Name('Heart 2 Heart with So Nyeo Si Dae')
         b = Name('Heart 2 Heart with 소녀시대')
-        self.assertTrue(a.matches(b))
-        self.assertTrue(b.matches(a))
+        self.assertTrue(a.matches(b), f'\n{a.full_repr()}\n.matches is not true for\n{b.full_repr()}')
+        self.assertTrue(b.matches(a), f'\n{b.full_repr()}\n.matches is not true for\n{a.full_repr()}')
 
 
 if __name__ == '__main__':

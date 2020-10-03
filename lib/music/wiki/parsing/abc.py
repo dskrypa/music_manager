@@ -21,16 +21,22 @@ EditionIterator = Iterator['DiscographyEntryEdition']
 
 class WikiParser(ABC):
     _site_parsers = {}
+    _domain_parsers = {}
     client = None
 
     # noinspection PyMethodOverriding
-    def __init_subclass__(cls, site: str):
+    def __init_subclass__(cls, site: str, domain: Optional[str] = None):
         WikiParser._site_parsers[site] = cls
+        if domain:
+            WikiParser._domain_parsers['.' + domain] = cls
         cls.client = MediaWikiClient(site)
 
     @classmethod
     def for_site(cls, site: str, method: Optional[str] = None) -> Optional['WikiParser']:
-        if (parser := cls._site_parsers.get(site)) and method:
+        if not (parser := cls._site_parsers.get(site)):
+            parser = next((p for domain, p, in cls._domain_parsers.items() if site.endswith(domain)), None)
+
+        if parser and method:
             try:
                 co_names = getattr(parser, method).__code__.co_names
             except AttributeError:

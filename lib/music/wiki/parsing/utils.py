@@ -94,7 +94,6 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         else:
             yield Name.from_enclosed(cleaned)
     else:
-        # log.debug(f'Found {first_string=!r}')
         try:
             name = first_string[:first_string.rindex(')') + 1]
         except ValueError:
@@ -116,6 +115,16 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
             name = strip_enclosed(name.replace(' : ', ': '))
             yield Name(name)
         else:
+            while len(first_part) > 2 * len(paren_part):
+                # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; attempting re-split')
+                try:
+                    first_part, paren_part = split_enclosed(first_part, reverse=True, maxsplit=1)
+                except ValueError:
+                    # log.debug(f'Could not re-split {first_part=}')
+                    break
+                # else:
+                #     log.debug('re-split')
+
             # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')
             if paren_part.lower() == 'repackage':
                 yield Name.from_enclosed(first_part, extra={'repackage': True})

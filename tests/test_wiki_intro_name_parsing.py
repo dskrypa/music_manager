@@ -93,6 +93,21 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('RM')})
 
+    def test_comma_born(self):
+        page = fake_page(as_node("""'''Sleeq''' (슬릭), born '''Kim Ryeong-hwa''' (김령화) is a South Korean rapper who debuted under We Make History Records in 2013."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Sleeq', '슬릭')})
+
+    def test_stylized_as(self):
+        page = fake_page(as_node("""'''Queen Wasabii '''(퀸 와사비; stylized as '''Queen Wa$abii'''), born '''Kim So-hee''' (김소희) is a South Korean singer and rapper who debuted independently in 2019."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Queen Wasabii', '퀸 와사비')})
+
+    def test_nested_parens(self):
+        page = fake_page(as_node("""'''(G)I-DLE''' ((여자)아이들) is a six-member girl group under [[Cube Entertainment]]. They debuted on May 2, 2018 with their first mini album ''[[I Am ((G)I-DLE)|I Am]]''."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('(G)I-DLE', '(여자)아이들')})
+
 
 if __name__ == '__main__':
     main()

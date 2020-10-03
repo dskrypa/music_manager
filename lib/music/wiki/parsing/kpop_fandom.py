@@ -41,7 +41,7 @@ UNCLOSED_PAREN_MATCH = re.compile(r'^(.+?)(\([^()]*)$').match
 VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
 
 
-class KpopFandomParser(WikiParser, site='kpop.fandom.com'):
+class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         yield from name_from_intro(artist_page)

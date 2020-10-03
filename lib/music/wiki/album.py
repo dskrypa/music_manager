@@ -6,6 +6,7 @@ import logging
 import re
 from datetime import datetime, date
 from functools import cached_property
+from itertools import chain
 from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable, Any
 
 from ordered_set import OrderedSet
@@ -248,8 +249,13 @@ class Soundtrack(DiscographyEntry):
 
 # noinspection PyUnresolvedReferences
 class _ArtistMixin:
+    @property
+    def track_artists(self) -> Set['Artist']:
+        return set()
+
     @cached_property
-    def artists(self) -> Set['Artist']:
+    def _artists(self) -> Set['Artist']:
+        log.debug(f'{self._basic_repr}: Processing {self._artist}', extra={'color': 13})
         artists = set()
         if isinstance(self._artist, Artist):
             artists.add(self._artist)
@@ -278,14 +284,22 @@ class _ArtistMixin:
         return artists
 
     @cached_property
+    def artists(self) -> Set['Artist']:
+        if artists := self._artists:
+            return artists
+        elif artists := self.track_artists:
+            return artists
+        return set()
+
+    @cached_property
     def artist(self) -> Optional['Artist']:
         if artists := self.artists:
             if len(artists) == 1:
                 return next(iter(artists))
             else:
-                log.debug(f'Multiple artists found for {self._basic_repr}: {artists}')
+                log.debug(f'Multiple artists found for {self._basic_repr}: {artists}', extra={'color': 11})
         else:
-            log.debug(f'No artists found for {self._basic_repr}')
+            log.debug(f'No artists found for {self._basic_repr}', extra={'color': 11})
         return None
 
 
@@ -412,6 +426,10 @@ class DiscographyEntryEdition(_ArtistMixin):
             return None
 
     @cached_property
+    def track_artists(self) -> Set['Artist']:
+        return set(chain.from_iterable(part.track_artists for part in self.parts))
+
+    @cached_property
     def parts(self) -> List['DiscographyEntryPart']:
         if parser := WikiParser.for_site(self.page.site, 'process_edition_parts'):
             return list(parser.process_edition_parts(self))
@@ -530,6 +548,10 @@ class DiscographyEntryPart:
         if self.ost and self._name:
             full_name += f' - {self._name}'
         return full_name
+
+    @cached_property
+    def track_artists(self) -> Set['Artist']:
+        return set(chain.from_iterable(track.artists for track in self.tracks))
 
     @cached_property
     def track_names(self) -> List[Name]:

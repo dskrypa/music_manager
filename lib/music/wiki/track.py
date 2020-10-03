@@ -5,7 +5,7 @@
 import logging
 from itertools import chain
 from functools import partialmethod, cached_property
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable, Set
 
 from wiki_nodes import CompoundNode, String, Link
 from ..text.extraction import strip_enclosed
@@ -46,11 +46,29 @@ class Track:
         else:
             raise KeyError(item)
 
+    @cached_property
+    def artists(self) -> Set[Artist]:
+        if (extras := self.name.extra) and (artists := extras.get('artists')):
+            if isinstance(artists, CompoundNode):  # noqa
+                link_artist_map = Artist.from_links(artists.find_all(Link))  # noqa
+                return set(link_artist_map.values())
+            elif isinstance(artists, Link):
+                try:
+                    artist = Artist.from_link(artists)  # noqa
+                except Exception as e:
+                    log.debug(f'Error retrieving artist from link={artists!r}: {e}')
+                else:
+                    return {artist}
+        return set()
+
     def add_collabs(self, artists):
         self._collabs.extend(artists)
 
     @cached_property
     def collab_parts(self) -> List[str]:
+        return self._collab_parts(True)
+
+    def _collab_parts(self, suffixes=True) -> List[str]:
         parts = []
         if extras := self.name.extra:
             if feat := extras.get('feat'):
@@ -73,25 +91,35 @@ class Track:
             if artists := extras.get('artists'):
                 if isinstance(artists, CompoundNode):
                     artists, found = artist_string(artists)
-                    if suffix := ARTISTS_SUFFIXES.get(found):
-                        artists = f'{artists} {suffix}'
+                    if suffixes and (suffix := ARTISTS_SUFFIXES.get(found)):
+                        artists = f'{artists} {suffix}'  # noqa
                 elif isinstance(artists, Link):
                     try:
                         artist = Artist.from_link(artists)
                     except Exception as e:
                         log.debug(f'Error retrieving artist from link={artists!r}: {e}')
                     else:
-                        artists = f'{artist.name} solo'
+                        artists = f'{artist.name} solo' if suffixes else str(artist.name)
 
                 parts.append(str(artists))
 
         return parts
 
     def artist_name(self, artist_name, collabs=True):
-        base = ', '.join(chain((artist_name,), (str(a.name) for a in self._collabs)))
+        if artist_name == 'Various Artists':
+            if collabs and (parts := self._collab_parts(False)):
+                return ' '.join(parts)  # noqa
+            else:
+                parts = ()
+        else:
+            parts = chain((artist_name,), (str(a.name) for a in self._collabs))
+
+        base = ', '.join(parts)
         if collabs and (parts := self.collab_parts):
-            # noinspection PyUnboundLocalVariable
-            return '{} {}'.format(base, ' '.join(f'({part})' for part in parts))
+            if base:
+                collab_str = ' '.join(f'({part})' for part in parts)
+                return f'{base} {collab_str}'
+            return ' '.join(parts)
         return base
 
     def full_name(self, collabs=True) -> str:
@@ -122,6 +150,7 @@ class Track:
 def artist_string(node: CompoundNode) -> Tuple[str, int]:
     found = 0
     link_artist_map = Artist.from_links(node.find_all(Link))
+    # log.debug(f'Found {link_artist_map=}')
     parts = []
     for child in node.children:
         if isinstance(child, String):
@@ -141,7 +170,9 @@ def artist_string(node: CompoundNode) -> Tuple[str, int]:
     last = None
     for part in map(str, parts):
         if part:
-            if last == ')':
+            if last and part == ', &':
+                part = ' & '
+            elif last == ')':
                 if not part.startswith(')') and part != ',':
                     processed.append(' ')
             elif last and last not in ' (' and part != ',':

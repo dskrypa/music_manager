@@ -276,7 +276,7 @@ class AlbumInfoProcessor:
         artists = self._artists
         if len(artists) > 1:
             others = set(artists)
-            artist = choose_item(artists + ['[combine all]'], 'artist', self.disco_part)
+            artist = choose_item(artists + ['[combine all]', 'Various Artists'], 'artist', self.disco_part)
             if artist == '[combine all]':
                 path_artist = choose_item(
                     artists + ['Various Artists'], 'artist', before_color=13,
@@ -285,6 +285,8 @@ class AlbumInfoProcessor:
                 if path_artist != 'Various Artists':
                     path_artist = path_artist.name.english
                 artist = ArtistSet(artists, path_artist)
+            elif artist == 'Various Artists':
+                artist = ArtistSet(artists, 'Various Artists', 'Various Artists')
             else:
                 others.remove(artist)
                 for track in self.file_track_map.values():
@@ -410,10 +412,13 @@ class AlbumInfoProcessor:
 
 
 class ArtistSet:
-    def __init__(self, artists, english):
+    def __init__(self, artists, english, _str=None):
         self.name = self            # Prevent needing to have a separate class for the fake Name
         self.artists = artists
         self.english = english
+        self._str = _str
 
     def __str__(self):
+        if self._str:
+            return self._str
         return ', '.join(str(a.name) for a in self.artists)

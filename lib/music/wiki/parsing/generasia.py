@@ -272,18 +272,26 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 for entry in content.iter_flat():
                     try:
                         cls._process_disco_entry(artist_page, finder, de_type, entry, lang)
-                    except Exception as e:
-                        log.error(f'Unexpected error processing {section=} {entry=}:', extra={'color': 9}, exc_info=True)
+                    except InvalidEntry as e:
+                        log.debug(e)
+                    except Exception:
+                        log.error(
+                            f'Unexpected error processing {section=} {entry=} on {artist_page=}:',
+                            extra={'color': 9}, exc_info=True
+                        )
 
     @classmethod
     def _process_disco_entry(
-            cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', de_type: DiscoEntryType, entry: CompoundNode,
-            lang: Optional[str]
+        cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', de_type: DiscoEntryType, entry: CompoundNode,
+        lang: Optional[str]
     ):
         name = cls.parse_album_name(entry)
         log.log(9, f'Processing {name!r}')
         entry_type = de_type  # Except for collabs with a different primary artist
-        entry_link = next(entry.find_all(Link, True), None)  # Almost always the 1st link
+        if isinstance(entry, String):
+            raise InvalidEntry(f'Unexpected {entry=} on {artist_page=}')
+        else:
+            entry_link = next(entry.find_all(Link, True), None)  # Almost always the 1st link
         song_title = entry_link.show if entry_link else None
 
         """
@@ -695,3 +703,7 @@ def no_extra_enclosers(title, opener_closer):
     if opener == closer:
         return title.count(opener) == 2
     return False
+
+
+class InvalidEntry(Exception):
+    pass

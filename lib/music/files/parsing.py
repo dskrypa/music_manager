@@ -128,128 +128,14 @@ class AlbumName:
                 self.part = int(part_num)
                 name = _name
 
-        real_album = None
-        feat = []
-        collabs = []
-        versions = []
         try:
             parts = list(filter(None, map(clean, reversed(split_enclosed(name, reverse=True)))))
         except ValueError:
             name_parts = (fix_apostrophes(name),)
+            versions = []
+            real_album = None
         else:
-            orig_parts = parts.copy()
-            name_parts = []
-            i = -1
-            while parts:
-                i += 1
-                part = fix_apostrophes(parts.pop(0))
-                lc_part = part.lower()
-                # log.debug(f'Processing part={part!r} / lc_part={lc_part!r}')
-                if self.ost and part == '영화':   # movie
-                    pass
-                elif lc_part == 'repackage':
-                    self.repackage = True
-                elif 'edition' in lc_part:
-                    self.edition = part
-                elif 'remix' in lc_part:
-                    self.remix = part
-                elif any(lc_part.endswith(val) for val in (' version', ' ver.', ' ver', ' 버전')):
-                    try:
-                        if ost_idx := lc_part.index(' ost '):
-                            self.ost = True
-                            real_album = clean(part[:ost_idx])
-                            self.version = clean(part[ost_idx+5:])
-                        else:
-                            self.version = part
-                    except ValueError:
-                        self.version = part
-                elif lc_part.endswith('single'):
-                    self.alb_type = part
-                elif lc_part.startswith(('feat', 'with ')):
-                    try:
-                        feat_artist = part.split(maxsplit=1)[1]
-                    except IndexError:
-                        name_parts.append(part)
-                    else:
-                        feat.extend(split_artists(feat_artist))
-                elif m := CHANNEL_PREFIX_MATCH(part):
-                    # log.debug(f'CHANNEL_PREFIX_MATCH({part}) => {m.groups()}')
-                    if lc_part.endswith('드라마') or '특별' in lc_part:
-                        self.network_info = part
-                    else:
-                        self.network_info, remainder = m.groups()
-                        name_parts.append(remainder)
-                elif lc_part.startswith(CHANNELS) and (lc_part.endswith('드라마') or '특별' in lc_part):
-                    self.network_info = part  # This catches some cases that the above check does not
-                elif suffix := next((s for s in ('original soundtrack', ' ost') if lc_part.endswith(s)), None):
-                    part = clean(part[:-len(suffix)])
-                    self.ost = True
-                    if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
-                        real_album = part
-                        part = None
-                    if part:
-                        name_parts.append(part)
-                elif m := OST_PART_MATCH(part):
-                    # log.debug(f'OST_PART_MATCH({part!r}) => {m.groups()}')
-                    _part, _ost, _part_, part_num = map(clean, m.groups())
-                    if _part_ or _ost:
-                        self.ost = True
-                        self.part = int(part_num)
-                        part = _part
-                        if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
-                            real_album = part
-                            part = None
-
-                    if part:
-                        name_parts.append(part)
-                elif m := NTH_ALB_TYPE_MATCH(part):
-                    # log.debug(f'Found NTH_ALB_TYPE_MATCH({part!r}) => {m.groups()}')
-                    before, num, alb_type, after = map(str.strip, m.groups())
-                    self.alb_num = f'{num} {alb_type}'
-                    self.alb_type = alb_type
-                    for part in (after, before):
-                        if part.endswith('-'):
-                            part = part[:-1].strip()
-                        if part:
-                            # log.debug(f'Re-inserting {part=!r}')
-                            parts.insert(0, part)
-                elif m := REPACKAGE_ALBUM_MATCH(part):
-                    self.repackage = True
-                    self.alb_type = 'Album'
-                    part = m.group(1).strip()
-                    if part:
-                        # log.debug(f'Re-inserting {part=!r}')
-                        parts.insert(0, part)
-                elif m := SPECIAL_PREFIX_MATCH(part):
-                    self.alb_type, part = map(clean, m.groups())
-                    if part:
-                        name_parts.append(part)
-                elif len(orig_parts) == 1 and LangCat.categorize(part) == LangCat.MIX and '.' in part:
-                    versions.append(Name.from_enclosed(part))
-                    name_parts.append(part.split('.')[0])
-                elif name_parts and artist and artist.matches(part):
-                    if len(name_parts) == 1 and name.endswith(f'~{name_parts[0]}~'):
-                        name_parts[0] = f'{strip_unpaired(part)} ~{name_parts[0]}~'
-                    else:
-                        log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
-                elif artist and artist.english and len(orig_parts) == 1 and ' - ' in part and artist.english in part:
-                    _parts = tuple(map(str.strip, part.split(' - ', 1)))
-                    ni, ai = (1, 0) if artist.english in _parts[0] else (0, 1)
-                    name_parts.append(_parts[ni])
-                    collab_part = _parts[ai]
-                    if not collab_part.lower().endswith('repackage'):
-                        collabs.extend(n for n in split_artists(collab_part) if not artist.matches(n))
-                else:
-                    # log.debug(f'No cases matched {part=!r}')
-                    name_parts.append(part)
-
-            if len(name_parts) == 2 and _langs_match(name_parts) and sum(1 for c in APOSTROPHES if c in name) == 2:
-                name_parts = [f'\'{name_parts[1]}\' {name_parts[0]}']     # reversed above
-
-        if feat:
-            self.feat = tuple(feat)
-        if collabs:
-            self.collabs = tuple(collabs)
+            name_parts, real_album, versions = self._process_name_parts(parts, artist, name)
 
         if real_album:
             if name_parts:
@@ -262,6 +148,157 @@ class AlbumName:
         if versions:
             self.name.update(versions=set(versions))
         return self
+
+    def _process_name_parts(self, parts, artist, name):
+        real_album = None
+        feat = []
+        collabs = []
+        versions = []
+        orig_parts = parts.copy()
+        name_parts = []
+        i = -1
+        while parts:
+            i += 1
+            part = fix_apostrophes(parts.pop(0))
+            lc_part = part.lower()
+            # log.debug(f'Processing part={part!r} / lc_part={lc_part!r}')
+            if self._process_simple(part, lc_part):
+                pass
+            elif ost_result := self._process_ost_match(part, lc_part, orig_parts, i, name_parts):
+                if ost_result is not True:
+                    real_album = ost_result
+            elif self._process_album_type_version(part, parts, name_parts, versions, orig_parts):
+                pass
+            elif self._process_artist_collabs(part, lc_part, name_parts, artist, name, orig_parts, collabs, feat):
+                pass
+            else:
+                # log.debug(f'No cases matched {part=!r}')
+                name_parts.append(part)
+
+        if len(name_parts) == 2 and _langs_match(name_parts) and sum(1 for c in APOSTROPHES if c in name) == 2:
+            name_parts = [f'\'{name_parts[1]}\' {name_parts[0]}']  # reversed above
+
+        if feat:
+            self.feat = tuple(feat)
+        if collabs:
+            self.collabs = tuple(collabs)
+
+        return name_parts, real_album, versions
+
+    def _process_simple(self, part, lc_part) -> bool:
+        if self.ost and part == '영화':  # movie
+            pass
+        elif lc_part == 'repackage':
+            self.repackage = True
+        elif 'edition' in lc_part:
+            self.edition = part
+        elif 'remix' in lc_part:
+            self.remix = part
+        elif lc_part.endswith('single'):
+            self.alb_type = part
+        else:
+            return False
+        return True
+
+    def _process_album_type_version(self, part, parts, name_parts, versions, orig_parts) -> bool:
+        if m := NTH_ALB_TYPE_MATCH(part):
+            # log.debug(f'Found NTH_ALB_TYPE_MATCH({part!r}) => {m.groups()}')
+            before, num, alb_type, after = map(str.strip, m.groups())
+            self.alb_num = f'{num} {alb_type}'
+            self.alb_type = alb_type
+            for part in (after, before):
+                if part.endswith('-'):
+                    part = part[:-1].strip()
+                if part:
+                    # log.debug(f'Re-inserting {part=!r}')
+                    parts.insert(0, part)
+        elif m := REPACKAGE_ALBUM_MATCH(part):
+            self.repackage = True
+            self.alb_type = 'Album'
+            part = m.group(1).strip()
+            if part:
+                # log.debug(f'Re-inserting {part=!r}')
+                parts.insert(0, part)
+        elif m := SPECIAL_PREFIX_MATCH(part):
+            self.alb_type, part = map(clean, m.groups())
+            if part:
+                name_parts.append(part)
+        elif len(orig_parts) == 1 and LangCat.categorize(part) == LangCat.MIX and '.' in part:
+            versions.append(Name.from_enclosed(part))
+            name_parts.append(part.split('.')[0])
+        else:
+            return False
+        return True
+
+    def _process_ost_match(self, part, lc_part, orig_parts, i, name_parts) -> Union[str, bool]:
+        real_album = None
+        if any(lc_part.endswith(val) for val in (' version', ' ver.', ' ver', ' 버전')):
+            try:
+                if ost_idx := lc_part.index(' ost '):
+                    self.ost = True
+                    real_album = clean(part[:ost_idx])
+                    self.version = clean(part[ost_idx + 5:])
+                else:
+                    self.version = part
+            except ValueError:
+                self.version = part
+        elif m := CHANNEL_PREFIX_MATCH(part):
+            # log.debug(f'CHANNEL_PREFIX_MATCH({part}) => {m.groups()}')
+            if lc_part.endswith('드라마') or '특별' in lc_part:
+                self.network_info = part
+            else:
+                self.network_info, remainder = m.groups()
+                name_parts.append(remainder)
+        elif lc_part.startswith(CHANNELS) and (lc_part.endswith('드라마') or '특별' in lc_part):
+            self.network_info = part  # This catches some cases that the above check does not
+        elif suffix := next((s for s in ('original soundtrack', ' ost') if lc_part.endswith(s)), None):
+            part = clean(part[:-len(suffix)])
+            self.ost = True
+            if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
+                real_album = part
+                part = None
+            if part:
+                name_parts.append(part)
+        elif m := OST_PART_MATCH(part):
+            # log.debug(f'OST_PART_MATCH({part!r}) => {m.groups()}')
+            _part, _ost, _part_, part_num = map(clean, m.groups())
+            if _part_ or _ost:
+                self.ost = True
+                self.part = int(part_num)
+                part = _part
+                if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
+                    real_album = part
+                    part = None
+
+            if part:
+                name_parts.append(part)
+        else:
+            return False
+        return real_album or True
+
+    def _process_artist_collabs(self, part, lc_part, name_parts, artist, name, orig_parts, collabs, feat) -> bool:
+        if lc_part.startswith(('feat', 'with ')):
+            try:
+                feat_artist = part.split(maxsplit=1)[1]
+            except IndexError:
+                name_parts.append(part)
+            else:
+                feat.extend(split_artists(feat_artist))
+        elif name_parts and artist and artist.matches(part):
+            if len(name_parts) == 1 and name.endswith(f'~{name_parts[0]}~'):
+                name_parts[0] = f'{strip_unpaired(part)} ~{name_parts[0]}~'
+            else:
+                log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
+        elif artist and artist.english and len(orig_parts) == 1 and ' - ' in part and artist.english in part:
+            _parts = tuple(map(str.strip, part.split(' - ', 1)))
+            ni, ai = (1, 0) if artist.english in _parts[0] else (0, 1)
+            name_parts.append(_parts[ni])
+            collab_part = _parts[ai]
+            if not collab_part.lower().endswith('repackage'):
+                collabs.extend(n for n in split_artists(collab_part) if not artist.matches(n))
+        else:
+            return False
+        return True
 
 
 def _fields(obj):

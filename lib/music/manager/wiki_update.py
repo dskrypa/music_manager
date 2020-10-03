@@ -16,7 +16,8 @@ from wiki_nodes.http import MediaWikiClient
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.track.track import SongFile
 from ..wiki import Track, Artist, Singer, Group
-from ..wiki.album import DiscographyEntry, DiscographyEntryPart, Soundtrack, SoundtrackEdition, SoundtrackPart
+from ..wiki.album import DiscographyEntry, DiscographyEntryPart, DiscographyEntryEdition
+from ..wiki.album import Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from ..wiki.typing import StrOrStrs
 from .enums import CollabMode
@@ -228,8 +229,11 @@ class AlbumInfoProcessor:
         return get_disco_part(entry)
 
     @cached_property
-    def edition(self):
-        return self.disco_part.edition
+    def edition(self) -> Union[DiscographyEntryEdition, SoundtrackEdition]:
+        edition = self.disco_part.edition
+        if isinstance(edition, SoundtrackEdition):
+            self.hide_edition = True
+        return edition
 
     @cached_property
     def ost(self):

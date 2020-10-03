@@ -17,6 +17,7 @@ from ds_tools.unicode.languages import LangCat, J2R
 from .extraction import split_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
 from .spellcheck import is_english, english_probability
+from .utils import combine_with_parens
 
 __all__ = ['Name', 'sort_name_parts']
 log = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ class Name(ClearableCachedPropertyMixin):
         eng = self.english
         non_eng = self.non_eng
         if eng and non_eng:
-            return f'{eng} ({non_eng})'
+            return combine_with_parens([eng, non_eng])
         return eng or non_eng or self.romanized or self.lit_translation or ''
 
     def artist_str(self, group=True, members=True):

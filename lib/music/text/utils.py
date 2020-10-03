@@ -4,6 +4,9 @@
 
 from typing import Sequence, Iterable, Optional
 
+from ds_tools.utils.text_processing import common_suffix
+from .extraction import ends_with_enclosed, split_enclosed
+
 __all__ = ['combine_with_parens', 'find_ordinal']
 
 
@@ -12,7 +15,16 @@ def combine_with_parens(parts: Iterable[str]) -> str:
         parts = list(parts)
     if len(parts) == 1:
         return parts[0]
-    return '{} {}'.format(parts[0], ' '.join(f'({part})' for part in parts[1:]))
+
+    if (_suffix := common_suffix(parts)) and ends_with_enclosed(_suffix):
+        suffix = '({})'.format(split_enclosed(_suffix, reverse=True, maxsplit=1)[-1])
+        slen = len(suffix)
+        parts = [part[:-slen].strip() for part in parts]
+    else:
+        suffix = None
+
+    combined = '{} {}'.format(parts[0], ' '.join(f'({part})' for part in parts[1:]))
+    return f'{combined} {suffix}' if suffix else combined
 
 
 def find_ordinal(text: str) -> Optional[int]:

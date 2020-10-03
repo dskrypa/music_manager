@@ -2,10 +2,13 @@
 :author: Doug Skrypa
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Type, Optional, Tuple, List, Iterator
 
 from ds_tools.input import choose_item
+from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes import MediaWikiClient, WikiPage, Link, CompoundNode, List as ListNode, Section
 from ..text.name import Name
 from .exceptions import AmbiguousPageError
@@ -17,8 +20,12 @@ log = logging.getLogger(__name__)
 
 
 def handle_disambiguation_candidates(
-        page: WikiPage, client: MediaWikiClient, candidates: Candidates, existing: Optional[WE] = None,
-        name: Optional[Name] = None, prompt=True
+    page: WikiPage,
+    client: MediaWikiClient,
+    candidates: Candidates,
+    existing: Optional[WE] = None,
+    name: Optional[Name] = None,
+    prompt=True,
 ) -> Tuple[Type[WE], WikiPage]:
     """
     Given a disambiguation page and the pages it links to that match the chosen WikiEntity subclass, filter candidates
@@ -55,13 +62,50 @@ def handle_disambiguation_candidates(
     else:
         p_name = page_name(page)
         links = list(candidates)
-        links.append('[None - skip]')
-        # log.debug(f'Ambiguous title={p_name!r} on site={client.host} has too many candidates: {len(candidates)}')
-        source = f'for ambiguous title={p_name!r} on {client.host}'
-        choice = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
+        if _should_skip(p_name, links):
+            choice = '[None - skip]'
+        else:
+            links.append('[None - skip]')
+            links.append('[None - skip & remember]')
+            # log.debug(f'Ambiguous title={p_name!r} on site={client.host} has too many candidates: {len(candidates)}')
+            source = f'for ambiguous title={p_name!r} on {client.host}'
+            choice = choose_item(links, 'link', source, before=f'\nFound multiple candidate links {source}:')
+
+        if choice == '[None - skip & remember]':
+            _always_skip(p_name, links[:-2])  # noqa
+            choice = '[None - skip]'
         if choice == '[None - skip]':
             raise AmbiguousPageError(page_name(page), page, list(candidates))
+
         return candidates[choice]
+
+
+def _should_skip(p_name: str, links: Candidates) -> bool:
+    key = str(sorted(links))
+    skip_dir = Path(get_user_cache_dir('music_manager/disambiguation_skip'))
+    skip_path = skip_dir.joinpath(f'{p_name}.json')
+    if skip_path.exists():
+        with skip_path.open('r') as f:
+            try:
+                return json.load(f)[key]
+            except KeyError:
+                return False
+    return False
+
+
+def _always_skip(p_name: str, links: Candidates):
+    key = str(sorted(links))
+    skip_dir = Path(get_user_cache_dir('music_manager/disambiguation_skip'))
+    skip_path = skip_dir.joinpath(f'{p_name}.json')
+    if skip_path.exists():
+        with skip_path.open('r') as f:
+            data = json.load(f)
+    else:
+        data = {}
+
+    data[key] = True
+    with skip_path.open('w') as f:
+        json.dump(data, f, sort_keys=True, indent=4)
 
 
 def _filtered_candidates(name: Name, candidates: Candidates, existing: Optional[WE] = None) -> Candidates:

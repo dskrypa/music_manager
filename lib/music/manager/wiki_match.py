@@ -155,8 +155,7 @@ def find_album(
 
 
 def _find_album(
-        album_dir: AlbumDir, alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage,
-        num
+    album_dir: AlbumDir, alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num
 ) -> Set[DiscographyEntryPart]:
     track_count = len(album_dir)
     candidates = set()
@@ -173,8 +172,10 @@ def _find_album(
                             extra={'color': 11}
                         )
                         for part in pkg_match_parts:
-                            if track_count == len(part) \
-                                    or any(pt.name.matches(at.tag_title) for pt, at in zip(part, album_dir)):
+                            if (
+                                track_count == len(part)
+                                or any(pt.name.matches(at.tag_title) for pt, at in zip(part, album_dir))
+                            ):
                                 mlog.debug(f'{part=} matches {alb_name}', extra={'color': 11})
                                 candidates.add(part)
                     else:

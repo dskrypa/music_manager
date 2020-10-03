@@ -26,6 +26,11 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
 }
 
 tag_name_map = {
+    # Custom
+    'WXXX:WIKI:ALBUM': 'Album\'s Wiki URL',
+    'WXXX:WIKI:ARTIST': 'Artist\'s Wiki URL',
+    'TXXX:KPOP:GEN': 'K-Pop Generation',
+
     # iTunes Verified Fields
     'TIT2': 'Song title',
     'TALB': 'Album',

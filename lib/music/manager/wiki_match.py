@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import List, Iterable, Optional, Set, Tuple
+from typing import List, Iterable, Optional, Set, Tuple, Collection
 
 from ds_tools.fs.paths import Paths
 from ds_tools.input import choose_item
@@ -130,6 +130,10 @@ def find_album(
     if album_url := album_dir.album_url:
         log.debug(f'Found album URL via tag for {album_dir}: {album_url}', extra={'color': 10})
         candidates = list(DiscographyEntry.from_url(album_url).parts())
+        if len(candidates) > 1:
+            candidates = _filter_candidates(album_dir, candidates)
+            if not candidates:
+                candidates = list(DiscographyEntry.from_url(album_url).parts())
         return choose_item(
             candidates, 'candidate', before=f'\nFound multiple possible matches for {album_dir}', before_color=14
         )
@@ -203,7 +207,7 @@ def _find_album(
     return candidates
 
 
-def _filter_candidates(album_dir: AlbumDir, candidates: Set[DiscographyEntryPart]) -> Set[DiscographyEntryPart]:
+def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEntryPart]) -> Set[DiscographyEntryPart]:
     mlog.debug('Initial candidates ({}):\n{}'.format(len(candidates), '\n'.join(f' - {c}' for c in candidates)))
 
     track_count = len(album_dir)

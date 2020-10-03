@@ -151,6 +151,7 @@ OST_TEST_CASES = {
     'A Brand New Day (BTS WORLD OST Part.2)': AlbumName('BTS WORLD', ost=True, song_name=Name('A Brand New Day'), part=2),
     'OST Best - Flash Back': AlbumName('OST Best - Flash Back'),
     '"개 같은 하루 (with TTG)" OST': AlbumName('개 같은 하루', ost=True, feat=(Name('TTG'),)),
+    'Mr. Back OST (미스터 백 OST) - Part 3': AlbumName(('Mr. Back', '미스터 백'), ost=True, part=3),
 }
 
 # OST_EDGE_CASES = {

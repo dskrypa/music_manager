@@ -119,6 +119,7 @@ OST_TEST_CASES = {
     '굿닥터 OST Part 3': AlbumName('굿닥터', ost=True, part=3),
     '달의 연인 - 보보경심 려 OST Part 1': AlbumName('달의 연인 - 보보경심 려', ost=True, part=1),
     '식샤를 합시다3 : 비긴즈 OST Part.3': AlbumName('식샤를 합시다3 : 비긴즈', ost=True, part=3),
+    '드라마 비밀 OST Part 5': AlbumName('비밀', ost=True, part=5),
 
     '하이드 지킬, 나 (SBS 수목드라마) OST - Part.2': AlbumName('하이드 지킬, 나', network_info='SBS 수목드라마', ost=True, part=2),
     '구르미 그린 달빛 (KBS2 월화드라마) OST - Part.9': AlbumName('구르미 그린 달빛', network_info='KBS2 월화드라마', ost=True, part=9),

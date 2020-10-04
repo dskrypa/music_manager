@@ -231,6 +231,7 @@ class AlbumName:
         return True
 
     def _process_ost_match(self, part, lc_part, orig_parts, i, name_parts) -> Union[str, bool]:
+        # log.debug(f'Processing for OST matches: {i=} {part=} {lc_part=}')
         real_album = None
         if any(lc_part.endswith(val) for val in (' version', ' ver.', ' ver', ' 버전')):
             try:
@@ -252,6 +253,7 @@ class AlbumName:
         elif lc_part.startswith(CHANNELS) and (lc_part.endswith('드라마') or '특별' in lc_part):
             self.network_info = part  # This catches some cases that the above check does not
         elif suffix := next((s for s in ('original soundtrack', ' ost') if lc_part.endswith(s)), None):
+            # log.debug(f'Found OST suffix in {lc_part=}')
             part = clean(part[:-len(suffix)])
             self.ost = True
             if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
@@ -272,6 +274,8 @@ class AlbumName:
 
             if part:
                 name_parts.append(part)
+        elif self.ost and part.startswith('드라마 '):  # "drama"
+            name_parts.append(part.split(maxsplit=1)[-1].strip())
         else:
             return False
         return real_album or True

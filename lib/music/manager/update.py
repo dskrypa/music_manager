@@ -258,7 +258,7 @@ class AlbumInfo:
         log.debug(f'Using {expected_rel_dir=}')
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)
         if expected_dir != album_dir.path:
-            log.info(f'{"[DRY RUN] Would move" if dry_run else "Moving"} {album_dir} -> {expected_dir}')
+            log.info(f'{"[DRY RUN] Would move" if dry_run else "Moving"} {album_dir} -> {expected_dir.as_posix()}')
             if not dry_run:
                 orig_parent_path = album_dir.path.parent
                 album_dir.move(expected_dir)

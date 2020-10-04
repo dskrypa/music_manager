@@ -219,14 +219,16 @@ class Soundtrack(DiscographyEntry):
         self._type = DiscoEntryType.Soundtrack
 
     def split_editions(self):
-        full, parts = None, None
+        full, parts, extras = None, None, None
         for edition in self.editions:
             # noinspection PyUnresolvedReferences
             if edition.full_ost:
                 full = edition
+            elif edition.ost_extras:
+                extras = edition
             else:
                 parts = edition
-        return full, parts
+        return full, parts, extras
 
     @classmethod
     def from_name(cls, name: str) -> 'Soundtrack':
@@ -328,7 +330,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         self.edition = edition                                                              # type: Optional[str]
         self.repackage = repackage                                                          # type: bool
         self._lang = lang                                                                   # type: Optional[str]
-        log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r} {entry_type=!r}')
+        # log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r} {entry_type=!r}')
 
     @property
     def _basic_repr(self):
@@ -457,11 +459,15 @@ class DiscographyEntryEdition(_ArtistMixin):
 
 
 class SoundtrackEdition(DiscographyEntryEdition):
-    """An edition of a soundtrack (full / parts)"""
+    """An edition of a soundtrack (full / parts / extras)"""
 
     @property
     def full_ost(self):
         return self.edition == '[Full OST]'
+
+    @property
+    def ost_extras(self):
+        return self.edition == '[Extra Parts]'
 
 
 class DiscographyEntryPart:

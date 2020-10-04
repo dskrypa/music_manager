@@ -5,7 +5,7 @@
 import logging
 import re
 from collections import Counter
-from datetime import datetime, date
+from datetime import datetime
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
 
 from wiki_nodes import WikiPage, Link, String, MappingNode, Section, CompoundNode
@@ -149,22 +149,31 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                         finder.add_entry(disco_entry, entry)
 
     @classmethod
+    def _process_parts_edition(
+        cls, entry: 'Soundtrack', entry_page: WikiPage, ost_name: str, edition_name: str, parts: List[Section]
+    ) -> SoundtrackEdition:
+        log.debug(f'Found {len(parts)} {edition_name} on {entry_page=}')
+        name, languages, dates, artists = None, Counter(), set(), set()
+        for part in parts:  # Go thru all parts to get all languages, dates, and artists
+            name = name or get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists)[0]
+
+        language = max(languages, key=lambda k: languages[k], default=None)
+        return SoundtrackEdition(
+            name, entry_page, entry, entry._type, artists, sorted(dates), parts, f'[{edition_name}]', language
+        )
+
+    @classmethod
     def process_album_editions(cls, entry: 'Soundtrack', entry_page: WikiPage) -> EditionIterator:
-        ost_parts, ost_full, ost_name = split_sections(entry_page)
+        ost_parts, ost_full, ost_name, other_parts = split_sections(entry_page)
         if not (ost_full or ost_parts):
             log.warning(f'Did not find any OST content for {entry=} / {entry_page!r}')
 
         if ost_parts:
-            name, languages, dates, artists = None, Counter(), set(), set()
-            for part in ost_parts:
-                name = get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists)[0]
-
-            language = max(languages, key=lambda k: languages[k], default=None)
-            yield SoundtrackEdition(
-                name, entry_page, entry, entry._type, artists, sorted(dates), ost_parts, '[OST Parts]', language
-            )
-
+            yield cls._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)
+        if other_parts:
+            yield cls._process_parts_edition(entry, entry_page, ost_name, 'Extra Parts', other_parts)
         if ost_full:
+            log.debug(f'Found full OST section on {entry_page=}')
             try:
                 name, languages, dates, artists = get_basic_info(get_info_map(ost_full.content), ost_name)
             except Exception as e:
@@ -180,18 +189,27 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 )
 
     @classmethod
+    def _process_parts_edition_parts(cls, edition: 'SoundtrackEdition', numbered: bool) -> Iterator['SoundtrackPart']:
+        for i, section in enumerate(edition._content, 1):
+            content = section.content
+            info = get_info_map(content)
+            artist = info.get('Artist')
+            if part_date := info.get('Release Date'):
+                rel_date = parse_date(part_date.value)
+            else:
+                rel_date = None
+
+            if numbered:
+                yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=artist, release_date=rel_date)
+            else:
+                yield SoundtrackPart(None, section.title, edition, content[4], artist=artist, release_date=rel_date)
+
+    @classmethod
     def process_edition_parts(cls, edition: 'SoundtrackEdition') -> Iterator['SoundtrackPart']:
         if edition.edition == '[OST Parts]':
-            for i, section in enumerate(edition._content, 1):
-                content = section.content
-                info = content[2].as_mapping()
-                if part_date := info.get('Release Date'):
-                    release_date = parse_date(part_date.value)
-                else:
-                    release_date = None
-                yield SoundtrackPart(
-                    i, f'Part {i}', edition, content[4], artist=info.get('Artist'), release_date=release_date
-                )
+            yield from cls._process_parts_edition_parts(edition, True)
+        elif edition.edition == '[Extra Parts]':
+            yield from cls._process_parts_edition_parts(edition, False)
         elif edition.edition == '[Full OST]':
             section = edition._content
             content = section.content
@@ -263,32 +281,44 @@ def get_section_map(page: WikiPage, title: str) -> Optional[MappingNode]:
         return section.content.as_mapping()
 
 
-def split_sections(page: WikiPage) -> Tuple[List[Section], Optional[Section], Optional[str]]:
+def split_sections(page: WikiPage) -> Tuple[List[Section], Optional[Section], Optional[str], List[Section]]:
     ost_full = None
     ost_parts = []
+    other_parts = []
     ost_name = None
     for section in page.sections:
+        # log.debug(f'Splitting title={section.title!r} ({ost_name=})')
         if m := OST_PART_MATCH(section.title):
-            ost_name, part_name = m.groups()
+            _ost_name, part_name = m.groups()
+            ost_name = ost_name or _ost_name
             if part_name:
                 ost_parts.append(section)
+            elif section.title in ('Unofficial OST', 'Unoffical OST'):  # typo intentional
+                other_parts.append(section)
             else:
                 ost_full = section
         else:
             break
 
-    return ost_parts, ost_full, ost_name
+    return ost_parts, ost_full, ost_name, other_parts
 
 
 def get_name(info: MappingNode, ost_name: Optional[str]) -> Name:
-    non_eng_title = info['Title'][0].value  # type: str  # TODO: handle other cases
+    title_node = info['Title']
+    non_eng_title = title_node[0].value  # type: str  # TODO: handle other cases
+    # log.debug(f'Processing {non_eng_title=}')
     if non_eng_title.endswith('/'):
         non_eng_title = non_eng_title[:-1].strip()
+        # log.debug(f'  - updated to {non_eng_title=}')
 
     if m := OST_PART_MATCH(non_eng_title):
         non_eng_name = m.group(1)
+    elif len(title_node) == 2 and isinstance(title_node[1], Link):
+        ost_name = title_node[1].show
+        non_eng_name = non_eng_title
+        # log.debug(f'  -> Using new {ost_name=} with {non_eng_name=}')
     else:
-        raise ValueError(f'Unexpected name format: {non_eng_title!r}')
+        raise ValueError(f'Unexpected format for part name={non_eng_title!r} in {ost_name=}')
 
     return Name.from_parts((ost_name, non_eng_name))
 

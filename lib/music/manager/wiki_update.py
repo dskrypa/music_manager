@@ -214,11 +214,15 @@ class AlbumInfoProcessor:
     def disco_part(self) -> Union[DiscographyEntryPart, SoundtrackPart]:
         if isinstance(self.album, Soundtrack):
             self.hide_edition = True
-            full, parts = self.album.split_editions()
-            full_len = len(full.parts[0]) if full and full.parts else None
-            entry = full if full_len and len(self.album_dir) == full_len else parts
+            full, parts, extras = self.album.split_editions()
+            if extras:
+                entry = self.album
+            else:
+                full_len = len(full.parts[0]) if full and full.parts else None
+                entry = full if full_len and len(self.album_dir) == full_len else parts
         else:
             entry = self.album
+
         if isinstance(entry, SoundtrackEdition):
             if len(entry.parts) == 1:
                 entry = entry.parts[0]
@@ -228,6 +232,7 @@ class AlbumInfoProcessor:
                     if part.part == alb_part:
                         entry = part
                         break
+
         return get_disco_part(entry)
 
     @cached_property

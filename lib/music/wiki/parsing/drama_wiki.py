@@ -165,12 +165,19 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             )
 
         if ost_full:
-            name, languages, dates, artists = get_basic_info(ost_full.content[2].as_mapping(), ost_name)
-            language = max(languages, key=lambda k: languages[k], default=None)
-            yield SoundtrackEdition(
-                name, entry_page, entry, entry._type, String('Various Artists'), sorted(dates), ost_full, '[Full OST]',
-                language
-            )
+            try:
+                name, languages, dates, artists = get_basic_info(get_info_map(ost_full.content), ost_name)
+            except Exception as e:
+                log.error(
+                    f'Error extracting basic info from full OST section on {entry_page}: {e} - section={ost_full}',
+                    extra={'color': 9}
+                )
+            else:
+                language = max(languages, key=lambda k: languages[k], default=None)
+                yield SoundtrackEdition(
+                    name, entry_page, entry, entry._type, String('Various Artists'), sorted(dates), ost_full,
+                    '[Full OST]', language
+                )
 
     @classmethod
     def process_edition_parts(cls, edition: 'SoundtrackEdition') -> Iterator['SoundtrackPart']:
@@ -188,7 +195,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         elif edition.edition == '[Full OST]':
             section = edition._content
             content = section.content
-            info = content[2].as_mapping()
+            info = get_info_map(content)
             if part_date := info.get('Release Date'):
                 release_date = parse_date(part_date.value)
             else:
@@ -229,6 +236,13 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     yield ost_link
                 else:
                     log.warning(f'An {ost_link=!r} was found on {page=!r} but it was not a Link')
+
+
+def get_info_map(section_content):
+    item = section_content[2]
+    if isinstance(item[0].value, String) and item[0].value.value == 'Information':
+        item = section_content[3]
+    return item.as_mapping()
 
 
 def parse_date(date_str: str) -> datetime:

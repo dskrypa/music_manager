@@ -137,7 +137,7 @@ def find_album(
             candidates = _filter_candidates(album_dir, candidates)
             if not candidates:
                 candidates = list(DiscographyEntry.from_url(album_url).parts())
-        if all(c.ost for c in candidates):
+        if album_dir.name.ost:
             # noinspection PyTypeChecker
             candidates = _filter_ost_parts(album_dir.name, candidates)
 
@@ -244,8 +244,8 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEn
     return candidates
 
 
-def _filter_ost_parts(album_name: 'AlbumName', candidates: Collection[SoundtrackPart]) -> Set[SoundtrackPart]:
-    _candidates = set(c for c in candidates if c.part == album_name.part)
+def _filter_ost_parts(album_name: 'AlbumName', candidates):
+    _candidates = set(c for c in candidates if getattr(c, 'part', None) == album_name.part)
     return _candidates if _candidates else candidates
 
 

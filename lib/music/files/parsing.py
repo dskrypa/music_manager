@@ -183,6 +183,7 @@ class AlbumName:
         if collabs:
             self.collabs = tuple(collabs)
 
+        # log.debug(f'Returning {name_parts=} {real_album=} {versions=}')
         return name_parts, real_album, versions
 
     def _process_simple(self, part, lc_part) -> bool:
@@ -317,6 +318,9 @@ def split_name(name_parts):
             name_parts = split_enclosed(name)
             if len(name_parts) == 1 and ' - ' in name:
                 name_parts = tuple(map(clean, name.split(' - ')))
+    elif len(name_parts) == 2 and all(LangCat.categorize(p) == LangCat.ENG for p in name_parts):
+        name_parts = ['{} ({})'.format(*name_parts)]
+
     return name_parts
 
 

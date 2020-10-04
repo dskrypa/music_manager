@@ -205,6 +205,25 @@ class Album(DiscographyEntry):
     """An album or mini album or EP, or a repackage thereof"""
     _categories = ('album', 'extended play', '(band) eps', '-language eps', 'mixtape')
 
+    @classmethod
+    def from_name(cls, name: str) -> 'Album':
+        client = MediaWikiClient('kpop.fandom.com')
+        # results = client.get_pages(name, search=True, gsrwhat='text')
+        results = client.get_pages(name, search=True)
+        log.debug(f'Search results for {name=!r}: {results}')
+        for title, page in results.items():
+            try:
+                return cls._by_category(page)
+            except EntityTypeError:
+                try:
+                    show = TVSeries._by_category(page)
+                except EntityTypeError:
+                    log.debug(f'Found {page=!r} that is neither an OST or a TVSeries')
+                else:
+                    return cls.find_from_links(show.soundtrack_links())
+
+        raise ValueError(f'No pages were found for {cls.__name__}s matching {name!r}')
+
 
 class Single(DiscographyEntry):
     _categories = ('single', 'song', 'collaboration', 'feature')

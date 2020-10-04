@@ -50,7 +50,7 @@ ALBUM_TEST_CASES = {
     "2019 월간 윤종신 5월호 '별책부록' (Monthly Project 2019 May Yoon Jong Shin with TAEYEON)": AlbumName(('2019 월간 윤종신 5월호', '별책부록', 'Monthly Project 2019 May Yoon Jong Shin with TAEYEON')),
     '임재범 30주년 기념 앨범 Project 1': AlbumName('임재범 30주년 기념 앨범 Project 1'),
 
-    '[Re:flower] PROJECT #1': AlbumName(('Re:flower', 'PROJECT #1')),
+    '[Re:flower] PROJECT #1': AlbumName('Re:flower (PROJECT #1)'),
     '2001-2009 End And..': AlbumName('2001-2009 End And..'),
     '4집 Super Star': AlbumName('4집 Super Star'),
     'OH MY GIRL JAPAN DEBUT ALBUM': AlbumName('OH MY GIRL JAPAN DEBUT ALBUM'),
@@ -64,7 +64,7 @@ ALBUM_TEST_CASES = {
     '밤이 되니까 (因为入夜了)': AlbumName(('밤이 되니까', '因为入夜了')),
 
     'Re:union, The real': AlbumName('Re:union, The real'),
-    "Mabinogi (It's Fantastic!)": AlbumName(('Mabinogi', "It's Fantastic!")),
+    "Mabinogi (It's Fantastic!)": AlbumName("Mabinogi (It's Fantastic!)"),
     'O!RUL8,2?': AlbumName('O!RUL8,2?'),
     'FM201.8': AlbumName('FM201.8'),
 
@@ -155,6 +155,10 @@ OST_TEST_CASES = {
     'Mr. Back OST (미스터 백 OST) - Part 3': AlbumName(('Mr. Back', '미스터 백'), ost=True, part=3),
 }
 
+SHOW_RELATED_TEST_CASES = {
+    'GOOD GIRL (Episode 4)': AlbumName('GOOD GIRL (Episode 4)'),
+}
+
 # OST_EDGE_CASES = {
 # }
 
@@ -173,6 +177,9 @@ class FileAlbumParsingTestCase(TestCaseBase):
 
     def test_osts(self):
         self._test_cases(OST_TEST_CASES)
+
+    def test_show_related(self):
+        self._test_cases(SHOW_RELATED_TEST_CASES)
 
     # def test_ost_edge_cases(self):
     #     self._test_cases(OST_EDGE_CASES)

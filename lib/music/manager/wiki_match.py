@@ -13,7 +13,7 @@ from wiki_nodes.http import URL_MATCH
 from ..common.disco_entry import DiscoEntryType
 from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
 from ..wiki.typing import StrOrStrs
@@ -157,8 +157,6 @@ def find_album(
         log.log(19, f'Re-attempting album match with name={split.full_repr()}', extra={'color': (0, 11)})
         candidates = _find_album(album_dir, split, artists, album_dir.type, repackage, album_name.number)
 
-
-
     return choose_item(
         candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
     )
@@ -201,12 +199,15 @@ def _find_album(
                 else:
                     mlog.debug(f'{alb_name!r} does not match {entry}', extra={'color': 8})
 
-    if not candidates and album_dir.name.ost:
-        if name_str := alb_name.english or alb_name.non_eng:
-            try:
-                candidates.add(Soundtrack.from_name(name_str))
-            except Exception as e:
-                log.debug(f'Error finding soundtrack for {name_str=!r}: {e}')
+    if not candidates and (name_str := alb_name.english or alb_name.non_eng):
+        cls = Soundtrack if album_dir.name.ost else Album
+        # noinspection PyUnboundLocalVariable
+        log.debug(f'No candidates found - attempting {cls.__name__} search for {name_str=}', extra={'color': (0, 13)})
+        try:
+            # noinspection PyUnboundLocalVariable
+            candidates.add(cls.from_name(name_str))
+        except Exception as e:
+            log.debug(f'Error finding {cls.__name__} for {name_str=!r}:', exc_info=True, extra={'color': (0, 9)})
 
     if len(candidates) > 1:
         candidates = _filter_candidates(album_dir, candidates)

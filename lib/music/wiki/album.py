@@ -203,7 +203,7 @@ class DiscographyEntry(EntertainmentEntity):
 
 class Album(DiscographyEntry):
     """An album or mini album or EP, or a repackage thereof"""
-    _categories = ('album', 'extended play', '(band) eps', '-language eps')
+    _categories = ('album', 'extended play', '(band) eps', '-language eps', 'mixtape')
 
 
 class Single(DiscographyEntry):

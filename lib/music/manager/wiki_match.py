@@ -141,20 +141,23 @@ def find_album(
             candidates, 'candidate', before=f'\nFound multiple possible matches for {album_dir}', before_color=14
         )
 
-    album_name = album_dir.name
-    if not album_name:
+    if not (album_name := album_dir.name):  # type: AlbumName
         raise ValueError(f'Directories with multiple album names are not currently handled.')
 
     repackage = album_name.repackage
-    alb_name = album_name.name
+    alb_name = album_name.name  # type: Name
 
     artists = artists or find_artists(album_dir, sites=sites)
-    log.debug(f'Processing album for {album_dir} with {album_name=!r} ({repackage=}) and {artists=}')
+    log.debug(
+        f'Processing album for {album_dir} with {album_name=} ({repackage=}) and {artists=}', extra={'color': (0, 14)}
+    )
     candidates = _find_album(album_dir, alb_name, artists, album_dir.type, repackage, album_name.number)
     if not candidates and alb_name.eng_lang == LangCat.MIX and alb_name.eng_langs.intersection(LangCat.non_eng_cats):
         split = alb_name.split()
-        log.log(19, f'Re-attempting album match with name={split.full_repr()}')
+        log.log(19, f'Re-attempting album match with name={split.full_repr()}', extra={'color': (0, 11)})
         candidates = _find_album(album_dir, split, artists, album_dir.type, repackage, album_name.number)
+
+
 
     return choose_item(
         candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
@@ -198,7 +201,7 @@ def _find_album(
                 else:
                     mlog.debug(f'{alb_name!r} does not match {entry}', extra={'color': 8})
 
-    if not candidates and alb_type == DiscoEntryType.Soundtrack:
+    if not candidates and album_dir.name.ost:
         if name_str := alb_name.english or alb_name.non_eng:
             try:
                 candidates.add(Soundtrack.from_name(name_str))

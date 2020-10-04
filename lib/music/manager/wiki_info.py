@@ -9,7 +9,7 @@ from ds_tools.output import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
 from ..common.disco_entry import DiscoEntryType
 from ..text.name import Name
-from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart
+from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart, TVSeries
 from ..wiki.discography import DiscographyMixin, Discography
 
 __all__ = ['show_wiki_entity', 'pprint_wiki_page']
@@ -50,8 +50,20 @@ def show_wiki_entity(
         print_artist(entity, 2, expand, expand > 2, expand > 3, alb_types)
     elif isinstance(entity, Discography):
         print_discography(entity, 2, expand > 0, expand > 1, expand > 2, alb_types, True)
+    elif isinstance(entity, TVSeries):
+        print_tv_series(entity, 2)
     else:
         uprint(f'  - No additional information is configured for {entity.__class__.__name__} entities')
+
+
+def print_tv_series(tv_series: TVSeries, indent=0):
+    prefix = ' ' * indent
+    if links := tv_series.soundtrack_links():
+        uprint(f'{prefix}Discography Links:')
+        for link in sorted(links):
+            uprint(f'{prefix}  - {link!r}')
+    else:
+        uprint(f'{prefix}Discography Links: [Unavailable]')
 
 
 def print_artist(
@@ -85,8 +97,13 @@ def print_artist(
 
 
 def print_discography(
-        entity: DiscographyMixin, indent=0, expand_disco=False, editions=False, track_info=False,
-        alb_types: AlbTypes = None, header=False
+    entity: DiscographyMixin,
+    indent=0,
+    expand_disco=False,
+    editions=False,
+    track_info=False,
+    alb_types: AlbTypes = None,
+    header=False,
 ):
     prefix = ' ' * indent
     if header:

@@ -93,8 +93,12 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _validate(
-            cls: Type[WE], obj: PageEntry, existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True,
-            visited: Optional[Set[Link]] = None
+        cls: Type[WE],
+        obj: PageEntry,
+        existing: Optional[WE] = None,
+        name: Optional[Name] = None,
+        prompt: bool = True,
+        visited: Optional[Set[Link]] = None,
     ) -> Tuple[Type[WE], PageEntry]:
         """
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
@@ -145,7 +149,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _handle_disambiguation_link(
-            cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: Optional[Set[Link]] = None
+        cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: Optional[Set[Link]] = None
     ) -> Tuple[Type[WE], PageEntry]:
         visited = visited or set()
         visited.add(link)
@@ -154,7 +158,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _resolve_ambiguous(
-            cls: Type[WE], page: WikiPage, existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True
+        cls: Type[WE], page: WikiPage, existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True
     ) -> Tuple[Type[WE], WikiPage]:
         """
         :param WikiPage page: A disambiguation page
@@ -195,7 +199,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _from_multi_site_pages(
-            cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2, **kwargs
+        cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2, **kwargs
     ) -> WE:
         # log.debug(f'Processing {len(pages)} multi-site pages')
         entity = None
@@ -238,8 +242,14 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def from_title(
-            cls: Type[WE], title: str, sites: StrOrStrs = None, search=True, research=False,
-            name: Optional[Name] = None, strict=2, **kwargs
+        cls: Type[WE],
+        title: str,
+        sites: StrOrStrs = None,
+        search: bool = True,
+        research: bool = False,
+        name: Optional[Name] = None,
+        strict: int = 2,
+        **kwargs,
     ) -> WE:
         """
         :param str title: A page title
@@ -271,8 +281,12 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def from_titles(
-            cls: Type[WE], titles: Iterable[Union[str, Name]], sites: StrOrStrs = None, search=True, strict=2,
-            research=False
+        cls: Type[WE],
+        titles: Iterable[Union[str, Name]],
+        sites: StrOrStrs = None,
+        search: bool = True,
+        strict: int = 2,
+        research: bool = False,
     ) -> Dict[Union[str, Name], WE]:
         """
         :param Iterable titles: Page titles to retrieve
@@ -334,8 +348,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _from_site_title_map(
-            cls: Type[WE], site_title_map: Mapping[Union[str, MediaWikiClient], Iterable[str]], search=False, strict=2,
-            title_name_map=None
+        cls: Type[WE],
+        site_title_map: Mapping[Union[str, MediaWikiClient], Iterable[str]],
+        search: bool = False,
+        strict: int = 2,
+        title_name_map=None,
     ) -> Dict[Union[str, Name], WE]:
         # log.debug(f'{cls.__name__}._from_site_title_map({site_title_map=},\n{search=}, {strict=},\n{title_name_map=})')
         title_name_map = title_name_map or {}

@@ -410,7 +410,13 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     @classmethod
     def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
-        raise NotImplementedError
+        try:
+            links_section = page.sections.find('Discography')
+        except (KeyError, AttributeError):
+            log.debug(f'Discography section not found for {page}')
+            return
+
+        yield from links_section.find_all(Link, True)
 
 
 # noinspection PyAbstractClass

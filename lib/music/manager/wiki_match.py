@@ -134,12 +134,8 @@ def find_album(
         log.debug(f'Found album URL via tag for {album_dir}: {album_url}', extra={'color': 10})
         candidates = list(DiscographyEntry.from_url(album_url).parts())
         if len(candidates) > 1:
-            candidates = _filter_candidates(album_dir, candidates)
-            if not candidates:
-                candidates = list(DiscographyEntry.from_url(album_url).parts())
-        if album_dir.name.ost:
-            # noinspection PyTypeChecker
-            candidates = _filter_ost_parts(album_dir.name, candidates)
+            _candidates = candidates.copy()
+            candidates = _filter_candidates(album_dir, candidates) or _candidates
 
         return choose_item(
             candidates, 'candidate', before=f'\nFound multiple possible matches for {album_dir}', before_color=14
@@ -159,10 +155,6 @@ def find_album(
         split = alb_name.split()
         log.log(19, f'Re-attempting album match with name={split.full_repr()}')
         candidates = _find_album(album_dir, split, artists, album_dir.type, repackage, album_name.number)
-
-    if album_name.ost:
-        # noinspection PyTypeChecker
-        candidates = _filter_ost_parts(album_name, candidates)
 
     return choose_item(
         candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
@@ -241,6 +233,10 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEn
         mlog.debug(f'No candidates had matching track names')
         candidates = _candidates
 
+    album_name = album_dir.name
+    if album_name.ost:
+        candidates = _filter_ost_parts(album_dir.name, candidates)
+
     return candidates
 
 
@@ -259,14 +255,6 @@ def _sites_for(album_dir: AlbumDir) -> Tuple[str, ...]:
 
 """
 Notes from old find_ost function:
-
-norm_title_rx = re.compile(r'^(.*)\s+(?:Part|Code No)\.?\s*\d+$', re.IGNORECASE)
-if m := norm_title_rx.match(title):
-    title = m.group(1).strip()
-    if title.endswith(' -'):
-        title = title[:-1].strip()
-    log.log(2, 'find_ost: normalized {!r} -> {!r}'.format(orig_title, title))
-
 
 if title.endswith(' OST'):
     show_title = ' '.join(title.split()[:-1])

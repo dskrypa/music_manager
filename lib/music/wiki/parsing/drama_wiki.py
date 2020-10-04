@@ -5,7 +5,7 @@
 import logging
 import re
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, date
 from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
 
 from wiki_nodes import WikiPage, Link, String, MappingNode, Section, CompoundNode
@@ -179,7 +179,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 content = section.content
                 info = content[2].as_mapping()
                 if part_date := info.get('Release Date'):
-                    release_date = datetime.strptime(part_date.value, '%Y-%b-%d')
+                    release_date = parse_date(part_date.value)
                 else:
                     release_date = None
                 yield SoundtrackPart(
@@ -190,7 +190,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             content = section.content
             info = content[2].as_mapping()
             if part_date := info.get('Release Date'):
-                release_date = datetime.strptime(part_date.value, '%Y-%b-%d')
+                release_date = parse_date(part_date.value)
             else:
                 release_date = None
             artist = info.get('Artist')
@@ -229,6 +229,15 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     yield ost_link
                 else:
                     log.warning(f'An {ost_link=!r} was found on {page=!r} but it was not a Link')
+
+
+def parse_date(date_str: str) -> datetime:
+    for dt_fmt in ('%Y-%b-%d', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(date_str, dt_fmt)
+        except ValueError:
+            pass
+    raise ValueError(f'Unable to parse {date_str=} using any configured patterns')
 
 
 def get_section_map(page: WikiPage, title: str) -> Optional[MappingNode]:
@@ -283,7 +292,7 @@ def get_basic_info(
     if langs := info.get('Language'):
         languages.update(map(str.strip, langs.value.split(',')))
     if part_date := info.get('Release Date'):
-        dates.add(datetime.strptime(part_date.value, '%Y-%b-%d'))
+        dates.add(parse_date(part_date.value))
     if artist := info.get('Artist'):
         if isinstance(artist, CompoundNode):
             artist = String(' '.join(map(str, artist)))

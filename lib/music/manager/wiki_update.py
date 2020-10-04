@@ -131,7 +131,7 @@ class AlbumInfoProcessor:
     ):
         self.album_dir = album_dir
         self.title_case = title_case
-        self.soloist = soloist
+        self._soloist = soloist
         self.hide_edition = hide_edition
         self.collab_mode = collab_mode
         self.album = album
@@ -187,7 +187,8 @@ class AlbumInfoProcessor:
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
             cover_path=self.get_album_cover(),
             wiki_album=self.edition.page.url,
-            wiki_artist=getattr(self.edition.artist, 'url', None),
+            # wiki_artist=getattr(self.edition.artist, 'url', None),
+            wiki_artist=getattr(self.album_artist, 'url', None),
         )
 
         for file, track in self.file_track_map.items():
@@ -314,6 +315,21 @@ class AlbumInfoProcessor:
                 except Exception as e:
                     log.warning(f'Error finding alternate version of {artist=!r}: {e}')
         return artist
+
+    @cached_property
+    def _soloist_overrides(self) -> Dict[str, str]:
+        overrides_path = CONFIG_DIR.joinpath('soloist_overrides.json')
+        if overrides_path.exists():
+            log.debug(f'Loading {overrides_path}')
+            with overrides_path.open('r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
+
+    @cached_property
+    def soloist(self):
+        if self._soloist:
+            return True
+        return self._soloist_overrides.get(str(self.artist.name), False)
 
     @cached_property
     def _artist_group(self) -> Optional[Group]:

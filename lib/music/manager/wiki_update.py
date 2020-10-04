@@ -51,17 +51,21 @@ def update_tracks(
     no_album_move: bool = False,
     artist_only: bool = False,
 ):
-    updater = WikiUpdater(
-        paths, dest_base_dir, collab_mode, sites, soloist, hide_edition, title_case, update_cover, artist_url
+    WikiUpdater(paths, collab_mode, sites, soloist, hide_edition, title_case, update_cover, artist_url).update(
+        dest_base_dir, load, url, artist_only, dry_run, add_bpm, no_album_move, dump
     )
-    updater.update(load, url, artist_only, dry_run, add_bpm, no_album_move, dump)
 
 
 class WikiUpdater:
+    """
+    This class mainly exists to prevent needing to shuffle a large number of variables between functions.
+
+    Variables are split so that those used during discovery are provided in init, and those used during updating are
+    provided in update.
+    """
     def __init__(
         self,
         paths: Paths,
-        dest_base_dir: Union[Path, str, None] = None,
         collab_mode: Union[CollabMode, str] = CollabMode.ARTIST,
         sites: StrOrStrs = None,
         soloist: bool = False,
@@ -72,9 +76,6 @@ class WikiUpdater:
     ):
         self.paths = paths
         self.collab_mode = CollabMode.get(collab_mode)
-        if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
-            dest_base_dir = Path(dest_base_dir).expanduser().resolve()
-        self.dest_base_dir = dest_base_dir
         self.sites = sites
         self.soloist = soloist
         self.hide_edition = hide_edition
@@ -88,14 +89,18 @@ class WikiUpdater:
 
     def update(
         self,
-        load_path: str,
-        album_url: str,
+        dest_base_dir: Union[Path, str, None] = None,
+        load_path: Optional[str] = None,
+        album_url: Optional[str] = None,
         artist_only: bool = False,
         dry_run: bool = False,
         add_bpm: bool = False,
         no_album_move: bool = False,
         dump: Optional[str] = None,
     ):
+        if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
+            dest_base_dir = Path(dest_base_dir).expanduser().resolve()
+
         for album_dir, album_info in self._iter_dir_info(load_path, album_url, artist_only):
             album_dir.remove_bad_tags(dry_run)
             album_dir.fix_song_tags(dry_run, add_bpm)
@@ -103,7 +108,7 @@ class WikiUpdater:
                 album_info.dump(Path(dump).expanduser().resolve())
                 return
             else:
-                album_info.update_and_move(album_dir, self.dest_base_dir, dry_run, no_album_move)
+                album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move)
 
     def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool):
         if load_path:

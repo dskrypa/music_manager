@@ -205,6 +205,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
 
     def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG, remove_all=False) -> bool:
+        tag_ids = list(map(self.normalize_tag_id, tag_ids))
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
         if remove_all:
             log.info(f'{prefix} ALL tags from {self}')
@@ -232,7 +233,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def set_text_tag(self, tag: str, value, by_id=False):
         tag_id = tag if by_id else self.normalize_tag_id(tag)
-        tags = self._f.tags
+        tags = self._f.tags  # type: ID3
         tag_type = self.tag_type
         if tag_type in ('mp4', 'flac'):
             if not isinstance(value, list):
@@ -252,21 +253,22 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             tag_id = tag_id.upper()
             if tag_id.startswith(('TXXX:', 'WXXX:')):
                 tag_id, desc = tag_id.split(':', 1)
-                kwargs = {
-                    'encoding': Encoding.UTF8,
-                    'desc': desc,
-                    'text' if tag_id[0] == 'T' else 'url': str(value),
-                }
-            else:
+                val_key = 'text' if tag_id[0] == 'T' else 'url'
+                kwargs = {'encoding': Encoding.UTF8, 'desc': desc, val_key: str(value)}
+                values = tags.getall(tag_id)
+                values = [v for v in values if v.desc != desc]  # Keep any that don't match the one being added
+            else:  # For anything else, replace the current value if it exists
                 kwargs = {'encoding': Encoding.UTF8, 'text': str(value)}
+                values = []
 
             try:
                 tag_cls = getattr(_frames, tag_id)
             except AttributeError as e:
                 raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
             else:
-                # log.debug(f'{self}: Setting {tag_cls.__name__} = {value!r}')
-                tags[tag_id] = tag_cls(**kwargs)
+                # log.debug(f'{self}: Setting {tag_cls.__name__} = {values}')
+                values.append(tag_cls(**kwargs))
+                tags.setall(tag_id, values)
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 
@@ -282,8 +284,6 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         id_upper = tag_name_or_id.upper()
         if id_upper in id_to_name:
             return id_upper
-        if id_upper.startswith('WIKI:'):
-            return f'TXXX:{id_upper}'
         if self.tag_type == 'mp3':
             if id_upper in Frames:
                 return id_upper

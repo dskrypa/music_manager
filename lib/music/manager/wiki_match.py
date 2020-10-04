@@ -13,7 +13,7 @@ from wiki_nodes.http import URL_MATCH
 from ..common.disco_entry import DiscoEntryType
 from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, SoundtrackPart
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
 from ..wiki.typing import StrOrStrs
@@ -247,10 +247,10 @@ def _filter_ost_parts(album_name: 'AlbumName', candidates):
 
 def _sites_for(album_dir: AlbumDir) -> Tuple[str, ...]:
     if album_dir.name.ost:
-        # return ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com')
-        return ('kpop.fandom.com', 'wiki.d-addicts.com')
-    # return ('kpop.fandom.com', 'www.generasia.com')
-    return ('kpop.fandom.com',)
+        return ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com')
+        # return ('kpop.fandom.com', 'wiki.d-addicts.com')
+    return ('kpop.fandom.com', 'www.generasia.com')
+    # return ('kpop.fandom.com',)
 
 
 """

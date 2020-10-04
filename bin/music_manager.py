@@ -126,6 +126,7 @@ def parser():
             upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
             upd_parser.add_argument('--update_cover', '-C', action='store_true', help='Update the cover art for the album if it does not match an image in the matched wiki page')
             upd_parser.add_argument('--no_album_move', '-M', action='store_true', help='Do not rename the album directory')
+            upd_parser.add_argument('--artist_only', '-I', action='store_true', help='Only match the artist / only use the artist URL if provided')
 
             upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
             upd_sites.add_argument('--sites', '-s', nargs='+', default=None, help='The wiki sites to search')
@@ -212,7 +213,7 @@ def main():
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
                 args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover,
-                args.no_album_move
+                args.no_album_move, args.artist_only
             )
         elif sub_action in ('match', 'test'):
             from music.manager.wiki_match import show_matches, test_match

@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import List, Iterable, Optional, Set, Tuple, Collection
+from typing import TYPE_CHECKING, List, Iterable, Optional, Set, Tuple, Collection
 
 from ds_tools.fs.paths import Paths
 from ds_tools.input import choose_item
@@ -13,12 +13,15 @@ from wiki_nodes.http import URL_MATCH
 from ..common.disco_entry import DiscoEntryType
 from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, SoundtrackPart
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
 from ..wiki.typing import StrOrStrs
 from .exceptions import NoArtistFoundException
 from .wiki_info import print_de_part
+
+if TYPE_CHECKING:
+    from ..files.parsing import AlbumName
 
 __all__ = ['show_matches', 'find_artists', 'find_album', 'test_match']
 log = logging.getLogger(__name__)
@@ -134,6 +137,10 @@ def find_album(
             candidates = _filter_candidates(album_dir, candidates)
             if not candidates:
                 candidates = list(DiscographyEntry.from_url(album_url).parts())
+        if all(c.ost for c in candidates):
+            # noinspection PyTypeChecker
+            candidates = _filter_ost_parts(album_dir.name, candidates)
+
         return choose_item(
             candidates, 'candidate', before=f'\nFound multiple possible matches for {album_dir}', before_color=14
         )
@@ -152,6 +159,10 @@ def find_album(
         split = alb_name.split()
         log.log(19, f'Re-attempting album match with name={split.full_repr()}')
         candidates = _find_album(album_dir, split, artists, album_dir.type, repackage, album_name.number)
+
+    if album_name.ost:
+        # noinspection PyTypeChecker
+        candidates = _filter_ost_parts(album_name, candidates)
 
     return choose_item(
         candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
@@ -233,10 +244,17 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEn
     return candidates
 
 
+def _filter_ost_parts(album_name: 'AlbumName', candidates: Collection[SoundtrackPart]) -> Set[SoundtrackPart]:
+    _candidates = set(c for c in candidates if c.part == album_name.part)
+    return _candidates if _candidates else candidates
+
+
 def _sites_for(album_dir: AlbumDir) -> Tuple[str, ...]:
     if album_dir.name.ost:
-        return ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com')
-    return ('kpop.fandom.com', 'www.generasia.com')
+        # return ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com')
+        return ('kpop.fandom.com', 'wiki.d-addicts.com')
+    # return ('kpop.fandom.com', 'www.generasia.com')
+    return ('kpop.fandom.com',)
 
 
 """

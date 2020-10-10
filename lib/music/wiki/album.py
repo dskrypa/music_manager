@@ -87,6 +87,15 @@ class DiscographyEntry(EntertainmentEntity):
         page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
         return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[{page_str}]>'
 
+    @property
+    def _basic_repr(self):
+        # Used in logs to avoid circular references that depend on editions being set
+        sites = ', '.join(sorted(short_site(site) for site in self._pages))
+        page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
+        date_str = self._date.strftime('%Y-%m-%d') if self._date else str(self.year)
+        name_str = str(Name(self._name))
+        return f'<[{date_str}]{self.cls_type_name}({name_str!r})[{page_str}]>'
+
     def __lt__(self, other: 'DiscographyEntry'):
         return self._sort_key < other._sort_key
 
@@ -236,16 +245,6 @@ class Soundtrack(DiscographyEntry):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._type = DiscoEntryType.Soundtrack
-
-    @cached_property
-    def name(self):
-        name = super().name
-        if name.has_romanization(name.english) and (tv_series := self.tv_series):
-            # noinspection PyUnboundLocalVariable
-            if (series_eng := tv_series.name.english) and not name.english.startswith(series_eng):
-                ost_suffix = ' OST' if name.english.endswith(' OST') else ''
-                return name.with_part(_english=series_eng + ost_suffix)
-        return name
 
     def split_editions(self):
         full, parts, extras = None, None, None
@@ -499,12 +498,16 @@ class DiscographyEntryEdition(_ArtistMixin):
 
 class SoundtrackEdition(DiscographyEntryEdition):
     """An edition of a soundtrack (full / parts / extras)"""
+    entry: Soundtrack
 
     @cached_property
     def name_base(self) -> Name:
         name_base = super().name_base
-        if self.entry.name.non_eng == name_base.non_eng:
-            return self.entry.name
+        if name_base.has_romanization(name_base.english) and (tv_series := self.entry.tv_series):
+            # noinspection PyUnboundLocalVariable
+            if (series_eng := tv_series.name.english) and not name_base.english.startswith(series_eng):
+                ost_suffix = ' OST' if name_base.english.endswith(' OST') else ''
+                return name_base.with_part(_english=series_eng + ost_suffix)
         return name_base
 
     @property

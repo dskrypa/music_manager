@@ -166,7 +166,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     def process_album_editions(cls, entry: 'Soundtrack', entry_page: WikiPage) -> EditionIterator:
         ost_parts, ost_full, ost_name, other_parts = split_sections(entry_page)
         if not (ost_full or ost_parts):
-            log.warning(f'Did not find any OST content for {entry=} / {entry_page!r}')
+            log.warning(f'Did not find any OST content for entry={entry._basic_repr} / {entry_page!r}')
 
         if ost_parts:
             yield cls._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)

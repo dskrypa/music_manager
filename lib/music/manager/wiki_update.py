@@ -477,11 +477,25 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         if self._init_artist is not None:
             return self._init_artist
         artist = self._artist
-        # noinspection PyUnresolvedReferences
-        if self.ost and not self.edition.full_ost and not self._artist_from_tag and not isinstance(artist, ArtistSet):
+        if (
+            self.ost
+            and not self.edition.full_ost
+            and not self._artist_from_tag
+            and not isinstance(artist, ArtistSet)
+            and not any('fandom' in site for site in artist._pages)
+        ):
+            # log.debug(f'Replacing {artist=} with pages={artist._pages}')
             if name := artist.name.english or artist.name.non_eng:
                 try:
-                    return Artist.from_title(name, sites=['kpop.fandom.com', 'www.generasia.com'], name=artist.name)
+                    return Artist.from_title(
+                        name,
+                        sites=[
+                            'kpop.fandom.com',
+                            'www.generasia.com',
+                        ],
+                        name=artist.name,
+                        entity=artist,
+                    )
                 except Exception as e:
                     log.warning(f'Error finding alternate version of {artist=!r}: {e}')
         return artist

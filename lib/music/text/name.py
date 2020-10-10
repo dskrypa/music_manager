@@ -252,6 +252,9 @@ class Name(ClearableCachedPropertyMixin):
             return score >= threshold
         return False
 
+    def matches_any(self, others: Iterable[Union['Name', str]], *args, **kwargs):
+        return any(self.matches(other, *args, **kwargs) for other in others)
+
     def set_eng_or_rom(self, text: str, probability: Optional[float] = None, value: Optional[str] = None):
         """
         :param str text: The text that should be stored as either this Name's english or romanized version

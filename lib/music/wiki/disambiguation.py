@@ -110,14 +110,34 @@ def _always_skip(p_name: str, links: Candidates):
 
 def _filtered_candidates(name: Name, candidates: Candidates, existing: Optional[WE] = None) -> Candidates:
     matches = {}
+    groups = getattr(existing, 'groups', None)
+    group_names = [group.name for group in groups] if groups else None
     for link, (cat_cls, _page) in candidates.items():
-        po_name = cat_cls(page_name(_page), _page).name
-        if name.matches(po_name):
-            if existing:
-                log.debug(f'Matched disambiguation entry={_page} / {po_name!r} to {existing} / {name!r}')
-            else:
-                log.debug(f'Matched disambiguation entry={_page} / {po_name!r} to {name!r}')
-            matches[link] = (cat_cls, _page)
+        try:
+            candidate = cat_cls(page_name(_page), _page)
+            po_name = candidate.name
+        except Exception:
+            pass
+        else:
+            if name.matches(po_name):
+                if existing:
+                    log.debug(f'Matched disambiguation entry={_page} / {po_name!r} to {existing} / {name!r}')
+                    if group_names and not link.title.lower().startswith('category:'):
+                        # log.debug(f'Checking groups for {link=!r}')
+                        try:
+                            cand_groups = candidate.groups
+                        except Exception:
+                            pass
+                        else:
+                            if cand_groups and not any(cg.name.matches_any(group_names) for cg in cand_groups):
+                                log.debug(
+                                    f'Filtering out disambiguation entry={_page} / {po_name!r} for {existing} / '
+                                    f'{name!r} due to group membership mismatch'
+                                )
+                                continue
+                else:
+                    log.debug(f'Matched disambiguation entry={_page} / {po_name!r} to {name!r}')
+                matches[link] = (cat_cls, _page)
     if not matches:
         log.debug(f'No disambiguation entry matches found for {existing or name!r}')
     return matches

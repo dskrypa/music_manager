@@ -209,10 +209,14 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _from_multi_site_pages(
-        cls: Type[WE], pages: Collection[WikiPage], name: Optional[Name] = None, strict=2, **kwargs
+        cls: Type[WE],
+        pages: Collection[WikiPage],
+        name: Optional[Name] = None,
+        strict=2,
+        entity: Optional[WE] = None,
+        **kwargs,
     ) -> WE:
         # log.debug(f'Processing {len(pages)} multi-site pages')
-        entity = None
         page_link_map = {}
         type_errors = 0
         _name = name
@@ -427,6 +431,13 @@ class WikiEntity(ClearableCachedPropertyMixin):
 class EntertainmentEntity(WikiEntity):
     """An entity that may be related to the entertainment industry in some way.  Used to filter out irrelevant pages."""
     _categories = ()
+
+    @classmethod
+    def _validate(cls: Type[WE], obj: PageEntry, *args, **kwargs) -> Tuple[Type[WE], PageEntry]:
+        if isinstance(obj, WikiPage) and obj.title.lower().startswith('category:'):
+            # log.error(f'{obj} is a Category page, which is not compatible with {cls.__name__}', stack_info=True)
+            raise EntityTypeError(f'{obj} is a Category page, which is not compatible with {cls.__name__}')
+        return super()._validate(obj, *args, **kwargs)
 
 
 class PersonOrGroup(EntertainmentEntity):

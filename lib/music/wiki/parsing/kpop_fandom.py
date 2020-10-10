@@ -391,7 +391,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         if intro := artist_page.intro():
             log.debug(f'Looking for groups in intro for {artist_page}', extra={'color': 11})
-            for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True), strict=1).items():
+            for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True), strict=0).items():
                 if entity._categories == GROUP_CATEGORIES:
                     log.debug(f'Found link from {artist_page} to group={entity}', extra={'color': 11})
 

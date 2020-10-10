@@ -8,7 +8,7 @@ import webbrowser
 from functools import cached_property
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Union, Optional, Dict
+from typing import Union, Optional, Dict, Tuple, Iterator
 
 from ds_tools.fs.paths import Paths, get_user_cache_dir
 from ds_tools.input import choose_item
@@ -110,7 +110,7 @@ class WikiUpdater:
             else:
                 album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move)
 
-    def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool):
+    def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         if load_path:
             yield self._from_path(load_path)
         elif album_url:
@@ -124,7 +124,7 @@ class WikiUpdater:
             else:
                 yield from self._from_album_matches()
 
-    def _from_path(self, load_path: str):
+    def _from_path(self, load_path: str) -> Tuple[AlbumDir, AlbumInfo]:
         album_info = AlbumInfo.load(Path(load_path).expanduser().resolve())
         try:
             album_dir = album_info.album_dir
@@ -132,7 +132,7 @@ class WikiUpdater:
             album_dir = get_album_dir(self.paths, 'load path')
         return album_dir, album_info
 
-    def _from_album_url(self, album_url: str):
+    def _from_album_url(self, album_url: str) -> Tuple[AlbumDir, AlbumInfo]:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
         processor = AlbumInfoProcessor(
@@ -147,12 +147,12 @@ class WikiUpdater:
         )
         return album_dir, processor.to_album_info()
 
-    def _from_artist(self):
+    def _from_artist(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             processor = ArtistInfoProcessor(album_dir, self.artist, self.soloist, self.title_case)
             yield album_dir, processor.to_album_info()
 
-    def _from_artist_matches(self):
+    def _from_artist_matches(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
                 processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
@@ -162,7 +162,7 @@ class WikiUpdater:
             else:
                 yield album_dir, processor.to_album_info()
 
-    def _from_album_matches(self):
+    def _from_album_matches(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
                 processor = AlbumInfoProcessor.for_album_dir(
@@ -364,19 +364,20 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             wiki_artist=getattr(self.album_artist, 'url', None),
         )
 
+        is_ost_part = self.ost and not self.full_ost
+        collabs_in_title = self.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
+        collabs_in_artist = self.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
-            title = self._normalize_name(track.full_name(self.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)))
-            if self.ost and (extras := track.name.extra):
+            title = self._normalize_name(track.full_name(collabs_in_title))
+            if is_ost_part and (extras := track.name.extra):
                 # noinspection PyUnboundLocalVariable
                 extras.pop('artists', None)
-            track_artist_name = track.artist_name(
-                self.artist_name, self.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
-            )
+
             album_info.tracks[file.path.as_posix()] = TrackInfo(
                 album_info,
                 title=title,
-                artist=self.artist_name if self.ost else track_artist_name,
+                artist=self.artist_name if is_ost_part else track.artist_name(self.artist_name, collabs_in_artist),
                 num=track.num,
                 name=self._normalize_name(track.full_name(self._artist != self.artist)),
             )
@@ -420,6 +421,10 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return isinstance(self.disco_part, SoundtrackPart)
 
     @cached_property
+    def full_ost(self):
+        return self.ost and self.edition.full_ost
+
+    @cached_property
     def file_track_map(self) -> Dict[SongFile, Track]:
         ft_iter = zip(sorted(self.album_dir.songs, key=lambda sf: sf.track_num), self.disco_part.tracks)
         return {file: track for file, track in ft_iter}
@@ -439,7 +444,10 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         artists = self._artists
         if len(artists) > 1:
             others = set(artists)
-            artist = choose_item(artists + ['[combine all]', 'Various Artists'], 'artist', self.disco_part)
+            if len(artists) > 1 and getattr(self.disco_part.edition, 'full_ost', False):
+                artist = 'Various Artists'
+            else:
+                artist = choose_item(artists + ['[combine all]', 'Various Artists'], 'artist', self.disco_part)
             if artist == '[combine all]':
                 path_artist = choose_item(
                     artists + ['Various Artists'], 'artist', before_color=13,

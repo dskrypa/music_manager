@@ -11,6 +11,7 @@ from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, S
 from wiki_nodes.nodes import N, ContainerNode
 from ...text.name import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
+from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
@@ -210,6 +211,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
 
 

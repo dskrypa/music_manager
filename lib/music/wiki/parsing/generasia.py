@@ -18,7 +18,7 @@ from ...text.name import Name
 from ...text.spellcheck import is_english
 from ...text.utils import find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
-from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
+from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 from .utils import LANG_ABBREV_MAP, name_from_intro, get_artist_title, find_language
@@ -538,6 +538,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    @classmethod
+    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
 
 

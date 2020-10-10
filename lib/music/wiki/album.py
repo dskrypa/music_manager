@@ -237,6 +237,16 @@ class Soundtrack(DiscographyEntry):
         super().__init__(*args, **kwargs)
         self._type = DiscoEntryType.Soundtrack
 
+    @cached_property
+    def name(self):
+        name = super().name
+        if name.has_romanization(name.english) and (tv_series := self.tv_series):
+            # noinspection PyUnboundLocalVariable
+            if (series_eng := tv_series.name.english) and not name.english.startswith(series_eng):
+                ost_suffix = ' OST' if name.english.endswith(' OST') else ''
+                return name.with_part(_english=series_eng + ost_suffix)
+        return name
+
     def split_editions(self):
         full, parts, extras = None, None, None
         for edition in self.editions:
@@ -266,6 +276,16 @@ class Soundtrack(DiscographyEntry):
                     return cls.find_from_links(show.soundtrack_links())
 
         raise ValueError(f'No pages were found for OSTs matching {name!r}')
+
+    @cached_property
+    def tv_series(self):
+        for entry_page, parser in self.page_parsers('parse_source_show'):
+            try:
+                if series := parser.parse_source_show(entry_page):
+                    return series
+            except Exception as e:
+                log.debug(f'Error finding TV series for {self}: {e}')
+        return None
 
 
 # noinspection PyUnresolvedReferences
@@ -480,6 +500,13 @@ class DiscographyEntryEdition(_ArtistMixin):
 class SoundtrackEdition(DiscographyEntryEdition):
     """An edition of a soundtrack (full / parts / extras)"""
 
+    @cached_property
+    def name_base(self) -> Name:
+        name_base = super().name_base
+        if self.entry.name.non_eng == name_base.non_eng:
+            return self.entry.name
+        return name_base
+
     @property
     def full_ost(self):
         return self.edition == '[Full OST]'
@@ -491,7 +518,7 @@ class SoundtrackEdition(DiscographyEntryEdition):
 
 class DiscographyEntryPart:
     ost = False
-    _disc_match = re.compile('(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
+    _disc_match = re.compile(r'(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
     def __init__(
         self,

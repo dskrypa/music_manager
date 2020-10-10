@@ -11,6 +11,7 @@ from wiki_nodes.nodes import N
 from ...text.name import Name
 
 if TYPE_CHECKING:
+    from ..base import TVSeries
     from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
     from ..discography import DiscographyEntryFinder
 
@@ -104,6 +105,11 @@ class WikiParser(ABC):
     @classmethod
     @abstractmethod
     def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def parse_source_show(cls, page: WikiPage) -> Optional['TVSeries']:
         raise NotImplementedError
 
     @classmethod

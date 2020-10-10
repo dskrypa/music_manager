@@ -13,7 +13,7 @@ from wiki_nodes.nodes import N, ContainerNode
 from ...text.extraction import ends_with_enclosed, split_enclosed
 from ...text.name import Name
 from ..album import Soundtrack, SoundtrackEdition, SoundtrackPart
-from ..base import EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES
+from ..base import EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
 
@@ -254,6 +254,12 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     yield ost_link
                 else:
                     log.warning(f'An {ost_link=!r} was found on {page=!r} but it was not a Link')
+
+    @classmethod
+    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
+        info = get_info_map(next(iter(page.sections)).content)
+        link = next(iter(info['Title'].find_all(Link, True)), None)
+        return TVSeries.from_link(link) if link else None
 
 
 def get_info_map(section_content):

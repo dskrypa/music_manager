@@ -18,7 +18,7 @@ from ...text.name import Name
 from ...text.time import parse_date
 from ...text.utils import combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
-from ..base import EntertainmentEntity, GROUP_CATEGORIES
+from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from ..exceptions import SiteDoesNotExist
 from .abc import WikiParser, EditionIterator
@@ -417,6 +417,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             return
 
         yield from links_section.find_all(Link, True)
+
+    @classmethod
+    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
+        raise NotImplementedError
 
 
 # noinspection PyAbstractClass

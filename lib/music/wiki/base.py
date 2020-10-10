@@ -87,7 +87,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         yield from self._pages.values()
 
     def page_parsers(self, method: Optional[str] = None) -> Iterator[Tuple[WikiPage, 'WikiParser']]:
-        for site, page in self._pages.items():
+        for site, page in sorted(self._pages.items(), key=_site_page_key):
             if parser := WikiParser.for_site(site, method):
                 yield page, parser
             else:
@@ -113,8 +113,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
         """
         if isinstance(obj, WikiPage):
             if obj.is_disambiguation:
+                visited = visited or set()
+                visited.add(obj.as_link)
                 log.debug(f'{cls.__name__}._validate found a disambiguation page: {obj}')
-                return cls._resolve_ambiguous(obj, existing, name, prompt)
+                return cls._resolve_ambiguous(obj, existing, name, prompt, visited)
             elif obj.is_template:
                 if cls in (WikiEntity, TemplateEntity):
                     return TemplateEntity, obj
@@ -160,7 +162,12 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _resolve_ambiguous(
-        cls: Type[WE], page: WikiPage, existing: Optional[WE] = None, name: Optional[Name] = None, prompt=True
+        cls: Type[WE],
+        page: WikiPage,
+        existing: Optional[WE] = None,
+        name: Optional[Name] = None,
+        prompt: bool = True,
+        visited: Optional[Set[Link]] = None,
     ) -> Tuple[Type[WE], WikiPage]:
         """
         :param WikiPage page: A disambiguation page
@@ -182,10 +189,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
             link = title_link_map[title]
             if _page.title != link.title:  # In case of redirects
                 link = Link(f'[[{_page.title}]]', link.root)
-            try:
-                candidates[link] = cls._validate(_page)
-            except EntityTypeError:
-                pass
+            if not visited or _page.as_link not in visited:
+                try:
+                    candidates[link] = cls._validate(_page, visited=visited)
+                except EntityTypeError:
+                    pass
 
         return handle_disambiguation_candidates(page, client, candidates, existing, name, prompt)
 
@@ -480,6 +488,17 @@ def _sites(sites: StrOrStrs) -> List[str]:
     if isinstance(sites, str):
         sites = [sites]
     return sites or DEFAULT_WIKIS
+
+
+def _site_page_key(site_page):
+    site, page = site_page
+    if 'fandom' in site:
+        return 0, site, page
+    try:
+        index = DEFAULT_WIKIS.index(site)
+    except ValueError:
+        index = len(DEFAULT_WIKIS)
+    return index, site, page
 
 
 # Down here due to circular dependency

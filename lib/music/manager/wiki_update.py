@@ -364,20 +364,20 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             wiki_artist=getattr(self.album_artist, 'url', None),
         )
 
-        is_ost_part = self.ost and not self.full_ost
+        common_artist = self.ost and not self.full_ost
         collabs_in_title = self.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
         collabs_in_artist = self.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             title = self._normalize_name(track.full_name(collabs_in_title))
-            if is_ost_part and (extras := track.name.extra):
+            if common_artist and (extras := track.name.extra):
                 # noinspection PyUnboundLocalVariable
                 extras.pop('artists', None)
 
             album_info.tracks[file.path.as_posix()] = TrackInfo(
                 album_info,
                 title=title,
-                artist=self.artist_name if is_ost_part else track.artist_name(self.artist_name, collabs_in_artist),
+                artist=self.artist_name if common_artist else track.artist_name(self.artist_name, collabs_in_artist),
                 num=track.num,
                 name=self._normalize_name(track.full_name(self._artist != self.artist)),
             )
@@ -478,10 +478,10 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             return self._init_artist
         artist = self._artist
         # noinspection PyUnresolvedReferences
-        if self.ost and not self.edition.full_ost and not self._artist_from_tag:
+        if self.ost and not self.edition.full_ost and not self._artist_from_tag and not isinstance(artist, ArtistSet):
             if name := artist.name.english or artist.name.non_eng:
                 try:
-                    return Artist.from_title(name, sites=['kpop.fandom.com', 'www.generasia.com'])
+                    return Artist.from_title(name, sites=['kpop.fandom.com', 'www.generasia.com'], name=artist.name)
                 except Exception as e:
                     log.warning(f'Error finding alternate version of {artist=!r}: {e}')
         return artist

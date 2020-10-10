@@ -235,7 +235,12 @@ class QueryResults:
         for track in self._data:
             td = track.attrib
 
-            artist = td['originalTitle'] if td['grandparentTitle'] == 'Various Artists' else td['grandparentTitle']
+            if (artist := td['grandparentTitle']) == 'Various Artists':
+                try:
+                    artist = td['originalTitle']
+                except KeyError:
+                    pass
+
             title_obj_map = artist_title_obj_map[artist]
             lc_title = td['title'].lower()
             if existing := title_obj_map.get(lc_title):

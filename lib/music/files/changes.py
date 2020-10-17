@@ -16,7 +16,7 @@ __all__ = ['count_tag_changes', 'print_tag_changes', 'get_common_changes']
 
 
 def count_tag_changes(
-    updates: Mapping['SongFile', Mapping[str, Any]], add_genre: bool = True
+    updates: Mapping['SongFile', Mapping[str, Any]], add_genre: bool = False
 ) -> Dict[str, Dict[Tuple[Any, Any], int]]:
     counts = defaultdict(Counter)
     for file, values in updates.items():
@@ -81,7 +81,7 @@ def get_common_changes(
     show: bool = True,
     extra_newline: bool = False,
     dry_run: bool = False,
-    add_genre: bool = True,
+    add_genre: bool = False,
 ) -> Dict[str, Tuple[Any, Any]]:
     counts = count_tag_changes(updates, add_genre)
     # noinspection PyUnboundLocalVariable

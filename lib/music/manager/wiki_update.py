@@ -50,9 +50,10 @@ def update_tracks(
     update_cover: bool = False,
     no_album_move: bool = False,
     artist_only: bool = False,
+    add_genre: bool = True,
 ):
     WikiUpdater(paths, collab_mode, sites, soloist, hide_edition, title_case, update_cover, artist_url).update(
-        dest_base_dir, load, url, artist_only, dry_run, add_bpm, no_album_move, dump
+        dest_base_dir, load, url, artist_only, dry_run, add_bpm, no_album_move, dump, add_genre
     )
 
 
@@ -97,6 +98,7 @@ class WikiUpdater:
         add_bpm: bool = False,
         no_album_move: bool = False,
         dump: Optional[str] = None,
+        add_genre: bool = True,
     ):
         if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
             dest_base_dir = Path(dest_base_dir).expanduser().resolve()
@@ -108,7 +110,7 @@ class WikiUpdater:
                 album_info.dump(Path(dump).expanduser().resolve())
                 return
             else:
-                album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move)
+                album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
 
     def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         if load_path:

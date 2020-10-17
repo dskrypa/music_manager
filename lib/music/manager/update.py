@@ -219,10 +219,11 @@ class AlbumInfo(GenreMixin):
         dest_base_dir: Optional[Path] = None,
         dry_run: bool = False,
         no_album_move: bool = False,
+        add_genre: bool = True,
     ):
         album_dir = album_dir or self.album_dir
         if self.tracks:
-            self.update_tracks(album_dir, dry_run)
+            self.update_tracks(album_dir, dry_run, add_genre)
         if not no_album_move:
             self.move_album(album_dir, dest_base_dir, dry_run)
 

@@ -710,6 +710,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             file_val = self.tag_text(tag_name, default=None)
             cmp_val = str(new_value) if tag_name in ('disk', 'track') else new_value
             if add_genre and tag_name == 'genre':
+                # TODO: Check value case?
                 new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
                 file_vals = set(self.tag_genres)
                 if not file_vals.issuperset(new_vals):

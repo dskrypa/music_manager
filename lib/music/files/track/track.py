@@ -287,6 +287,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         if self.tag_type == 'mp3':
             if id_upper in Frames:
                 return id_upper
+            elif (prefix := id_upper.split(':', 1)[0]) and prefix in Frames:
+                return tag_name_or_id if prefix in ('TXXX', 'WXXX') else prefix
             raise InvalidTagName(id_upper, self)
         else:
             return tag_name_or_id

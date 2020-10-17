@@ -9,7 +9,7 @@ from ds_tools.caching.mixins import ClearableCachedProperty
 if TYPE_CHECKING:
     from .track import SongFile
 
-__all__ = ['MusicFileProperty', 'TextTagProperty']
+__all__ = ['MusicFileProperty', 'TextTagProperty', 'TagValuesProperty']
 _NotSet = object()
 
 
@@ -52,3 +52,15 @@ class TextTagProperty(ClearableCachedProperty):
 
     def __delete__(self, instance):
         instance.delete_tag(instance.tag_name_to_id(self.tag_name))
+
+
+class TagValuesProperty(TextTagProperty):
+    def __get__(self, instance: 'SongFile', cls: Type['SongFile']):
+        if instance is None:
+            return self
+        if values := instance.get_tag_values(self.tag_name, default=self.default):
+            values = [value.replace('\xa0', ' ') for value in values if value is not None]
+        if self.cast_func is not None:
+            values = list(map(self.cast_func, values))
+        instance.__dict__[self.name] = values
+        return values

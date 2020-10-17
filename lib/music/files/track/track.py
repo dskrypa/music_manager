@@ -8,14 +8,16 @@ from datetime import date
 from functools import cached_property
 from hashlib import sha256
 from io import BytesIO
+from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict, List
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Tuple, Set, Any, Iterable, Dict, List, Collection
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
 from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType, Encoding
+from mutagen.id3._specs import MultiSpec
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover
 from plexapi.audio import Track
@@ -29,7 +31,7 @@ from ...text.name import Name
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
-from .descriptors import MusicFileProperty, TextTagProperty, _NotSet
+from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import EXTRACT_PART_MATCH, LYRIC_URL_MATCH, compiled_fnmatch_patterns, cleanup_album_name
 from .utils import RATING_RANGES, stars_from_256, tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
@@ -60,6 +62,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]
     tag_album = TextTagProperty('album', default=None)                  # type: Optional[str]
     tag_genre = TextTagProperty('genre', default=None)                  # type: Optional[str]
+    tag_genres = TagValuesProperty('genre', default=None)               # type: List[str]
     date = TextTagProperty('date', parse_file_date)                     # type: Optional[date]
     album_url = TextTagProperty('wiki:album', default=None)             # type: Optional[str]
     artist_url = TextTagProperty('wiki:artist', default=None)           # type: Optional[str]
@@ -231,44 +234,70 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
                 return False
 
-    def set_text_tag(self, tag: str, value, by_id=False):
+    def set_text_tag(self, tag: str, value, by_id=False, replace=True):
         tag_id = tag if by_id else self.normalize_tag_id(tag)
-        tags = self._f.tags  # type: ID3
         tag_type = self.tag_type
         if tag_type in ('mp4', 'flac'):
-            if not isinstance(value, list):
-                value = [value]
+            tags = self._f.tags
+            if replace:
+                if not isinstance(value, list):
+                    value = [value]
+            else:
+                existing = set(self.tags_for_id(tag_id))
+                if isinstance(value, Collection) and not isinstance(value, str):
+                    existing.update(value)
+                else:
+                    existing.add(value)
+                value = sorted(value)
+
             try:
                 tags[tag_id] = value
             except Exception as e:
                 log.error(f'Error setting tag={tag_id!r} on {self} to {value=!r}: {e}')
                 raise
         elif tag_type == 'mp3':
-            """
-            Args:
-                TXXX: encoding, desc, text
-                WXXX: encoding, desc, url
-                TextFrame: encoding, text
-            """
+            tags = self._f.tags  # type: ID3
             tag_id = tag_id.upper()
-            if tag_id.startswith(('TXXX:', 'WXXX:')):
+            try:
                 tag_id, desc = tag_id.split(':', 1)
-                val_key = 'text' if tag_id[0] == 'T' else 'url'
-                kwargs = {'encoding': Encoding.UTF8, 'desc': desc, val_key: str(value)}
-                values = tags.getall(tag_id)
-                values = [v for v in values if v.desc != desc]  # Keep any that don't match the one being added
-            else:  # For anything else, replace the current value if it exists
-                kwargs = {'encoding': Encoding.UTF8, 'text': str(value)}
-                values = []
-
+            except ValueError:
+                desc = None
             try:
                 tag_cls = getattr(_frames, tag_id)
             except AttributeError as e:
                 raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
+
+            frame_spec = tag_cls._framespec
+            spec_fields = {spec.name: spec for spec in frame_spec}
+            if desc and 'desc' not in spec_fields:
+                raise TypeError(f'Unhandled tag type - {tag=} has {desc=} but {tag_cls=} has {spec_fields=}')
+
+            value_spec = frame_spec[-1]  # main value field is usually last
+            value_key = value_spec.name
+            kwargs = {'encoding': Encoding.UTF8} if 'encoding' in spec_fields else {}
+            if not (isinstance(value, Collection) and not isinstance(value, str)):
+                value = [value]
+
+            if desc:
+                kwargs['desc'] = desc
+                values = tags.getall(tag_id)
+                values = [v for v in values if v.desc != desc] if replace else values  # Keep any with a different desc
+                for val in value:
+                    val_kwargs = kwargs.copy()
+                    val_kwargs[value_key] = val
+                    values.append(tag_cls(**val_kwargs))
             else:
-                # log.debug(f'{self}: Setting {tag_cls.__name__} = {values}')
-                values.append(tag_cls(**kwargs))
-                tags.setall(tag_id, values)
+                if replace:
+                    kwargs[value_key] = sorted(map(str, value))
+                    values = [tag_cls(**kwargs)]
+                elif value_key == 'text' and isinstance(value_spec, MultiSpec):
+                    text_values = set(chain.from_iterable(t.text for t in tags.getall(tag_id)))
+                    text_values.update(map(str, value))
+                    kwargs['text'] = sorted(text_values)
+                    values = [tag_cls(**kwargs)]
+                else:
+                    raise TypeError(f'Unable to add {value=} for {tag=} - {tag_cls=} has {value_key=} ({spec_fields=})')
+            tags.setall(tag_id, values)
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 
@@ -325,10 +354,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :return list: All tags from this file with the given ID
         """
         if self.tag_type == 'mp3':
-            return self._f.tags.getall(tag_id.upper())         # all MP3 tags are uppercase; some MP4 tags are mixed case
-        return self._f.tags.get(tag_id, [])                    # MP4Tags doesn't have getall() and always returns a list
+            return self._f.tags.getall(tag_id.upper())      # all MP3 tags are uppercase; some MP4 tags are mixed case
+        return self._f.tags.get(tag_id, [])                 # MP4Tags doesn't have getall() and always returns a list
 
-    def tags_named(self, tag_name: str):
+    def tags_for_name(self, tag_name: str):
         """
         :param str tag_name: A tag name; see :meth:`.tag_name_to_id` for mapping of names to IDs
         :return list: All tags from this file with the given name
@@ -343,13 +372,29 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :raises: :class:`TagValueException` if multiple tags were found with the given name/ID
         :raises: :class:`TagNotFound` if no tags were found with the given name/ID
         """
-        tags = self.tags_for_id(tag) if by_id else self.tags_named(tag)
+        tags = self.tags_for_id(tag) if by_id else self.tags_for_name(tag)
         if len(tags) > 1:
             fmt = 'Multiple {!r} tags found for {}: {}'
             raise TagValueException(fmt.format(tag, self, ', '.join(map(repr, tags))))
         elif not tags:
             raise TagNotFound('No {!r} tags were found for {}'.format(tag, self))
         return tags[0]
+
+    def get_tag_values(self, tag: str, strip=True, by_id=False, default=_NotSet):
+        try:
+            _tag = self.get_tag(tag, by_id)
+        except TagNotFound:
+            if default is not _NotSet:
+                return [default]
+            raise
+        vals = getattr(_tag, 'text', _tag)
+        if not isinstance(vals, list):
+            vals = [vals]
+        if vals := list(map(str.strip, map(str, vals))) if strip else list(map(str, vals)):
+            return vals
+        if default is not _NotSet:
+            return [default]
+        raise TagValueException(f'No {tag!r} tag values were found for {self}')
 
     def tag_text(self, tag: str, strip=True, by_id=False, default=_NotSet):
         """
@@ -369,22 +414,15 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         vals = getattr(_tag, 'text', _tag)
         if not isinstance(vals, list):
             vals = [vals]
-        vals = list(map(str, vals))
-        if len(vals) > 1:
-            msg = 'Multiple {!r} values found for {}: {}'.format(tag, self, ', '.join(map(repr, vals)))
-            if default is not _NotSet:
-                log.warning(msg)
-                return default
-            raise TagValueException(msg)
-        elif not vals:
-            if default is not _NotSet:
-                return default
-            raise TagValueException('No {!r} tag values were found for {}'.format(tag, self))
-        return vals[0].strip() if strip else vals[0]
+        if vals := list(map(str.strip, map(str, vals))) if strip else list(map(str, vals)):
+            return ';'.join(vals)
+        if default is not _NotSet:
+            return default
+        raise TagValueException(f'No {tag!r} tag values were found for {self}')
 
     def all_tag_text(self, tag_name: str, suppress_exc=True):
         try:
-            for tag in self.tags_named(tag_name):
+            for tag in self.tags_for_name(tag_name):
                 yield from tag
         except KeyError as e:
             if suppress_exc:
@@ -616,7 +654,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         changes = 0
         tag_type = self.tag_type
         new_lyrics = []
-        for lyric_tag in self.tags_named('lyrics'):
+        for lyric_tag in self.tags_for_name('lyrics'):
             lyric = lyric_tag.text if tag_type == 'mp3' else lyric_tag
             if m := LYRIC_URL_MATCH(lyric):
                 new_lyric = m.group(1).strip() + '\r\n'
@@ -657,30 +695,44 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 bpm = None
         return bpm
 
-    def update_tags(self, name_value_map, dry_run=False, no_log=None, none_level=19):
+    def update_tags(self, name_value_map, dry_run=False, no_log=None, none_level=19, add_genre=False):
         """
         :param dict name_value_map: Mapping of {tag name: new value}
         :param bool dry_run: Whether tags should actually be updated
         :param container no_log: Names of tags for which updates should not be logged
         :param int none_level: If no changes need to be made, the log level for the message stating that.
+        :param bool add_genre: Add ang specified genres instead of replacing them
         """
+        no_log = no_log or ()
+        to_log = {}
         to_update = {}
         for tag_name, new_value in sorted(name_value_map.items()):
-            file_value = self.tag_text(tag_name, default=None)
-            cmp_value = str(new_value) if tag_name in ('disk', 'track') else new_value
-            if cmp_value != file_value:
-                to_update[tag_name] = (file_value, new_value)
+            file_val = self.tag_text(tag_name, default=None)
+            cmp_val = str(new_value) if tag_name in ('disk', 'track') else new_value
+            if add_genre and tag_name == 'genre':
+                new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
+                file_vals = set(self.tag_genres)
+                if not file_vals.issuperset(new_vals):
+                    to_update[tag_name] = (file_val, new_value)
+                    if tag_name not in no_log:
+                        to_log[tag_name] = (file_val, ';'.join(sorted(file_vals.union(new_vals))))
+
+            elif cmp_val != file_val:
+                to_update[tag_name] = (file_val, new_value)
+                if tag_name not in no_log:
+                    to_log[tag_name] = (file_val, new_value)
 
         if to_update:
             from ..changes import print_tag_changes
-            no_log = no_log or ()
-            if to_log := {k: v for k, v in to_update.items() if k not in no_log}:
+            if to_log:
                 print_tag_changes(self, to_log, dry_run)
+
             do_save = True
-            for tag_name, (file_value, new_value) in to_update.items():
+            for tag_name, (file_val, new_value) in to_update.items():
                 if not dry_run:
+                    replace = not (add_genre and tag_name == 'genre')
                     try:
-                        self.set_text_tag(tag_name, new_value, by_id=False)
+                        self.set_text_tag(tag_name, new_value, by_id=False, replace=replace)
                     except TagException as e:
                         do_save = False
                         log.error(f'Error setting tag={tag_name} on {self}: {e}')

@@ -12,8 +12,9 @@ import logging
 import re
 from dataclasses import dataclass, fields, field
 from datetime import datetime, date
+from itertools import chain
 from pathlib import Path
-from typing import Union, Optional, Dict, Mapping, Any, Iterator
+from typing import Union, Optional, Dict, Mapping, Any, Iterator, Collection
 
 from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
@@ -38,14 +39,31 @@ def default(cls):
     return field(default_factory=cls)
 
 
+class GenreMixin:
+    @property
+    def genre_set(self):
+        if genre := self.genre:  # noqa
+            return {genre} if isinstance(genre, str) else set(genre)
+        else:
+            return set()
+
+    @property
+    def genre_list(self):
+        return sorted(self.genre_set)
+
+    def norm_genres(self):
+        return list(map(normalize_case, self.genre_set))
+
+
 @dataclass
-class TrackInfo:
+class TrackInfo(GenreMixin):
     # fmt: off
-    album: 'AlbumInfo'  # The AlbumInfo that this track is in
-    title: str = None   # Track title (tag)
-    artist: str = None  # Artist name (if different than the album artist)
-    num: int = None     # Track number
-    name: str = None    # File name to be used
+    album: 'AlbumInfo'                          # The AlbumInfo that this track is in
+    title: str = None                           # Track title (tag)
+    artist: str = None                          # Artist name (if different than the album artist)
+    num: int = None                             # Track number
+    name: str = None                            # File name to be used
+    genre: Union[str, Collection[str]] = None   # Track genre
     # fmt: on
 
     def to_dict(self, title_case: bool = False) -> Dict[str, Any]:
@@ -55,9 +73,12 @@ class TrackInfo:
                 'title': normalize_case(self.title) if self.title else self.title,
                 'name': normalize_case(self.name) if self.name else self.name,
                 'num': self.num,
+                'genre': self.norm_genres(),
             }
         else:
-            return {'title': self.title, 'artist': self.artist, 'num': self.num, 'name': self.name}
+            return {
+                'title': self.title, 'artist': self.artist, 'num': self.num, 'name': self.name, 'genre': self.genre_list
+            }
 
     def tags(self) -> Dict[str, Any]:
         tags = {
@@ -65,7 +86,7 @@ class TrackInfo:
             'artist': self.artist or self.album.artist,
             'track': (self.num, len(self.album.tracks)) if self.album.mp4 else self.num,
             'date': self.album.date.strftime('%Y%m%d'),
-            'genre': self.album.genre,
+            'genre': list(filter(None, self.genre_set.union(self.album.genre_set))) or None,
             'album': self.album.title,
             'album_artist': self.album.artist,
             'disk': (self.album.disk, self.album.disks) if self.album.mp4 else self.album.disk,
@@ -76,13 +97,13 @@ class TrackInfo:
 
 
 @dataclass
-class AlbumInfo:
+class AlbumInfo(GenreMixin):
     # fmt: off
     title: str = None                               # Album title (tag)
     artist: str = None                              # Album artist name
     date: date = None                               # Album release date
     disk: int = None                                # Disk number
-    genre: str = None                               # Album genre
+    genre: Union[str, Collection[str]] = None       # Album genre
     tracks: Dict[str, TrackInfo] = default(dict)    # Mapping of {path: TrackInfo} for the tracks in this album
     name: str = None                                # Directory name to be used
     parent: str = None                              # Artist name to use in file paths
@@ -131,8 +152,9 @@ class AlbumInfo:
         data['date'] = self.date.strftime('%Y-%m-%d')
         data['tracks'] = {path: track.to_dict(title_case) for path, track in self.tracks.items()}
         data['type'] = self.type.real_name if self.type is not None else None
+        data['genre'] = self.norm_genres() if title_case else self.genre_list
         if title_case:
-            for key in ('title', 'artist', 'genre', 'name', 'parent', 'singer'):
+            for key in ('title', 'artist', 'name', 'parent', 'singer'):
                 if value := data[key]:
                     data[key] = normalize_case(value)
         return data
@@ -140,18 +162,20 @@ class AlbumInfo:
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> 'AlbumInfo':
         file = next(iter(album_dir))  # type: SongFile
+        genres = set(chain.from_iterable(f.tag_genres for f in album_dir))
         self = cls(
             title=file.tag_album,
             artist=file.tag_album_artist,
             date=file.date,
             disk=file.disk_num,
-            genre=file.tag_genre,
+            genre=next(iter(genres)) if len(genres) == 1 else None,
             name=file.tag_album,
             parent=file.tag_album_artist,
             mp4=all(f.tag_type == 'mp4' for f in album_dir),
         )
         self.tracks = {
-            file.path.as_posix(): TrackInfo(self, file.tag_title, file.tag_artist, file.track_num) for file in album_dir
+            f.path.as_posix(): TrackInfo(self, f.tag_title, f.tag_artist, f.track_num, genre=f.tag_genres)
+            for f in album_dir
         }
         return self
 
@@ -202,7 +226,7 @@ class AlbumInfo:
         if not no_album_move:
             self.move_album(album_dir, dest_base_dir, dry_run)
 
-    def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False):
+    def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False, add_genre: bool = True):
         file_info_map = self.get_file_info_map(album_dir)
         file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
         if self.cover_path:
@@ -222,10 +246,12 @@ class AlbumInfo:
         else:
             image, img_data = None, None
 
-        common_changes = get_common_changes(album_dir, file_tag_map, extra_newline=True, dry_run=dry_run)
+        common_changes = get_common_changes(
+            album_dir, file_tag_map, extra_newline=True, dry_run=dry_run, add_genre=add_genre
+        )
         for file, info in file_info_map.items():
             log.debug(f'Matched {file} to {info.title}')
-            file.update_tags(file_tag_map[file], dry_run, no_log=common_changes)
+            file.update_tags(file_tag_map[file], dry_run, no_log=common_changes, add_genre=add_genre)
             if image is not None:
                 file.set_cover_data(image, dry_run, img_data)
             maybe_rename_track(file, info.name or info.title, info.num, dry_run)

@@ -15,7 +15,9 @@ if TYPE_CHECKING:
 __all__ = ['count_tag_changes', 'print_tag_changes', 'get_common_changes']
 
 
-def count_tag_changes(updates: Mapping['SongFile', Mapping[str, Any]]) -> Dict[str, Dict[Tuple[Any, Any], int]]:
+def count_tag_changes(
+    updates: Mapping['SongFile', Mapping[str, Any]], add_genre: bool = True
+) -> Dict[str, Dict[Tuple[Any, Any], int]]:
     counts = defaultdict(Counter)
     for file, values in updates.items():
         for tag_name, new_val in values.items():
@@ -23,6 +25,18 @@ def count_tag_changes(updates: Mapping['SongFile', Mapping[str, Any]]) -> Dict[s
                 orig = getattr(file, f'{tag_name}_num')
             else:
                 orig = file.tag_text(tag_name, default=None)
+
+            if add_genre and tag_name == 'genre':
+                orig_vals = set(file.tag_genres)
+                new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
+                if orig_vals.issuperset(new_vals):
+                    continue
+                else:
+                    new_val = ';'.join(sorted(orig_vals.union(new_vals)))
+
+            if isinstance(new_val, list):
+                new_val = tuple(new_val)
+
             counts[tag_name][(orig, new_val)] += 1
     return counts
 
@@ -67,8 +81,9 @@ def get_common_changes(
     show: bool = True,
     extra_newline: bool = False,
     dry_run: bool = False,
+    add_genre: bool = True,
 ) -> Dict[str, Tuple[Any, Any]]:
-    counts = count_tag_changes(updates)
+    counts = count_tag_changes(updates, add_genre)
     # noinspection PyUnboundLocalVariable
     common_changes = {
         tag_name: val_tup for tag_name, tag_counts in sorted(counts.items())

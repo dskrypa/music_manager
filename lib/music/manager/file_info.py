@@ -75,7 +75,10 @@ def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
 
         uprint(f'{music_file.path.as_posix()} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
         if not meta_only:
-            tag_name_map = typed_tag_name_map[music_file.tag_type]
+            if music_file.tags is None:
+                uprint('[No tags]')
+                continue
+            tag_name_map = typed_tag_name_map.get(music_file.tag_type, {})
             tbl = Table(SimpleColumn('Tag'), SimpleColumn('Tag Name'), SimpleColumn('Value'), update_width=True)
             rows = []
             for tag, val in sorted(music_file.tags.items()):

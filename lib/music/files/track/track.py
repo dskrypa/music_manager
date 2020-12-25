@@ -82,7 +82,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 log.debug(f'Error loading {file_path}: {e}')
                 return None
             else:
-                if not music_file:          # mutagen.File is a function that returns different obj types based on the
+                if music_file is None:      # mutagen.File is a function that returns different obj types based on the
                     return None             # given file path - it may return None
                 error = False
             finally:
@@ -194,6 +194,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return 'ID3v{}.{}'.format(*tags.version[:2])
         elif isinstance(tags, VCFLACDict):
             return 'FLAC'
+        elif tags is None:
+            return '[no tags]'
         else:
             return tags.__name__
 

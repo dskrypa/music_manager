@@ -91,6 +91,13 @@ def main():
                 log.error('Unconfigured direction')
         elif args.sync_action == 'playlists':
             kpop_tracks = plex.query('track', genre__like_exact='[kj]-?pop')
+            plex.sync_playlist(
+                'K-Pop Female Solo Artists 3\u00BD+ Stars',
+                query=kpop_tracks.filter(
+                    userRating__gte=7,
+                    grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
+                )
+            )
             plex.sync_playlist('K-Pop ALL', query=kpop_tracks)
             plex.sync_playlist('K-Pop 1 Star', query=kpop_tracks.filter(userRating=2))
             plex.sync_playlist('K-Pop 2 Stars', query=kpop_tracks.filter(userRating=4))

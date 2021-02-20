@@ -108,6 +108,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('(G)I-DLE', '(여자)아이들')})
 
+    def test_quoted_bold_inner_parens(self):
+        page = fake_page(as_node(""""'''Hwaa (Dimitri Vegas & Like Mike Remix)'''"  is a remix digital single by [[(G)I-DLE]] and Belgian DJ duo [[Wikipedia:Dimitri Vegas & Like Mike|Dimitri Vegas & Like Mike]]."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Hwaa (Dimitri Vegas & Like Mike Remix)')})
+
 
 if __name__ == '__main__':
     main()

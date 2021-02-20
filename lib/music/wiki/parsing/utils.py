@@ -104,6 +104,9 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
             else:
                 name = first_string
 
+        if name.startswith('"') and name.count('"') == 1:
+            name = name[1:]
+
         # log.debug(f'Found {name=!r}')
         try:
             first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
@@ -163,6 +166,8 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
                         yield Name.from_parts((eng_2, non_eng))
                     else:
                         yield Name.from_parts((first_part, paren_part))
+                elif 'remix' in paren_part.lower():
+                    yield Name(f'{first_part} ({paren_part})')
                 else:
                     if ' is ' in intro and '(' not in name:
                         paren_part = paren_part.partition(' is ')[0]

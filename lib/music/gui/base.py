@@ -25,7 +25,8 @@ class GuiBase(ABC):
             with suppress(AttributeError):
                 method = getattr(cls, attr)
                 if isinstance(method, FunctionType):
-                    cls._event_handlers[method.event] = method  # noqa
+                    for event in method.events:  # noqa
+                        cls._event_handlers[event] = method
 
     def __iter__(self):
         return self
@@ -44,12 +45,14 @@ class GuiBase(ABC):
                 log.warning(f'No handler for {event=}')
             else:
                 log.debug(f'Handling {event=}')
-                handler(self, data)
+                handler(self, event, data)
+
+        self.window.close()
 
 
-def event_handler(event: str):
+def event_handler(*event: str):
     def _event_handler(func):
-        func.event = event
+        func.events = event
         return func
 
     return _event_handler

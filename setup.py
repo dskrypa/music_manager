@@ -28,6 +28,9 @@ optional_dependencies = {
     'ipod': [
         'pypod@ git+git://github.com/dskrypa/pypod',
     ],
+    'gui': [
+        'pysimplegui',
+    ],
 }
 
 

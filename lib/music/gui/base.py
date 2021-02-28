@@ -118,7 +118,7 @@ class GuiBase(ABC):
             [Text('Author:', size=(12, 1)), Text(top_level_globals.get('__author__', '[unknown]'))],
             [Text('Version:', size=(12, 1)), Text(top_level_globals.get('__version__', '[unknown]'))],
             [Text('Project URL:', size=(12, 1)), Text(top_level_globals.get('__url__', '[unknown]'))],
-            [OK()]
+            [OK()],
         ]
 
         window = Window('About', layout=layout)

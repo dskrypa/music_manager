@@ -67,6 +67,15 @@ class GuiBase(ABC):
         self.window.close()
 
     def _config_changed(self, event: str, data: Dict[str, Any]):
+        """
+        Event handler for window configuration changes.
+
+        Known triggers:
+            - Resize window
+            - Move window
+            - Window gains focus
+
+        """
         new_size = self.window.size
         old_size = self._window_size
         if old_size != new_size:
@@ -84,3 +93,15 @@ def event_handler(*event: str):
 
 
 event_handler('__CONFIG_CHANGED__')(GuiBase._config_changed)  # noqa
+
+
+def element_repr(self):
+    try:
+        size = self.get_size()
+    except Exception:
+        return f'<{self.__class__.__qualname__}#{id(self)}>'
+    else:
+        return f'<{self.__class__.__qualname__}#{id(self)}[{size=}]>'
+
+
+Element.__repr__ = element_repr

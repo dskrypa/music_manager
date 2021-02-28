@@ -7,9 +7,10 @@ Music manager GUI using PySimpleGUI.  WIP.
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Tuple, Any, Optional, Union
+from typing import Dict, Tuple, Any, Optional, Union, List
 
-from PySimpleGUI import theme, Text, Button, Column, HorizontalSeparator, Input, Image, Multiline, popup_animated
+from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Input, Image, Multiline, Element
+from PySimpleGUI import popup_animated, theme
 
 from ..constants import typed_tag_name_map
 from ..files.album import AlbumDir
@@ -32,6 +33,7 @@ class MusicManagerGui(GuiBase):
         ]
         self.set_layout([initial_layout])
         self._album = None
+        self._view = None
 
     def _select_album_path(self) -> Optional[Path]:
         if path := directory_prompt('Select Album'):
@@ -75,11 +77,29 @@ class MusicManagerGui(GuiBase):
 
         rows = [[Text(f'Album: {album.path}')], [Column(track_rows, scrollable=True, size=(800, 500))]]
         self.set_layout(rows)
+        self._view = 'tracks'
         popup_animated(None)  # noqa
 
     @event_handler('window_resized')
     def window_resized(self, event: str, data: Dict[str, Any]):
         log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
+        if self._view == 'tracks':
+            log.debug(f'Expanding columns on {self.window}')
+            expand_columns(self.window.Rows)
+
+
+def expand_columns(rows: List[List[Element]]):
+    for row in rows:
+        for ele in row:
+            if isinstance(ele, Column):
+                ele.expand(True, True)
+            try:
+                ele_rows = ele.Rows
+            except AttributeError:
+                pass
+            else:
+                log.debug(f'Expanding columns on {ele}')
+                expand_columns(ele_rows)
 
 
 def get_track_data(track: SongFile):

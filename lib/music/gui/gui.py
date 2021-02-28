@@ -77,6 +77,10 @@ class MusicManagerGui(GuiBase):
         self.set_layout(rows)
         popup_animated(None)  # noqa
 
+    @event_handler('window_resized')
+    def window_resized(self, event: str, data: Dict[str, Any]):
+        log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
+
 
 def get_track_data(track: SongFile):
     tag_name_map = typed_tag_name_map.get(track.tag_type, {})

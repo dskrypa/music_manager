@@ -33,6 +33,7 @@ class GuiBase(ABC):
         self.window = None
         self._window_args = args
         self._window_kwargs = kwargs
+        self._window_size = (None, None)
 
     def set_layout(self, layout: List[List[Element]], **kwargs):
         kw_args = deepcopy(self._window_kwargs)
@@ -40,6 +41,9 @@ class GuiBase(ABC):
         if self.window is not None:
             self.window.close()
         self.window = Window(*self._window_args, layout=layout, **kw_args)
+        self.window.finalize()
+        self.window.bind('<Configure>', '__CONFIG_CHANGED__')  # Capture window size change as an event
+        self._window_size = self.window.size
 
     def __iter__(self):
         return self
@@ -62,6 +66,14 @@ class GuiBase(ABC):
 
         self.window.close()
 
+    def _config_changed(self, event: str, data: Dict[str, Any]):
+        new_size = self.window.size
+        old_size = self._window_size
+        if old_size != new_size:
+            self._window_size = new_size
+            if handler := self._event_handlers.get('window_resized'):
+                handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty
+
 
 def event_handler(*event: str):
     def _event_handler(func):
@@ -69,3 +81,6 @@ def event_handler(*event: str):
         return func
 
     return _event_handler
+
+
+event_handler('__CONFIG_CHANGED__')(GuiBase._config_changed)  # noqa

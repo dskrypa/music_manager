@@ -10,7 +10,7 @@ import logging
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.core.main import wrap_main
-from music.__version__ import __author_email__, __version__
+from music.__version__ import __author_email__, __version__, __author__, __url__
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,9 @@ def main():
     init_logging(args.verbose, log_path=None, names=None)
 
     from music.files.patches import apply_mutagen_patches
+    from music.gui.patches import patch_all
     apply_mutagen_patches()
+    patch_all()
 
     # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
     if args.match_log:

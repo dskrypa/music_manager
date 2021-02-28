@@ -9,13 +9,13 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, Tuple, Any, Optional, Union, List
 
-from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Input, Image, Multiline, Element
+from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Input, Image, Multiline, Element, Menu
 from PySimpleGUI import popup_animated, theme
 
 from ..constants import typed_tag_name_map
 from ..files.album import AlbumDir
 from ..files.track.track import SongFile
-from .base import GuiBase, event_handler
+from .base import GuiBase, event_handler, view
 from .constants import LoadingSpinner
 from .prompts import directory_prompt
 
@@ -26,38 +26,42 @@ log = logging.getLogger(__name__)
 class MusicManagerGui(GuiBase):
     def __init__(self):
         theme('SystemDefaultForReal')
-        super().__init__(title='Music Manager', resizable=True)
-        initial_layout = [
-            Text('Music Manager'),
-            Button('Select Album', enable_events=True, key='select_album'),
+        super().__init__(title='Music Manager', resizable=True, size=(800, 500))
+        self.menu = [
+            ['File', ['Open', 'Exit']],
+            ['Actions', ['Clean', 'Wiki Update']],
+            ['Help', ['About']]
         ]
-        self.set_layout([initial_layout])
-        self._album = None
-        self._view = None
+        self.show_view('main')
 
-    def _select_album_path(self) -> Optional[Path]:
+    @view('main')
+    def main(self):
+        layout = [
+            [Menu(self.menu)],
+            [Button('Select Album', enable_events=True, key='select_album')]
+        ]
+        self.set_layout(layout)
+
+    def _select_album_path(self):
         if path := directory_prompt('Select Album'):
             log.debug(f'Selected album {path=}')
-            self._album = AlbumDir(path)
+            self.state['album'] = AlbumDir(path)
         else:
-            self._album = None
-        return path
+            self.state['album'] = None
 
     @property
     def album(self) -> Optional[AlbumDir]:
-        if self._album is None:
+        if self.state.get('album') is None:
             self._select_album_path()
-        return self._album
+        return self.state['album']
 
     @album.setter
     def album(self, path: Union[str, Path]):
-        self._album = AlbumDir(path)
+        self.state['album'] = AlbumDir(path)
 
-    @event_handler('select_album')
-    def select_album(self, event: str, data: Dict[str, Any]):
-        self.show_tracks()
-
-    def show_tracks(self):
+    @event_handler('select_album', 'Open')
+    @view('tracks')
+    def show_tracks(self, event: str, data: Dict[str, Any]):
         self.window.hide()
         if not (album := self.album):
             self.window.un_hide()
@@ -75,15 +79,16 @@ class MusicManagerGui(GuiBase):
                 [Column([[get_cover_image(track)]]), Column(get_track_data(track))]
             )
 
-        rows = [[Text(f'Album: {album.path}')], [Column(track_rows, scrollable=True, size=(800, 500))]]
+        rows = [
+            [Menu(self.menu)], [Text(f'Album: {album.path}')], [Column(track_rows, scrollable=True, size=(800, 500))]
+        ]
         self.set_layout(rows)
-        self._view = 'tracks'
         popup_animated(None)  # noqa
 
     @event_handler('window_resized')
     def window_resized(self, event: str, data: Dict[str, Any]):
         log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
-        if self._view == 'tracks':
+        if self.state.get('view') == 'tracks':
             log.debug(f'Expanding columns on {self.window}')
             expand_columns(self.window.Rows)
 

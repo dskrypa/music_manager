@@ -6,6 +6,7 @@ Base GUI class that uses PySimpleGUI, but adds event handler registration via a 
 
 import inspect
 import logging
+import webbrowser
 from abc import ABC
 from contextlib import suppress
 from copy import deepcopy
@@ -113,18 +114,30 @@ class GuiBase(ABC):
             top_level_name = '[unknown]'
             top_level_globals = {}
 
+        url = top_level_globals.get('__url__', '[unknown]')
+        if url != '[unknown]':
+            link = Text(url, enable_events=True, key='link_clicked', text_color='blue')
+        else:
+            link = Text(url)
+
         layout = [
             [Text('Program:', size=(12, 1)), Text(top_level_name)],
             [Text('Author:', size=(12, 1)), Text(top_level_globals.get('__author__', '[unknown]'))],
             [Text('Version:', size=(12, 1)), Text(top_level_globals.get('__version__', '[unknown]'))],
-            [Text('Project URL:', size=(12, 1)), Text(top_level_globals.get('__url__', '[unknown]'))],
+            [Text('Project URL:', size=(12, 1)), link],
             [OK()],
         ]
 
         window = Window('About', layout=layout)
         window.finalize()
         window.bind('<Escape>', 'Exit')
-        window.read()
+        while True:
+            event, data = window.read()
+            if event == 'link_clicked':
+                webbrowser.open(url)
+            else:
+                break
+
         window.close()
 
 

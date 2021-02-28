@@ -35,11 +35,12 @@ class MusicManagerGui(GuiBase):
         self.show_view('main')
 
     @view('main')
-    def main(self):
-        layout = [
-            [Menu(self.menu)],
-            [Button('Select Album', enable_events=True, key='select_album')]
-        ]
+    def main(self, rows=None):
+        layout = [[Menu(self.menu)]]
+        if rows:
+            layout.extend(rows)
+        else:
+            layout.append([Button('Select Album', enable_events=True, key='select_album')])
         self.set_layout(layout)
 
     def _select_album_path(self):
@@ -63,9 +64,10 @@ class MusicManagerGui(GuiBase):
     @view('tracks')
     def show_tracks(self, event: str, data: Dict[str, Any]):
         self.window.hide()
+        self._select_album_path()
         if not (album := self.album):
             self.window.un_hide()
-            self.set_layout([[Text('No album selected.')]])
+            self.main([[Text('No album selected.')]])
             return
 
         track_rows = []

@@ -7,6 +7,7 @@ Base GUI class that uses PySimpleGUI, but adds event handler registration via a 
 import logging
 from abc import ABC
 from contextlib import suppress
+from copy import deepcopy
 from types import FunctionType
 from typing import Callable, Dict, Tuple, Any, List, Optional
 
@@ -33,10 +34,12 @@ class GuiBase(ABC):
         self._window_args = args
         self._window_kwargs = kwargs
 
-    def set_layout(self, layout: List[List[Element]]):
+    def set_layout(self, layout: List[List[Element]], **kwargs):
+        kw_args = deepcopy(self._window_kwargs)
+        kw_args.update(kwargs)
         if self.window is not None:
             self.window.close()
-        self.window = Window(*self._window_args, layout=layout, **self._window_kwargs)
+        self.window = Window(*self._window_args, layout=layout, **kw_args)
 
     def __iter__(self):
         return self

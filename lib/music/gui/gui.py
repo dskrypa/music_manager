@@ -5,12 +5,17 @@ Music manager GUI using PySimpleGUI.  WIP.
 """
 
 import logging
+from io import BytesIO
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Any, List
+from typing import Dict, Tuple, Any, Optional, Union
 
-from PySimpleGUI import Window, Input, FolderBrowse, Listbox, theme, Popup, Text, Submit, Button, Element, Frame
+from PySimpleGUI import theme, Text, Button, Column, HorizontalSeparator, Input, Image, Multiline, popup_animated
 
+from ..constants import typed_tag_name_map
+from ..files.album import AlbumDir
+from ..files.track.track import SongFile
 from .base import GuiBase, event_handler
+from .constants import LoadingSpinner
 from .prompts import directory_prompt
 
 __all__ = ['MusicManagerGui']
@@ -26,17 +31,82 @@ class MusicManagerGui(GuiBase):
             Button('Select Album', enable_events=True, key='select_album'),
         ]
         self.set_layout([initial_layout])
+        self._album = None
 
-    def _replace_layout(self, layout: List[List[Element]]):
-        self.set_layout(layout)
+    def _select_album_path(self) -> Optional[Path]:
+        if path := directory_prompt('Select Album'):
+            log.debug(f'Selected album {path=}')
+            self._album = AlbumDir(path)
+        else:
+            self._album = None
+        return path
+
+    @property
+    def album(self) -> Optional[AlbumDir]:
+        if self._album is None:
+            self._select_album_path()
+        return self._album
+
+    @album.setter
+    def album(self, path: Union[str, Path]):
+        self._album = AlbumDir(path)
 
     @event_handler('select_album')
     def select_album(self, event: str, data: Dict[str, Any]):
-        if path := directory_prompt('Select Album'):
-            log.debug(f'Selected album {path=}')
-            file_names = [p.name for p in path.iterdir() if p.is_file()]
+        self.show_tracks()
 
-            self.set_layout([
-                [Text(f'Album: {path}')],
-                [Listbox(key='track_list', values=file_names, size=(40, len(file_names)), enable_events=True)]
-            ])
+    def show_tracks(self):
+        self.window.hide()
+        if not (album := self.album):
+            self.window.un_hide()
+            self.set_layout([[Text('No album selected.')]])
+            return
+
+        track_rows = []
+        for i, track in enumerate(album):
+            popup_animated(LoadingSpinner.blue_dots, 'Loading...')
+            track_rows.append([HorizontalSeparator()])
+            track_rows.append(
+                [Text(f'{track.path.as_posix()} [{track.length_str}] ({track.tag_version})')]
+            )
+            track_rows.append(
+                [Column([[get_cover_image(track)]]), Column(get_track_data(track))]
+            )
+
+        rows = [[Text(f'Album: {album.path}')], [Column(track_rows, scrollable=True, size=(800, 500))]]
+        self.set_layout(rows)
+        popup_animated(None)  # noqa
+
+
+def get_track_data(track: SongFile):
+    tag_name_map = typed_tag_name_map.get(track.tag_type, {})
+    rows = []
+    longest = 0
+    for tag, val in sorted(track.tags.items()):
+        tag_name = tag_name_map.get(tag[:4], tag)
+        if tag_name == 'Album Cover':
+            continue
+
+        longest = max(longest, len(tag_name))
+        if tag_name == 'Lyrics':
+            rows.append([Text(tag_name), Multiline(val, size=(45, 4))])
+        else:
+            rows.append([Text(tag_name), Input(val)])
+
+    for row in rows:
+        row[0].Size = (longest, 1)
+
+    return rows
+
+
+def get_cover_image(track: SongFile, size: Tuple[int, int] = (250, 250)) -> Image:
+    try:
+        image = track.get_cover_image()
+    except Exception as e:
+        log.error(f'Unable to load cover image for {track}')
+        return Image(size=size)
+    else:
+        image.thumbnail((250, 250))
+        bio = BytesIO()
+        image.save(bio, format='PNG')
+        return Image(data=bio.getvalue(), size=size)

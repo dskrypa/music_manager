@@ -6,11 +6,12 @@ Music manager GUI using PySimpleGUI.  WIP.
 
 import logging
 from pathlib import Path
-from typing import Callable, Dict, Tuple, Any
+from typing import Callable, Dict, Tuple, Any, List
 
-from PySimpleGUI import Window, Input, FolderBrowse, Listbox, theme, Popup, Text, Submit
+from PySimpleGUI import Window, Input, FolderBrowse, Listbox, theme, Popup, Text, Submit, Button, Element, Frame
 
 from .base import GuiBase, event_handler
+from .prompts import directory_prompt
 
 __all__ = ['MusicManagerGui']
 log = logging.getLogger(__name__)
@@ -19,34 +20,23 @@ log = logging.getLogger(__name__)
 class MusicManagerGui(GuiBase):
     def __init__(self):
         theme('SystemDefaultForReal')
-        self.window = Window(
-            title='Music Manager',
-            layout=self.layout,
-            resizable=True,
-        )
-
-    @property
-    def layout(self):
-        ui_elements = [  # => Column[Row[], Row[], ...]
-            [
-                Text('Album:'),
-                Input(key='album_dir', enable_events=True, size=(150, 1)),
-                # Input(key='album_dir', size=(150, 1)),
-                # sg.Input(key='album_dir', enable_events=True),
-                FolderBrowse('Browse'),
-                Submit(key='submit_album_dir'),
-            ],
-            [
-                Listbox(key='track_list', values=[], enable_events=True, size=(40, 20)),
-            ]
+        super().__init__(title='Music Manager', resizable=True)
+        initial_layout = [
+            Text('Music Manager'),
+            Button('Select Album', enable_events=True, key='select_album'),
         ]
-        return ui_elements
+        self.set_layout([initial_layout])
 
-    @event_handler('album_dir', 'submit_album_dir')
-    def album_dir_picked(self, event: str, data: Dict[str, Any]):
-        path = Path(data['album_dir']).resolve()
-        if path.is_dir():
-            self.window['track_list'].update([p.name for p in path.iterdir() if p.is_file()])
-        elif event == 'submit_album_dir':
-            self.window['track_list'].update([])
-            Popup(f'Invalid directory: {path}', title='Invalid directory')
+    def _replace_layout(self, layout: List[List[Element]]):
+        self.set_layout(layout)
+
+    @event_handler('select_album')
+    def select_album(self, event: str, data: Dict[str, Any]):
+        if path := directory_prompt('Select Album'):
+            log.debug(f'Selected album {path=}')
+            file_names = [p.name for p in path.iterdir() if p.is_file()]
+
+            self.set_layout([
+                [Text(f'Album: {path}')],
+                [Listbox(key='track_list', values=file_names, size=(40, len(file_names)), enable_events=True)]
+            ])

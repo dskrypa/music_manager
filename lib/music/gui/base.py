@@ -8,16 +8,16 @@ import logging
 from abc import ABC
 from contextlib import suppress
 from types import FunctionType
-from typing import Callable, Dict, Tuple, Any
+from typing import Callable, Dict, Tuple, Any, List, Optional
 
-from PySimpleGUI import Window, WIN_CLOSED
+from PySimpleGUI import Window, WIN_CLOSED, Element
 
 __all__ = ['GuiBase', 'event_handler']
 log = logging.getLogger(__name__)
 
 
 class GuiBase(ABC):
-    window: Window
+    window: Optional[Window]
 
     def __init_subclass__(cls):
         cls._event_handlers = {}  # type: Dict[str, Callable]
@@ -27,6 +27,16 @@ class GuiBase(ABC):
                 if isinstance(method, FunctionType):
                     for event in method.events:  # noqa
                         cls._event_handlers[event] = method
+
+    def __init__(self, *args, **kwargs):
+        self.window = None
+        self._window_args = args
+        self._window_kwargs = kwargs
+
+    def set_layout(self, layout: List[List[Element]]):
+        if self.window is not None:
+            self.window.close()
+        self.window = Window(*self._window_args, layout=layout, **self._window_kwargs)
 
     def __iter__(self):
         return self

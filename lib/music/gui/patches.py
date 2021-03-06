@@ -17,10 +17,11 @@ def patch_all(element_repr=True):
 def patch_element_repr():
     def element_repr(self):
         try:
+            key = self.Key
             size = self.get_size()
         except Exception:
             return f'<{self.__class__.__qualname__}#{id(self)}>'
         else:
-            return f'<{self.__class__.__qualname__}#{id(self)}[{size=}]>'
+            return f'<{self.__class__.__qualname__}#{id(self)}[{key=}, {size=}]>'
 
     Element.__repr__ = element_repr

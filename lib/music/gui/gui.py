@@ -1,6 +1,9 @@
 """
 Music manager GUI using PySimpleGUI.  WIP.
 
+Notes:
+    - window.extend_layout doesn't work with a scrollable Column
+
 :author: Doug Skrypa
 """
 
@@ -8,10 +11,9 @@ import logging
 from pathlib import Path
 from functools import partial
 from multiprocessing import Pool
-from typing import Dict, Any, Optional, Union, List
+from typing import Any, Optional, Union, Iterator
 
-from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Element, Menu, Checkbox, ProgressBar, Frame, Submit
-from PySimpleGUI import Input
+from PySimpleGUI import Text, Button, Column, Element, Checkbox, ProgressBar, Frame, Submit, Input
 from PySimpleGUI import popup_ok, theme
 
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
@@ -20,7 +22,7 @@ from ..files.album import AlbumDir
 from ..files.track.track import SongFile
 from ..manager.file_update import _add_bpm
 from .base import GuiBase, event_handler, view
-from .formatting import get_track_data, get_cover_image
+from .formatting import TrackBlock, AlbumBlock
 from .prompts import directory_prompt
 
 __all__ = ['MusicManagerGui']
@@ -30,78 +32,107 @@ log = logging.getLogger(__name__)
 class MusicManagerGui(GuiBase):
     def __init__(self):
         theme('SystemDefaultForReal')
-        super().__init__(title='Music Manager', resizable=True, size=(800, 500))
+        super().__init__(title='Music Manager', resizable=True, size=(1500, 750))
         self.menu = [
             ['File', ['Open', 'Exit']],
-            ['Actions', ['Clean', 'Wiki Update']],
+            ['Actions', ['Clean', 'Edit', 'Wiki Update']],
             ['Help', ['About']],
         ]
         self.show_view('main')
-
-    def set_layout(self, layout: List[List[Element]], **kwargs):
-        # noinspection PyTypeChecker
-        return super().set_layout([[Menu(self.menu)]] + layout, **kwargs)
-
-    @view('main')
-    def main(self, rows=None):
-        self.set_layout(rows or [[Button('Select Album', enable_events=True, key='select_album')]])
-
-    def _select_album_path(self):
-        if path := directory_prompt('Select Album'):
-            log.debug(f'Selected album {path=}')
-            self.state['album'] = AlbumDir(path)
-        else:
-            self.state['album'] = None
-
-    @property
-    def album(self) -> Optional[AlbumDir]:
-        if self.state.get('album') is None:
-            self._select_album_path()
-        return self.state['album']
-
-    @album.setter
-    def album(self, path: Union[str, Path]):
-        self.state['album'] = AlbumDir(path)
-
-    @event_handler('select_album', 'Open')
-    @view('tracks')
-    def show_tracks(self, event: Optional[str] = None, data: Optional[Dict[str, Any]] = None):
-        if event is None:
-            album = self.album
-        else:
-            self.window.hide()
-            self._select_album_path()
-            if not (album := self.album):
-                self.window.un_hide()
-                self.main([[Text('No album selected.')]])
-                return
-
-        bar = ProgressBar(len(album), size=(300, 30))
-        self.set_layout([[Text(f'Album: {album.path}', key='album_path')], [Text('Loading...')], [bar]])
-
-        track_rows = []
-        for i, track in enumerate(album, 1):
-            track_rows.append([HorizontalSeparator()])
-            track_rows.append([Text(f'{track.path.as_posix()} [{track.length_str}] ({track.tag_version})')])
-            track_rows.append([Column([[get_cover_image(track)]]), Column(get_track_data(track))])
-            bar.update(i)
-
-        rows = [
-            [Text(f'Album: {album.path}')],
-            [Column(track_rows, scrollable=True, size=(800, 500))]  # window.extend_layout doesn't work with scrollable
-        ]
-        self.set_layout(rows)
+        self.album = None
 
     @event_handler('window_resized')
-    def window_resized(self, event: str, data: Dict[str, Any]):
+    def window_resized(self, event: str, data: dict[str, Any]):
         log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
         if self.state.get('view') == 'tracks':
             log.debug(f'Expanding columns on {self.window}')
             expand_columns(self.window.Rows)
 
+    @view('main')
+    def main(self, rows=None):
+        self.set_layout(rows or [[Button('Select Album', enable_events=True, key='select_album')]])
+
+    @property
+    def album(self) -> Optional[AlbumDir]:
+        if self._album is None:
+            if path := directory_prompt('Select Album'):
+                log.debug(f'Selected album {path=}')
+                self.album = path
+        return self._album
+
+    @album.setter
+    def album(self, path: Union[str, Path, None, AlbumDir]):
+        self._album = AlbumDir(path) if isinstance(path, (str, Path)) else path
+        self._track_blocks = None
+
+    @property
+    def track_blocks(self):
+        if self._track_blocks is None:
+            self._track_blocks = {track.path.as_posix(): TrackBlock(track) for track in self.album}
+        return self._track_blocks
+
+    def iter_track_blocks(self, bar: Optional[ProgressBar] = None) -> Iterator[TrackBlock]:
+        for i, track_block in enumerate(self.track_blocks.values(), 1):
+            yield track_block
+            if bar:
+                bar.update(i)
+
+    @event_handler('select_album', 'Open')
+    @view('tracks')
+    def show_tracks(self, event: Optional[str] = None, data: Optional[dict[str, Any]] = None):
+        if event == 'Open':
+            self.album = None
+        if not self.album:
+            self.main([[Text('No album selected.')]])
+            return
+
+        album_block = AlbumBlock(self.album)
+        self.set_layout(list(album_block.as_rows(False)))
+
+        # bar = ProgressBar(len(album), size=(300, 30))
+        # self.set_layout([[Text(f'Album: {album.path}')], [Text('Loading...')], [bar]])
+        # track_rows = [row for block in self.iter_track_blocks(bar) for row in block.as_rows(False)]
+        # rows = [
+        #     [Text(f'Album: {album.path}')],
+        #     [Column(track_rows, scrollable=True, size=(800, 500))]
+        # ]
+        # self.set_layout(rows)
+
+    @event_handler('Edit', 'edit')
+    @view('edit')
+    def edit_tracks(self, event: str, data: dict[str, Any]):
+        if not self.album:
+            self.main([[Text('No album selected.')]])
+            return
+
+        for key, ele in self.window.AllKeysDict.items():
+            if isinstance(key, str) and key.startswith('val::'):
+                ele.update(disabled=False)
+
+        self.window['edit'].update(visible=False)
+        self.window['save'].update(visible=True)
+
+    # @event_handler('review_changes')
+    # def review_changes(self, event: str, data: dict[str, Any]):
+    #     album_info = AlbumInfo.from_album_dir(self.album)
+    #     track_blocks = self.track_blocks
+    #     for key, value in data.items():
+    #         try:
+    #             path, key_type, tag = key.split(' -- ')
+    #         except Exception:
+    #             pass
+    #         else:
+    #             if key_type == 'val':
+    #                 tag_name, old_val = track_blocks[path]
+
+    @event_handler('Wiki Update')
+    @view('wiki_update')
+    def wiki_update(self, event: str, data: dict[str, Any]):
+        pass
+
     @event_handler('Clean', 'run_clean')
     @view('clean')
-    def clean_tracks(self, event: str, data: Dict[str, Any]):
+    def clean_tracks(self, event: str, data: dict[str, Any]):
         bpm_ok = aubio_installed()
         run_clean = event == 'run_clean'
         disabled = {'bpm': run_clean or not bpm_ok, 'dry_run': run_clean, 'threads': run_clean}
@@ -122,7 +153,6 @@ class MusicManagerGui(GuiBase):
             ],
             [Submit(disabled=run_clean, key='run_clean')],
         ]
-
         log.debug(f'Cleaning tracks with {values=}')
 
         try:
@@ -169,7 +199,7 @@ class MusicManagerGui(GuiBase):
         self.show_view('tracks')
 
 
-def expand_columns(rows: List[List[Element]]):
+def expand_columns(rows: list[list[Element]]):
     for row in rows:
         for ele in row:
             if isinstance(ele, Column):

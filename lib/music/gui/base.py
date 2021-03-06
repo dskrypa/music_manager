@@ -15,7 +15,7 @@ from pathlib import Path
 from types import FunctionType
 from typing import Callable, Dict, Tuple, Any, List, Optional
 
-from PySimpleGUI import Window, WIN_CLOSED, Element, Text, OK
+from PySimpleGUI import Window, WIN_CLOSED, Element, Text, OK, Menu
 
 from .state import GuiState
 
@@ -45,11 +45,16 @@ class GuiBase(ABC):
         self._window_kwargs = kwargs
         self._window_size = (None, None)
         self.state = GuiState()
+        self.menu = [
+            ['File', ['Exit']],
+            ['Help', ['About']],
+        ]
 
     def set_layout(self, layout: List[List[Element]], **kwargs):
         kw_args = deepcopy(self._window_kwargs)
         kw_args.update(kwargs)
-        new_window = Window(*self._window_args, layout=layout, **kw_args)
+        # noinspection PyTypeChecker
+        new_window = Window(*self._window_args, layout=[[Menu(self.menu)]] + layout, **kw_args)
         new_window.finalize()
         # new_window.read(0)
         new_window.bind('<Configure>', '__CONFIG_CHANGED__')  # Capture window size change as an event
@@ -74,7 +79,8 @@ class GuiBase(ABC):
             except KeyError:
                 log.warning(f'No handler for {event=}')
             else:
-                log.debug(f'Handling {event=}')
+                if event != '__CONFIG_CHANGED__':
+                    log.debug(f'Handling {event=}')
                 handler(self, event, data)
 
         self.window.close()

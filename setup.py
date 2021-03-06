@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from itertools import chain
 from pathlib import Path
 from setuptools import setup
 
@@ -32,6 +33,7 @@ optional_dependencies = {
         'pysimplegui',
     ],
 }
+optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))
 
 
 setup(
@@ -47,6 +49,7 @@ setup(
     classifiers=[
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.8',    # Due to use of walrus operator
+        'Programming Language :: Python :: 3.9',
     ],
     python_requires='~=3.8',
     install_requires=requirements,

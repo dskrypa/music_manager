@@ -5,8 +5,9 @@
 import logging
 import re
 from datetime import datetime, date
-from functools import cached_property
+from functools import cached_property, reduce
 from itertools import chain
+from operator import xor
 from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable, Any
 
 from ordered_set import OrderedSet
@@ -396,7 +397,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         return self.__class__ == other.__class__ and self.page == other.page and self.edition == other.edition
 
     def __hash__(self):
-        return hash((self.__class__, self.page, self.edition))
+        return reduce(xor, map(hash, (self.__class__, self.page, self.edition)))
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
         return iter(self.parts)
@@ -555,7 +556,7 @@ class DiscographyEntryPart:
         return self.__class__ == other.__class__ and self._name == other._name and self.edition == other.edition
 
     def __hash__(self):
-        return hash((self.__class__, self._name, self.edition))
+        return reduce(xor, map(hash, (self.__class__, self._name, self.edition)))
 
     def __iter__(self) -> Iterator['Track']:
         return iter(self.tracks)

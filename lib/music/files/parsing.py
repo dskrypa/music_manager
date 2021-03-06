@@ -5,7 +5,8 @@
 import logging
 import re
 from dataclasses import dataclass, InitVar, fields
-from functools import cached_property
+from functools import cached_property, reduce
+from operator import xor
 from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.unicode.languages import LangCat
@@ -84,7 +85,7 @@ class AlbumName:
         return tuple(getattr(self, attr) for attr in _fields(self))
 
     def __hash__(self):
-        return hash(self.__parts)
+        return reduce(xor, map(hash, self.__parts))
 
     @cached_property
     def type(self) -> DiscoEntryType:

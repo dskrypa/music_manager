@@ -5,7 +5,8 @@
 import logging
 import re
 from copy import copy, deepcopy
-from functools import cached_property
+from functools import cached_property, reduce
+from operator import xor
 from typing import (
     Optional, Type, Union, Any, Callable, Set, Pattern, List, Iterable, Collection, TypeVar, Dict, MutableMapping,
     Mapping
@@ -163,7 +164,7 @@ class Name(ClearableCachedPropertyMixin):
         return True
 
     def __hash__(self):
-        return hash(self.__parts)
+        return reduce(xor, map(hash, self.__parts))
 
     def _score(
         self, other: Union['Name', str], romanization_match=95, other_versions=True, try_alt=True, try_ost=True

@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, Union, List
 
 from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Element, Menu, Checkbox, ProgressBar, Frame, Submit
 from PySimpleGUI import Input
-from PySimpleGUI import popup_animated, popup_ok, theme
+from PySimpleGUI import popup_ok, theme
 
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ..common.utils import aubio_installed
@@ -20,7 +20,6 @@ from ..files.album import AlbumDir
 from ..files.track.track import SongFile
 from ..manager.file_update import _add_bpm
 from .base import GuiBase, event_handler, view
-from .constants import LoadingSpinner
 from .formatting import get_track_data, get_cover_image
 from .prompts import directory_prompt
 
@@ -77,23 +76,21 @@ class MusicManagerGui(GuiBase):
                 self.main([[Text('No album selected.')]])
                 return
 
+        bar = ProgressBar(len(album), size=(300, 30))
+        self.set_layout([[Text(f'Album: {album.path}', key='album_path')], [Text('Loading...')], [bar]])
+
         track_rows = []
-        for i, track in enumerate(album):
-            popup_animated(LoadingSpinner.blue_dots, 'Loading...')
+        for i, track in enumerate(album, 1):
             track_rows.append([HorizontalSeparator()])
-            track_rows.append(
-                [Text(f'{track.path.as_posix()} [{track.length_str}] ({track.tag_version})')]
-            )
-            track_rows.append(
-                [Column([[get_cover_image(track)]]), Column(get_track_data(track))]
-            )
+            track_rows.append([Text(f'{track.path.as_posix()} [{track.length_str}] ({track.tag_version})')])
+            track_rows.append([Column([[get_cover_image(track)]]), Column(get_track_data(track))])
+            bar.update(i)
 
         rows = [
             [Text(f'Album: {album.path}')],
-            [Column(track_rows, scrollable=True, size=(800, 500))],
+            [Column(track_rows, scrollable=True, size=(800, 500))]  # window.extend_layout doesn't work with scrollable
         ]
         self.set_layout(rows)
-        popup_animated(None)  # noqa
 
     @event_handler('window_resized')
     def window_resized(self, event: str, data: Dict[str, Any]):
@@ -130,7 +127,7 @@ class MusicManagerGui(GuiBase):
 
         try:
             threads = int(values['threads'])
-        except Exception as e:
+        except (ValueError, TypeError):
             threads = 4
             popup_ok(f'Invalid BPM threads value={values["threads"]} (must be an integer) - using 4 instead')
 

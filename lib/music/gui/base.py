@@ -49,12 +49,14 @@ class GuiBase(ABC):
     def set_layout(self, layout: List[List[Element]], **kwargs):
         kw_args = deepcopy(self._window_kwargs)
         kw_args.update(kwargs)
+        new_window = Window(*self._window_args, layout=layout, **kw_args)
+        new_window.finalize()
+        # new_window.read(0)
+        new_window.bind('<Configure>', '__CONFIG_CHANGED__')  # Capture window size change as an event
         if self.window is not None:
             self.window.close()
-        self.window = Window(*self._window_args, layout=layout, **kw_args)
-        self.window.finalize()
-        self.window.bind('<Configure>', '__CONFIG_CHANGED__')  # Capture window size change as an event
-        self._window_size = self.window.size
+        self.window = new_window
+        self._window_size = new_window.size
 
     def __iter__(self):
         return self

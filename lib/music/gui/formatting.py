@@ -63,7 +63,8 @@ class AlbumBlock:
             longest = max(longest, len(key))
             tag_key = f'key::album::{key}'
             val_key = f'val::album::{key}'
-            value = Input(value, key=val_key, disabled=not editable or key in always_ro)
+            disp_value = repr(value) if value is not None and not isinstance(value, str) else value
+            value = Input(disp_value, key=val_key, disabled=not editable or key in always_ro)
             rows.append([Text(key.replace('_', ' ').title(), key=tag_key), value])
 
         for row in rows:

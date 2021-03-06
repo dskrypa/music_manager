@@ -88,8 +88,9 @@ class MusicManagerGui(GuiBase):
             self.main([[Text('No album selected.')]])
             return
 
+        always_ro = {'val::album::mp4'}
         for key, ele in self.window.AllKeysDict.items():
-            if isinstance(key, str) and key.startswith('val::'):
+            if isinstance(key, str) and key.startswith('val::') and key not in always_ro:
                 ele.update(disabled=False)
 
         self.window['edit'].update(visible=False)
@@ -122,6 +123,7 @@ class MusicManagerGui(GuiBase):
         album_info = AlbumInfo.from_dict(info_dict)
         # TODO: Make dry_run not default
         # TODO: Implement gui-based diff
+        # TODO: Input sanitization/normalization
         album_info.update_and_move(self.album, None, dry_run=True)
 
     @event_handler('Wiki Update')

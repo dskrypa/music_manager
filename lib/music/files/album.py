@@ -11,7 +11,7 @@ from datetime import date
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Iterator, List, Union, Optional, Set, Dict
+from typing import Iterator, List, Union, Optional, Set, Dict, Callable
 
 from mutagen.id3 import TDRC
 
@@ -228,10 +228,12 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 log.debug('Multiple dates found in {}: {}'.format(self, ', '.join(sorted(map(str, dates)))))
         return None
 
-    def fix_song_tags(self, dry_run=False, add_bpm=False):
+    def fix_song_tags(self, dry_run=False, add_bpm=False, callback: Optional[Callable] = None):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
 
-        for music_file in self.songs:
+        for n, music_file in enumerate(self.songs, 1):
+            if callback:
+                callback(music_file, n)
             music_file.cleanup_lyrics(dry_run)
             tag_type = music_file.tag_type
             if tag_type != 'mp3':
@@ -264,10 +266,12 @@ class AlbumDir(ClearableCachedPropertyMixin):
             for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in self.songs}):
                 future.result()
 
-    def remove_bad_tags(self, dry_run=False):
+    def remove_bad_tags(self, dry_run=False, callback: Optional[Callable] = None):
         keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
         i = 0
-        for music_file in self.songs:
+        for n, music_file in enumerate(self.songs, 1):
+            if callback:
+                callback(music_file, n)
             rm_tag_match = _rm_tag_matcher(music_file.tag_type)
             if music_file.tag_type == 'flac':
                 log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')

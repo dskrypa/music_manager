@@ -2,7 +2,7 @@
 :author: Doug Skrypa
 """
 
-__all__ = ['stars', 'deinit_colorama']
+__all__ = ['stars', 'deinit_colorama', 'aubio_installed']
 
 
 def stars(rating, out_of=10, num_stars=5, chars=('\u2605', '\u2730'), half='\u00BD'):
@@ -29,3 +29,11 @@ def deinit_colorama():
     else:
         colorama.deinit()
         atexit.unregister(colorama.initialise.reset_all)
+
+
+def aubio_installed():
+    try:
+        import aubio
+    except ImportError:
+        return False
+    return True

@@ -163,6 +163,7 @@ def main():
     from ds_tools.logging import init_logging
     init_logging(args.verbose, log_path=None, names=None)
 
+    from music.common.utils import aubio_installed
     from music.files.patches import apply_mutagen_patches
     apply_mutagen_patches()
 
@@ -256,14 +257,6 @@ def main():
             del_album_art(args.path, args.dry_run)
     else:
         raise ValueError(f'Unexpected action: {action!r}')
-
-
-def aubio_installed():
-    try:
-        import aubio
-    except ImportError:
-        return False
-    return True
 
 
 if __name__ == '__main__':

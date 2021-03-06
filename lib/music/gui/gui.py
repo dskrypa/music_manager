@@ -5,18 +5,23 @@ Music manager GUI using PySimpleGUI.  WIP.
 """
 
 import logging
-from io import BytesIO
 from pathlib import Path
-from typing import Dict, Tuple, Any, Optional, Union, List
+from functools import partial
+from multiprocessing import Pool
+from typing import Dict, Any, Optional, Union, List
 
-from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Input, Image, Multiline, Element, Menu
-from PySimpleGUI import popup_animated, theme
+from PySimpleGUI import Text, Button, Column, HorizontalSeparator, Element, Menu, Checkbox, ProgressBar, Frame, Submit
+from PySimpleGUI import Input
+from PySimpleGUI import popup_animated, popup_ok, theme
 
-from ..constants import typed_tag_name_map
+from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
+from ..common.utils import aubio_installed
 from ..files.album import AlbumDir
 from ..files.track.track import SongFile
+from ..manager.file_update import _add_bpm
 from .base import GuiBase, event_handler, view
 from .constants import LoadingSpinner
+from .formatting import get_track_data, get_cover_image
 from .prompts import directory_prompt
 
 __all__ = ['MusicManagerGui']
@@ -30,18 +35,17 @@ class MusicManagerGui(GuiBase):
         self.menu = [
             ['File', ['Open', 'Exit']],
             ['Actions', ['Clean', 'Wiki Update']],
-            ['Help', ['About']]
+            ['Help', ['About']],
         ]
         self.show_view('main')
 
+    def set_layout(self, layout: List[List[Element]], **kwargs):
+        # noinspection PyTypeChecker
+        return super().set_layout([[Menu(self.menu)]] + layout, **kwargs)
+
     @view('main')
     def main(self, rows=None):
-        layout = [[Menu(self.menu)]]
-        if rows:
-            layout.extend(rows)
-        else:
-            layout.append([Button('Select Album', enable_events=True, key='select_album')])
-        self.set_layout(layout)
+        self.set_layout(rows or [[Button('Select Album', enable_events=True, key='select_album')]])
 
     def _select_album_path(self):
         if path := directory_prompt('Select Album'):
@@ -62,13 +66,16 @@ class MusicManagerGui(GuiBase):
 
     @event_handler('select_album', 'Open')
     @view('tracks')
-    def show_tracks(self, event: str, data: Dict[str, Any]):
-        self.window.hide()
-        self._select_album_path()
-        if not (album := self.album):
-            self.window.un_hide()
-            self.main([[Text('No album selected.')]])
-            return
+    def show_tracks(self, event: Optional[str] = None, data: Optional[Dict[str, Any]] = None):
+        if event is None:
+            album = self.album
+        else:
+            self.window.hide()
+            self._select_album_path()
+            if not (album := self.album):
+                self.window.un_hide()
+                self.main([[Text('No album selected.')]])
+                return
 
         track_rows = []
         for i, track in enumerate(album):
@@ -82,7 +89,8 @@ class MusicManagerGui(GuiBase):
             )
 
         rows = [
-            [Menu(self.menu)], [Text(f'Album: {album.path}')], [Column(track_rows, scrollable=True, size=(800, 500))]
+            [Text(f'Album: {album.path}')],
+            [Column(track_rows, scrollable=True, size=(800, 500))],
         ]
         self.set_layout(rows)
         popup_animated(None)  # noqa
@@ -93,6 +101,75 @@ class MusicManagerGui(GuiBase):
         if self.state.get('view') == 'tracks':
             log.debug(f'Expanding columns on {self.window}')
             expand_columns(self.window.Rows)
+
+    @event_handler('Clean', 'run_clean')
+    @view('clean')
+    def clean_tracks(self, event: str, data: Dict[str, Any]):
+        bpm_ok = aubio_installed()
+        run_clean = event == 'run_clean'
+        disabled = {'bpm': run_clean or not bpm_ok, 'dry_run': run_clean, 'threads': run_clean}
+        values = {
+            'bpm': data.get('add_bpm', bpm_ok),
+            'dry_run': data.get('dry_run', False),
+            'threads': data.get('threads', '4'),
+        }
+        options_layout = [
+            [
+                Checkbox(
+                    'Add BPM', default=values['bpm'], disabled=disabled['bpm'], tooltip='requires Aubio', key='add_bpm'
+                ),
+                Checkbox('Dry Run', default=values['dry_run'], disabled=disabled['dry_run'], key='dry_run'),
+            ],
+            [
+                Text('BPM Threads'), Input(values['threads'], disabled=disabled['threads'], key='threads'),
+            ],
+            [Submit(disabled=run_clean, key='run_clean')],
+        ]
+
+        log.debug(f'Cleaning tracks with {values=}')
+
+        try:
+            threads = int(values['threads'])
+        except Exception as e:
+            threads = 4
+            popup_ok(f'Invalid BPM threads value={values["threads"]} (must be an integer) - using 4 instead')
+
+        n_tracks = len(self.album)
+        bar = ProgressBar(n_tracks * 2 + (n_tracks if values['bpm'] else 0), size=(300, 30))
+        track_text = Text('', size=(100, 1))
+        layout = [
+            [Frame('options', options_layout)],
+            [bar],
+            [Text('Processing:'), track_text],
+        ]
+        self.set_layout(layout)
+        if not run_clean:
+            return
+
+        complete = 0
+
+        def update_progress(track: SongFile, n: int):
+            nonlocal complete
+            track_text.update(track.path.as_posix())
+            complete += 1
+            bar.update(complete)
+
+        dry_run = values['dry_run']
+        self.album.remove_bad_tags(dry_run, update_progress)
+        self.album.fix_song_tags(dry_run, add_bpm=False, callback=update_progress)
+        if values['bpm']:
+            track_text.update('Adding BPM...')
+            _init_logging = partial(init_logging, 2, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
+            add_bpm_func = partial(_add_bpm, dry_run=dry_run)
+            # Using a list instead of an iterator because pool.map needs to be able to chunk the items
+            tracks = [f for f in self.album if f.tag_type != 'flac']
+            with Pool(threads, _init_logging) as pool:
+                for result in pool.imap_unordered(add_bpm_func, tracks):
+                    complete += 1
+                    bar.update(complete)
+
+        popup_ok('Finished processing tracks')
+        self.show_view('tracks')
 
 
 def expand_columns(rows: List[List[Element]]):
@@ -107,37 +184,3 @@ def expand_columns(rows: List[List[Element]]):
             else:
                 log.debug(f'Expanding columns on {ele}')
                 expand_columns(ele_rows)
-
-
-def get_track_data(track: SongFile):
-    tag_name_map = typed_tag_name_map.get(track.tag_type, {})
-    rows = []
-    longest = 0
-    for tag, val in sorted(track.tags.items()):
-        tag_name = tag_name_map.get(tag[:4], tag)
-        if tag_name == 'Album Cover':
-            continue
-
-        longest = max(longest, len(tag_name))
-        if tag_name == 'Lyrics':
-            rows.append([Text(tag_name), Multiline(val, size=(45, 4))])
-        else:
-            rows.append([Text(tag_name), Input(val)])
-
-    for row in rows:
-        row[0].Size = (longest, 1)
-
-    return rows
-
-
-def get_cover_image(track: SongFile, size: Tuple[int, int] = (250, 250)) -> Image:
-    try:
-        image = track.get_cover_image()
-    except Exception as e:
-        log.error(f'Unable to load cover image for {track}')
-        return Image(size=size)
-    else:
-        image.thumbnail((250, 250))
-        bio = BytesIO()
-        image.save(bio, format='PNG')
-        return Image(data=bio.getvalue(), size=size)

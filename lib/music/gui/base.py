@@ -77,13 +77,13 @@ class GuiBase(ABC):
 
         self.window.close()
 
-    def show_view(self, name: str):
+    def show_view(self, name: str, *args, **kwargs):
         try:
             handler = self._views[name]
         except KeyError:
             log.error(f'Invalid view={name!r}')
         else:
-            handler(self)
+            handler(self, *args, **kwargs)
 
     def _config_changed(self, event: str, data: Dict[str, Any]):
         """

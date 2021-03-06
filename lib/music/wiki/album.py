@@ -622,6 +622,7 @@ class DiscographyEntryPart:
                     return [parser.parse_track_name(row) for row in self._tracks]
                 else:
                 # if isinstance(self._tracks, ListNode):
+                #     log.debug(f'Processing tracks for {self}')
                     return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')

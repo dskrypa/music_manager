@@ -48,10 +48,9 @@ setup(
     packages=['lib/music'],
     classifiers=[
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',    # Due to use of walrus operator
-        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.9',    # Due to use of walrus operator + dict union
     ],
-    python_requires='~=3.8',
+    python_requires='~=3.9',
     install_requires=requirements,
     extras_require=optional_dependencies,
 )

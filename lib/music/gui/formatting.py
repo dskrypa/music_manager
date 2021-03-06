@@ -71,6 +71,19 @@ class AlbumBlock:
 
         return rows
 
+    def as_tag_rows(self):
+        popup_animated(LoadingSpinner.blue_dots)
+        yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
+        yield [HorizontalSeparator()]
+        popup_animated(LoadingSpinner.blue_dots)
+        track_rows = []
+        for block in self.track_blocks.values():
+            popup_animated(LoadingSpinner.blue_dots)
+            track_rows.extend(block.as_rows(False))
+
+        yield [Column(track_rows, key='col::track_data', scrollable=True)]
+        popup_animated(None)
+
     def as_rows(self, editable: bool = True):
         popup_animated(LoadingSpinner.blue_dots)
         yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
@@ -84,7 +97,10 @@ class AlbumBlock:
                     Column(self.get_album_data_rows(editable), key='col::album_data'),
                 ],
                 [HorizontalSeparator()],
-                [Button('Edit...', size=(16, 1), key='edit', visible=not editable)],
+                [
+                    Button('Edit', size=(16, 1), key='edit', visible=not editable),
+                    Button('View Tags', size=(16, 1), key='view_tags', visible=not editable)
+                ],
                 [Button('Save Changes', size=(16, 1), key='save', visible=editable)],
             ],
             vertical_alignment='top',
@@ -97,7 +113,9 @@ class AlbumBlock:
             popup_animated(LoadingSpinner.blue_dots)
             track_rows.extend(block.as_info_rows(editable))
 
-        track_data = Column(track_rows, scrollable=True, vertical_scroll_only=True, key='col::track_data')
+        track_data = Column(
+            track_rows, scrollable=True, vertical_scroll_only=True, key='col::track_data', size=(685, 690)
+        )
 
         yield [Column([[album_container, track_data]], key='col::all_data')]
         popup_animated(None)

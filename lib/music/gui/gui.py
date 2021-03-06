@@ -8,10 +8,11 @@ Notes:
 """
 
 import logging
+from dataclasses import fields
 from pathlib import Path
 from functools import partial
 from multiprocessing import Pool
-from typing import Any, Optional, Union, Iterator
+from typing import Any, Optional, Union
 
 from PySimpleGUI import Text, Button, Column, Element, Checkbox, ProgressBar, Frame, Submit, Input
 from PySimpleGUI import popup_ok, theme
@@ -21,8 +22,9 @@ from ..common.utils import aubio_installed
 from ..files.album import AlbumDir
 from ..files.track.track import SongFile
 from ..manager.file_update import _add_bpm
+from ..manager.update import AlbumInfo, TrackInfo
 from .base import GuiBase, event_handler, view
-from .formatting import TrackBlock, AlbumBlock
+from .formatting import AlbumBlock
 from .prompts import directory_prompt
 
 __all__ = ['MusicManagerGui']
@@ -63,21 +65,8 @@ class MusicManagerGui(GuiBase):
     @album.setter
     def album(self, path: Union[str, Path, None, AlbumDir]):
         self._album = AlbumDir(path) if isinstance(path, (str, Path)) else path
-        self._track_blocks = None
 
-    @property
-    def track_blocks(self):
-        if self._track_blocks is None:
-            self._track_blocks = {track.path.as_posix(): TrackBlock(track) for track in self.album}
-        return self._track_blocks
-
-    def iter_track_blocks(self, bar: Optional[ProgressBar] = None) -> Iterator[TrackBlock]:
-        for i, track_block in enumerate(self.track_blocks.values(), 1):
-            yield track_block
-            if bar:
-                bar.update(i)
-
-    @event_handler('select_album', 'Open')
+    @event_handler('select_album', 'Open', 'view_tags')
     @view('tracks')
     def show_tracks(self, event: Optional[str] = None, data: Optional[dict[str, Any]] = None):
         if event == 'Open':
@@ -87,16 +76,10 @@ class MusicManagerGui(GuiBase):
             return
 
         album_block = AlbumBlock(self.album)
-        self.set_layout(list(album_block.as_rows(False)))
-
-        # bar = ProgressBar(len(album), size=(300, 30))
-        # self.set_layout([[Text(f'Album: {album.path}')], [Text('Loading...')], [bar]])
-        # track_rows = [row for block in self.iter_track_blocks(bar) for row in block.as_rows(False)]
-        # rows = [
-        #     [Text(f'Album: {album.path}')],
-        #     [Column(track_rows, scrollable=True, size=(800, 500))]
-        # ]
-        # self.set_layout(rows)
+        if event == 'view_tags':
+            self.set_layout(list(album_block.as_tag_rows()))
+        else:
+            self.set_layout(list(album_block.as_rows(False)))
 
     @event_handler('Edit', 'edit')
     @view('edit')
@@ -110,20 +93,36 @@ class MusicManagerGui(GuiBase):
                 ele.update(disabled=False)
 
         self.window['edit'].update(visible=False)
+        self.window['view_tags'].update(visible=False)
         self.window['save'].update(visible=True)
 
-    # @event_handler('review_changes')
-    # def review_changes(self, event: str, data: dict[str, Any]):
-    #     album_info = AlbumInfo.from_album_dir(self.album)
-    #     track_blocks = self.track_blocks
-    #     for key, value in data.items():
-    #         try:
-    #             path, key_type, tag = key.split(' -- ')
-    #         except Exception:
-    #             pass
-    #         else:
-    #             if key_type == 'val':
-    #                 tag_name, old_val = track_blocks[path]
+    @event_handler('save')
+    def review_changes(self, event: str, data: dict[str, Any]):
+        info_dict = {}
+        track_info_dict = {}
+        info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
+
+        for data_key, value in data.items():
+            try:
+                key_type, obj, key = data_key.split('::')  # val::album::key
+            except Exception:
+                pass
+            else:
+                if key_type == 'val':
+                    try:
+                        value = info_fields[key].type(value)
+                    except (KeyError, TypeError, ValueError):
+                        pass
+                    if obj == 'album':
+                        info_dict[key] = value
+                    else:
+                        track_info_dict.setdefault(obj, {})[key] = value
+        info_dict['tracks'] = track_info_dict
+
+        album_info = AlbumInfo.from_dict(info_dict)
+        # TODO: Make dry_run not default
+        # TODO: Implement gui-based diff
+        album_info.update_and_move(self.album, None, dry_run=True)
 
     @event_handler('Wiki Update')
     @view('wiki_update')

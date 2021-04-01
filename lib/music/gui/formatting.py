@@ -7,26 +7,38 @@ Formatting helper functions.
 import logging
 from functools import cached_property
 from io import BytesIO
-from typing import Optional
+from itertools import chain
+from typing import TYPE_CHECKING, Optional
 
 from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, Button
-from PySimpleGUI import popup_ok, popup_animated
+from PySimpleGUI import popup_ok
 
 from ..constants import typed_tag_name_map
 from ..files.album import AlbumDir
 from ..files.track.track import SongFile
 from ..manager.update import AlbumInfo, TrackInfo
 from .constants import LoadingSpinner
+from .progress import Spinner
+
+if TYPE_CHECKING:
+    from .base import GuiBase
 
 __all__ = ['TrackBlock', 'AlbumBlock']
 log = logging.getLogger(__name__)
 
 
+class VScrollColumn(Column):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, scrollable=True, vertical_scroll_only=True, **kwargs)
+
+
 class AlbumBlock:
-    def __init__(self, album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
+    def __init__(self, gui: 'GuiBase', album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
+        self.gui = gui
         self.album_dir = album_dir
         self.album_info = AlbumInfo.from_album_dir(album_dir)
         self.cover_size = cover_size
+        self.editing = False
 
     @cached_property
     def track_blocks(self):
@@ -73,53 +85,64 @@ class AlbumBlock:
         return rows
 
     def as_tag_rows(self):
-        popup_animated(LoadingSpinner.blue_dots)
-        yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
-        yield [HorizontalSeparator()]
-        popup_animated(LoadingSpinner.blue_dots)
-        track_rows = []
-        for block in self.track_blocks.values():
-            popup_animated(LoadingSpinner.blue_dots)
-            track_rows.extend(block.as_rows(False))
-
-        yield [Column(track_rows, key='col::track_data', scrollable=True)]
-        popup_animated(None)
+        with Spinner(LoadingSpinner.blue_dots) as spinner:
+            yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
+            yield [HorizontalSeparator()]
+            track_rows = list(chain.from_iterable(b.as_rows(False) for b in spinner(self.track_blocks.values())))
+            win_w, win_h = self.gui.window.size
+            yield [VScrollColumn(track_rows, key='col::track_data', size=(win_w - 20, win_h - 20))]
 
     def as_rows(self, editable: bool = True):
-        popup_animated(LoadingSpinner.blue_dots)
-        yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
-        yield [HorizontalSeparator()]
+        with Spinner(LoadingSpinner.blue_dots) as spinner:
+            yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
+            yield [HorizontalSeparator()]
 
-        popup_animated(LoadingSpinner.blue_dots)
-        album_container = Column(
-            [
+            spinner.update()
+            btn_kw = {'size': (18, 1)}
+            view_buttons = [
+                Button('Edit', key='album::edit', **btn_kw), Button('View All Tags', key='album::all_tags', **btn_kw)
+            ]
+            edit_buttons = [
+                Button('Review & Save Changes', key='album::save', **btn_kw),
+                Button('Cancel', key='album::cancel', **btn_kw),
+            ]
+            album_container = Column(
                 [
-                    Column([[self.cover_image]], key='col::album_cover'),
-                    Column(self.get_album_data_rows(editable), key='col::album_data'),
+                    [
+                        Column([[self.cover_image]], key='col::album_cover'),
+                        Column(self.get_album_data_rows(editable), key='col::album_data'),
+                    ],
+                    [HorizontalSeparator()],
+                    [
+                        Column([view_buttons], key='col::view_buttons', visible=not editable),
+                        Column([edit_buttons], key='col::edit_buttons', visible=editable),
+                    ],
                 ],
-                [HorizontalSeparator()],
-                [
-                    Button('Edit', size=(16, 1), key='edit', visible=not editable),
-                    Button('View Tags', size=(16, 1), key='view_tags', visible=not editable)
-                ],
-                [Button('Save Changes', size=(16, 1), key='save', visible=editable)],
-            ],
-            vertical_alignment='top',
-            element_justification='center',
-            key='col::album_container'
-        )
+                vertical_alignment='top',
+                element_justification='center',
+                key='col::album_container',
+            )
 
-        track_rows = []
-        for block in self.track_blocks.values():
-            popup_animated(LoadingSpinner.blue_dots)
-            track_rows.extend(block.as_info_rows(editable))
+            track_rows = []
+            for block in spinner(self.track_blocks.values()):
+                track_rows.extend(block.as_info_rows(editable))
 
-        track_data = Column(
-            track_rows, scrollable=True, vertical_scroll_only=True, key='col::track_data', size=(685, 690)
-        )
+            track_data = VScrollColumn(track_rows, key='col::track_data', size=(685, 690))
+            yield [Column([[album_container, track_data]], key='col::all_data')]
 
-        yield [Column([[album_container, track_data]], key='col::all_data')]
-        popup_animated(None)
+    def toggle_editing(self):
+        self.editing = not self.editing
+        always_ro = {'val::album::mp4'}
+        for key, ele in self.gui.window.AllKeysDict.items():
+            if isinstance(key, str) and key.startswith('val::') and key not in always_ro:
+                ele.update(disabled=not self.editing)
+
+        self.gui.window['col::view_buttons'].update(visible=not self.editing)
+        # self.gui.window['edit_album'].update(visible=not self.editing)
+        # self.gui.window['view_tags'].update(visible=not self.editing)
+        self.gui.window['col::edit_buttons'].update(visible=self.editing)
+        # self.gui.window['album_changes::save'].update(visible=self.editing)
+        # self.gui.window['album_changes::cancel'].update(visible=self.editing)
 
 
 class TrackBlock:

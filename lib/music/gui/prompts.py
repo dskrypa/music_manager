@@ -8,9 +8,9 @@ import logging
 from pathlib import Path
 from typing import Callable, Dict, Tuple, Optional
 
-from PySimpleGUI import Popup, popup_get_folder, popup_get_file
+from PySimpleGUI import Popup, popup_get_folder, popup_get_file, popup_ok
 
-__all__ = ['directory_prompt', 'file_prompt']
+__all__ = ['directory_prompt', 'file_prompt', 'popup_input_invalid']
 log = logging.getLogger(__name__)
 
 
@@ -39,3 +39,8 @@ def directory_prompt(*args, must_exist=True, **kwargs) -> Optional[Path]:
 
 def file_prompt(*args, must_exist=True, **kwargs) -> Optional[Path]:
     return path_prompt(popup_get_file, args, kwargs, must_exist)
+
+
+def popup_input_invalid(*args, title='Invalid Input', **kwargs):
+    log.debug(f'Received invalid input - {args[0]}' if args else 'Received invalid input')
+    return popup_ok(*args, title=title, **kwargs)

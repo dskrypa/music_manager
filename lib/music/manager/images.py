@@ -7,7 +7,7 @@ Utilities for extracting and adding cover art.
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Union, Tuple
+from typing import Union
 
 from PIL import Image
 
@@ -67,7 +67,7 @@ def del_album_art(path: Union[Path, str], dry_run: bool = False):
             song_file.del_cover_tag(True, dry_run)
 
 
-def _jpeg_from_path(path: Union[Path, str], max_width: int = 1200) -> Tuple[Image.Image, bytes]:
+def _jpeg_from_path(path: Union[Path, str], max_width: int = 1200) -> tuple[Image.Image, bytes]:
     image = Image.open(Path(path).expanduser().resolve())  # type: Image.Image
     if image.width > max_width:
         width, height = image.size

@@ -16,6 +16,8 @@ from itertools import chain
 from pathlib import Path
 from typing import Union, Optional, Dict, Mapping, Any, Iterator, Collection
 
+from PIL import Image
+
 from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
@@ -227,9 +229,11 @@ class AlbumInfo(GenreMixin):
         if not no_album_move:
             self.move_album(album_dir, dest_base_dir, dry_run)
 
-    def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False, add_genre: bool = True):
-        file_info_map = self.get_file_info_map(album_dir)
-        file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
+    def get_new_cover(
+        self, album_dir: AlbumDir = None, file_info_map: Dict[SongFile, TrackInfo] = None
+    ) -> tuple[Image.Image, bytes]:
+        album_dir = album_dir or self.album_dir
+        file_info_map = file_info_map or self.get_file_info_map(album_dir)
         if self.cover_path:
             log.debug(f'Loading cover image from {self.cover_path}')
             image, img_data = _jpeg_from_path(self.cover_path, self.cover_max_width)
@@ -246,7 +250,12 @@ class AlbumInfo(GenreMixin):
                     log.info(f'Would update the cover image for {album_dir} to match {self.cover_path}')
         else:
             image, img_data = None, None
+        return image, img_data
 
+    def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False, add_genre: bool = True):
+        file_info_map = self.get_file_info_map(album_dir)
+        file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
+        image, img_data = self.get_new_cover(album_dir, file_info_map)
         common_changes = get_common_changes(
             album_dir, file_tag_map, extra_newline=True, dry_run=dry_run, add_genre=add_genre
         )
@@ -257,7 +266,8 @@ class AlbumInfo(GenreMixin):
                 file.set_cover_data(image, dry_run, img_data)
             maybe_rename_track(file, info.name or info.title, info.num, dry_run)
 
-    def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
+    @property
+    def expected_rel_dir(self) -> str:
         rel_fmt = _album_format(
             self.date, self.type.numbered and self.number, self.solo_of_group and self.ost, self.disks, self.ost
         )
@@ -271,16 +281,22 @@ class AlbumInfo(GenreMixin):
             singer=self.singer,
             disk=self.disk,
         )
+        return expected_rel_dir
 
+    def dest_base_dir(self, album_dir: AlbumDir, dest_base_dir: Union[Path, str, None] = None) -> Path:
         if dest_base_dir is None:
-            expected_parent = Path(expected_rel_dir).parent
+            expected_parent = Path(self.expected_rel_dir).parent
             log.debug(f'Comparing {expected_parent=} to {album_dir.path.parent.as_posix()}')
             if album_dir.path.parent.as_posix().endswith(expected_parent.as_posix()):
-                dest_base_dir = album_dir.path.parents[len(expected_parent.parts)]
+                return album_dir.path.parents[len(expected_parent.parts)]
             else:
-                dest_base_dir = Path('./sorted_{}'.format(date.today().strftime('%Y-%m-%d')))
+                return Path('./sorted_{}'.format(date.today().strftime('%Y-%m-%d')))
         else:
-            dest_base_dir = Path(dest_base_dir)
+            return Path(dest_base_dir)
+
+    def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
+        expected_rel_dir = self.expected_rel_dir
+        dest_base_dir = self.dest_base_dir(album_dir, dest_base_dir)
 
         log.debug(f'Using {expected_rel_dir=}')
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)

@@ -5,12 +5,14 @@ Gui Views
 """
 
 import logging
+from dataclasses import fields
 from itertools import chain
 from typing import Any, Optional
 
 from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button
 
 from ...files.album import AlbumDir
+from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
 from .base import ViewManager, event_handler
@@ -85,29 +87,29 @@ class AlbumView(MainView, view_name='album'):
         from .diff import AlbumDiffView
 
         self.toggle_editing()
-        # info_dict = {}
-        # track_info_dict = {}
-        # info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
-        #
-        # for data_key, value in data.items():
-        #     try:
-        #         key_type, obj, key = data_key.split('::')  # val::album::key
-        #     except Exception:
-        #         pass
-        #     else:
-        #         if key_type == 'val':
-        #             try:
-        #                 value = info_fields[key].type(value)
-        #             except (KeyError, TypeError, ValueError):
-        #                 pass
-        #             if obj == 'album':
-        #                 info_dict[key] = value
-        #             else:
-        #                 track_info_dict.setdefault(obj, {})[key] = value
-        # info_dict['tracks'] = track_info_dict
-        #
-        # album_info = AlbumInfo.from_dict(info_dict)
-        # return AlbumDiffView(self.mgr, album_info)
+        info_dict = {}
+        track_info_dict = {}
+        info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
+
+        for data_key, value in data.items():
+            try:
+                key_type, obj, key = data_key.split('::')  # val::album::key
+            except Exception:
+                pass
+            else:
+                if key_type == 'val':
+                    try:
+                        value = info_fields[key].type(value)
+                    except (KeyError, TypeError, ValueError):
+                        pass
+                    if obj == 'album':
+                        info_dict[key] = value
+                    else:
+                        track_info_dict.setdefault(obj, {})[key] = value
+        info_dict['tracks'] = track_info_dict
+
+        album_info = AlbumInfo.from_dict(info_dict)
+        return AlbumDiffView(self.mgr, self.album, album_info)
 
     def toggle_editing(self):
         self.editing = not self.editing

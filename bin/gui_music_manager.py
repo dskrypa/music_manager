@@ -45,8 +45,7 @@ def main():
 
     from music.gui.views.base import ViewManager
     from music.gui.views.main import MainView
-    view_mgr = ViewManager(title='Music Manager', resizable=True, size=(1500, 750))
-    view_mgr.run(MainView)
+    ViewManager(title='Music Manager', resizable=True, size=(1500, 750))(MainView)
 
 
 if __name__ == '__main__':

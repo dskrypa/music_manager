@@ -80,10 +80,9 @@ class ViewManager(WindowLoopMixin):
     def handle_event(self, event: str, data: dict[str, Any]):
         self.view.handle_event(event, data)
 
-    def run(self, view_cls: Optional[Type['GuiView']] = None):
-        if view_cls is not None:
-            view_cls(self).render()
-        super().run()
+    def __call__(self, view_cls: Type['GuiView']):
+        view_cls(self).render()
+        self.run()
 
 
 class event_handler:

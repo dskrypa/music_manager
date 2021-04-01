@@ -167,9 +167,6 @@ class GuiView(WindowLoopMixin, ABC):
         return f'<{self.__class__.__name__}[{self.name}][{self.primary=!r}][handlers: {len(self.event_handlers)}]>'
 
     def _get_default_handler(self):
-        if self.default_handler is not None:
-            # log.debug(f'{self}: Found default_handler={self.default_handler.__name__}')
-            return self.__class__.default_handler
         for cls in self.__class__.mro():
             if (handler := getattr(cls, 'default_handler', None)) is not None:
                 # log.debug(f'{self}: Found default_handler={handler.__name__}')
@@ -182,6 +179,13 @@ class GuiView(WindowLoopMixin, ABC):
             handler = self.event_handlers[event]
         except KeyError:
             if (handler := self._get_default_handler()) is None:
+                # for cls in self.__class__.mro():
+                #     print(f'{cls.__name__}:')
+                #     try:
+                #         for handler in sorted(cls.event_handlers):  # noqa
+                #             print(f'    - {handler}')
+                #     except AttributeError:
+                #         pass
                 raise NoEventHandlerRegistered(self, event) from None
 
         if event != 'config_changed':

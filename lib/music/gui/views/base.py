@@ -13,7 +13,7 @@ from pathlib import Path
 from functools import partial, update_wrapper, cached_property
 from typing import Any, Optional, Callable, Type, Mapping, Union, Collection
 
-from PySimpleGUI import Window, WIN_CLOSED, Element, Text, OK, Menu
+from PySimpleGUI import Window, WIN_CLOSED, Element, Text, OK, Menu, Column
 
 from .exceptions import NoEventHandlerRegistered
 
@@ -254,6 +254,13 @@ class BaseView(GuiView, view_name='base'):
     def about(self, event: str, data: dict[str, Any]):
         return AboutView(self.mgr)
 
+    # @event_handler
+    # def window_resized(self, event: str, data: dict[str, Any]):
+    #     log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
+    #     if self.state.get('view') == 'tracks':
+    #         log.debug(f'Expanding columns on {self.window}')
+    #         expand_columns(self.window.Rows)
+
 
 class AboutView(GuiView, view_name='about', primary=False):
     def __init__(self, mgr: 'ViewManager'):
@@ -301,3 +308,17 @@ class AboutView(GuiView, view_name='about', primary=False):
             [OK()],
         ]
         return layout, {'title': 'About'}
+
+
+def expand_columns(rows: list[list[Element]]):
+    for row in rows:
+        for ele in row:
+            if isinstance(ele, Column):
+                ele.expand(True, True)
+            try:
+                ele_rows = ele.Rows
+            except AttributeError:
+                pass
+            else:
+                log.debug(f'Expanding columns on {ele}')
+                expand_columns(ele_rows)

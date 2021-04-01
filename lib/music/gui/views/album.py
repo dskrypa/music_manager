@@ -5,32 +5,23 @@ Gui Views
 """
 
 import logging
-from abc import ABC, abstractmethod
-from dataclasses import fields
-from pathlib import Path
-from functools import partial, update_wrapper
-from multiprocessing import Pool
-from typing import TYPE_CHECKING, Any, Optional, Union
+from itertools import chain
+from typing import Any, Optional
 
-from PySimpleGUI import Text, Button, Column, Element, Checkbox, Frame, Submit, Input
-from PySimpleGUI import popup_ok, theme
+from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button
 
-from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
-from ...common.utils import aubio_installed
 from ...files.album import AlbumDir
-from ...files.exceptions import InvalidAlbumDir
-from ...manager.file_update import _add_bpm
-from ...manager.update import AlbumInfo, TrackInfo
-from ..prompts import directory_prompt, popup_input_invalid
-from ..progress import ProgressTracker
-from .base import GuiView, ViewManager, event_handler, BaseView
+from ..constants import LoadingSpinner
+from ..progress import Spinner
+from .base import ViewManager, event_handler
 from .formatting import AlbumBlock
+from .main import MainView
 
-__all__ = []
+__all__ = ['AlbumView']
 log = logging.getLogger(__name__)
 
 
-class AlbumView(BaseView, view_name='album'):
+class AlbumView(MainView, view_name='album'):
     def __init__(self, mgr: 'ViewManager', album: AlbumDir):
         super().__init__(mgr)
         self.album = album
@@ -40,51 +31,90 @@ class AlbumView(BaseView, view_name='album'):
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
         self.album_block = AlbumBlock(self, self.album)
-        layout.extend(self.album_block.as_rows(False))
-        return layout, kwargs
 
-    # def render(self):
-    #     self.album_block = AlbumBlock(self.gui, self.album)
-    #     self.gui.set_layout(list(self.album_block.as_rows(False)))
+        with Spinner(LoadingSpinner.blue_dots) as spinner:
+            layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
+            layout.append([HorizontalSeparator()])
+
+            spinner.update()
+            bkw = {'size': (18, 1)}
+            view_buttons = [Button('Edit', key='edit', **bkw), Button('View All Tags', key='all_tags', **bkw)]
+            edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
+            album_container = Column(
+                [
+                    [
+                        Column([[self.album_block.cover_image]], key='col::album_cover'),
+                        Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
+                    ],
+                    [HorizontalSeparator()],
+                    [
+                        Column([view_buttons], key='col::view_buttons', visible=not self.editing),
+                        Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
+                    ],
+                ],
+                vertical_alignment='top',
+                element_justification='center',
+                key='col::album_container',
+            )
+            track_rows = list(chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_block)))
+            track_data = Column(
+                track_rows, key='col::track_data', size=(685, 690), scrollable=True, vertical_scroll_only=True
+            )
+            layout.append([Column([[album_container, track_data]], key='col::all_data')])
+
+        return layout, kwargs
 
     @event_handler
     def all_tags(self, event: str, data: dict[str, Any]):
         from .tags import AllTagsView
-        AllTagsView(self.mgr, self.album).render()
+
+        return AllTagsView(self.mgr, self.album)
 
     @event_handler
     def cancel(self, event: str, data: dict[str, Any]):
+        self.editing = False
         self.render()
 
-    @event_handler
+    @event_handler('Edit')  # noqa
     def edit(self, event: str, data: dict[str, Any]):
-        if not self.album_block.editing:
-            self.album_block.toggle_editing()
+        if not self.editing:
+            self.toggle_editing()
 
     @event_handler
     def save(self, event: str, data: dict[str, Any]):
         from .diff import AlbumDiffView
-        self.album_block.toggle_editing()
-        info_dict = {}
-        track_info_dict = {}
-        info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
 
-        for data_key, value in data.items():
-            try:
-                key_type, obj, key = data_key.split('::')  # val::album::key
-            except Exception:
-                pass
-            else:
-                if key_type == 'val':
-                    try:
-                        value = info_fields[key].type(value)
-                    except (KeyError, TypeError, ValueError):
-                        pass
-                    if obj == 'album':
-                        info_dict[key] = value
-                    else:
-                        track_info_dict.setdefault(obj, {})[key] = value
-        info_dict['tracks'] = track_info_dict
+        self.toggle_editing()
+        # info_dict = {}
+        # track_info_dict = {}
+        # info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
+        #
+        # for data_key, value in data.items():
+        #     try:
+        #         key_type, obj, key = data_key.split('::')  # val::album::key
+        #     except Exception:
+        #         pass
+        #     else:
+        #         if key_type == 'val':
+        #             try:
+        #                 value = info_fields[key].type(value)
+        #             except (KeyError, TypeError, ValueError):
+        #                 pass
+        #             if obj == 'album':
+        #                 info_dict[key] = value
+        #             else:
+        #                 track_info_dict.setdefault(obj, {})[key] = value
+        # info_dict['tracks'] = track_info_dict
+        #
+        # album_info = AlbumInfo.from_dict(info_dict)
+        # return AlbumDiffView(self.mgr, album_info)
 
-        album_info = AlbumInfo.from_dict(info_dict)
-        AlbumDiffView(self.mgr, album_info).render()
+    def toggle_editing(self):
+        self.editing = not self.editing
+        always_ro = {'val::album::mp4'}
+        for key, ele in self.window.AllKeysDict.items():
+            if isinstance(key, str) and key.startswith('val::') and key not in always_ro:
+                ele.update(disabled=not self.editing)
+
+        self.window['col::view_buttons'].update(visible=not self.editing)
+        self.window['col::edit_buttons'].update(visible=self.editing)

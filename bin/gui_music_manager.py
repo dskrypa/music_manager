@@ -18,7 +18,6 @@ log = logging.getLogger(__name__)
 def parser():
     # fmt: off
     parser = ArgParser(description='Music Manager GUI')
-
     parser.include_common_args('verbosity')
     parser.add_common_sp_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
     # fmt: on
@@ -41,16 +40,13 @@ def main():
     if args.match_log:
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
-    from music.gui.gui import MusicManagerGui
-    MusicManagerGui().run()
+    from PySimpleGUI import theme
+    theme('SystemDefaultForReal')
 
-
-def aubio_installed():
-    try:
-        import aubio
-    except ImportError:
-        return False
-    return True
+    from music.gui.views.base import ViewManager
+    from music.gui.views.main import MainView
+    view_mgr = ViewManager(title='Music Manager', resizable=True, size=(1500, 750))
+    view_mgr.run(MainView)
 
 
 if __name__ == '__main__':

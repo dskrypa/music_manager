@@ -7,7 +7,6 @@ Album / track formatting helper functions.
 import logging
 from functools import cached_property
 from io import BytesIO
-from itertools import chain
 from typing import TYPE_CHECKING, Optional
 
 from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, Button
@@ -17,19 +16,12 @@ from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
-from ..constants import LoadingSpinner
-from ..progress import Spinner
 
 if TYPE_CHECKING:
     from .base import GuiView
 
 __all__ = ['TrackBlock', 'AlbumBlock']
 log = logging.getLogger(__name__)
-
-
-class VScrollColumn(Column):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, scrollable=True, vertical_scroll_only=True, **kwargs)
 
 
 class AlbumBlock:
@@ -48,6 +40,9 @@ class AlbumBlock:
             info = self.album_info.tracks[path]
             blocks[path] = TrackBlock(track, info, self.cover_size)
         return blocks
+
+    def __iter__(self):
+        yield from self.track_blocks.values()
 
     @cached_property
     def _cover_image_data(self) -> set[bytes]:
@@ -83,62 +78,6 @@ class AlbumBlock:
             row[0].Size = (longest, 1)
 
         return rows
-
-    def as_tag_rows(self):
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
-            yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
-            yield [HorizontalSeparator()]
-            track_rows = list(chain.from_iterable(b.as_rows(False) for b in spinner(self.track_blocks.values())))
-            win_w, win_h = self.gui.window.size
-            yield [VScrollColumn(track_rows, key='col::track_data', size=(win_w - 20, win_h - 20))]
-
-    def as_rows(self, editable: bool = True):
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
-            yield [Text('Album Path:'), Input(self.album_dir.path.as_posix(), disabled=True, size=(150, 1))]
-            yield [HorizontalSeparator()]
-
-            spinner.update()
-            btn_kw = {'size': (18, 1)}
-            view_buttons = [
-                Button('Edit', key='album::edit', **btn_kw), Button('View All Tags', key='album::all_tags', **btn_kw)
-            ]
-            edit_buttons = [
-                Button('Review & Save Changes', key='album::save', **btn_kw),
-                Button('Cancel', key='album::cancel', **btn_kw),
-            ]
-            album_container = Column(
-                [
-                    [
-                        Column([[self.cover_image]], key='col::album_cover'),
-                        Column(self.get_album_data_rows(editable), key='col::album_data'),
-                    ],
-                    [HorizontalSeparator()],
-                    [
-                        Column([view_buttons], key='col::view_buttons', visible=not editable),
-                        Column([edit_buttons], key='col::edit_buttons', visible=editable),
-                    ],
-                ],
-                vertical_alignment='top',
-                element_justification='center',
-                key='col::album_container',
-            )
-
-            track_rows = []
-            for block in spinner(self.track_blocks.values()):
-                track_rows.extend(block.as_info_rows(editable))
-
-            track_data = VScrollColumn(track_rows, key='col::track_data', size=(685, 690))
-            yield [Column([[album_container, track_data]], key='col::all_data')]
-
-    def toggle_editing(self):
-        self.editing = not self.editing
-        always_ro = {'val::album::mp4'}
-        for key, ele in self.gui.window.AllKeysDict.items():
-            if isinstance(key, str) and key.startswith('val::') and key not in always_ro:
-                ele.update(disabled=not self.editing)
-
-        self.gui.window['col::view_buttons'].update(visible=not self.editing)
-        self.gui.window['col::edit_buttons'].update(visible=self.editing)
 
 
 class TrackBlock:
@@ -233,7 +172,7 @@ class TrackBlock:
         yield self.get_basic_info_row()
         yield [Column(self.get_info_rows(editable))]
 
-    def as_rows(self, editable: bool = True):
+    def as_all_tag_rows(self, editable: bool = True):
         yield [HorizontalSeparator()]
         yield self.get_basic_info_row()
         yield [Column([[self.cover_image]]), Column(self.get_tag_rows(editable))]

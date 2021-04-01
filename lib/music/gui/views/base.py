@@ -74,6 +74,8 @@ class ViewManager(WindowLoopMixin):
             self.window = new_window
             self._window_size = new_window.size
         else:
+            kwargs.setdefault('keep_on_top', True)
+            kwargs.setdefault('modal', True)
             new_window = self._new_window(layout, (), kwargs)
         return new_window
 

@@ -23,7 +23,7 @@ def path_prompt(popup_func: Callable, args: Tuple, kwargs: Dict, must_exist: boo
         validator, path_type = 'exists', 'path'
 
     while True:
-        if path := popup_func(*args, **kwargs):
+        if path := popup_func(*args, no_window=True, **kwargs):
             path = Path(path).resolve()
             if must_exist and not getattr(path, validator)():
                 Popup(f'Invalid {path_type}: {path}', title=f'Invalid {path_type}')

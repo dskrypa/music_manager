@@ -9,8 +9,7 @@ from functools import cached_property
 from io import BytesIO
 from typing import TYPE_CHECKING, Optional
 
-from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, Button
-from PySimpleGUI import popup_ok
+from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, popup_ok
 
 from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir

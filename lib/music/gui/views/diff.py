@@ -6,10 +6,13 @@ Gui Views
 
 import logging
 from dataclasses import fields
+from functools import cached_property
+from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from PySimpleGUI import Text, Button, Column, Element, Checkbox, Frame, Submit, Input
+from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, Button
 
 from ...files.album import AlbumDir
 from ...files.changes import get_common_changes
@@ -29,17 +32,56 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album_info = album_info
         self.dry_run = False
         self.add_genre = True
+        self.disable_input = False
+
+    @cached_property
+    def file_info_map(self):
+        return self.album_info.get_file_info_map(self.album)
+
+    @cached_property
+    def file_tag_map(self):
+        return {file: info.tags() for file, info in self.file_info_map.items()}
+
+    @cached_property
+    def cover_images(self) -> tuple[Optional[bytes], Optional[bytes]]:
+        file_img = self.album_info.get_current_cover(self.file_info_map) if self.album_info.cover_path else None
+        image, img_data = self.album_info.get_new_cover(self.album, file_img)
+        if img_data is not None:
+            bio = BytesIO()
+            file_img.save(bio, 'jpeg')
+            return bio.getvalue(), img_data
+        return None, None
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
 
-        album_dir = self.album_info.album_dir
-        file_info_map = self.album_info.get_file_info_map(album_dir)
-        file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
-        image, img_data = self.album_info.get_new_cover(album_dir, file_info_map)
+        options_layout = [
+            [
+                Checkbox('Dry Run', default=self.dry_run, disabled=self.disable_input, key='dry_run'),
+                Checkbox('Add Genre', default=self.add_genre, disabled=self.disable_input, key='add_genre'),
+            ],
+            [Submit(disabled=self.disable_input, key='apply_changes')],
+        ]
+        layout.append([Frame('options', options_layout)])
+        layout.append([HorizontalSeparator()])
+
+        # layout.append()
+
+        file_data, img_data = self.cover_images
+        if img_data is not None:
+            layout.append([
+                Image(data=file_data, size=(250, 250), key='cover::orig'),
+                Text('->', key='cover::arrow'),
+                Image(data=img_data, size=(250, 250), key='cover::new'),
+            ])
+            layout.append([HorizontalSeparator()])
+
         common_changes = get_common_changes(
-            album_dir, file_tag_map, dry_run=self.dry_run, add_genre=self.add_genre, show=False
+            self.album, self.file_tag_map, dry_run=self.dry_run, add_genre=self.add_genre, show=False
         )
+        if common_changes:
+            for tag_name, (orig_val, new_val) in common_changes.items():
+                pass
 
         """
         _fmt = '  - {{:<{}s}}{}{{:>{}s}}{}{{}}'
@@ -86,6 +128,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album_info.update_and_move(self.album, None, dry_run=True)
 
         return layout, kwargs
+
+    @event_handler
+    def apply_changes(self, event: str, data: dict[str, Any]):
+        pass
 
 
 def maybe_rename_track(file: SongFile, track_name: str, num: int, dry_run: bool = False):

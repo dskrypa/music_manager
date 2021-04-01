@@ -229,25 +229,23 @@ class AlbumInfo(GenreMixin):
         if not no_album_move:
             self.move_album(album_dir, dest_base_dir, dry_run)
 
-    def get_new_cover(
-        self, album_dir: AlbumDir = None, file_info_map: Dict[SongFile, TrackInfo] = None
-    ) -> tuple[Image.Image, bytes]:
-        album_dir = album_dir or self.album_dir
-        file_info_map = file_info_map or self.get_file_info_map(album_dir)
-        if self.cover_path:
+    def get_current_cover(self, file_info_map: Dict[SongFile, TrackInfo]) -> Optional[Image.Image]:
+        try:
+            song_file = next(iter(file_info_map))
+            return song_file.get_cover_image()
+        except Exception as e:
+            log.warning(f'Unable to compare the current cover image to {self.cover_path}: {e}')
+            return None
+
+    def get_new_cover(self, album_dir: AlbumDir, file_img: Image.Image = None) -> tuple[Image.Image, bytes]:
+        if self.cover_path and file_img:
             log.debug(f'Loading cover image from {self.cover_path}')
             image, img_data = _jpeg_from_path(self.cover_path, self.cover_max_width)
-            try:
-                song_file = next(iter(file_info_map))
-                file_img = song_file.get_cover_image()
-            except Exception as e:
-                log.warning(f'Unable to compare the current cover image to {self.cover_path}: {e}')
+            if ComparableImage(image).is_same_as(ComparableImage(file_img)):
+                log.debug(f'The cover image for {album_dir} already matches {self.cover_path}')
+                image, img_data = None, None
             else:
-                if ComparableImage(image).is_same_as(ComparableImage(file_img)):
-                    log.debug(f'The cover image for {album_dir} already matches {self.cover_path}')
-                    image, img_data = None, None
-                else:
-                    log.info(f'Would update the cover image for {album_dir} to match {self.cover_path}')
+                log.info(f'Would update the cover image for {album_dir} to match {self.cover_path}')
         else:
             image, img_data = None, None
         return image, img_data
@@ -255,7 +253,8 @@ class AlbumInfo(GenreMixin):
     def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False, add_genre: bool = True):
         file_info_map = self.get_file_info_map(album_dir)
         file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
-        image, img_data = self.get_new_cover(album_dir, file_info_map)
+        file_img = self.get_current_cover(file_info_map) if self.cover_path else None
+        image, img_data = self.get_new_cover(album_dir, file_img)
         common_changes = get_common_changes(
             album_dir, file_tag_map, extra_newline=True, dry_run=dry_run, add_genre=add_genre
         )

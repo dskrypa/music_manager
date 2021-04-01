@@ -1,5 +1,5 @@
 """
-Formatting helper functions.
+Album / track formatting helper functions.
 
 :author: Doug Skrypa
 """
@@ -13,15 +13,15 @@ from typing import TYPE_CHECKING, Optional
 from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, Button
 from PySimpleGUI import popup_ok
 
-from ..constants import typed_tag_name_map
-from ..files.album import AlbumDir
-from ..files.track.track import SongFile
-from ..manager.update import AlbumInfo, TrackInfo
-from .constants import LoadingSpinner
-from .progress import Spinner
+from ...constants import typed_tag_name_map
+from ...files.album import AlbumDir
+from ...files.track.track import SongFile
+from ...manager.update import AlbumInfo, TrackInfo
+from ..constants import LoadingSpinner
+from ..progress import Spinner
 
 if TYPE_CHECKING:
-    from .base import GuiBase
+    from .base import GuiView
 
 __all__ = ['TrackBlock', 'AlbumBlock']
 log = logging.getLogger(__name__)
@@ -33,8 +33,8 @@ class VScrollColumn(Column):
 
 
 class AlbumBlock:
-    def __init__(self, gui: 'GuiBase', album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
-        self.gui = gui
+    def __init__(self, view: 'GuiView', album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
+        self.view = view
         self.album_dir = album_dir
         self.album_info = AlbumInfo.from_album_dir(album_dir)
         self.cover_size = cover_size
@@ -138,11 +138,7 @@ class AlbumBlock:
                 ele.update(disabled=not self.editing)
 
         self.gui.window['col::view_buttons'].update(visible=not self.editing)
-        # self.gui.window['edit_album'].update(visible=not self.editing)
-        # self.gui.window['view_tags'].update(visible=not self.editing)
         self.gui.window['col::edit_buttons'].update(visible=self.editing)
-        # self.gui.window['album_changes::save'].update(visible=self.editing)
-        # self.gui.window['album_changes::cancel'].update(visible=self.editing)
 
 
 class TrackBlock:

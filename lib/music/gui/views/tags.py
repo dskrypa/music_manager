@@ -6,7 +6,7 @@ Gui Views
 
 import logging
 from itertools import chain
-from typing import Any, Optional
+from typing import Any
 
 from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element
 
@@ -22,14 +22,13 @@ log = logging.getLogger(__name__)
 
 
 class AllTagsView(MainView, view_name='all_tags'):
-    def __init__(self, mgr: 'ViewManager', album: AlbumDir):
+    def __init__(self, mgr: 'ViewManager', album: AlbumDir, album_block: AlbumBlock = None):
         super().__init__(mgr)
         self.album = album
-        self.album_block: Optional[AlbumBlock] = None
+        self.album_block = album_block or AlbumBlock(self, self.album)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
-        self.album_block = AlbumBlock(self, self.album)
 
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])

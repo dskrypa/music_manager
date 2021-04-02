@@ -7,7 +7,7 @@ Album / track formatting helper functions.
 import logging
 from functools import cached_property
 from io import BytesIO
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, popup_ok
 
@@ -15,6 +15,7 @@ from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
+from .utils import resize_text_column, label_and_val_key
 
 if TYPE_CHECKING:
     from .base import GuiView
@@ -29,7 +30,6 @@ class AlbumBlock:
         self.album_dir = album_dir
         self.album_info = AlbumInfo.from_album_dir(album_dir)
         self.cover_size = cover_size
-        self.editing = False
 
     @cached_property
     def track_blocks(self):
@@ -59,24 +59,20 @@ class AlbumBlock:
 
     def get_album_data_rows(self, editable: bool = False):
         rows = []
-        longest = 0
         skip = {'tracks'}
         always_ro = {'mp4'}
         for key, value in self.album_info.to_dict().items():
             if key in skip:
                 continue
 
-            longest = max(longest, len(key))
-            tag_key = f'key::album::{key}'
-            val_key = f'val::album::{key}'
+            key_ele, val_key = label_and_val_key('album', key)
             disp_value = repr(value) if value is not None and not isinstance(value, str) else value
-            value = Input(disp_value, key=val_key, disabled=not editable or key in always_ro)
-            rows.append([Text(key.replace('_', ' ').title(), key=tag_key), value])
+            val_ele = Input(disp_value, key=val_key, disabled=not editable or key in always_ro)
+            rows.append([key_ele, val_ele])
 
-        for row in rows:
-            row[0].Size = (longest, 1)
+        return resize_text_column(rows)
 
-        return rows
+    # def get_album_diff_rows(self, ):
 
 
 class TrackBlock:
@@ -100,13 +96,11 @@ class TrackBlock:
 
     @property
     def cover_image(self) -> Image:
-        key = f'{self.track.path.as_posix()} -- cover'
-        if data := self._cover_image_data:
-            return Image(data=data, size=self.cover_size, key=key)
-        return Image(size=self.cover_size, key=key)
+        # If self._cover_image_data is None, it will be a blank frame
+        return Image(data=self._cover_image_data, size=self.cover_size, key=f'img::{self.path_str}::cover')
 
     @cached_property
-    def tag_values(self):
+    def tag_values(self) -> dict[str, tuple[str, Any]]:
         tag_name_map = typed_tag_name_map.get(self.track.tag_type, {})
         tag_values = {}
         for tag, val in sorted(self.track.tags.items()):
@@ -117,41 +111,32 @@ class TrackBlock:
             tag_values[tag] = (tag_name, val)
         return tag_values
 
+    @cached_property
+    def path_str(self) -> str:
+        return self.track.path.as_posix()
+
     def get_tag_rows(self, editable: bool = True) -> list[list[Element]]:
         rows = []
-        longest = 0
-        track_path = self.track.path.as_posix()
         for tag, (tag_name, val) in self.tag_values.items():
-            longest = max(longest, len(tag_name))
-            tag_key = f'{track_path} -- tag -- {tag}'
-            val_key = f'{track_path} -- val -- {tag}'
+            key_ele = Text(tag_name, key=f'tag::{self.path_str}::{tag}')
+            val_key = f'val::{self.path_str}::{tag}'
             if tag_name == 'Lyrics':
-                value = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
+                val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
             else:
-                value = Input(val, key=val_key, disabled=not editable)
+                val_ele = Input(val, key=val_key, disabled=not editable)
 
-            rows.append([Text(tag_name, key=tag_key), value])
+            rows.append([key_ele, val_ele])
 
-        for row in rows:
-            row[0].Size = (longest, 1)
-
-        return rows
+        return resize_text_column(rows)
 
     def get_info_rows(self, editable: bool = True):
         rows = []
-        longest = 0
-        track_path = self.track.path.as_posix()
         for key, value in self.info.to_dict().items():
-            longest = max(longest, len(key))
-            tag_key = f'key::{track_path}::{key}'
-            val_key = f'val::{track_path}::{key}'
-            value = Input(value, key=val_key, disabled=not editable)
-            rows.append([Text(key.replace('_', ' ').title(), key=tag_key), value])
+            key_ele, val_key = label_and_val_key(self.path_str, key)
+            val_ele = Input(value, key=val_key, disabled=not editable)
+            rows.append([key_ele, val_ele])
 
-        for row in rows:
-            row[0].Size = (longest, 1)
-
-        return rows
+        return resize_text_column(rows)
 
     def get_basic_info_row(self):
         track = self.track

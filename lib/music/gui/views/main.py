@@ -59,7 +59,7 @@ class MainView(BaseView, view_name='main'):
         if album := self.get_album_selection():
             from .album import AlbumView
 
-            return AlbumView(self.mgr, album)
+            return AlbumView(self.mgr, album, getattr(self, 'album_block', None), editing=True)
 
     @event_handler('Clean')  # noqa
     def clean(self, event: str, data: dict[str, Any]):

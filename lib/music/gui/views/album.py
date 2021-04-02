@@ -7,7 +7,7 @@ Gui Views
 import logging
 from dataclasses import fields
 from itertools import chain
-from typing import Any, Optional
+from typing import Any
 
 from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button
 
@@ -24,16 +24,14 @@ log = logging.getLogger(__name__)
 
 
 class AlbumView(MainView, view_name='album'):
-    def __init__(self, mgr: 'ViewManager', album: AlbumDir):
+    def __init__(self, mgr: 'ViewManager', album: AlbumDir, album_block: AlbumBlock = None, editing: bool = False):
         super().__init__(mgr)
         self.album = album
-        self.album_block: Optional[AlbumBlock] = None
-        self.editing = False
+        self.album_block = album_block or AlbumBlock(self, self.album)
+        self.editing = editing
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
-        self.album_block = AlbumBlock(self, self.album)
-
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
             layout.append([HorizontalSeparator()])
@@ -70,7 +68,7 @@ class AlbumView(MainView, view_name='album'):
     def all_tags(self, event: str, data: dict[str, Any]):
         from .tags import AllTagsView
 
-        return AllTagsView(self.mgr, self.album)
+        return AllTagsView(self.mgr, self.album, self.album_block)
 
     @event_handler
     def cancel(self, event: str, data: dict[str, Any]):
@@ -97,7 +95,7 @@ class AlbumView(MainView, view_name='album'):
             except Exception:
                 pass
             else:
-                if key_type == 'val':
+                if key_type == 'tag':
                     try:
                         value = info_fields[key].type(value)
                     except (KeyError, TypeError, ValueError):
@@ -109,7 +107,7 @@ class AlbumView(MainView, view_name='album'):
         info_dict['tracks'] = track_info_dict
 
         album_info = AlbumInfo.from_dict(info_dict)
-        return AlbumDiffView(self.mgr, self.album, album_info)
+        return AlbumDiffView(self.mgr, self.album, album_info, self.album_block)
 
     def toggle_editing(self):
         self.editing = not self.editing

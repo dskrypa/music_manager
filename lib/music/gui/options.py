@@ -125,7 +125,7 @@ class GuiOptions:
         defaults = []
         for name, opt in self.options.items():
             try:
-                val = data[f'opt::{name}'].strip()
+                val = data[f'opt::{name}']
             except KeyError:
                 if opt['required']:
                     errors.append(RequiredOptionMissing(opt))
@@ -134,6 +134,9 @@ class GuiOptions:
                 else:
                     defaults.append(name)
             else:
+                if isinstance(val, str):
+                    val = val.strip()
+
                 opt_type = opt['opt_type']
                 if opt_type == 'input' and opt['type'] is not str:
                     try:

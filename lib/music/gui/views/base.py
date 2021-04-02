@@ -237,11 +237,11 @@ class BaseView(GuiView, view_name='base'):
 
     def handle_event(self, event: str, data: dict[str, Any]):
         try:
-            super().handle_event(event, data)
-        except NoEventHandlerRegistered as e:
+            return super().handle_event(event, data)
+        except NoEventHandlerRegistered:
             pass
         try:
-            super().handle_event(event.lower().replace(' ', '_'), data)
+            return super().handle_event(event.lower().replace(' ', '_'), data)
         except NoEventHandlerRegistered as e:
             if e.view is self:
                 log.warning(e)

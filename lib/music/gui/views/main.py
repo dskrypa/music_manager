@@ -1,5 +1,7 @@
 """
-Gui Views
+Main view for the Music Manager GUI.  All other main window views extend this view.
+
+Defines the top menu and some common configuration properties.
 
 :author: Doug Skrypa
 """

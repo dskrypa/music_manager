@@ -1,5 +1,5 @@
 """
-Gui Views
+View: Album + track tag values.  Allows editing, after which the view transitions to the diff view.
 
 :author: Doug Skrypa
 """

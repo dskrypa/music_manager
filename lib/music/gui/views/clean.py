@@ -1,5 +1,5 @@
 """
-Gui Views
+View: Interface for cleaning undesirable tags and calculating/adding BPM if desired.
 
 :author: Doug Skrypa
 """

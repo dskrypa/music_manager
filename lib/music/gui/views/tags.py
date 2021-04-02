@@ -1,5 +1,5 @@
 """
-Gui Views
+View: All tags on each track (as opposed to the album view which only shows common tags once)
 
 :author: Doug Skrypa
 """

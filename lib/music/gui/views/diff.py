@@ -1,5 +1,5 @@
 """
-Gui Views
+View: Diff between original and modified tag values.  Used for both manual and Wiki-based updates.
 
 :author: Doug Skrypa
 """

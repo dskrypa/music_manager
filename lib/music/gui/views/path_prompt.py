@@ -1,7 +1,7 @@
 """
 View: Path Prompt
 
-Mainly added this to just be able to make ESC work to exit the path prompt...
+Mainly added this to just be able to make ESC work to cancel the path prompt...
 
 :author: Doug Skrypa
 """

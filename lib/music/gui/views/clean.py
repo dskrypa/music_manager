@@ -5,19 +5,20 @@ Gui Views
 """
 
 import logging
-from functools import partial, cached_property
+from functools import partial
 from multiprocessing import Pool
 from typing import Any, Optional
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input
+from PySimpleGUI import Text, Element
 from PySimpleGUI import popup_ok
 
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ...common.utils import aubio_installed
 from ...files.album import AlbumDir
 from ...manager.file_update import _add_bpm
-from ..prompts import popup_input_invalid
+from ..options import GuiOptions, GuiOptionError, SingleParsingError
 from ..progress import ProgressTracker
+from ..prompts import popup_input_invalid
 from .base import ViewManager, event_handler
 from .main import MainView
 
@@ -30,39 +31,19 @@ class CleanView(MainView, view_name='clean'):
         super().__init__(mgr)
         self.album = album
         bpm_ok = aubio_installed()
-        self.defaults = {'bpm': bpm_ok, 'dry_run': False, 'threads': '4'}
-        self.disabled = {'bpm': not bpm_ok, 'dry_run': False, 'threads': False}
+        self.options = GuiOptions(self, disable_on_parsed=True)
+        self.options.add_bool('bpm', 'Add BPM', bpm_ok, disabled=not bpm_ok, tooltip='requires Aubio')
+        self.options.add_bool('dry_run', 'Dry Run')
+        self.options.add_input('threads', 'BPM Threads', 4, row=1, type=int)
         self.prog_tracker: Optional[ProgressTracker] = None
-        self.data = {}
-        self.threads = 4
-
-    @cached_property
-    def vals(self):
-        return {key: self.data.get(key, default) for key, default in self.defaults.items()}
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
-        kvargs = {key: {'key': key, 'disabled': self.disabled[key], 'default': val} for key, val in self.vals.items()}
-        del kvargs['threads']['default']
-        options_layout = [
-            [Checkbox('Add BPM', tooltip='requires Aubio', **kvargs['bpm']), Checkbox('Dry Run', **kvargs['dry_run'])],
-            [Text('BPM Threads'), Input(self.vals['threads'], **kvargs['threads'])],
-            [Submit(disabled=False, key='run_clean')],
-        ]
-
-        try:
-            self.threads = int(self.vals['threads'])
-        except (ValueError, TypeError):
-            self.threads = 4
-            popup_input_invalid(
-                f'Invalid BPM threads value={self.vals["threads"]} (must be an integer) - using 4 instead'
-            )
-
+        layout.append([self.options.as_frame('run_clean')])
         n_tracks = len(self.album)
-        total_steps = n_tracks * 2 + (n_tracks if self.vals['bpm'] else 0)
+        total_steps = n_tracks * 2 + (n_tracks if self.options['bpm'] else 0)
         track_text = Text('', size=(100, 1))
         self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(300, 30))
-        layout.append([Frame('options', options_layout)])
         layout.append([self.prog_tracker.bar])
         layout.append([Text('Processing:'), track_text])
         return layout, kwargs
@@ -71,20 +52,28 @@ class CleanView(MainView, view_name='clean'):
     def run_clean(self, event: str, data: dict[str, Any]):
         from .album import AlbumView
 
-        self.data = data
-        del self.__dict__['vals']
-        self.render()
+        try:
+            self.options.parse(data)
+        except GuiOptionError as e:
+            if isinstance(e, SingleParsingError) and e.option['name'] == 'threads':
+                popup_input_invalid(f'Invalid BPM threads value={e.value!r} (must be an integer) - using 4 instead')
+                self.options['threads'] = 4
+            else:
+                popup_input_invalid(e)
+                return self
 
-        dry_run = self.vals['dry_run']
+        self.render()  # to disable inputs
+
+        dry_run = self.options['dry_run']
         self.album.remove_bad_tags(dry_run, self.prog_tracker.update)
         self.album.fix_song_tags(dry_run, add_bpm=False, callback=self.prog_tracker.update)
-        if self.vals['bpm']:
+        if self.options['bpm']:
             self.prog_tracker.text.update('Adding BPM...')
             _init_logging = partial(init_logging, 2, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
             add_bpm_func = partial(_add_bpm, dry_run=dry_run)
             # Using a list instead of an iterator because pool.map needs to be able to chunk the items
             tracks = [f for f in self.album if f.tag_type != 'flac']
-            with Pool(self.threads, _init_logging) as pool:
+            with Pool(self.options['threads'], _init_logging) as pool:
                 for result in self.prog_tracker(pool.imap_unordered(add_bpm_func, tracks)):
                     pass
 

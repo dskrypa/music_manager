@@ -45,6 +45,7 @@ class AlbumView(MainView, view_name='album'):
                     [
                         Column([[self.album_block.cover_image]], key='col::album_cover'),
                         Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
+                        # TODO: Make bool fields be checkboxes
                     ],
                     [HorizontalSeparator()],
                     [
@@ -90,12 +91,14 @@ class AlbumView(MainView, view_name='album'):
         info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
 
         for data_key, value in data.items():
-            try:
-                key_type, obj, key = data_key.split('::')  # val::album::key
+            # log.debug(f'Processing {data_key=!r}')
+            try:  # val::album::key
+                key_type, obj_key = data_key.split('::', 1)
+                obj, key = obj_key.rsplit('::', 1)
             except Exception:
                 pass
             else:
-                if key_type == 'tag':
+                if key_type == 'val':
                     try:
                         value = info_fields[key].type(value)
                     except (KeyError, TypeError, ValueError):

@@ -163,7 +163,10 @@ class AlbumInfo(GenreMixin):
 
     def to_dict(self, title_case: bool = False):
         data = self.__dict__.copy()
-        data['date'] = self.date.strftime('%Y-%m-%d')
+        try:
+            data['date'] = self.date.strftime('%Y-%m-%d')
+        except AttributeError:
+            data['date'] = None
         data['tracks'] = {path: track.to_dict(title_case) for path, track in self.tracks.items()}
         data['type'] = self.type.real_name if self.type is not None else None
         data['genre'] = self.norm_genres() if title_case else self.genre_list

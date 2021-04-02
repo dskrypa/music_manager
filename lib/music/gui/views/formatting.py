@@ -7,6 +7,7 @@ Album / track formatting helper functions.
 import logging
 from functools import cached_property
 from io import BytesIO
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any
 
 from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, popup_ok
@@ -15,7 +16,7 @@ from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
-from .utils import resize_text_column, label_and_val_key
+from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
 
 if TYPE_CHECKING:
     from .base import GuiView
@@ -66,13 +67,39 @@ class AlbumBlock:
                 continue
 
             key_ele, val_key = label_and_val_key('album', key)
-            disp_value = repr(value) if value is not None and not isinstance(value, str) else value
-            val_ele = Input(disp_value, key=val_key, disabled=not editable or key in always_ro)
+            val_ele = Input(display_value(value), key=val_key, disabled=not editable or key in always_ro)
             rows.append([key_ele, val_ele])
 
         return resize_text_column(rows)
 
-    # def get_album_diff_rows(self, ):
+    def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False):
+        rows = []
+        skip = {'tracks'}
+        new_info_dict = new_album_info.to_dict(title_case)
+        for key, src_val in self.album_info.to_dict(title_case).items():
+            if key in skip:
+                continue
+
+            new_val = new_info_dict[key]
+            if src_val != new_val:
+                label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
+                src_ele = Input(display_value(src_val), key=src_key, disabled=True)
+                new_ele = Input(display_value(new_val), key=new_key, disabled=True)
+                rows.append([label, sep_1, src_ele, sep_2, new_ele])
+
+        return resize_text_column(rows)
+
+    def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path) -> Optional[Path]:
+        try:
+            expected_rel_dir = new_album_info.expected_rel_dir
+        except AttributeError:
+            return None
+        dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
+        return dest_base_dir.joinpath(expected_rel_dir)
+
+
+def display_value(value: Any):
+    return repr(value) if value is not None and not isinstance(value, str) else value
 
 
 class TrackBlock:
@@ -138,6 +165,19 @@ class TrackBlock:
 
         return resize_text_column(rows)
 
+    def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False):
+        rows = []
+        new_info_dict = new_track_info.to_dict(title_case)
+        for key, src_val in self.info.to_dict(title_case).items():
+            new_val = new_info_dict[key]
+            if src_val != new_val:
+                label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
+                src_ele = Input(display_value(src_val), key=src_key, disabled=True)
+                new_ele = Input(display_value(new_val), key=new_key, disabled=True)
+                rows.append([label, sep_1, src_ele, sep_2, new_ele])
+
+        return resize_text_column(rows)
+
     def get_basic_info_row(self):
         track = self.track
         return [
@@ -154,9 +194,28 @@ class TrackBlock:
     def as_info_rows(self, editable: bool = True):
         yield [HorizontalSeparator()]
         yield self.get_basic_info_row()
-        yield [Column(self.get_info_rows(editable))]
+        yield [Column(self.get_info_rows(editable), key=f'col::{self.path_str}::tags')]
 
     def as_all_tag_rows(self, editable: bool = True):
         yield [HorizontalSeparator()]
         yield self.get_basic_info_row()
-        yield [Column([[self.cover_image]]), Column(self.get_tag_rows(editable))]
+        cover = Column([[self.cover_image]], key=f'col::{self.path_str}::cover')
+        tags = Column(self.get_tag_rows(editable), key=f'col::{self.path_str}::tags')
+        yield [cover, tags]
+
+    def as_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False):
+        yield [HorizontalSeparator()]
+        new_name = new_track_info.expected_name(self.track)
+        if self.track.path.name != new_name:
+            yield get_a_to_b('File Rename:', self.track.path.name, new_name, self.path_str, 'file_name')
+        else:
+            yield [
+                Text('File:'),
+                Input(self.track.path.name, disabled=True, key=f'src::{self.path_str}::file_name'),
+                Text('(no change)'),
+            ]
+
+        if diff_rows := self.get_diff_rows(new_track_info, title_case):
+            yield [Column(diff_rows, key=f'col::{self.path_str}::diff')]
+        else:
+            yield []

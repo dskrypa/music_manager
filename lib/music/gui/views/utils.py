@@ -9,9 +9,16 @@ import tkinter
 from contextlib import contextmanager
 from typing import Union
 
-from PySimpleGUI import Text, Element, Column, Window
+from PySimpleGUI import Text, Element, Column, Window, Input
 
-__all__ = ['resize_text_column', 'label_and_val_key', 'label_and_diff_keys', 'expand_columns', 'temp_hidden_window']
+__all__ = [
+    'resize_text_column',
+    'label_and_val_key',
+    'label_and_diff_keys',
+    'expand_columns',
+    'temp_hidden_window',
+    'get_a_to_b',
+]
 log = logging.getLogger(__name__)
 
 
@@ -33,6 +40,16 @@ def label_and_diff_keys(src: str, tag: str) -> tuple[Text, Text, Text, str, str]
     sep_1 = Text('from', key=f'from::{src}::{tag}')
     sep_2 = Text('to', key=f'to::{src}::{tag}')
     return label, sep_1, sep_2, f'src::{src}::{tag}', f'new::{src}::{tag}'
+
+
+def get_a_to_b(label: str, src_val: str, new_val: str, src: str, tag: str) -> list[Element]:
+    label_ele = Text(label)
+    src_kwargs = {'size': (len(src_val), 1)} if len(src_val) > 50 else {}
+    src_ele = Input(src_val, disabled=True, key=f'src::{src}::{tag}', **src_kwargs)
+    arrow = Text('->')
+    new_kwargs = {'size': (len(new_val), 1)} if len(new_val) > 50 else {}
+    new_ele = Input(new_val, disabled=True, key=f'new::{src}::{tag}', **new_kwargs)
+    return [label_ele, src_ele, arrow, new_ele]
 
 
 def expand_columns(rows: list[list[Element]]):

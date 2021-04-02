@@ -4,16 +4,13 @@ Gui Views
 :author: Doug Skrypa
 """
 
-import inspect
 import logging
-import webbrowser
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from pathlib import Path
-from functools import partial, update_wrapper, cached_property
+from functools import partial, update_wrapper
 from typing import Any, Optional, Callable, Type, Mapping, Union, Collection
 
-from PySimpleGUI import Window, WIN_CLOSED, Element, Text, OK, Menu, Column
+from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 
 from .exceptions import NoEventHandlerRegistered
 
@@ -57,10 +54,8 @@ class ViewManager(WindowLoopMixin):
 
     @staticmethod
     def _new_window(layout: list[list[Element]], args, kwargs) -> Window:
-        # noinspection PyTypeChecker
         new_window = Window(*args, layout=layout, **kwargs)
         new_window.finalize()
-        # new_window.read(0)
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
         return new_window
 
@@ -102,7 +97,7 @@ class event_handler:
         if isinstance(func, Callable):
             return super().__new__(cls)
         else:
-            if isinstance(func, str):  # somewhat hacky
+            if isinstance(func, str):  # somewhat hacky, but it works to simplify arg handling
                 aliases = (func, *args)
             return partial(cls, aliases=aliases, default=default)
 
@@ -219,13 +214,7 @@ class GuiView(WindowLoopMixin, ABC):
     def config_changed(self, event: str, data: dict[str, Any]):
         """
         Event handler for window configuration changes.
-
-        Known triggers:
-            - Resize window
-            - Move window
-            - Window gains focus
-            - Scroll
-
+        Known triggers: resize window, move window, window gains focus, scroll
         """
         new_size = self.window.size
         old_size = self.mgr._window_size
@@ -250,13 +239,19 @@ class BaseView(GuiView, view_name='base'):
         try:
             super().handle_event(event, data)
         except NoEventHandlerRegistered as e:
+            pass
+        try:
+            super().handle_event(event.lower().replace(' ', '_'), data)
+        except NoEventHandlerRegistered as e:
             if e.view is self:
                 log.warning(e)
             else:
                 raise
 
-    @event_handler('About')  # noqa
+    @event_handler
     def about(self, event: str, data: dict[str, Any]):
+        from .about import AboutView
+
         return AboutView(self.mgr)
 
     # @event_handler
@@ -265,65 +260,3 @@ class BaseView(GuiView, view_name='base'):
     #     if self.state.get('view') == 'tracks':
     #         log.debug(f'Expanding columns on {self.window}')
     #         expand_columns(self.window.Rows)
-
-
-class AboutView(GuiView, view_name='about', primary=False):
-    def __init__(self, mgr: 'ViewManager'):
-        super().__init__(mgr, binds={'<Escape>': 'Exit'})
-
-    @cached_property
-    def top_level_name(self):
-        try:
-            return Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem
-        except Exception as e:
-            log.debug(f'Error determining top-level script info: {e}')
-            return '[unknown]'
-
-    @cached_property
-    def top_level_globals(self):
-        try:
-            return inspect.stack()[-1].frame.f_globals
-        except Exception as e:
-            log.debug(f'Error determining top-level script info: {e}')
-            return {}
-
-    @cached_property
-    def url(self):
-        return self.top_level_globals.get('__url__', '[unknown]')
-
-    @event_handler
-    def link_clicked(self, event: str, data: dict[str, Any]):
-        webbrowser.open(self.url)
-
-    @event_handler(default=True)  # noqa
-    def default(self, event: str, data: dict[str, Any]):
-        raise StopIteration
-
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
-        if self.url != '[unknown]':
-            link = Text(self.url, enable_events=True, key='link_clicked', text_color='blue')
-        else:
-            link = Text(self.url)
-
-        layout = [
-            [Text('Program:', size=(12, 1)), Text(self.top_level_name)],
-            [Text('Author:', size=(12, 1)), Text(self.top_level_globals.get('__author__', '[unknown]'))],
-            [Text('Version:', size=(12, 1)), Text(self.top_level_globals.get('__version__', '[unknown]'))],
-            [Text('Project URL:', size=(12, 1)), link],
-            [OK()],
-        ]
-        return layout, {'title': 'About'}
-
-
-def expand_columns(rows: list[list[Element]]):
-    for row in rows:
-        for ele in row:
-            if isinstance(ele, Column):
-                ele.expand(True, True)
-            try:
-                ele_rows = ele.Rows
-            except AttributeError:
-                pass
-            else:
-                log.debug(f'Expanding columns on {ele}')
-                expand_columns(ele_rows)

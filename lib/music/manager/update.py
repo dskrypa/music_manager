@@ -97,6 +97,18 @@ class TrackInfo(GenreMixin):
         }
         return {k: v for k, v in tags.items() if v is not None}
 
+    def expected_name(self, file: SongFile):
+        return TRACK_NAME_FORMAT(track=self.name or self.title, ext=file.ext, num=self.num)
+
+    def maybe_rename(self, file: SongFile, dry_run: bool = False):
+        filename = self.expected_name(file)
+        if file.path.name != filename:
+            prefix = '[DRY RUN] Would rename' if dry_run else 'Renaming'
+            rel_path = Path(file.rel_path)
+            log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')
+            if not dry_run:
+                file.rename(file.path.with_name(filename))
+
 
 @dataclass
 class AlbumInfo(GenreMixin):
@@ -263,7 +275,7 @@ class AlbumInfo(GenreMixin):
             file.update_tags(file_tag_map[file], dry_run, no_log=common_changes, add_genre=add_genre)
             if image is not None:
                 file.set_cover_data(image, dry_run, img_data)
-            maybe_rename_track(file, info.name or info.title, info.num, dry_run)
+            info.maybe_rename(file, dry_run)
 
     @property
     def expected_rel_dir(self) -> str:
@@ -335,16 +347,6 @@ def _album_format(date, num, solo_ost, disks=1, ost=False):
     if disks and disks > 1 and not ost:
         path += SafePath('Disk {disk}')
     return path
-
-
-def maybe_rename_track(file: SongFile, track_name: str, num: int, dry_run: bool = False):
-    prefix = '[DRY RUN] Would rename' if dry_run else 'Renaming'
-    filename = TRACK_NAME_FORMAT(track=track_name, ext=file.ext, num=num)
-    if file.path.name != filename:
-        rel_path = Path(file.rel_path)
-        log.info(f'{prefix} {rel_path.parent}/{colored(rel_path.name, 11)} -> {colored(filename, 10)}')
-        if not dry_run:
-            file.rename(file.path.with_name(filename))
 
 
 def normalize_case(text: str) -> str:

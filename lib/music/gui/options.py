@@ -92,8 +92,12 @@ class GuiOptions:
             while len(layout) < (row_num + 1):
                 layout.append([])
             row = layout[row_num]  # type: list[Element]
+
             val = opt.get('value', opt['default'])
             common = {'key': f'opt::{name}', 'disabled': disable_all or opt['disabled']}
+            if opt_kwargs := opt.get('kwargs'):
+                common.update(opt_kwargs)
+
             if opt_type == 'checkbox':
                 row.append(Checkbox(opt['label'], default=val, tooltip=opt['tooltip'], **common))
             elif opt_type == 'input':

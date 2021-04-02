@@ -22,10 +22,13 @@ def path_prompt(popup_func: Callable, args: Tuple, kwargs: Dict, must_exist: boo
     else:
         validator, path_type = 'exists', 'path'
 
+    kwargs.setdefault('no_window', True)
     while True:
-        if path := popup_func(*args, no_window=True, **kwargs):
+        if path := popup_func(*args, **kwargs):
             path = Path(path).resolve()
             if must_exist and not getattr(path, validator)():
+                Popup(f'Invalid {path_type}: {path}', title=f'Invalid {path_type}')
+            elif popup_func is popup_get_folder and path.exists() and not path.is_dir():
                 Popup(f'Invalid {path_type}: {path}', title=f'Invalid {path_type}')
             else:
                 return path

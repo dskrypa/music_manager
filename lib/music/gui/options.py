@@ -12,7 +12,6 @@ from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input
 if TYPE_CHECKING:
     from .views.base import GuiView
 
-
 __all__ = ['GuiOptions', 'GuiOptionError', 'SingleParsingError', 'RequiredOptionMissing', 'MultiParsingError']
 log = logging.getLogger(__name__)
 _NotSet = object()
@@ -122,7 +121,7 @@ class GuiOptions:
         defaults = []
         for name, opt in self.options.items():
             try:
-                val = data[f'opt::{name}']
+                val = data[f'opt::{name}'].strip()
             except KeyError:
                 if opt['required']:
                     errors.append(RequiredOptionMissing(opt))

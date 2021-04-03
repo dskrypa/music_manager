@@ -43,17 +43,17 @@ def default(cls):
 
 class GenreMixin:
     @property
-    def genre_set(self):
+    def genre_set(self) -> set[str]:
         if genre := self.genre:  # noqa
             return {genre} if isinstance(genre, str) else set(genre)
         else:
             return set()
 
     @property
-    def genre_list(self):
+    def genre_list(self) -> list[str]:
         return sorted(self.genre_set)
 
-    def norm_genres(self):
+    def norm_genres(self) -> list[str]:
         return list(map(normalize_case, self.genre_set))
 
 

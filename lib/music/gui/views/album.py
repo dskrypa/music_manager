@@ -72,6 +72,7 @@ class AlbumView(MainView, view_name='album'):
     @event_handler
     def cancel(self, event: str, data: dict[str, Any]):
         self.editing = False
+        self.album_block.reset_changes()
         self.render()
 
     @event_handler('Edit')  # noqa
@@ -108,6 +109,7 @@ class AlbumView(MainView, view_name='album'):
         info_dict['tracks'] = track_info_dict
 
         album_info = AlbumInfo.from_dict(info_dict)
+        self.album_block.album_info = album_info
         return AlbumDiffView(self.album, album_info, self.album_block)
 
     def toggle_editing(self):

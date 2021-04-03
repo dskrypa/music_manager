@@ -8,7 +8,7 @@ from functools import cached_property
 from io import BytesIO
 from typing import Any, Optional
 
-from PySimpleGUI import Text, Input, Image, HorizontalSeparator, Column, Element
+from PySimpleGUI import Text, Input, Image, HorizontalSeparator, Column, Element, Button
 
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
@@ -55,7 +55,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         return None, None
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
-        layout, kwargs = super().get_render_args()
+        full_layout, kwargs = super().get_render_args()
+
+        layout = []  # noqa
         layout.append([self.options.as_frame('apply_changes')])
         layout.append([HorizontalSeparator()])
 
@@ -68,7 +70,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             ])
             layout.append([HorizontalSeparator()])
 
-        dest_album_path = self.album_block.get_dest_path(self.album_info, self.output_base_dir)
+        dest_album_path = self.album_block.get_dest_path(self.album_info, self.output_sorted_dir)
         if dest_album_path and self.album.path != dest_album_path:
             layout.append(
                 get_a_to_b('Album Rename:', self.album.path.as_posix(), dest_album_path.as_posix(), 'album', 'path')
@@ -76,8 +78,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         else:
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
-        common_rows = self.album_block.get_album_diff_rows(self.album_info, self.options['title_case'])
-        layout.append([Column(common_rows, key='col::album::diff')])
+        if common_rows := self.album_block.get_album_diff_rows(self.album_info, self.options['title_case']):
+            layout.append([Column(common_rows, key='col::album::diff')])
+        else:
+            layout.append([Text('No common album changes.', justification='center')])
 
         layout.append([HorizontalSeparator()])
         layout.append([Text('Track Changes')])
@@ -93,15 +97,19 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
             layout.extend(track_block.as_diff_rows(track_info, self.options['title_case']))
 
-        # # TODO: Input sanitization/normalization
+        back_btn = Column([[Button('\u2770', key='edit', tooltip='Go back to edit', size=(5, 10))]])
+        content = Column(layout, key='col::diff_content')
+        next_btn = Column([[Button('\u2771', key='apply', tooltip='Apply changes', size=(5, 10))]])
+        full_layout.append([back_btn, content, next_btn])
+
         # self.album_info.update_and_move(self.album, None, dry_run=True)
-        return layout, kwargs
+        return full_layout, kwargs
 
     @event_handler('opt::title_case', 'opt::add_genre')  # noqa
     def refresh(self, event: str, data: dict[str, Any]):
         self.options.parse(data)
         self.render()
 
-    # @event_handler
-    # def apply_changes(self, event: str, data: dict[str, Any]):
-    #     pass
+    @event_handler('apply')  # noqa
+    def apply_changes(self, event: str, data: dict[str, Any]):
+        pass

@@ -9,7 +9,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any
 
-from PySimpleGUI import Text, Input, Image, Multiline, HorizontalSeparator, Column, Element, VerticalSeparator, popup_ok
+from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox
+from PySimpleGUI import HorizontalSeparator, VerticalSeparator, popup_ok
 
 from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
@@ -27,8 +28,30 @@ class AlbumBlock:
     def __init__(self, view: 'GuiView', album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
         self.view = view
         self.album_dir = album_dir
-        self.album_info = AlbumInfo.from_album_dir(album_dir)
+        self._src_album_info = AlbumInfo.from_album_dir(album_dir)
+        self._new_album_info = None
         self.cover_size = cover_size
+
+    @property
+    def log(self):
+        return self.view.log
+
+    @property
+    def album_info(self):
+        if self._new_album_info is None:
+            return self._src_album_info
+        return self._new_album_info
+
+    @album_info.setter
+    def album_info(self, value: AlbumInfo):
+        self._new_album_info = value
+        for path, track in self.track_blocks.items():
+            track.info = value.tracks[path]
+
+    def reset_changes(self):
+        self._new_album_info = None
+        for track in self:
+            track._new_info = None
 
     @cached_property
     def track_blocks(self):
@@ -63,29 +86,31 @@ class AlbumBlock:
         for key, value in self.album_info.to_dict().items():
             if key in skip:
                 continue
+            disabled = not editable or key in always_ro
 
             key_ele, val_key = label_and_val_key('album', key)
-            val_ele = Input(display_value(value), key=val_key, disabled=not editable or key in always_ro)
+            val_ele = value_ele(value, val_key, disabled)
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows)
+        return resize_text_column(rows) if rows else rows
 
     def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False):
         rows = []
         skip = {'tracks'}
         new_info_dict = new_album_info.to_dict(title_case)
-        for key, src_val in self.album_info.to_dict(title_case).items():
+        for key, src_val in self._src_album_info.to_dict(title_case).items():
             if key in skip:
                 continue
 
             new_val = new_info_dict[key]
-            if src_val != new_val:
+            if (src_val or new_val) and src_val != new_val:
+                self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
                 src_ele = Input(display_value(src_val), key=src_key, disabled=True)
                 new_ele = Input(display_value(new_val), key=new_key, disabled=True)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
-        return resize_text_column(rows)
+        return resize_text_column(rows) if rows else rows
 
     def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path) -> Optional[Path]:
         try:
@@ -100,6 +125,17 @@ def display_value(value: Any):
     return repr(value) if value is not None and not isinstance(value, str) else value
 
 
+def value_ele(value: Any, val_key: str, disabled: bool) -> Element:
+    if isinstance(value, bool):
+        val_ele = Checkbox('', default=value, key=val_key, disabled=disabled)
+    elif isinstance(value, list):
+        val_ele = Listbox(value, default_values=value, key=val_key, disabled=disabled, size=(45, len(value)))
+    else:
+        val_ele = Input(display_value(value), key=val_key, disabled=disabled)
+
+    return val_ele
+
+
 class TrackBlock:
     def __init__(
         self, album_block: AlbumBlock, track: SongFile, info: TrackInfo, cover_size: tuple[int, int] = (250, 250)
@@ -107,14 +143,29 @@ class TrackBlock:
         self.album_block = album_block
         self.track = track
         self.cover_size = cover_size
-        self.info = info
+        self._src_info = info
+        self._new_info = None
+
+    @property
+    def log(self):
+        return self.album_block.view.log
+
+    @property
+    def info(self):
+        if self._new_info is None:
+            return self._src_info
+        return self._new_info
+
+    @info.setter
+    def info(self, value: TrackInfo):
+        self._new_info = value
 
     @cached_property
     def _cover_image_data(self) -> Optional[bytes]:
         try:
             image = self.track.get_cover_image()
         except Exception:
-            self.album_block.view.log.error(f'Unable to load cover image for {self.track}')
+            self.log.error(f'Unable to load cover image for {self.track}')
             return None
         else:
             image.thumbnail(self.cover_size)
@@ -151,33 +202,42 @@ class TrackBlock:
             if tag_name == 'Lyrics':
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
             else:
-                val_ele = Input(val, key=val_key, disabled=not editable)
+                val_ele = value_ele(val, val_key, not editable)
+                # val_ele = Input(val, key=val_key, disabled=not editable)
 
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows)
+        return resize_text_column(rows) if rows else rows
 
     def get_info_rows(self, editable: bool = True):
         rows = []
         for key, value in self.info.to_dict().items():
             key_ele, val_key = label_and_val_key(self.path_str, key)
-            val_ele = Input(value, key=val_key, disabled=not editable)
+
+            val_ele = value_ele(value, val_key, not editable)
+            # val_ele = Input(value, key=val_key, disabled=not editable)
+
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows)
+        return resize_text_column(rows) if rows else rows
 
     def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False):
         rows = []
         new_info_dict = new_track_info.to_dict(title_case)
-        for key, src_val in self.info.to_dict(title_case).items():
+        for key, src_val in self._src_info.to_dict(title_case).items():
             new_val = new_info_dict[key]
-            if src_val != new_val:
+            if (src_val or new_val) and src_val != new_val:
+                self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
-                src_ele = Input(display_value(src_val), key=src_key, disabled=True)
-                new_ele = Input(display_value(new_val), key=new_key, disabled=True)
+
+                src_ele = value_ele(src_val, src_key, True)
+                new_ele = value_ele(new_val, new_key, True)
+                # src_ele = Input(display_value(src_val), key=src_key, disabled=True)
+                # new_ele = Input(display_value(new_val), key=new_key, disabled=True)
+
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
-        return resize_text_column(rows)
+        return resize_text_column(rows) if rows else rows
 
     def get_basic_info_row(self):
         track = self.track

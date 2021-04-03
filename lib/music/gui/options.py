@@ -7,7 +7,7 @@ Gui option rendering and parsing
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input
+from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input, Column
 
 if TYPE_CHECKING:
     from .views.base import GuiView
@@ -118,8 +118,9 @@ class GuiOptions:
 
         return layout
 
-    def as_frame(self, *args, **kwargs) -> Frame:
-        return Frame('options', self.layout(*args, **kwargs))
+    def as_frame(self, *args, **kwargs) -> Column:
+        frame = Frame('options', self.layout(*args, **kwargs), key='frame::options')
+        return Column([[frame]], key='col::frame_options', justification='center')
 
     def parse(self, data: dict[str, Any]) -> dict[str, Any]:
         errors = []

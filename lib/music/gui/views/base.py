@@ -97,6 +97,15 @@ class ViewLoggerAdapter(logging.LoggerAdapter):
         self.logger.handle = self.handle
 
     def handle(self, record: logging.LogRecord):
+        """
+        Sets the given record's name to be the full name of the module it was logged in, as if it was logged from a
+        logger initialized as ``log = logging.getLogger(__name__)``.  Since the view name is added via :meth:`.process`,
+        this is necessary to keep the logs consistent with the other loggers in use here.
+
+        The :attr:`LogRecord.module<logging.LogRecord.module>` attribute only contains the last part of the module name,
+        not the fully qualified version.  Manipulating that attribute to have the desired format would have required
+        manipulating all LogRecords rather than just the ones written through this adapter.
+        """
         if module := self.get_module(record):
             record.name = module
         return self._real_handle(record)

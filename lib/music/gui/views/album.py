@@ -30,8 +30,10 @@ class AlbumView(MainView, view_name='album'):
         self.editing = editing
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
-        layout, kwargs = super().get_render_args()
+        full_layout, kwargs = super().get_render_args()
+
         with Spinner(LoadingSpinner.blue_dots) as spinner:
+            layout = []
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
             layout.append([HorizontalSeparator()])
 
@@ -61,7 +63,14 @@ class AlbumView(MainView, view_name='album'):
             )
             layout.append([Column([[album_container, track_data]], key='col::all_data')])
 
-        return layout, kwargs
+        back_btn = Button('\u2770', key='btn::back', tooltip='Cancel Changes', size=(5, 10), visible=self.editing)
+        content = Column(layout, key='col::content')
+        next_btn = Button(
+            '\u2771', key='btn::next', tooltip='Review & Save Changes', size=(5, 10), visible=self.editing
+        )
+        full_layout.append([Column([[back_btn]], key='col::back'), content, Column([[next_btn]], key='col::next')])
+
+        return full_layout, kwargs
 
     @event_handler
     def all_tags(self, event: str, data: dict[str, Any]):
@@ -69,7 +78,7 @@ class AlbumView(MainView, view_name='album'):
 
         return AllTagsView(self.album, self.album_block)
 
-    @event_handler
+    @event_handler('btn::back')  # noqa
     def cancel(self, event: str, data: dict[str, Any]):
         self.editing = False
         self.album_block.reset_changes()
@@ -80,7 +89,7 @@ class AlbumView(MainView, view_name='album'):
         if not self.editing:
             self.toggle_editing()
 
-    @event_handler
+    @event_handler('btn::next')  # noqa
     def save(self, event: str, data: dict[str, Any]):
         from .diff import AlbumDiffView
 
@@ -121,3 +130,5 @@ class AlbumView(MainView, view_name='album'):
 
         self.window['col::view_buttons'].update(visible=not self.editing)
         self.window['col::edit_buttons'].update(visible=self.editing)
+        self.window['btn::back'].update(visible=self.editing)
+        self.window['btn::next'].update(visible=self.editing)

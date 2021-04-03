@@ -131,7 +131,8 @@ def value_ele(value: Any, val_key: str, disabled: bool) -> Element:
     elif isinstance(value, list):
         val_ele = Listbox(value, default_values=value, key=val_key, disabled=disabled, size=(45, len(value)))
     else:
-        val_ele = Input(display_value(value), key=val_key, disabled=disabled)
+        # val_ele = Input(display_value(value), key=val_key, disabled=disabled)
+        val_ele = Input(value, key=val_key, disabled=disabled)
 
     return val_ele
 

@@ -98,7 +98,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.extend(track_block.as_diff_rows(track_info, self.options['title_case']))
 
         back_btn = Column([[Button('\u2770', key='edit', tooltip='Go back to edit', size=(5, 10))]])
-        content = Column(layout, key='col::diff_content')
+        content = Column(layout, key='col::content')
         next_btn = Column([[Button('\u2771', key='apply', tooltip='Apply changes', size=(5, 10))]])
         full_layout.append([back_btn, content, next_btn])
 

@@ -21,6 +21,7 @@ event handler loop control is transferred to that view until it is closed, and t
 """
 
 import logging
+import sys
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import partial, update_wrapper
@@ -86,9 +87,28 @@ class event_handler:
 
 
 class ViewLoggerAdapter(logging.LoggerAdapter):
+    _path_log_map = None
+
     def __init__(self, view: 'GuiView'):
-        super().__init__(logging.getLogger(view.__class__.__module__), {'view': view.name})
+        cls = view.__class__
+        super().__init__(logging.getLogger(f'{cls.__module__}.{cls.__name__}'), {'view': view.name})
         self._view_name = view.name
+        self._real_handle = self.logger.handle
+        self.logger.handle = self.handle
+
+    def handle(self, record: logging.LogRecord):
+        if module := self.get_module(record):
+            record.name = module
+        return self._real_handle(record)
+
+    @classmethod
+    def get_module(cls, record: logging.LogRecord, is_retry: bool = False):
+        if is_retry or cls._path_log_map is None:
+            cls._path_log_map = {mod.__file__: name for name, mod in sys.modules.items() if hasattr(mod, '__file__')}
+        try:
+            return cls._path_log_map[record.pathname]
+        except KeyError:
+            return None if is_retry else cls.get_module(record, True)
 
     def process(self, msg, kwargs):
         return f'[view={self._view_name}] {msg}', kwargs

@@ -30,7 +30,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
 
-        self.options = GuiOptions(self, disable_on_parsed=False)
+        self.options = GuiOptions(self, disable_on_parsed=False, submit='Save')
         self.options.add_bool('dry_run', 'Dry Run')
         self.options.add_bool('add_genre', 'Add Genre', kwargs={'change_submits': True})
         self.options.add_bool('title_case', 'Title Case', kwargs={'change_submits': True})
@@ -97,10 +97,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
             layout.extend(track_block.as_diff_rows(track_info, self.options['title_case']))
 
-        back_btn = Button('\u2770', key='edit', tooltip='Go back to edit', size=(5, 10))
-        content = Column(layout, key='col::content')
-        next_btn = Button('\u2771', key='btn::next', tooltip='Apply changes', size=(5, 10))
-        full_layout.append([Column([[back_btn]], key='col::back'), content, Column([[next_btn]], key='col::next')])
+        workflow = self.as_workflow(
+            layout, back_key='edit', back_tooltip='Go back to edit', next_tooltip='Apply changes (save)'
+        )
+        full_layout.append(workflow)
 
         # self.album_info.update_and_move(self.album, None, dry_run=True)
         return full_layout, kwargs
@@ -112,4 +112,4 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
     @event_handler('btn::next')  # noqa
     def apply_changes(self, event: str, data: dict[str, Any]):
-        pass
+        self.options.parse(data)

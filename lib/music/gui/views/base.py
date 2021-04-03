@@ -88,7 +88,7 @@ class event_handler:
 class GuiView(ABC):
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
-    _window_size: tuple[Optional[int], Optional[int]] = (None, None)
+    _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
     _primary_kwargs = {}
     _event_handlers = {}
     event_handlers = {}

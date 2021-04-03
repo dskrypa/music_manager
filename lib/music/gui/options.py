@@ -18,11 +18,12 @@ _NotSet = object()
 
 
 class GuiOptions:
-    def __init__(self, view: 'GuiView', *, disable_on_parsed: bool = False):
+    def __init__(self, view: 'GuiView', *, submit: str = 'Submit', disable_on_parsed: bool = False):
         self.view = view
         self.options = {}
         self.parsed = False
         self.disable_on_parsed = disable_on_parsed
+        self.submit_text = submit
 
     def __getitem__(self, name: str):
         try:
@@ -106,7 +107,7 @@ class GuiOptions:
             else:
                 raise ValueError(f'Unsupported {opt_type=!r}')
 
-        submit_ele = Submit(disabled=disable_all, key=submit_key)
+        submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key)
         if submit_row is None:
             layout.append([submit_ele])
         else:

@@ -61,14 +61,13 @@ class AlbumView(MainView, view_name='album'):
             track_data = Column(
                 track_rows, key='col::track_data', size=(685, 690), scrollable=True, vertical_scroll_only=True
             )
-            layout.append([Column([[album_container, track_data]], key='col::all_data')])
+            data_col = Column([[album_container, track_data]], key='col::all_data', justification='center', pad=(0, 0))
+            layout.append([data_col])
 
-        back_btn = Button('\u2770', key='btn::back', tooltip='Cancel Changes', size=(5, 10), visible=self.editing)
-        content = Column(layout, key='col::content')
-        next_btn = Button(
-            '\u2771', key='btn::next', tooltip='Review & Save Changes', size=(5, 10), visible=self.editing
+        workflow = self.as_workflow(
+            layout, back_tooltip='Cancel Changes', next_tooltip='Review & Save Changes', visible=self.editing
         )
-        full_layout.append([Column([[back_btn]], key='col::back'), content, Column([[next_btn]], key='col::next')])
+        full_layout.append(workflow)
 
         return full_layout, kwargs
 

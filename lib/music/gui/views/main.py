@@ -9,7 +9,7 @@ Defines the top menu and some common configuration properties.
 from pathlib import Path
 from typing import Any, Optional
 
-from PySimpleGUI import Button, Element, popup_ok
+from PySimpleGUI import Button, Element, popup_ok, Column
 
 from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
@@ -99,3 +99,26 @@ class MainView(BaseView, view_name='main'):
     @event_handler
     def wiki_update(self, event: str, data: dict[str, Any]):
         popup_ok('Wiki update is not implemented yet.')
+
+    def as_workflow(
+        self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs
+    ) -> list[Element]:
+        dir_args = {'back': {}, 'next': {}}
+        for key, val in tuple(kwargs.items()):
+            if key.startswith(('back_', 'next_')):
+                kwargs.pop(key)
+                direction, arg = key.split('_', 1)
+                dir_args[direction][arg] = val
+
+        width, height = self._window_size
+        back_btn = Button('\u2770', key=back_key, size=(5, 10), pad=(0, 0), **dir_args['back'], **kwargs)
+        content_column = Column(
+            content,
+            key='col::content',
+            size=(width - 150, height - 40),
+            pad=(0, 0),
+            element_justification='center',
+            justification='center',
+        )
+        next_btn = Button('\u2771', key=next_key, size=(5, 10), pad=(0, 0), **dir_args['next'], **kwargs)
+        return [Column([[back_btn]], key='col::back'), content_column, Column([[next_btn]], key='col::next')]

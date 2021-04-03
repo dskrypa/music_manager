@@ -5,7 +5,6 @@ View: About
 """
 
 import inspect
-import logging
 import webbrowser
 from pathlib import Path
 from functools import cached_property
@@ -16,7 +15,6 @@ from PySimpleGUI import Element, Text, OK
 from .base import event_handler, GuiView
 
 __all__ = ['AboutView']
-log = logging.getLogger(__name__)
 
 
 class AboutView(GuiView, view_name='about', primary=False):
@@ -28,7 +26,7 @@ class AboutView(GuiView, view_name='about', primary=False):
         try:
             return Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem
         except Exception as e:
-            log.debug(f'Error determining top-level script info: {e}')
+            self.log.debug(f'Error determining top-level script info: {e}')
             return '[unknown]'
 
     @cached_property
@@ -36,7 +34,7 @@ class AboutView(GuiView, view_name='about', primary=False):
         try:
             return inspect.stack()[-1].frame.f_globals
         except Exception as e:
-            log.debug(f'Error determining top-level script info: {e}')
+            self.log.debug(f'Error determining top-level script info: {e}')
             return {}
 
     @cached_property

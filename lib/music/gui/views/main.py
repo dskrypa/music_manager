@@ -6,7 +6,6 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Optional
 
@@ -21,7 +20,6 @@ from .base import event_handler, BaseView
 from .path_prompt import get_directory
 
 __all__ = ['MainView']
-log = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT_DIR = '~/Music/'
 
@@ -56,7 +54,7 @@ class MainView(BaseView, view_name='main'):
                 return album
 
         if path := get_directory('Select Album', no_window=True):
-            log.debug(f'Selected album {path=}')
+            self.log.debug(f'Selected album {path=}')
             try:
                 return AlbumDir(path)
             except InvalidAlbumDir as e:
@@ -91,11 +89,11 @@ class MainView(BaseView, view_name='main'):
         kwargs = dict(must_exist=False, no_window=False, default_path=current, initial_folder=current)
         if path := get_directory('Select Output Directory', **kwargs):
             if self.output_base_dir != path:
-                log.debug(f'Updating saved output base directory from {current} -> {path.as_posix()}')
+                self.log.debug(f'Updating saved output base directory from {current} -> {path.as_posix()}')
                 self.state['output_base_dir'] = path.as_posix()
                 self.state.save()
             else:
-                log.debug(f'Selected output base directory path={path.as_posix()} == current={current}')
+                self.log.debug(f'Selected output base directory path={path.as_posix()} == current={current}')
 
     @event_handler
     def wiki_update(self, event: str, data: dict[str, Any]):

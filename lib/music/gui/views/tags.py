@@ -4,7 +4,6 @@ View: All tags on each track (as opposed to the album view which only shows comm
 :author: Doug Skrypa
 """
 
-import logging
 from itertools import chain
 from typing import Any
 
@@ -17,7 +16,6 @@ from .formatting import AlbumBlock
 from .main import MainView
 
 __all__ = ['AllTagsView']
-log = logging.getLogger(__name__)
 
 
 class AllTagsView(MainView, view_name='all_tags'):
@@ -25,6 +23,7 @@ class AllTagsView(MainView, view_name='all_tags'):
         super().__init__()
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
+        self.album_block.view = self
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()

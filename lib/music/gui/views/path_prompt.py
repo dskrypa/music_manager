@@ -6,7 +6,6 @@ Mainly added this to just be able to make ESC work to cancel the path prompt...
 :author: Doug Skrypa
 """
 
-import logging
 from enum import Enum
 from tkinter.filedialog import askdirectory, asksaveasfilename, askopenfilenames, askopenfilename
 from pathlib import Path
@@ -18,7 +17,6 @@ from .base import event_handler, GuiView
 from .utils import temp_hidden_window
 
 __all__ = ['PathPromptView', 'PathPromptType', 'get_directory', 'get_file_path', 'get_save_path', 'get_file_paths']
-log = logging.getLogger(__name__)
 
 
 class PathPromptType(Enum):
@@ -67,7 +65,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         raise StopIteration
 
     def _without_window(self):
-        with temp_hidden_window() as root:
+        with temp_hidden_window(self.log) as root:
             if self.type == PathPromptType.DIR:
                 path = NO_WIN_FUNCS[self.type](initialdir=self.init_dir)
             else:

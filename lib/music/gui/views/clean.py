@@ -4,7 +4,6 @@ View: Interface for cleaning undesirable tags and calculating/adding BPM if desi
 :author: Doug Skrypa
 """
 
-import logging
 from functools import partial
 from multiprocessing import Pool
 from typing import Any, Optional
@@ -23,7 +22,6 @@ from .base import event_handler
 from .main import MainView
 
 __all__ = ['CleanView']
-log = logging.getLogger(__name__)
 
 
 class CleanView(MainView, view_name='clean'):

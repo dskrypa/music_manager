@@ -31,7 +31,6 @@ from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 from .exceptions import NoEventHandlerRegistered
 
 __all__ = ['GuiView', 'BaseView', 'event_handler']
-log = logging.getLogger(__name__)
 Layout = list[list[Element]]
 
 
@@ -86,6 +85,15 @@ class event_handler:
         setattr(owner, name, self.func)  # replace wrapper with the original function
 
 
+class ViewLoggerAdapter(logging.LoggerAdapter):
+    def __init__(self, view: 'GuiView'):
+        super().__init__(logging.getLogger(view.__class__.__module__), {'view': view.name})
+        self._view_name = view.name
+
+    def process(self, msg, kwargs):
+        return f'[view={self._view_name}] {msg}', kwargs
+
+
 class GuiView(ABC):
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
@@ -110,7 +118,8 @@ class GuiView(ABC):
 
     def __init__(self, binds: Mapping[str, str] = None):
         self.binds = binds
-        # log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
+        self.log = ViewLoggerAdapter(self)
+        # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
 
     def __repr__(self):
         return f'<{self.__class__.__name__}[{self.name}][{self.primary=!r}][handlers: {len(self.event_handlers)}]>'
@@ -152,9 +161,9 @@ class GuiView(ABC):
     def _get_default_handler(self):
         for cls in self.__class__.mro():
             if (handler := getattr(cls, 'default_handler', None)) is not None:
-                # log.debug(f'{self}: Found default_handler={handler.__name__}')
+                # self.log.debug(f'{self}: Found default_handler={handler.__name__}')
                 return handler
-        # log.debug(f'{self}: No default handler found')
+        # self.log.debug(f'{self}: No default handler found')
         return None
 
     def handle_event(self, event: str, data: dict[str, Any]):
@@ -172,29 +181,36 @@ class GuiView(ABC):
                 raise NoEventHandlerRegistered(self, event) from None
 
         if event != 'config_changed':
-            log.debug(f'{self}: Handling {event=}')
-        # log.debug(f'Calling {handler} with args=({self}, {event!r}, {data!r})')
+            self.log.debug(f'Handling {event=}')
+        # self.log.debug(f'Calling {handler} with args=({self}, {event!r}, {data!r})')
         result = handler(self, event, data)
         if isinstance(result, GuiView):
-            log.debug(f'{self}: {event=!r} returned view={result!r} - rendering it')
+            # self.log.debug(f'{self}: {event=!r} returned view={result!r} - rendering it')
             result.render()
             if not result.primary:
-                log.debug(f'Waiting for {result}')
+                self.log.debug(f'Waiting for {result}')
                 result.run()
-                log.debug(f'Finished {result}')
-        else:
-            log.debug(f'{self}: {event=!r} returned {result=!r}')
+                self.log.debug(f'Finished {result}')
+        # else:
+        #     self.log.debug(f'{self}: {event=!r} returned {result=!r}')
 
     @abstractmethod
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return NotImplemented
 
     def _create_window(self) -> Window:
-        log.debug(f'{self}: Creating window')
+        # self.log.debug('Creating window')
         layout, kwargs = self.get_render_args()
+        old_window = None if (last_view := GuiView.active_view) is None else last_view.window
 
         if self.primary:
-            kwargs = deepcopy(self._primary_kwargs) | kwargs
+            base_kwargs = deepcopy(self._primary_kwargs)
+            if old_window is not None:
+                base_kwargs['size'] = old_window.size
+                base_kwargs['location'] = old_window.current_location()
+
+            # self.log.debug(f'Base kwargs={base_kwargs}')
+            kwargs = base_kwargs | kwargs
         else:
             kwargs.setdefault('keep_on_top', True)
             kwargs.setdefault('modal', True)
@@ -204,10 +220,10 @@ class GuiView(ABC):
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
 
         if self.primary:
-            if GuiView.active_view is not None and (old_window := GuiView.active_view.window) is not None:
-                old_window.close()  # noqa
+            if old_window is not None:
+                old_window.close()
 
-            log.debug(f'Switching active_view from {GuiView.active_view} to {self}')
+            self.log.debug(f'Replacing GuiView.active_view={last_view.name if last_view else last_view}')
             GuiView.active_view = self
 
         return new_window
@@ -224,7 +240,7 @@ class GuiView(ABC):
         if self.binds:
             for key, val in self.binds.items():
                 self.window.bind(key, val)
-        log.debug(f'Rendered {self}')
+        self.log.debug(f'Rendered {self}')
 
     @event_handler
     def config_changed(self, event: str, data: dict[str, Any]):
@@ -256,13 +272,13 @@ class BaseView(GuiView, view_name='base'):
         try:
             return super().handle_event(event, data)
         except NoEventHandlerRegistered:
-            # log.debug(f'No handler found for case-sensitive {event=!r} - will try again with snake_case version')
+            # self.log.debug(f'No handler found for case-sensitive {event=!r} - will try again with snake_case version')
             pass
         try:
             return super().handle_event(event.lower().replace(' ', '_'), data)
         except NoEventHandlerRegistered as e:
             if e.view is self:
-                log.warning(e)
+                self.log.warning(e)
             else:
                 raise
 
@@ -274,7 +290,7 @@ class BaseView(GuiView, view_name='base'):
 
     # @event_handler
     # def window_resized(self, event: str, data: dict[str, Any]):
-    #     log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
+    #     self.log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
     #     if self.state.get('view') == 'tracks':
-    #         log.debug(f'Expanding columns on {self.window}')
+    #         self.log.debug(f'Expanding columns on {self.window}')
     #         expand_columns(self.window.Rows)

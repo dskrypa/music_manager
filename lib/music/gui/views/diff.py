@@ -4,7 +4,6 @@ View: Diff between original and modified tag values.  Used for both manual and W
 :author: Doug Skrypa
 """
 
-import logging
 from functools import cached_property
 from io import BytesIO
 from typing import Any, Optional
@@ -21,7 +20,6 @@ from .main import MainView
 from .utils import get_a_to_b
 
 __all__ = ['AlbumDiffView']
-log = logging.getLogger(__name__)
 
 
 class AlbumDiffView(MainView, view_name='album_diff'):
@@ -30,6 +28,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album = album
         self.album_info = album_info
         self.album_block = album_block or AlbumBlock(self, self.album)
+        self.album_block.view = self
 
         self.options = GuiOptions(self, disable_on_parsed=False)
         self.options.add_bool('dry_run', 'Dry Run')

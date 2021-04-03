@@ -67,11 +67,12 @@ def expand_columns(rows: list[list[Element]]):
 
 
 @contextmanager
-def temp_hidden_window():
+def temp_hidden_window(logger: logging.LoggerAdapter = None):
     """
     Creates and destroys a temporary Window similar to the way that PySimpleGUI does in
     :func:`popup_get_folder<PySimpleGUI.popup_get_folder>` while creating a file prompt.  Mostly copied from that func.
     """
+    logger = log if logger is None else logger
     if not Window.hidden_master_root:
         # if first window being created, make a throwaway, hidden master root.  This stops one user window from
         # becoming the child of another user window. All windows are children of this hidden window
@@ -81,7 +82,7 @@ def temp_hidden_window():
         try:
             Window.hidden_master_root.wm_overrideredirect(True)
         except Exception:
-            log.error('* Error performing wm_overrideredirect *', exc_info=True)
+            logger.error('* Error performing wm_overrideredirect *', exc_info=True)
         Window.hidden_master_root.withdraw()
 
     root = tkinter.Toplevel()
@@ -90,7 +91,7 @@ def temp_hidden_window():
         try:
             root.wm_overrideredirect(True)
         except Exception:
-            log.error('* Error performing wm_overrideredirect *', exc_info=True)
+            logger.error('* Error performing wm_overrideredirect *', exc_info=True)
         root.withdraw()
     except Exception:
         pass

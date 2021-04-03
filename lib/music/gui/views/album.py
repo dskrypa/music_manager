@@ -4,7 +4,6 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
-import logging
 from dataclasses import fields
 from itertools import chain
 from typing import Any
@@ -20,7 +19,6 @@ from .formatting import AlbumBlock
 from .main import MainView
 
 __all__ = ['AlbumView']
-log = logging.getLogger(__name__)
 
 
 class AlbumView(MainView, view_name='album'):
@@ -28,6 +26,7 @@ class AlbumView(MainView, view_name='album'):
         super().__init__()
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
+        self.album_block.view = self
         self.editing = editing
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
@@ -91,7 +90,7 @@ class AlbumView(MainView, view_name='album'):
         info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
 
         for data_key, value in data.items():
-            # log.debug(f'Processing {data_key=!r}')
+            # self.log.debug(f'Processing {data_key=!r}')
             try:  # val::album::key
                 key_type, obj_key = data_key.split('::', 1)
                 obj, key = obj_key.rsplit('::', 1)
@@ -115,7 +114,7 @@ class AlbumView(MainView, view_name='album'):
     def toggle_editing(self):
         self.editing = not self.editing
         always_ro = {'val::album::mp4'}
-        for key, ele in self.window.AllKeysDict.items():
+        for key, ele in self.window.key_dict.items():
             if isinstance(key, str) and key.startswith('val::') and key not in always_ro:
                 ele.update(disabled=not self.editing)
 

@@ -4,7 +4,6 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
-import logging
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
@@ -22,7 +21,6 @@ if TYPE_CHECKING:
     from .base import GuiView
 
 __all__ = ['TrackBlock', 'AlbumBlock']
-log = logging.getLogger(__name__)
 
 
 class AlbumBlock:
@@ -38,7 +36,7 @@ class AlbumBlock:
         for track in self.album_dir:
             path = track.path.as_posix()
             info = self.album_info.tracks[path]
-            blocks[path] = TrackBlock(track, info, self.cover_size)
+            blocks[path] = TrackBlock(self, track, info, self.cover_size)
         return blocks
 
     def __iter__(self):
@@ -103,7 +101,10 @@ def display_value(value: Any):
 
 
 class TrackBlock:
-    def __init__(self, track: SongFile, info: TrackInfo, cover_size: tuple[int, int] = (250, 250)):
+    def __init__(
+        self, album_block: AlbumBlock, track: SongFile, info: TrackInfo, cover_size: tuple[int, int] = (250, 250)
+    ):
+        self.album_block = album_block
         self.track = track
         self.cover_size = cover_size
         self.info = info
@@ -113,7 +114,7 @@ class TrackBlock:
         try:
             image = self.track.get_cover_image()
         except Exception:
-            log.error(f'Unable to load cover image for {self.track}')
+            self.album_block.view.log.error(f'Unable to load cover image for {self.track}')
             return None
         else:
             image.thumbnail(self.cover_size)

@@ -154,6 +154,8 @@ def main():
         if args.rating < 0 or args.rating > 10:
             raise ValueError('Ratings must be between 0 and 10')
         obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
+        if len(kwargs) == 1:
+            raise ValueError('At least one identifier is required')
         objects = plex.find_objects(obj_type, **kwargs)
         if not objects:
             log.warning('No results.')

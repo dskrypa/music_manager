@@ -66,18 +66,11 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
 
     def _without_window(self):
         with temp_hidden_window(self.log) as root:
-            if self.type == PathPromptType.DIR:
-                path = NO_WIN_FUNCS[self.type](initialdir=self.init_dir)
-            else:
-                path = NO_WIN_FUNCS[self.type](
-                    parent=root,
-                    filetypes=self.file_types,
-                    initialdir=self.init_dir,
-                    initialfile=self.init_path,
-                    defaultextension=self.ext,
-                )
+            kwargs = {'initialdir': self.init_dir, 'parent': root}
+            if self.type != PathPromptType.DIR:
+                kwargs.update(filetypes=self.file_types, initialfile=self.init_path, defaultextension=self.ext)
 
-        return path
+            return NO_WIN_FUNCS[self.type](**kwargs)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         if self.type == PathPromptType.DIR:
@@ -110,8 +103,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
             raise AssertionError(f'{self.__class__.__name__}.get_path() is not supported with prompt type=multiple')
 
         if self.no_window:
-            path = self._without_window()
-            if not path:
+            if not (path := self._without_window()):
                 return None
             path = Path(path) if isinstance(path, str) else Path(path[0])
         else:

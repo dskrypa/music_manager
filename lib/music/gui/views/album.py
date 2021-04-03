@@ -44,7 +44,6 @@ class AlbumView(MainView, view_name='album'):
                     [
                         Column([[self.album_block.cover_image]], key='col::album_cover'),
                         Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
-                        # TODO: Make bool fields be checkboxes
                     ],
                     [HorizontalSeparator()],
                     [

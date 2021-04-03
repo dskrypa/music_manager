@@ -29,7 +29,7 @@ def main():
     args = parser().parse_args()
 
     from ds_tools.logging import init_logging
-    init_logging(args.verbose, log_path=None, names=None)
+    init_logging(args.verbose, log_path=None, names=None, millis=True)
 
     from music.files.patches import apply_mutagen_patches
     from music.gui.patches import patch_all

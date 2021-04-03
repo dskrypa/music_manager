@@ -54,6 +54,7 @@ class MainView(BaseView, view_name='main'):
                 return album
 
         if path := get_directory('Select Album', no_window=True):
+            self.window.force_focus()  # Can't seem to avoid it losing it perceptibly, but this brings it back faster
             self.log.debug(f'Selected album {path=}')
             try:
                 return AlbumDir(path)

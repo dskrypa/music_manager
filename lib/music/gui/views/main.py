@@ -9,7 +9,7 @@ Defines the top menu and some common configuration properties.
 from pathlib import Path
 from typing import Any, Optional
 
-from PySimpleGUI import Button, Element, popup_ok, Column
+from PySimpleGUI import Button, Element, popup_ok, Column, Text
 
 from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
@@ -45,8 +45,22 @@ class MainView(BaseView, view_name='main'):
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
         if self.__class__ is MainView:
-            layout.append([Button('Select Album', enable_events=True, key='select_album')])
+            select_button = Button(
+                'Select Album', key='select_album', bind_return_key=True, size=(30, 5), font=('Helvetica', 20)
+            )
+            layout.append([Text(key='__TOP_SPACER__', pad=(0, 0))])
+            layout.append([select_button])
+            layout.append([Text(key='__BOTTOM_SPACER__', pad=(0, 0))])
         return layout, kwargs
+
+    def render(self):
+        super().render()
+        if self.__class__ is MainView:
+            for key in ('__BOTTOM_SPACER__', '__TOP_SPACER__'):
+                try:
+                    self.window.key_dict[key].expand(True, True, True)
+                except KeyError:
+                    pass
 
     def get_album_selection(self, new: bool = False) -> Optional[AlbumDir]:
         if not new:
@@ -60,6 +74,8 @@ class MainView(BaseView, view_name='main'):
                 return AlbumDir(path)
             except InvalidAlbumDir as e:
                 popup_input_invalid(str(e))
+        else:
+            self.window.force_focus()
 
         return None
 
@@ -103,22 +119,19 @@ class MainView(BaseView, view_name='main'):
     def as_workflow(
         self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs
     ) -> list[Element]:
-        dir_args = {'back': {}, 'next': {}}
+        section_args = {
+            'back': {}, 'next': {}, 'content': {'element_justification': 'center', 'justification': 'center'}
+        }
         for key, val in tuple(kwargs.items()):
             if key.startswith(('back_', 'next_')):
                 kwargs.pop(key)
-                direction, arg = key.split('_', 1)
-                dir_args[direction][arg] = val
+                section, arg = key.split('_', 1)
+                section_args[section][arg] = val
 
+        kwargs['font'] = ('Helvetica', 60)
         width, height = self._window_size
-        back_btn = Button('\u2770', key=back_key, size=(5, 10), pad=(0, 0), **dir_args['back'], **kwargs)
-        content_column = Column(
-            content,
-            key='col::content',
-            size=(width - 150, height - 40),
-            pad=(0, 0),
-            element_justification='center',
-            justification='center',
-        )
-        next_btn = Button('\u2771', key=next_key, size=(5, 10), pad=(0, 0), **dir_args['next'], **kwargs)
+        size = (width - 150, height - 40)
+        back_btn = Button('\u2770', key=back_key, size=(1, 2), pad=(0, 0), **section_args['back'], **kwargs)
+        content_column = Column(content, key='col::content', size=size, pad=(0, 0), **section_args['content'])
+        next_btn = Button('\u2771', key=next_key, size=(1, 2), pad=(0, 0), **section_args['next'], **kwargs)
         return [Column([[back_btn]], key='col::back'), content_column, Column([[next_btn]], key='col::next')]

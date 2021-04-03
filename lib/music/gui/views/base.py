@@ -138,6 +138,8 @@ class GuiView(ABC):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
         cls._primary_kwargs.update(kwargs)
+        if size := kwargs.get('size'):
+            cls._window_size = size
         cls().render()
 
         while True:

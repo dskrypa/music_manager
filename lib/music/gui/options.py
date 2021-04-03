@@ -5,7 +5,7 @@ Gui option rendering and parsing
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input
 
@@ -18,7 +18,7 @@ _NotSet = object()
 
 
 class GuiOptions:
-    def __init__(self, view: 'GuiView', *, submit: str = 'Submit', disable_on_parsed: bool = False):
+    def __init__(self, view: 'GuiView', *, submit: Optional[str] = 'Submit', disable_on_parsed: bool = False):
         self.view = view
         self.options = {}
         self.parsed = False
@@ -107,13 +107,14 @@ class GuiOptions:
             else:
                 raise ValueError(f'Unsupported {opt_type=!r}')
 
-        submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key)
-        if submit_row is None:
-            layout.append([submit_ele])
-        else:
-            while len(layout) < (submit_row + 1):
-                layout.append([])
-            layout[submit_row].append(submit_ele)
+        if self.submit_text:
+            submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key)
+            if submit_row is None:
+                layout.append([submit_ele])
+            else:
+                while len(layout) < (submit_row + 1):
+                    layout.append([])
+                layout[submit_row].append(submit_ele)
 
         return layout
 

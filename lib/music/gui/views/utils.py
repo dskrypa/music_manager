@@ -8,6 +8,7 @@ import logging
 import tkinter
 import sys
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Union
 
 from PySimpleGUI import Text, Element, Column, Window, Input
@@ -44,14 +45,15 @@ def label_and_diff_keys(src: str, tag: str) -> tuple[Text, Text, Text, str, str]
     return label, sep_1, sep_2, f'src::{src}::{tag}', f'new::{src}::{tag}'
 
 
-def get_a_to_b(label: str, src_val: str, new_val: str, src: str, tag: str) -> list[Element]:
-    label_ele = Text(label)
+def get_a_to_b(label: str, src_val: Union[str, Path], new_val: Union[str, Path], src: str, tag: str) -> list[Element]:
+    src_val = src_val.as_posix() if isinstance(src_val, Path) else src_val
     src_kwargs = {'size': (len(src_val), 1)} if len(src_val) > 50 else {}
     src_ele = Input(src_val, disabled=True, key=f'src::{src}::{tag}', **src_kwargs)
-    arrow = Text('->')
+
+    new_val = new_val.as_posix() if isinstance(new_val, Path) else new_val
     new_kwargs = {'size': (len(new_val), 1)} if len(new_val) > 50 else {}
     new_ele = Input(new_val, disabled=True, key=f'new::{src}::{tag}', **new_kwargs)
-    return [label_ele, src_ele, arrow, new_ele]
+    return [Text(label), src_ele, Text('->'), new_ele]
 
 
 def expand_columns(rows: list[list[Element]]):

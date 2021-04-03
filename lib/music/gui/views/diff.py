@@ -8,7 +8,7 @@ from functools import cached_property
 from io import BytesIO
 from typing import Any, Optional
 
-from PySimpleGUI import Text, Input, Image, HorizontalSeparator, Column, Element, Button
+from PySimpleGUI import Text, Input, Image, Column, Element, HSep
 
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
@@ -30,7 +30,8 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
 
-        self.options = GuiOptions(self, disable_on_parsed=False, submit='Save')
+        # self.options = GuiOptions(self, disable_on_parsed=False, submit='Save')
+        self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
         self.options.add_bool('dry_run', 'Dry Run')
         self.options.add_bool('add_genre', 'Add Genre', kwargs={'change_submits': True})
         self.options.add_bool('title_case', 'Title Case', kwargs={'change_submits': True})
@@ -59,7 +60,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         layout = []  # noqa
         layout.append([self.options.as_frame('apply_changes')])
-        layout.append([HorizontalSeparator()])
+        layout.extend([[Text()], [HSep(), Text('Common Album Changes'), HSep()], [Text()]])
 
         src_img_data, new_img_data = self.cover_images
         if new_img_data is not None:
@@ -68,25 +69,23 @@ class AlbumDiffView(MainView, view_name='album_diff'):
                 Text('->', key='txt::cover::arrow'),
                 Image(data=new_img_data, size=(250, 250), key='img::cover::new'),
             ])
-            layout.append([HorizontalSeparator()])
+            layout.append([HSep()])
 
         dest_album_path = self.album_block.get_dest_path(self.album_info, self.output_sorted_dir)
         if dest_album_path and self.album.path != dest_album_path:
-            layout.append(
-                get_a_to_b('Album Rename:', self.album.path.as_posix(), dest_album_path.as_posix(), 'album', 'path')
-            )
+            layout.append(get_a_to_b('Album Rename:', self.album.path, dest_album_path, 'album', 'path'))
         else:
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
         if common_rows := self.album_block.get_album_diff_rows(self.album_info, self.options['title_case']):
             layout.append([Column(common_rows, key='col::album::diff')])
+            layout.append([Text()])
         else:
-            layout.append([Text('No common album changes.', justification='center')])
+            layout.extend([[Text()], [Text('No common album tag changes.', justification='center')], [Text()]])
 
-        layout.append([HorizontalSeparator()])
-        layout.append([Text('Track Changes')])
-
+        layout.append([HSep(), Text('Track Changes'), HSep()])
         for path, track_block in self.album_block.track_blocks.items():
+            layout.append([Text()])
             try:
                 track_info = self.album_info.tracks[path]
             except KeyError:

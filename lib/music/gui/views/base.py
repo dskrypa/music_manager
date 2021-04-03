@@ -20,8 +20,6 @@ event handler loop control is transferred to that view until it is closed, and t
 :author: Doug Skrypa
 """
 
-import logging
-import sys
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import partial, update_wrapper
@@ -30,6 +28,7 @@ from typing import Any, Optional, Callable, Type, Mapping, Union, Collection
 from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 
 from .exceptions import NoEventHandlerRegistered
+from .utils import ViewLoggerAdapter
 
 __all__ = ['GuiView', 'BaseView', 'event_handler']
 Layout = list[list[Element]]
@@ -86,43 +85,6 @@ class event_handler:
         setattr(owner, name, self.func)  # replace wrapper with the original function
 
 
-class ViewLoggerAdapter(logging.LoggerAdapter):
-    _path_log_map = None
-
-    def __init__(self, view: 'GuiView'):
-        cls = view.__class__
-        super().__init__(logging.getLogger(f'{cls.__module__}.{cls.__name__}'), {'view': view.name})
-        self._view_name = view.name
-        self._real_handle = self.logger.handle
-        self.logger.handle = self.handle
-
-    def handle(self, record: logging.LogRecord):
-        """
-        Sets the given record's name to be the full name of the module it was logged in, as if it was logged from a
-        logger initialized as ``log = logging.getLogger(__name__)``.  Since the view name is added via :meth:`.process`,
-        this is necessary to keep the logs consistent with the other loggers in use here.
-
-        The :attr:`LogRecord.module<logging.LogRecord.module>` attribute only contains the last part of the module name,
-        not the fully qualified version.  Manipulating that attribute to have the desired format would have required
-        manipulating all LogRecords rather than just the ones written through this adapter.
-        """
-        if module := self.get_module(record):
-            record.name = module
-        return self._real_handle(record)
-
-    @classmethod
-    def get_module(cls, record: logging.LogRecord, is_retry: bool = False):
-        if is_retry or cls._path_log_map is None:
-            cls._path_log_map = {mod.__file__: name for name, mod in sys.modules.items() if hasattr(mod, '__file__')}
-        try:
-            return cls._path_log_map[record.pathname]
-        except KeyError:
-            return None if is_retry else cls.get_module(record, True)
-
-    def process(self, msg, kwargs):
-        return f'[view={self._view_name}] {msg}', kwargs
-
-
 class GuiView(ABC):
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
@@ -137,6 +99,7 @@ class GuiView(ABC):
     # noinspection PyMethodOverriding
     def __init_subclass__(cls, view_name: str, primary: bool = True):
         cls.name = view_name
+        cls.log = ViewLoggerAdapter(cls)
         cls.primary = primary
         cls.event_handlers = cls.event_handlers.copy() | {k: v[0] for k, v in cls._event_handlers.items()}
         cls._event_handlers.clear()
@@ -147,7 +110,6 @@ class GuiView(ABC):
 
     def __init__(self, binds: Mapping[str, str] = None):
         self.binds = binds
-        self.log = ViewLoggerAdapter(self)
         # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
 
     def __repr__(self):

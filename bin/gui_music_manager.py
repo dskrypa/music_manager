@@ -44,7 +44,12 @@ def main():
     theme('SystemDefaultForReal')
 
     from music.gui.views.main import MainView
-    MainView.start(title='Music Manager', resizable=True, size=(1700, 750), element_justification='center')
+    MainView.start(
+        title='Music Manager',
+        resizable=True,
+        size=(1700, 750),
+        element_justification='center'
+    )
 
 
 if __name__ == '__main__':

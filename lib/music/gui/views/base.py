@@ -191,9 +191,8 @@ class GuiView(ABC):
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return NotImplemented
 
-    def _create_window(self) -> Window:
+    def _create_window(self, layout: Layout, kwargs: dict[str, Any]) -> Window:
         # self.log.debug('Creating window')
-        layout, kwargs = self.get_render_args()
         old_window = None if (last_view := GuiView.active_view) is None else last_view.window
 
         if self.primary:
@@ -208,7 +207,12 @@ class GuiView(ABC):
             kwargs.setdefault('keep_on_top', True)
             kwargs.setdefault('modal', True)
 
-        new_window = Window(layout=layout, finalize=True, **kwargs)
+        kwargs.setdefault('margins', (5, 5))
+        new_window = Window(
+            layout=layout,
+            finalize=True,
+            **kwargs
+        )
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
 
         if self.primary:
@@ -226,8 +230,9 @@ class GuiView(ABC):
         #     for handler in sorted(cls.event_handlers):
         #         print(f'    - {handler}')
 
+        layout, kwargs = self.get_render_args()
         loc = self.__class__ if self.primary else self
-        loc.window = self._create_window()
+        loc.window = self._create_window(layout, kwargs)
         loc._window_size = self.window.size
         if self.binds:
             for key, val in self.binds.items():

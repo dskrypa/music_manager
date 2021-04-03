@@ -840,7 +840,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return not dry_run
 
     def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, data: Optional[bytes] = None):
-        from PIL import Image
+        from PIL import Image  # this is not imported earlier - the earlier import is during type checking
         if data is None:
             bio = BytesIO()
             image.save(bio, 'jpeg')

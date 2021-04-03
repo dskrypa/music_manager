@@ -15,7 +15,7 @@ from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from ..options import GuiOptions, GuiOptionError
-from .base import ViewManager, event_handler
+from .base import event_handler
 from .formatting import AlbumBlock
 from .main import MainView
 from .utils import get_a_to_b
@@ -25,8 +25,8 @@ log = logging.getLogger(__name__)
 
 
 class AlbumDiffView(MainView, view_name='album_diff'):
-    def __init__(self, mgr: 'ViewManager', album: AlbumDir, album_info: AlbumInfo, album_block: AlbumBlock = None):
-        super().__init__(mgr)
+    def __init__(self, album: AlbumDir, album_info: AlbumInfo, album_block: AlbumBlock = None):
+        super().__init__()
         self.album = album
         self.album_info = album_info
         self.album_block = album_block or AlbumBlock(self, self.album)

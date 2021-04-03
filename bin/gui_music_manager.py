@@ -43,9 +43,8 @@ def main():
     from PySimpleGUI import theme
     theme('SystemDefaultForReal')
 
-    from music.gui.views.base import ViewManager
     from music.gui.views.main import MainView
-    ViewManager(title='Music Manager', resizable=True, size=(1500, 750))(MainView)
+    MainView.start(title='Music Manager', resizable=True, size=(1500, 750))
 
 
 if __name__ == '__main__':

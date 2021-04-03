@@ -13,15 +13,15 @@ from typing import Any
 
 from PySimpleGUI import Element, Text, OK
 
-from .base import event_handler, GuiView, ViewManager
+from .base import event_handler, GuiView
 
 __all__ = ['AboutView']
 log = logging.getLogger(__name__)
 
 
 class AboutView(GuiView, view_name='about', primary=False):
-    def __init__(self, mgr: 'ViewManager'):
-        super().__init__(mgr, binds={'<Escape>': 'Exit'})
+    def __init__(self):
+        super().__init__(binds={'<Escape>': 'Exit'})
 
     @cached_property
     def top_level_name(self):

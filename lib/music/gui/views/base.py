@@ -12,14 +12,10 @@ method may handle multiple events by registering additional event strings with t
 If an event handler returns a :class:`GuiView` object, then the view from which it was returned will be closed, and
 focus will switch to the new view.
 
-The :class:`ViewManager` manages which view is the primary :class:`GuiView` at any given time, and attaches its event
-handler loop to that view.  If a non-primary view (for a temporary popup / prompt) is returned by an event handler, then
+To start a program with a view, the :meth:`GuiView.start` classmethod should be called on the view class that defines
+the main primary entry point / window.  It will run an event handler loop that always uses the active primary view's
+event loop/handler.  If a non-primary view (for a temporary popup / prompt) is returned by an event handler, then
 event handler loop control is transferred to that view until it is closed, and then the normal behavior is restored.
-
-To start the GUI using this framework, it is best to initialize a :class:`ViewManager` and call that instance with an
-uninitialized :class:`GuiView` type for it to render as the main/first window.  E.g.,
-
-    >>> ViewManager()(BaseView)
 
 :author: Doug Skrypa
 """
@@ -34,72 +30,9 @@ from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 
 from .exceptions import NoEventHandlerRegistered
 
-__all__ = ['ViewManager', 'GuiView', 'BaseView', 'event_handler']
+__all__ = ['GuiView', 'BaseView', 'event_handler']
 log = logging.getLogger(__name__)
-
-
-class WindowLoopMixin(ABC):
-    window: Optional[Window]
-
-    @abstractmethod
-    def handle_event(self, event: str, data: dict[str, Any]):
-        return NotImplemented
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> tuple[str, dict[str, Any]]:
-        event, data = self.window.read()
-        if event == 'Exit' or event == WIN_CLOSED:
-            raise StopIteration
-        return event, data
-
-    def run(self):
-        for event, data in self:
-            try:
-                self.handle_event(event, data)
-            except StopIteration:
-                break
-
-        self.window.close()
-
-
-class ViewManager(WindowLoopMixin):
-    def __init__(self, *args, **kwargs):
-        self.window: Optional[Window] = None
-        self._window_size = (None, None)
-        self.args = args
-        self.kwargs = kwargs
-        self.view: Optional['GuiView'] = None
-
-    @staticmethod
-    def _new_window(layout: list[list[Element]], args, kwargs) -> Window:
-        new_window = Window(*args, layout=layout, **kwargs)
-        new_window.finalize()
-        new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
-        return new_window
-
-    def load(self, view: 'GuiView') -> Window:
-        layout, kwargs = view.get_render_args()
-        if view.primary:
-            new_window = self._new_window(layout, self.args, deepcopy(self.kwargs) | kwargs)
-            self.view = view
-            if self.window is not None:
-                self.window.close()
-            self.window = new_window
-            self._window_size = new_window.size
-        else:
-            kwargs.setdefault('keep_on_top', True)
-            kwargs.setdefault('modal', True)
-            new_window = self._new_window(layout, (), kwargs)
-        return new_window
-
-    def handle_event(self, event: str, data: dict[str, Any]):
-        self.view.handle_event(event, data)
-
-    def __call__(self, view_cls: Type['GuiView']):
-        view_cls(self).render()
-        self.run()
+Layout = list[list[Element]]
 
 
 class event_handler:
@@ -153,8 +86,11 @@ class event_handler:
         setattr(owner, name, self.func)  # replace wrapper with the original function
 
 
-class GuiView(WindowLoopMixin, ABC):
-    _views = {}
+class GuiView(ABC):
+    active_view: Optional['GuiView'] = None
+    window: Optional[Window] = None
+    _window_size: tuple[Optional[int], Optional[int]] = (None, None)
+    _primary_kwargs = {}
     _event_handlers = {}
     event_handlers = {}
     default_handler: Optional[Callable] = None
@@ -163,7 +99,6 @@ class GuiView(WindowLoopMixin, ABC):
 
     # noinspection PyMethodOverriding
     def __init_subclass__(cls, view_name: str, primary: bool = True):
-        cls._views[view_name] = cls
         cls.name = view_name
         cls.primary = primary
         cls.event_handlers = cls.event_handlers.copy() | {k: v[0] for k, v in cls._event_handlers.items()}
@@ -173,14 +108,46 @@ class GuiView(WindowLoopMixin, ABC):
             del cls._default_handler  # noqa
         # print(f'Initialized subclass={cls.__name__!r}')
 
-    def __init__(self, mgr: 'ViewManager', binds: Mapping[str, str] = None):
-        self.mgr = mgr
-        self.window: Optional[Window] = None
+    def __init__(self, binds: Mapping[str, str] = None):
         self.binds = binds
         # log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
 
     def __repr__(self):
         return f'<{self.__class__.__name__}[{self.name}][{self.primary=!r}][handlers: {len(self.event_handlers)}]>'
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> tuple[str, dict[str, Any]]:
+        event, data = self.window.read()
+        if event == 'Exit' or event == WIN_CLOSED:
+            raise StopIteration
+        return event, data
+
+    def run(self):
+        for event, data in self:
+            try:
+                self.handle_event(event, data)
+            except StopIteration:
+                break
+
+        self.window.close()
+
+    @classmethod
+    def start(cls, **kwargs):
+        if cls.active_view is not None:
+            raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
+        cls._primary_kwargs.update(kwargs)
+        cls().render()
+
+        while True:
+            try:
+                event, data = next(cls.active_view)  # noqa
+                cls.active_view.handle_event(event, data)  # noqa
+            except StopIteration:
+                break
+
+        cls.window.close()
 
     def _get_default_handler(self):
         for cls in self.__class__.mro():
@@ -209,22 +176,51 @@ class GuiView(WindowLoopMixin, ABC):
         # log.debug(f'Calling {handler} with args=({self}, {event!r}, {data!r})')
         result = handler(self, event, data)
         if isinstance(result, GuiView):
+            log.debug(f'{self}: {event=!r} returned view={result!r} - rendering it')
             result.render()
             if not result.primary:
                 log.debug(f'Waiting for {result}')
                 result.run()
                 log.debug(f'Finished {result}')
+        else:
+            log.debug(f'{self}: {event=!r} returned {result=!r}')
 
     @abstractmethod
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return NotImplemented
+
+    def _create_window(self) -> Window:
+        log.debug(f'{self}: Creating window')
+        layout, kwargs = self.get_render_args()
+
+        if self.primary:
+            kwargs = deepcopy(self._primary_kwargs) | kwargs
+        else:
+            kwargs.setdefault('keep_on_top', True)
+            kwargs.setdefault('modal', True)
+
+        new_window = Window(layout=layout, **kwargs)
+        new_window.finalize()
+        new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
+
+        if self.primary:
+            if GuiView.active_view is not None and (old_window := GuiView.active_view.window) is not None:
+                old_window.close()  # noqa
+
+            log.debug(f'Switching active_view from {GuiView.active_view} to {self}')
+            GuiView.active_view = self
+
+        return new_window
 
     def render(self):
         # for cls in [GuiView, *GuiView.__subclasses__()]:
         #     print(f'{cls.__name__}:')
         #     for handler in sorted(cls.event_handlers):
         #         print(f'    - {handler}')
-        self.window = self.mgr.load(self)
+
+        loc = self.__class__ if self.primary else self
+        loc.window = self._create_window()
+        loc._window_size = self.window.size
         if self.binds:
             for key, val in self.binds.items():
                 self.window.bind(key, val)
@@ -236,29 +232,31 @@ class GuiView(WindowLoopMixin, ABC):
         Event handler for window configuration changes.
         Known triggers: resize window, move window, window gains focus, scroll
         """
-        new_size = self.window.size
-        old_size = self.mgr._window_size
+        loc = self.__class__ if self.primary else self
+        new_size = loc.window.size
+        old_size = loc._window_size
         if old_size != new_size:
-            self.mgr._window_size = new_size
+            loc._window_size = new_size
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty
 
 
 class BaseView(GuiView, view_name='base'):
-    def __init__(self, mgr: 'ViewManager'):
-        super().__init__(mgr)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.menu = [
             ['File', ['Exit']],
             ['Help', ['About']],
         ]
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return [[Menu(self.menu)]], {}
 
     def handle_event(self, event: str, data: dict[str, Any]):
         try:
             return super().handle_event(event, data)
         except NoEventHandlerRegistered:
+            # log.debug(f'No handler found for case-sensitive {event=!r} - will try again with snake_case version')
             pass
         try:
             return super().handle_event(event.lower().replace(' ', '_'), data)
@@ -272,7 +270,7 @@ class BaseView(GuiView, view_name='base'):
     def about(self, event: str, data: dict[str, Any]):
         from .about import AboutView
 
-        return AboutView(self.mgr)
+        return AboutView()
 
     # @event_handler
     # def window_resized(self, event: str, data: dict[str, Any]):

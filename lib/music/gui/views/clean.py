@@ -19,7 +19,7 @@ from ...manager.file_update import _add_bpm
 from ..options import GuiOptions, GuiOptionError, SingleParsingError
 from ..progress import ProgressTracker
 from ..prompts import popup_input_invalid
-from .base import ViewManager, event_handler
+from .base import event_handler
 from .main import MainView
 
 __all__ = ['CleanView']
@@ -27,8 +27,8 @@ log = logging.getLogger(__name__)
 
 
 class CleanView(MainView, view_name='clean'):
-    def __init__(self, mgr: 'ViewManager', album: AlbumDir):
-        super().__init__(mgr)
+    def __init__(self, album: AlbumDir):
+        super().__init__()
         self.album = album
         bpm_ok = aubio_installed()
         self.options = GuiOptions(self, disable_on_parsed=True)
@@ -78,4 +78,4 @@ class CleanView(MainView, view_name='clean'):
                     pass
 
         popup_ok('Finished processing tracks')
-        return AlbumView(self.mgr, self.album)
+        return AlbumView(self.album)

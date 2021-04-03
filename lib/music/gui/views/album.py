@@ -15,7 +15,7 @@ from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .base import ViewManager, event_handler
+from .base import event_handler
 from .formatting import AlbumBlock
 from .main import MainView
 
@@ -24,8 +24,8 @@ log = logging.getLogger(__name__)
 
 
 class AlbumView(MainView, view_name='album'):
-    def __init__(self, mgr: 'ViewManager', album: AlbumDir, album_block: AlbumBlock = None, editing: bool = False):
-        super().__init__(mgr)
+    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, editing: bool = False):
+        super().__init__()
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.editing = editing
@@ -69,7 +69,7 @@ class AlbumView(MainView, view_name='album'):
     def all_tags(self, event: str, data: dict[str, Any]):
         from .tags import AllTagsView
 
-        return AllTagsView(self.mgr, self.album, self.album_block)
+        return AllTagsView(self.album, self.album_block)
 
     @event_handler
     def cancel(self, event: str, data: dict[str, Any]):
@@ -110,7 +110,7 @@ class AlbumView(MainView, view_name='album'):
         info_dict['tracks'] = track_info_dict
 
         album_info = AlbumInfo.from_dict(info_dict)
-        return AlbumDiffView(self.mgr, self.album, album_info, self.album_block)
+        return AlbumDiffView(self.album, album_info, self.album_block)
 
     def toggle_editing(self):
         self.editing = not self.editing

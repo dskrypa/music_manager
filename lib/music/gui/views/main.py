@@ -17,7 +17,7 @@ from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..prompts import popup_input_invalid
 from ..state import GuiState
-from .base import ViewManager, event_handler, BaseView
+from .base import event_handler, BaseView
 from .path_prompt import get_directory
 
 __all__ = ['MainView']
@@ -27,8 +27,8 @@ DEFAULT_OUTPUT_DIR = '~/Music/'
 
 
 class MainView(BaseView, view_name='main'):
-    def __init__(self, mgr: 'ViewManager'):
-        super().__init__(mgr)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.state = GuiState()
         self.menu = [
             ['File', ['Open', 'Output', 'Exit']],
@@ -55,7 +55,7 @@ class MainView(BaseView, view_name='main'):
             if album := getattr(self, 'album', None):
                 return album
 
-        if path := get_directory(self.mgr, 'Select Album', no_window=True):
+        if path := get_directory('Select Album', no_window=True):
             log.debug(f'Selected album {path=}')
             try:
                 return AlbumDir(path)
@@ -69,27 +69,27 @@ class MainView(BaseView, view_name='main'):
         if album := self.get_album_selection(True):
             from .album import AlbumView
 
-            return AlbumView(self.mgr, album)
+            return AlbumView(album)
 
     @event_handler
     def edit(self, event: str, data: dict[str, Any]):
         if album := self.get_album_selection():
             from .album import AlbumView
 
-            return AlbumView(self.mgr, album, getattr(self, 'album_block', None), editing=True)
+            return AlbumView(album, getattr(self, 'album_block', None), editing=True)
 
     @event_handler
     def clean(self, event: str, data: dict[str, Any]):
         if album := self.get_album_selection():
             from .clean import CleanView
 
-            return CleanView(self.mgr, album)
+            return CleanView(album)
 
     @event_handler
     def output(self, event: str, data: dict[str, Any]):
         current = self.output_base_dir.as_posix()
         kwargs = dict(must_exist=False, no_window=False, default_path=current, initial_folder=current)
-        if path := get_directory(self.mgr, 'Select Output Directory', **kwargs):
+        if path := get_directory('Select Output Directory', **kwargs):
             if self.output_base_dir != path:
                 log.debug(f'Updating saved output base directory from {current} -> {path.as_posix()}')
                 self.state['output_base_dir'] = path.as_posix()

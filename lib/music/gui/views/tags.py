@@ -13,7 +13,6 @@ from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .base import ViewManager
 from .formatting import AlbumBlock
 from .main import MainView
 
@@ -22,8 +21,8 @@ log = logging.getLogger(__name__)
 
 
 class AllTagsView(MainView, view_name='all_tags'):
-    def __init__(self, mgr: 'ViewManager', album: AlbumDir, album_block: AlbumBlock = None):
-        super().__init__(mgr)
+    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None):
+        super().__init__()
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
 
@@ -35,7 +34,7 @@ class AllTagsView(MainView, view_name='all_tags'):
             layout.append([HorizontalSeparator()])
 
             track_rows = list(chain.from_iterable(tb.as_all_tag_rows(False) for tb in spinner(self.album_block)))
-            size = tuple(v - 20 for v in self.mgr.window.size)
+            size = tuple(v - 20 for v in self._window_size)
             # noinspection PyTypeChecker
             track_col = Column(track_rows, key='col::track_data', size=size, scrollable=True, vertical_scroll_only=True)
             layout.append([track_col])

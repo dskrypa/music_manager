@@ -14,7 +14,7 @@ from typing import Any, Union, Optional, Collection
 
 from PySimpleGUI import Element, Text, Input, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs, Popup
 
-from .base import event_handler, GuiView, ViewManager
+from .base import event_handler, GuiView
 from .utils import temp_hidden_window
 
 __all__ = ['PathPromptView', 'PathPromptType', 'get_directory', 'get_file_path', 'get_save_path', 'get_file_paths']
@@ -39,7 +39,6 @@ NO_WIN_FUNCS = {
 class PathPromptView(GuiView, view_name='path_prompt', primary=False):
     def __init__(
         self,
-        mgr: 'ViewManager',
         prompt_type: Union[str, PathPromptType],
         prompt: str,
         *,
@@ -50,7 +49,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         default_extension: str = None,
         file_types: Collection[tuple[str, str]] = None,
     ):
-        super().__init__(mgr, binds={'<Escape>': 'Exit'})
+        super().__init__(binds={'<Escape>': 'Exit'})
         self.type = PathPromptType(prompt_type)
         if self.type == PathPromptType.DIR and (default_extension or file_types):
             raise ValueError('Arguments default_extension/file_types are not supported for directory prompts')
@@ -146,17 +145,17 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
             return [Path(p).expanduser() for p in self._selection.split(';')] if self._selection else []
 
 
-def get_directory(mgr: 'ViewManager', *args, must_exist: bool = True, **kwargs) -> Optional[Path]:
-    return PathPromptView(mgr, PathPromptType.DIR, *args, **kwargs).get_path(must_exist)
+def get_directory(*args, must_exist: bool = True, **kwargs) -> Optional[Path]:
+    return PathPromptView(PathPromptType.DIR, *args, **kwargs).get_path(must_exist)
 
 
-def get_file_path(mgr: 'ViewManager', *args, must_exist: bool = True, **kwargs) -> Optional[Path]:
-    return PathPromptView(mgr, PathPromptType.FILE, *args, **kwargs).get_path(must_exist)
+def get_file_path(*args, must_exist: bool = True, **kwargs) -> Optional[Path]:
+    return PathPromptView(PathPromptType.FILE, *args, **kwargs).get_path(must_exist)
 
 
-def get_save_path(mgr: 'ViewManager', *args, must_exist: bool = False, **kwargs) -> Optional[Path]:
-    return PathPromptView(mgr, PathPromptType.SAVE, *args, **kwargs).get_path(must_exist)
+def get_save_path(*args, must_exist: bool = False, **kwargs) -> Optional[Path]:
+    return PathPromptView(PathPromptType.SAVE, *args, **kwargs).get_path(must_exist)
 
 
-def get_file_paths(mgr: 'ViewManager', *args, **kwargs) -> list[Path]:
-    return PathPromptView(mgr, PathPromptType.FILE, *args, **kwargs).get_paths()
+def get_file_paths(*args, **kwargs) -> list[Path]:
+    return PathPromptView(PathPromptType.FILE, *args, **kwargs).get_paths()

@@ -208,8 +208,7 @@ class GuiView(ABC):
             kwargs.setdefault('keep_on_top', True)
             kwargs.setdefault('modal', True)
 
-        new_window = Window(layout=layout, **kwargs)
-        new_window.finalize()
+        new_window = Window(layout=layout, finalize=True, **kwargs)
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
 
         if self.primary:

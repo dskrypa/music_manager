@@ -9,7 +9,7 @@ Defines the top menu and some common configuration properties.
 from pathlib import Path
 from typing import Any, Optional
 
-from PySimpleGUI import Button, Element, popup_ok, Column, Text
+from PySimpleGUI import Button, Element, Column, Text, popup, POPUP_BUTTONS_OK
 
 from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
@@ -114,7 +114,7 @@ class MainView(BaseView, view_name='main'):
 
     @event_handler
     def wiki_update(self, event: str, data: dict[str, Any]):
-        popup_ok('Wiki update is not implemented yet.')
+        popup('Wiki update is not implemented yet.', title='', button_type=POPUP_BUTTONS_OK, any_key_closes=True)
 
     def as_workflow(
         self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs

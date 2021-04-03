@@ -106,8 +106,8 @@ class AlbumBlock:
             if (src_val or new_val) and src_val != new_val:
                 self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
-                src_ele = Input(display_value(src_val), key=src_key, disabled=True)
-                new_ele = Input(display_value(new_val), key=new_key, disabled=True)
+                src_ele = value_ele(src_val, src_key, True)
+                new_ele = value_ele(new_val, new_key, True)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows) if rows else rows
@@ -121,17 +121,12 @@ class AlbumBlock:
         return dest_base_dir.joinpath(expected_rel_dir)
 
 
-def display_value(value: Any):
-    return repr(value) if value is not None and not isinstance(value, str) else value
-
-
 def value_ele(value: Any, val_key: str, disabled: bool) -> Element:
     if isinstance(value, bool):
         val_ele = Checkbox('', default=value, key=val_key, disabled=disabled)
     elif isinstance(value, list):
         val_ele = Listbox(value, default_values=value, key=val_key, disabled=disabled, size=(45, len(value)))
     else:
-        # val_ele = Input(display_value(value), key=val_key, disabled=disabled)
         val_ele = Input(value, key=val_key, disabled=disabled)
 
     return val_ele
@@ -230,12 +225,8 @@ class TrackBlock:
             if (src_val or new_val) and src_val != new_val:
                 self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
-
                 src_ele = value_ele(src_val, src_key, True)
                 new_ele = value_ele(new_val, new_key, True)
-                # src_ele = Input(display_value(src_val), key=src_key, disabled=True)
-                # new_ele = Input(display_value(new_val), key=new_key, disabled=True)
-
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows) if rows else rows

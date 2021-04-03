@@ -97,10 +97,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
             layout.extend(track_block.as_diff_rows(track_info, self.options['title_case']))
 
-        back_btn = Column([[Button('\u2770', key='edit', tooltip='Go back to edit', size=(5, 10))]])
+        back_btn = Button('\u2770', key='edit', tooltip='Go back to edit', size=(5, 10))
         content = Column(layout, key='col::content')
-        next_btn = Column([[Button('\u2771', key='apply', tooltip='Apply changes', size=(5, 10))]])
-        full_layout.append([back_btn, content, next_btn])
+        next_btn = Button('\u2771', key='btn::next', tooltip='Apply changes', size=(5, 10))
+        full_layout.append([Column([[back_btn]], key='col::back'), content, Column([[next_btn]], key='col::next')])
 
         # self.album_info.update_and_move(self.album, None, dry_run=True)
         return full_layout, kwargs
@@ -110,6 +110,6 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.options.parse(data)
         self.render()
 
-    @event_handler('apply')  # noqa
+    @event_handler('btn::next')  # noqa
     def apply_changes(self, event: str, data: dict[str, Any]):
         pass

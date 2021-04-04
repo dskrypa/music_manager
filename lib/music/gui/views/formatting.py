@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
     from .base import GuiView
 
-__all__ = ['TrackBlock', 'AlbumBlock']
+__all__ = ['TrackBlock', 'AlbumBlock', 'split_key']
 
 
 class AlbumBlock:
@@ -89,7 +89,7 @@ class AlbumBlock:
     def cover_image_full_obj(self) -> Optional['PILImage']:
         cover_images = self._cover_image_full
         if len(cover_images) == 1:
-            return next(iter(self))._cover_image
+            return next(iter(self)).cover_image_obj
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
         return None
@@ -196,7 +196,7 @@ class TrackBlock:
         self._new_info = value
 
     @cached_property
-    def _cover_image(self) -> Optional['PILImage']:
+    def cover_image_obj(self) -> Optional['PILImage']:
         try:
             return self.track.get_cover_image()
         except Exception:
@@ -205,7 +205,7 @@ class TrackBlock:
 
     @cached_property
     def _cover_image_full(self) -> Optional[bytes]:
-        if (image := self._cover_image) is not None:
+        if (image := self.cover_image_obj) is not None:
             bio = BytesIO()
             image.save(bio, format='PNG')
             return bio.getvalue()
@@ -213,7 +213,7 @@ class TrackBlock:
 
     @cached_property
     def _cover_image_thumbnail(self) -> Optional[bytes]:
-        if (image := self._cover_image) is not None:
+        if (image := self.cover_image_obj) is not None:
             image = image.copy()
             image.thumbnail(self.cover_size)
             bio = BytesIO()
@@ -224,11 +224,14 @@ class TrackBlock:
     @property
     def cover_image_thumbnail(self) -> Image:
         # If self._cover_image_thumbnail is None, it will be a blank frame
-        return Image(data=self._cover_image_thumbnail, size=self.cover_size, key=f'img::{self.path_str}::cover-thumb')
+        return Image(
+            data=self._cover_image_thumbnail, size=self.cover_size, key=f'img::{self.path_str}::cover-thumb',
+            enable_events=True
+        )
 
     @property
     def cover_image(self) -> Image:
-        size = self._cover_image.size if self._cover_image is not None else (100, 100)
+        size = self.cover_image_obj.size if self.cover_image_obj is not None else (100, 100)
         return Image(data=self._cover_image_full, size=size, key=f'img::{self.path_str}::cover-full')
 
     @cached_property
@@ -246,6 +249,10 @@ class TrackBlock:
     @cached_property
     def path_str(self) -> str:
         return self.track.path.as_posix()
+
+    @cached_property
+    def file_name(self) -> str:
+        return self.track.path.name
 
     def get_tag_rows(self, editable: bool = True) -> list[list[Element]]:
         rows = []
@@ -325,3 +332,13 @@ class TrackBlock:
             yield [Column(diff_rows, key=f'col::{self.path_str}::diff')]
         else:
             yield []
+
+
+def split_key(key: str) -> Optional[tuple[str, str, str]]:
+    try:
+        key_type, obj_key = key.split('::', 1)
+        obj, item = obj_key.rsplit('::', 1)
+    except Exception:
+        return None
+    else:
+        return key_type, obj, item

@@ -50,7 +50,6 @@ class ImageView(GuiView, view_name='show_image', primary=False):
         # self.log.log(19, f'Resizing image from {img_w}x{img_h} to {new_w}x{new_h}')
         image = self.pil_img.resize((new_w, new_h))
         self.gui_img.update(data=image_to_bytes(image), size=image.size)
-        self.window.refresh()
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout = [[self.gui_img]]
@@ -69,6 +68,7 @@ def image_to_bytes(image: 'PILImage') -> bytes:
 
 
 def calculate_resize(src_size, new_size):
+    """Copied logic from :meth:`PIL.Image.Image.thumbnail`"""
     x, y = map(math.floor, new_size)
     src_w, src_h = src_size
     aspect = src_w / src_h

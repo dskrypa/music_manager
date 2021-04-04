@@ -12,7 +12,8 @@ from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .formatting import AlbumBlock
+from .base import event_handler
+from .formatting import AlbumBlock, split_key
 from .main import MainView
 
 __all__ = ['AllTagsView']
@@ -39,3 +40,19 @@ class AllTagsView(MainView, view_name='all_tags'):
             layout.append([track_col])
 
         return layout, kwargs
+
+    def handle_event(self, event: str, data: dict[str, Any]):
+        if event.startswith('img::'):
+            data['image_key'] = event
+            event = 'image_clicked'
+
+        return super().handle_event(event, data)
+
+    @event_handler
+    def image_clicked(self, event: str, data: dict[str, Any]):
+        from .popups.image import ImageView
+
+        image_key = data['image_key']
+        track_path = split_key(image_key)[1]
+        track_block = self.album_block.track_blocks[track_path]
+        return ImageView(track_block.cover_image_obj, f'Track Album Cover: {track_block.file_name}')

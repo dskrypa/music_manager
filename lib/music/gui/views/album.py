@@ -7,7 +7,7 @@ View: Album + track tag values.  Allows editing, after which the view transition
 from dataclasses import fields
 from itertools import chain
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button, popup_get_text
 
@@ -16,7 +16,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
 from .base import event_handler
-from .formatting import AlbumBlock
+from .formatting import AlbumBlock, split_key
 from .main import MainView
 from .popups.simple import popup_ok
 
@@ -181,13 +181,3 @@ class AlbumView(MainView, view_name='album'):
         from .popups.image import ImageView
 
         return ImageView(self.album_block.cover_image_full_obj, f'Album Cover: {self.album_block.album_info.name}')
-
-
-def split_key(key: str) -> Optional[tuple[str, str, str]]:
-    try:
-        key_type, obj_key = key.split('::', 1)
-        obj, item = obj_key.rsplit('::', 1)
-    except Exception:
-        return None
-    else:
-        return key_type, obj, item

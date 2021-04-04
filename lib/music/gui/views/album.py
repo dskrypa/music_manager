@@ -18,7 +18,7 @@ from ..progress import Spinner
 from .base import event_handler
 from .formatting import AlbumBlock
 from .main import MainView
-from .utils import popup_ok
+from .popups.simple import popup_ok
 
 __all__ = ['AlbumView']
 
@@ -46,7 +46,7 @@ class AlbumView(MainView, view_name='album'):
             album_container = Column(
                 [
                     [
-                        Column([[self.album_block.cover_image]], key='col::album_cover'),
+                        Column([[self.album_block.cover_image_thumbnail]], key='col::album_cover'),
                         Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
                     ],
                     [HorizontalSeparator()],
@@ -91,6 +91,9 @@ class AlbumView(MainView, view_name='album'):
             key_type, obj, field = split_key(event)
             data.update(object=obj, field=field)
             event = 'add_field_value'
+        elif event.startswith('img::'):
+            data['image_key'] = event
+            event = 'image_clicked'
 
         return super().handle_event(event, data)
 
@@ -158,20 +161,26 @@ class AlbumView(MainView, view_name='album'):
         for data_key, value in data.items():
             # self.log.debug(f'Processing {data_key=!r}')
             if key_parts := split_key(data_key):
-                key_type, obj, key = key_parts
+                key_type, obj, field = key_parts
                 if key_type == 'val':
                     try:
-                        value = info_fields[key].type(value)
+                        value = info_fields[field].type(value)
                     except (KeyError, TypeError, ValueError):
                         pass
                     if obj == 'album':
-                        info_dict[key] = value
+                        info_dict[field] = value
                     else:
-                        track_info_dict.setdefault(obj, {})[key] = value
+                        track_info_dict.setdefault(obj, {})[field] = value
 
         album_info = AlbumInfo.from_dict(info_dict)
         self.album_block.album_info = album_info
         return AlbumDiffView(self.album, album_info, self.album_block)
+
+    @event_handler
+    def image_clicked(self, event: str, data: dict[str, Any]):
+        from .popups.image import ImageView
+
+        return ImageView(self.album_block.cover_image_full_obj, f'Album Cover: {self.album_block.album_info.name}')
 
 
 def split_key(key: str) -> Optional[tuple[str, str, str]]:

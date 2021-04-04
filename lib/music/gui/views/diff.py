@@ -74,6 +74,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         src_img_data, new_img_data, new_image_obj = self.cover_images
         if new_img_data is not None:
             layout.append([
+                # TODO: These need to be made into thumbnails
                 Image(data=src_img_data, size=(250, 250), key='img::cover::src'),
                 Text('->', key='txt::cover::arrow'),
                 Image(data=new_img_data, size=(250, 250), key='img::cover::new'),

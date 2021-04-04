@@ -7,18 +7,20 @@ Album / track formatting helper functions.
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any
+from typing import TYPE_CHECKING, Optional, Any, Iterator
 
 from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox, Button
-from PySimpleGUI import HorizontalSeparator, VerticalSeparator, popup_ok
+from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 
 from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
+from .popups.simple import popup_ok
 
 if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
     from .base import GuiView
 
 __all__ = ['TrackBlock', 'AlbumBlock']
@@ -62,23 +64,41 @@ class AlbumBlock:
             blocks[path] = TrackBlock(self, track, info, self.cover_size)
         return blocks
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator['TrackBlock']:
         yield from self.track_blocks.values()
 
     @cached_property
-    def _cover_image_data(self) -> set[bytes]:
-        return set(filter(None, (tb._cover_image_data for tb in self.track_blocks.values())))
+    def _cover_image_thumbnail(self) -> set[bytes]:
+        return set(filter(None, (tb._cover_image_thumbnail for tb in self)))
+
+    @cached_property
+    def _cover_image_full(self) -> set[bytes]:
+        return set(filter(None, (tb._cover_image_full for tb in self)))
 
     @property
-    def cover_image(self) -> Image:
-        key = 'album_cover'
-        cover_images = self._cover_image_data
+    def cover_image_thumbnail(self) -> Image:
+        key = 'img::album::cover-thumb'
+        cover_images = self._cover_image_thumbnail
         if len(cover_images) == 1:
-            return Image(data=next(iter(cover_images)), size=self.cover_size, key=key)
+            return Image(data=next(iter(cover_images)), size=self.cover_size, key=key, enable_events=True)
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
-        # TODO: Make clickable and show larger version on click
         return Image(size=self.cover_size, key=key)
+
+    @property
+    def cover_image_full_obj(self) -> Optional['PILImage']:
+        cover_images = self._cover_image_full
+        if len(cover_images) == 1:
+            return next(iter(self))._cover_image
+        elif cover_images:
+            popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
+        return None
+
+    @property
+    def cover_image_full(self) -> Image:
+        image_obj = self.cover_image_full_obj
+        size = (100, 100) if image_obj is None else image_obj.size
+        return Image(data=next(iter(self._cover_image_full)), size=size, key='img::album::cover-full')
 
     def get_album_data_rows(self, editable: bool = False):
         rows = []
@@ -176,22 +196,40 @@ class TrackBlock:
         self._new_info = value
 
     @cached_property
-    def _cover_image_data(self) -> Optional[bytes]:
+    def _cover_image(self) -> Optional['PILImage']:
         try:
-            image = self.track.get_cover_image()
+            return self.track.get_cover_image()
         except Exception:
             self.log.error(f'Unable to load cover image for {self.track}')
             return None
-        else:
+
+    @cached_property
+    def _cover_image_full(self) -> Optional[bytes]:
+        if (image := self._cover_image) is not None:
+            bio = BytesIO()
+            image.save(bio, format='PNG')
+            return bio.getvalue()
+        return None
+
+    @cached_property
+    def _cover_image_thumbnail(self) -> Optional[bytes]:
+        if (image := self._cover_image) is not None:
+            image = image.copy()
             image.thumbnail(self.cover_size)
             bio = BytesIO()
             image.save(bio, format='PNG')
             return bio.getvalue()
+        return None
+
+    @property
+    def cover_image_thumbnail(self) -> Image:
+        # If self._cover_image_thumbnail is None, it will be a blank frame
+        return Image(data=self._cover_image_thumbnail, size=self.cover_size, key=f'img::{self.path_str}::cover-thumb')
 
     @property
     def cover_image(self) -> Image:
-        # If self._cover_image_data is None, it will be a blank frame
-        return Image(data=self._cover_image_data, size=self.cover_size, key=f'img::{self.path_str}::cover')
+        size = self._cover_image.size if self._cover_image is not None else (100, 100)
+        return Image(data=self._cover_image_full, size=size, key=f'img::{self.path_str}::cover-full')
 
     @cached_property
     def tag_values(self) -> dict[str, tuple[str, Any]]:
@@ -267,7 +305,7 @@ class TrackBlock:
     def as_all_tag_rows(self, editable: bool = True):
         yield [HorizontalSeparator()]
         yield self.get_basic_info_row()
-        cover = Column([[self.cover_image]], key=f'col::{self.path_str}::cover')
+        cover = Column([[self.cover_image_thumbnail]], key=f'col::{self.path_str}::cover')
         tags = Column(self.get_tag_rows(editable), key=f'col::{self.path_str}::tags')
         yield [cover, tags]
 

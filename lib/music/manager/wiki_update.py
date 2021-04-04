@@ -112,6 +112,35 @@ class WikiUpdater:
             else:
                 album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
 
+    def get_album_info(
+        self, load_path: Optional[str], album_url: Optional[str], artist_only: bool
+    ) -> Tuple[AlbumDir, AlbumInfo]:
+        if load_path:
+            return self._from_path(load_path)
+        elif album_url:
+            return self._from_album_url(album_url)
+        else:
+            if artist_only:
+                if self.artist:
+                    return next(iter(self._from_artist()))
+                else:
+                    album_dir = next(iter(iter_album_dirs(self.paths)))
+                    processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
+                    return album_dir, processor.to_album_info()
+            else:
+                album_dir = next(iter(iter_album_dirs(self.paths)))
+                processor = AlbumInfoProcessor.for_album_dir(
+                    album_dir,
+                    self.artist,
+                    self.soloist,
+                    self.hide_edition,
+                    self.collab_mode,
+                    self.title_case,
+                    self.sites,
+                    self.update_cover,
+                )
+                return album_dir, processor.to_album_info()
+
     def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         if load_path:
             yield self._from_path(load_path)

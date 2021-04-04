@@ -6,7 +6,7 @@ View: Diff between original and modified tag values.  Used for both manual and W
 
 from functools import cached_property
 from io import BytesIO
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from PySimpleGUI import Text, Input, Image, Column, Element, HSep
 
@@ -20,16 +20,27 @@ from .formatting import AlbumBlock
 from .main import MainView
 from .utils import get_a_to_b
 
+if TYPE_CHECKING:
+    from .album import AlbumView
+    from .wiki_update import WikiUpdateView
+
 __all__ = ['AlbumDiffView']
 
 
 class AlbumDiffView(MainView, view_name='album_diff'):
-    def __init__(self, album: AlbumDir, album_info: AlbumInfo, album_block: AlbumBlock = None):
+    def __init__(
+        self,
+        album: AlbumDir,
+        album_info: AlbumInfo,
+        album_block: AlbumBlock = None,
+        last: Union['AlbumView', 'WikiUpdateView'] = None,
+    ):
         super().__init__()
         self.album = album
         self.album_info = album_info
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
+        self.last_view = last
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
         self.options.add_bool('dry_run', 'Dry Run', default=True)
@@ -63,7 +74,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         full_layout, kwargs = super().get_render_args()
-
+        # TODO: Make the center scrollable
         layout = [
             [self.options.as_frame('apply_changes')],
             [Text()],
@@ -97,12 +108,22 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.append([Text()])
             layout.extend(track_block.as_diff_rows(self.album_info.tracks[path], self.options['title_case']))
 
-        workflow = self.as_workflow(
-            layout, back_key='edit', back_tooltip='Go back to edit', next_tooltip='Apply changes (save)'
-        )
+        workflow = self.as_workflow(layout, back_tooltip='Go back to edit', next_tooltip='Apply changes (save)')
+
         full_layout.append(workflow)
 
         return full_layout, kwargs
+
+    @event_handler('btn::back')  # noqa
+    def back_to_album(self, event: str, data: dict[str, Any]):
+        from .album import AlbumView
+
+        # TODO: Add alternate back to edit button when last was wiki update
+        if self.last_view is not None:
+            kwargs = {'editing': True} if isinstance(self.last_view, AlbumView) else {}
+            return self.last_view.__class__(self.album, self.album_block, **kwargs)
+
+        return AlbumView(self.album, self.album_block)
 
     @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')  # noqa
     def refresh(self, event: str, data: dict[str, Any]):

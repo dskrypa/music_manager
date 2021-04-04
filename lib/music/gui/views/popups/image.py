@@ -48,7 +48,7 @@ class ImageView(GuiView, view_name='show_image', primary=False):
         new_w, new_h = data['new_size']
         new_w, new_h = calculate_resize(self.pil_img.size, (new_w - 4, new_h - 4))
         # self.log.log(19, f'Resizing image from {img_w}x{img_h} to {new_w}x{new_h}')
-        image = self.pil_img.resize((new_w, new_h))
+        image = self.pil_img.resize((new_w, new_h), 1)  # 1 = ANTIALIAS
         self.gui_img.update(data=image_to_bytes(image), size=image.size)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:

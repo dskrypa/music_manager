@@ -4,35 +4,25 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
-from dataclasses import fields
-from itertools import chain
-from pathlib import Path
+import traceback
+from threading import Thread
 from typing import Any
 
-from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button, popup_get_text, HSep
+from PySimpleGUI import Text, Input, Element, HSep
 
 from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
-from ...manager.update import AlbumInfo, TrackInfo
-from ...manager.wiki_update import update_tracks
+from ...manager.wiki_update import WikiUpdater
 from ..constants import LoadingSpinner
 from ..options import GuiOptions
 from ..progress import Spinner
 from .base import event_handler
-from .formatting import AlbumBlock, split_key
+from .formatting import AlbumBlock
 from .main import MainView
-from .popups.simple import popup_ok
+from .popups.text import popup_error
 
 __all__ = ['WikiUpdateView']
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
-
-"""
-update_tracks(
-    args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-    args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover,
-    args.no_album_move, args.artist_only, not args.replace_genre
-)
-"""
 
 
 class WikiUpdateView(MainView, view_name='wiki_update'):
@@ -83,6 +73,47 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
 
     @event_handler('btn::next')  # noqa
     def find_match(self, event: str, data: dict[str, Any]):
+        from .diff import AlbumDiffView
+
         parsed = self.options.parse(data)
         self.log.info(f'Parsed options:')
         Printer('json-pretty').pprint(parsed)
+
+        updater = WikiUpdater(
+            [self.album.path],
+            parsed['collab_mode'],
+            parsed['sites'],
+            parsed['soloist'],
+            parsed['hide_edition'],
+            parsed['title_case'],
+            parsed['update_cover'],
+            parsed['artist_url'] or None,
+        )
+
+        album_info = None
+        error = None
+
+        # TODO: Add way to capture user input for prompts for disambiguation, etc
+
+        def get_album_info():
+            nonlocal album_info, error
+            try:
+                album_dir, album_info = updater.get_album_info(None, parsed['album_url'] or None, parsed['artist_only'])
+            except Exception as e:
+                error = traceback.format_exc()
+                self.log.error(str(e))
+
+        with Spinner(LoadingSpinner.blue_dots) as spinner:
+            t = Thread(target=get_album_info)
+            t.start()
+            while t.is_alive():
+                spinner.update()
+                t.join(0.1)
+
+        if album_info is not None:
+            return AlbumDiffView(self.album, album_info, self.album_block, last=self)  # noqa
+        else:
+            error_str = f'Error finding a wiki match for {self.album}:\n{error}'
+            lines = error_str.splitlines()
+            width = max(map(len, lines))
+            popup_error(f'Error finding a wiki match for {self.album}:\n{error}', size=(width, len(lines)))

@@ -6,9 +6,10 @@ View: Album + track tag values.  Allows editing, after which the view transition
 
 from dataclasses import fields
 from itertools import chain
+from pathlib import Path
 from typing import Any, Optional
 
-from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button
+from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button, popup_get_text
 
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
@@ -89,30 +90,44 @@ class AlbumView(MainView, view_name='album'):
             data['listbox_key'] = event.replace('add::', 'val::', 1)
             key_type, obj, field = split_key(event)
             data.update(object=obj, field=field)
-            event = f'add_{field}'
+            event = 'add_field_value'
 
         return super().handle_event(event, data)
 
     @event_handler
-    def add_genre(self, event: str, data: dict[str, Any]):
-        # TODO: popup to take a new genre value, then add to working AlbumInfo genre set
+    def add_field_value(self, event: str, data: dict[str, Any]):
         # listbox_key = data['listbox_key']
         obj = data['object']  # album or a track path
+        field = data['field']
 
-        new_value = 'TEST'  # TODO: Get a real new value
+        obj_str = 'the album' if obj == 'album' else Path(obj).name
+        new_value = popup_get_text(f'Enter a new {field} value to add to {obj_str}', title=f'Add {field}')
+        if new_value is not None:
+            new_value = new_value.strip()
+        if not new_value:
+            return
 
         if (album_info := self.album_block._new_album_info) is None:  # can't update listbox size without re-draw
+            self.log.debug('Copying album_info to provide new field values...')
             album_info = self.album_block.album_info.copy()
             self.album_block.album_info = album_info
 
-        if data['field'] == 'genre':
-            if obj == 'album':
-                album_info.add_genre(new_value)
-            else:
-                album_info.tracks[obj].add_genre(new_value)
+        info_obj = album_info if obj == 'album' else album_info.tracks[obj]
+        if field == 'genre':
+            self.log.debug(f'Adding genre={new_value!r} to {info_obj}')
+            info_obj.add_genre(new_value)
             self.render()
         else:
-            popup_ok(f'Invalid field to add a value', title='Invalid Field')
+            info_fields = {f.name: f for f in fields(info_obj.__class__)}
+            try:
+                field_obj = info_fields[field]
+            except KeyError:
+                popup_ok(f'Invalid field to add a value', title='Invalid Field')
+                return
+
+            self.log.debug(f'Setting {info_obj}.{field} = {new_value!r}')
+            setattr(info_obj, field, new_value)
+            self.render()
 
     @event_handler
     def all_tags(self, event: str, data: dict[str, Any]):

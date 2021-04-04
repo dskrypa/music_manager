@@ -77,6 +77,12 @@ class DiscoEntryType(Enum):
     @classmethod
     def for_name(cls, name: Union[str, Iterable[str], None]) -> 'DiscoEntryType':
         if name:
+            if isinstance(name, str):
+                try:
+                    return cls[name]
+                except KeyError:
+                    pass
+
             candidates = set()
             if isinstance(name, str):
                 if album_type := cls._for_category(name):

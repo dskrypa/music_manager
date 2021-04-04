@@ -37,8 +37,12 @@ TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
 UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 
-def default(cls):
+def _default(cls):
     return field(default_factory=cls)
+
+
+def _hidden(default=None):
+    return field(init=False, repr=False, default=default)
 
 
 class GenreMixin:
@@ -120,15 +124,17 @@ class AlbumInfo(GenreMixin):
     # fmt: off
     title: str = None                               # Album title (tag)
     artist: str = None                              # Album artist name
-    date: date = None                               # Album release date
+    date: Union[date, str] = None                   # Album release date
+    _date: date = _hidden()                         # _Workaround for property.setter to normalize/validate date values
     disk: int = None                                # Disk number
     genre: Union[str, Collection[str]] = None       # Album genre
-    tracks: Dict[str, TrackInfo] = default(dict)    # Mapping of {path: TrackInfo} for the tracks in this album
+    tracks: Dict[str, TrackInfo] = _default(dict)   # Mapping of {path: TrackInfo} for the tracks in this album
     name: str = None                                # Directory name to be used
     parent: str = None                              # Artist name to use in file paths
     singer: str = None                              # Solo singer when in a group, to be sorted under that group
     solo_of_group: bool = False                     # Whether the singer is a soloist
-    type: DiscoEntryType = DiscoEntryType.UNKNOWN   # The album type (single, album, mini album, etc.)
+    type: Union[DiscoEntryType, str] = None         # The album type (single, album, mini album, etc.)
+    _type: DiscoEntryType = _hidden()               # _Workaround for property.setter to normalize/validate type values
     number: int = None                              # This album is the Xth of its type from this artist
     numbered_type: str = None                       # The type + number within that type for this artist
     disks: int = 1                                  # Total number of disks for this album
@@ -153,28 +159,46 @@ class AlbumInfo(GenreMixin):
             raise ValueError('No parent paths were found')
         raise ValueError(f'Found multiple parent paths: {sorted(paths)}')
 
+    @property
+    def type(self) -> DiscoEntryType:  # noqa
+        return self._type if self._type is not None else DiscoEntryType.UNKNOWN
+
+    @type.setter
+    def type(self, value: Union[str, DiscoEntryType, None]):
+        if isinstance(value, property):
+            value = self._type
+        self._type = value if isinstance(value, DiscoEntryType) else DiscoEntryType.for_name(value)
+
+    @property
+    def date(self) -> Optional['date']:  # noqa
+        return self._date
+
+    @date.setter
+    def date(self, value: Union[str, 'date', None]):
+        if isinstance(value, property):
+            value = self._date
+        self._date = value if value is None or isinstance(value, date) else parse_date(value)
+
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> 'AlbumInfo':
-        kwargs = {f.name: data.get(f.name, f.default) for f in fields(cls) if f.name not in ('date', 'tracks', 'type')}
+        kwargs = {f.name: data.get(f.name, f.default) for f in fields(cls) if f.init and f.name != 'tracks'}
         self = cls(**kwargs)
-        if date_obj := data.get('date'):
-            self.date = date_obj if isinstance(date_obj, date) else parse_date(date_obj)
         if tracks := data.get('tracks'):
             self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
-        if entry_type := data.get('type'):
-            self.type = DiscoEntryType.for_name(entry_type)
         self.name = self.name or self.title
         return self
 
     def to_dict(self, title_case: bool = False):
-        data = self.__dict__.copy()
-        try:
-            data['date'] = self.date.strftime('%Y-%m-%d')
-        except AttributeError:
-            data['date'] = None
-        data['tracks'] = {path: track.to_dict(title_case) for path, track in self.tracks.items()}
-        data['type'] = self.type.real_name if self.type is not None else None
-        data['genre'] = self.norm_genres() if title_case else self.genre_list
+        normalized = {
+            'date': self.date.strftime('%Y-%m-%d') if self.date else None,
+            'tracks': {path: track.to_dict(title_case) for path, track in self.tracks.items()},
+            'type': self.type.real_name if self.type else None,
+            'genre': self.norm_genres() if title_case else self.genre_list,
+        }
+        data = {
+            name: normalized[name] if name in normalized else self.__dict__[name]
+            for name in (f.name for f in fields(self) if f.init)
+        }
         if title_case:
             for key in ('title', 'artist', 'name', 'parent', 'singer'):
                 if value := data[key]:

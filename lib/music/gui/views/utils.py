@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Union
 
-from PySimpleGUI import Text, Element, Column, Input
+from PySimpleGUI import Text, Element, Column, Input, Checkbox
 
 __all__ = [
     'resize_text_column',
@@ -18,6 +18,7 @@ __all__ = [
     'expand_columns',
     'get_a_to_b',
     'ViewLoggerAdapter',
+    'make_checkbox_grid',
 ]
 log = logging.getLogger(__name__)
 
@@ -27,6 +28,24 @@ def resize_text_column(rows: list[list[Union[Text, Element]]], column: int = 0):
     for row in rows:
         row[column].Size = (longest, 1)
 
+    return rows
+
+
+def make_checkbox_grid(rows: list[list[Checkbox]]):
+    if len(rows) > 1 and len(rows[-1]) == 1:
+        last_row = rows[-1]
+        rows = rows[:-1]
+    else:
+        last_row = None
+
+    shortest_row = min(map(len, (row for row in rows)))
+    longest_boxes = [max(map(len, (row[column].Text for row in rows))) for column in range(shortest_row)]
+    for row in rows:
+        for column, width in enumerate(longest_boxes):
+            row[column].Size = (width, 1)
+
+    if last_row is not None:
+        rows.append(last_row)
     return rows
 
 

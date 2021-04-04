@@ -5,9 +5,11 @@ Gui option rendering and parsing
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, Collection
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input, Column
+from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input, Column, Combo, Listbox
+
+from .views.utils import resize_text_column, make_checkbox_grid
 
 if TYPE_CHECKING:
     from .views.base import GuiView
@@ -15,15 +17,26 @@ if TYPE_CHECKING:
 __all__ = ['GuiOptions', 'GuiOptionError', 'SingleParsingError', 'RequiredOptionMissing', 'MultiParsingError']
 log = logging.getLogger(__name__)
 _NotSet = object()
+COMMON_PARAMS = ('size', 'tooltip', 'pad', 'enable_events')
 
 
 class GuiOptions:
-    def __init__(self, view: 'GuiView', *, submit: Optional[str] = 'Submit', disable_on_parsed: bool = False):
+    def __init__(
+        self,
+        view: 'GuiView',
+        *,
+        submit: Optional[str] = 'Submit',
+        disable_on_parsed: bool = False,
+        align_text: bool = True,
+        align_checkboxes: bool = True,
+    ):
         self.view = view
         self.options = {}
         self.parsed = False
         self.disable_on_parsed = disable_on_parsed
         self.submit_text = submit
+        self.align_text = align_text
+        self.align_checkboxes = align_checkboxes
 
     def __getitem__(self, name: str):
         try:
@@ -75,12 +88,29 @@ class GuiOptions:
             **kwargs
         }
 
-    def add_bool(self, option: str, label: str, default: bool = False, *, tooltip: str = None, **kwargs):
-        self._add_option('checkbox', option, label, default, tooltip=tooltip, **kwargs)
+    def add_bool(self, option: str, label: str, default: bool = False, **kwargs):
+        self._add_option('checkbox', option, label, default, **kwargs)
 
     # noinspection PyShadowingBuiltins
     def add_input(self, option: str, label: str, default: Any = _NotSet, *, type: Callable = str, **kwargs):
         self._add_option('input', option, label, default, type=type, **kwargs)
+
+    def add_dropdown(self, option: str, label: str, choices: Collection[str], default: Any = None, **kwargs):
+        self._add_option('dropdown', option, label, default, choices=choices, **kwargs)
+
+    def add_listbox(
+        self,
+        option: str,
+        label: str,
+        choices: Collection[str],
+        default: Any = _NotSet,
+        *,
+        size: tuple[int, int] = None,
+        select_mode: str = 'extended',
+        **kwargs
+    ):
+        kwargs.update(size=size or (max(map(len, choices)) + 3, len(choices)), select_mode=select_mode, choices=choices)
+        self._add_option('listbox', option, label, choices if default is _NotSet else default, **kwargs)
 
     def layout(self, submit_key: str, disable_all: bool = None, submit_row: int = None) -> list[list[Element]]:
         if disable_all is None:
@@ -98,14 +128,34 @@ class GuiOptions:
             common = {'key': f'opt::{name}', 'disabled': disable_all or opt['disabled']}
             if opt_kwargs := opt.get('kwargs'):
                 common.update(opt_kwargs)
+            for param in COMMON_PARAMS:
+                try:
+                    common[param] = opt[param]
+                except KeyError:
+                    pass
 
             if opt_type == 'checkbox':
-                row.append(Checkbox(opt['label'], default=val, tooltip=opt['tooltip'], **common))
+                row.append(Checkbox(opt['label'], default=val, **common))
             elif opt_type == 'input':
                 row.append(Text(opt['label'], key=f'lbl::{name}'))
                 row.append(Input('' if val is _NotSet else val, **common))
+            elif opt_type == 'dropdown':
+                row.append(Text(opt['label'], key=f'lbl::{name}'))
+                row.append(Combo(opt['choices'], default_value=val, **common))
+            elif opt_type == 'listbox':
+                choices = opt['choices']
+                row.append(Text(opt['label'], key=f'lbl::{name}'))
+                opt_ele = Listbox(
+                    choices, default_values=val or choices, no_scrollbar=True, select_mode=opt['select_mode'], **common
+                )
+                row.append(opt_ele)
             else:
                 raise ValueError(f'Unsupported {opt_type=!r}')
+
+        if self.align_text and (rows_with_text := [row for row in layout if row and isinstance(row[0], Text)]):
+            resize_text_column(rows_with_text)  # noqa
+        if self.align_checkboxes and (box_rows := [row for row in layout if all(isinstance(e, Checkbox) for e in row)]):
+            make_checkbox_grid(box_rows)  # noqa
 
         if self.submit_text:
             submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key)

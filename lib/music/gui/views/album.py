@@ -41,7 +41,11 @@ class AlbumView(MainView, view_name='album'):
             ]
             spinner.update()
             bkw = {'size': (18, 1)}
-            view_buttons = [Button('Edit', key='edit', **bkw), Button('View All Tags', key='all_tags', **bkw)]
+            view_buttons = [
+                Button('Edit', key='edit', **bkw),
+                Button('View All Tags', key='all_tags', **bkw),
+                Button('Wiki Update', key='wiki_update', **bkw),
+            ]
             edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
             album_container = Column(
                 [

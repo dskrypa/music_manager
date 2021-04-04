@@ -17,7 +17,7 @@ from ...files.exceptions import InvalidAlbumDir
 from ..state import GuiState
 from .base import event_handler, BaseView
 from .popups.path_prompt import get_directory
-from .popups.simple import popup_ok, popup_input_invalid
+from .popups.simple import popup_input_invalid
 
 __all__ = ['MainView']
 
@@ -124,7 +124,10 @@ class MainView(BaseView, view_name='main'):
 
     @event_handler
     def wiki_update(self, event: str, data: dict[str, Any]):
-        popup_ok('Wiki update is not implemented yet.')
+        if album := self.get_album_selection():
+            from .wiki_update import WikiUpdateView
+
+            return WikiUpdateView(album, getattr(self, 'album_block', None))
 
     def as_workflow(
         self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs

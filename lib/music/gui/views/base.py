@@ -154,9 +154,7 @@ class GuiView(ABC):
     def _get_default_handler(self):
         for cls in self.__class__.mro():
             if (handler := getattr(cls, 'default_handler', None)) is not None:
-                # self.log.debug(f'{self}: Found default_handler={handler.__name__}')
                 return handler
-        # self.log.debug(f'{self}: No default handler found')
         return None
 
     def _handle_event(self, event: str, data: dict[str, Any]):
@@ -164,13 +162,6 @@ class GuiView(ABC):
             handler = self.event_handlers[event]
         except KeyError:
             if (handler := self._get_default_handler()) is None:
-                # for cls in self.__class__.mro():
-                #     print(f'{cls.__name__}:')
-                #     try:
-                #         for handler in sorted(cls.event_handlers):  # noqa
-                #             print(f'    - {handler}')
-                #     except AttributeError:
-                #         pass
                 raise NoEventHandlerRegistered(self, event) from None
 
         if event != 'config_changed':
@@ -227,11 +218,6 @@ class GuiView(ABC):
         return new_window
 
     def render(self):
-        # for cls in [GuiView, *GuiView.__subclasses__()]:
-        #     print(f'{cls.__name__}:')
-        #     for handler in sorted(cls.event_handlers):
-        #         print(f'    - {handler}')
-
         layout, kwargs = self.get_render_args()
         loc = self.__class__ if self.primary else self
         loc.window = self._create_window(layout, kwargs)
@@ -251,6 +237,7 @@ class GuiView(ABC):
         new_size = loc.window.size
         old_size = loc._window_size
         if old_size != new_size:
+            # self.log.debug(f'Window size changed: {old_size} -> {new_size}')
             loc._window_size = new_size
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty
@@ -283,7 +270,7 @@ class BaseView(GuiView, view_name='base'):
 
     @event_handler
     def about(self, event: str, data: dict[str, Any]):
-        from .about import AboutView
+        from .popups.about import AboutView
 
         return AboutView()
 

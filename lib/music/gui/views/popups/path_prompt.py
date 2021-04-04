@@ -13,7 +13,7 @@ from typing import Any, Union, Optional, Collection
 
 from PySimpleGUI import Element, Text, Input, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs, Popup
 
-from .base import event_handler, GuiView
+from ..base import event_handler, GuiView
 from .utils import temp_hidden_window
 
 __all__ = ['PathPromptView', 'PathPromptType', 'get_directory', 'get_file_path', 'get_save_path', 'get_file_paths']

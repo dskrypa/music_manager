@@ -9,16 +9,15 @@ Defines the top menu and some common configuration properties.
 from pathlib import Path
 from typing import Any, Optional
 
-from PySimpleGUI import Button, Element, Column, Text, popup, POPUP_BUTTONS_OK
+from PySimpleGUI import Button, Element, Column, Text
 
 from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
-from ..prompts import popup_input_invalid
 from ..state import GuiState
 from .base import event_handler, BaseView
-from .path_prompt import get_directory
-from .utils import popup_ok
+from .popups.path_prompt import get_directory
+from .popups.simple import popup_ok, popup_input_invalid
 
 __all__ = ['MainView']
 
@@ -84,7 +83,7 @@ class MainView(BaseView, view_name='main'):
             try:
                 return AlbumDir(path)
             except InvalidAlbumDir as e:
-                popup_input_invalid(str(e))
+                popup_input_invalid(str(e), logger=self.log)
         else:
             self.window.force_focus()
 

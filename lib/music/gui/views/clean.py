@@ -16,10 +16,9 @@ from ...files.album import AlbumDir
 from ...manager.file_update import _add_bpm
 from ..options import GuiOptions, GuiOptionError, SingleParsingError
 from ..progress import ProgressTracker
-from ..prompts import popup_input_invalid
 from .base import event_handler
 from .main import MainView
-from .utils import popup_ok
+from .popups.simple import popup_ok, popup_input_invalid
 
 __all__ = ['CleanView']
 
@@ -54,10 +53,12 @@ class CleanView(MainView, view_name='clean'):
             self.options.parse(data)
         except GuiOptionError as e:
             if isinstance(e, SingleParsingError) and e.option['name'] == 'threads':
-                popup_input_invalid(f'Invalid BPM threads value={e.value!r} (must be an integer) - using 4 instead')
+                popup_input_invalid(
+                    f'Invalid BPM threads value={e.value!r} (must be an integer) - using 4 instead', logger=self.log
+                )
                 self.options['threads'] = 4
             else:
-                popup_input_invalid(e)
+                popup_input_invalid(e, logger=self.log)
                 return self
 
         self.render()  # to disable inputs

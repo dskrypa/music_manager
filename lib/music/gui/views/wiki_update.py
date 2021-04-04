@@ -44,8 +44,8 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
 
-        self.options.add_input('album_url', 'Album URL', size=(80, 1), tooltip='A wiki URL')
-        self.options.add_input('artist_url', 'Artist URL', size=(80, 1), row=1, tooltip='Force the use of the given artist instead of an automatically discovered one')
+        self.options.add_input('album_url', 'Album URL', size=(80, 1), col=None, tooltip='A wiki URL')
+        self.options.add_input('artist_url', 'Artist URL', size=(80, 1), row=1, col=None, tooltip='Force the use of the given artist instead of an automatically discovered one')
 
         self.options.add_dropdown('collab_mode', 'Collab Mode', row=2, choices=('title', 'artist', 'both'), default='artist', tooltip='List collaborators in the artist tag, the title tag, or both (default: artist)')
 
@@ -57,7 +57,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         self.options.add_bool('replace_genre', 'Replace Genre', row=4, tooltip='Replace genre instead of combining genres')
         self.options.add_bool('title_case', 'Title Case', row=4, tooltip='Fix track and album names to use Title Case when they are all caps')
 
-        self.options.add_listbox('sites', 'Sites', row=5, choices=ALL_SITES, default=ALL_SITES[:-1], tooltip='The wiki sites to search')
+        self.options.add_listbox('sites', 'Sites', col=1, choices=ALL_SITES, default=ALL_SITES[:-1], tooltip='The wiki sites to search')
         self.options.add_bool('no_album_move', 'Do Not Move Album', row=5, tooltip='Do not rename the album directory')
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:

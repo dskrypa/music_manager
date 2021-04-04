@@ -4,8 +4,7 @@ Gui option rendering and parsing
 :author: Doug Skrypa
 """
 
-import logging
-from typing import TYPE_CHECKING, Any, Callable, Optional, Collection
+from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator
 
 from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input, Column, Combo, Listbox
 
@@ -15,7 +14,6 @@ if TYPE_CHECKING:
     from .views.base import GuiView
 
 __all__ = ['GuiOptions', 'GuiOptionError', 'SingleParsingError', 'RequiredOptionMissing', 'MultiParsingError']
-log = logging.getLogger(__name__)
 _NotSet = object()
 COMMON_PARAMS = ('size', 'tooltip', 'pad', 'enable_events')
 
@@ -37,6 +35,11 @@ class GuiOptions:
         self.submit_text = submit
         self.align_text = align_text
         self.align_checkboxes = align_checkboxes
+        self._rows_per_column = {}
+
+    @property
+    def log(self):
+        return self.view.log
 
     def __getitem__(self, name: str):
         try:
@@ -74,6 +77,7 @@ class GuiOptions:
         default: Any = _NotSet,
         disabled: bool = False,
         row: int = 0,
+        col: Optional[int] = 0,
         required: bool = False,
         **kwargs
     ):
@@ -84,9 +88,12 @@ class GuiOptions:
             'disabled': disabled,
             'opt_type': opt_type,
             'row': row,
+            'col': col,
             'required': required,
             **kwargs
         }
+        col_rows = self._rows_per_column.get(col, 0)
+        self._rows_per_column[col] = max(col_rows, row + 1)
 
     def add_bool(self, option: str, label: str, default: bool = False, **kwargs):
         self._add_option('checkbox', option, label, default, **kwargs)
@@ -112,18 +119,9 @@ class GuiOptions:
         kwargs.update(size=size or (max(map(len, choices)) + 3, len(choices)), select_mode=select_mode, choices=choices)
         self._add_option('listbox', option, label, choices if default is _NotSet else default, **kwargs)
 
-    def layout(self, submit_key: str, disable_all: bool = None, submit_row: int = None) -> list[list[Element]]:
-        if disable_all is None:
-            disable_all = self.disable_on_parsed and self.parsed
-        log.debug(f'Building option layout for view={self.view} with {self.parsed=!r} {submit_key=!r} {disable_all=!r}')
-
-        layout = []
+    def _generate_layout(self, disable_all: bool) -> Iterator[tuple[Optional[int], int, Element]]:
         for name, opt in self.options.items():
-            row_num, opt_type = opt['row'], opt['opt_type']
-            while len(layout) < (row_num + 1):
-                layout.append([])
-            row = layout[row_num]  # type: list[Element]
-
+            opt_type, col_num, row_num = opt['opt_type'], opt['col'], opt['row']
             val = opt.get('value', opt['default'])
             common = {'key': f'opt::{name}', 'disabled': disable_all or opt['disabled']}
             if opt_kwargs := opt.get('kwargs'):
@@ -135,27 +133,62 @@ class GuiOptions:
                     pass
 
             if opt_type == 'checkbox':
-                row.append(Checkbox(opt['label'], default=val, **common))
+                yield col_num, row_num, Checkbox(opt['label'], default=val, **common)
             elif opt_type == 'input':
-                row.append(Text(opt['label'], key=f'lbl::{name}'))
-                row.append(Input('' if val is _NotSet else val, **common))
+                yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
+                yield col_num, row_num, Input('' if val is _NotSet else val, **common)
             elif opt_type == 'dropdown':
-                row.append(Text(opt['label'], key=f'lbl::{name}'))
-                row.append(Combo(opt['choices'], default_value=val, **common))
+                yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
+                yield col_num, row_num, Combo(opt['choices'], default_value=val, **common)
             elif opt_type == 'listbox':
                 choices = opt['choices']
-                row.append(Text(opt['label'], key=f'lbl::{name}'))
-                opt_ele = Listbox(
+                yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
+                yield col_num, row_num, Listbox(
                     choices, default_values=val or choices, no_scrollbar=True, select_mode=opt['select_mode'], **common
                 )
-                row.append(opt_ele)
             else:
                 raise ValueError(f'Unsupported {opt_type=!r}')
 
-        if self.align_text and (rows_with_text := [row for row in layout if row and isinstance(row[0], Text)]):
-            resize_text_column(rows_with_text)  # noqa
-        if self.align_checkboxes and (box_rows := [row for row in layout if all(isinstance(e, Checkbox) for e in row)]):
-            make_checkbox_grid(box_rows)  # noqa
+    def _pack(self, layout: list[list[Element]], columns: list[list[list[Element]]]) -> list[list[Element]]:
+        if self.align_text or self.align_checkboxes:
+            if columns:
+                row_sets = [layout + columns[0], columns[1:]] if len(columns) > 1 else [layout + columns[0]]
+            else:
+                row_sets = [layout]
+
+            for row_set in row_sets:
+                if self.align_text and (rows_with_text := [r for r in row_set if r and isinstance(r[0], Text)]):
+                    resize_text_column(rows_with_text)  # noqa
+                if self.align_checkboxes:
+                    if box_rows := [r for r in row_set if r and all(isinstance(e, Checkbox) for e in r)]:
+                        self.log.info(f'Processing checkboxes into grid: {box_rows}')
+                        make_checkbox_grid(box_rows)  # noqa
+
+        if not layout and len(columns) == 1:
+            layout = columns[0]
+        else:
+            column_objects = [
+                Column(column, key=f'col::options::{i}', pad=(0, 0), expand_x=True) for i, column in enumerate(columns)
+            ]
+            layout.append(column_objects)
+
+        return layout
+
+    def layout(self, submit_key: str, disable_all: bool = None, submit_row: int = None) -> list[list[Element]]:
+        if disable_all is None:
+            disable_all = self.disable_on_parsed and self.parsed
+        self.log.debug(f'Building option layout with {self.parsed=!r} {submit_key=!r} {disable_all=!r}')
+
+        rows_per_column = sorted(((col, val) for col, val in self._rows_per_column.items() if col is not None))
+        layout = [[] for _ in range(none_cols)] if (none_cols := self._rows_per_column.get(None)) else []
+        columns = [[[] for _ in range(r)] for c, r in rows_per_column]
+        for col_num, row_num, ele in self._generate_layout(disable_all):
+            if col_num is None:
+                layout[row_num].append(ele)
+            else:
+                columns[col_num][row_num].append(ele)
+
+        layout = self._pack(layout, columns)
 
         if self.submit_text:
             submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key)

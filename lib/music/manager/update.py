@@ -42,6 +42,11 @@ def default(cls):
 
 
 class GenreMixin:
+    def add_genre(self, genre: str):
+        genre_set = self.genre_set
+        genre_set.add(genre)
+        self.genre = genre_set  # noqa
+
     @property
     def genre_set(self) -> set[str]:
         if genre := self.genre:  # noqa
@@ -175,6 +180,9 @@ class AlbumInfo(GenreMixin):
                 if value := data[key]:
                     data[key] = normalize_case(value)
         return data
+
+    def copy(self) -> 'AlbumInfo':
+        return self.from_dict(self.to_dict())
 
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> 'AlbumInfo':

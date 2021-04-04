@@ -32,10 +32,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album_block.view = self
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
-        self.options.add_bool('dry_run', 'Dry Run')
-        self.options.add_bool('add_genre', 'Add Genre', kwargs={'change_submits': True})
-        self.options.add_bool('title_case', 'Title Case', kwargs={'change_submits': True})
-        self.options.add_bool('no_album_move', 'Do Not Move Album', kwargs={'change_submits': True})
+        self.options.add_bool('dry_run', 'Dry Run', default=True)
+        self.options.add_bool('add_genre', 'Add Genre', kwargs={'enable_events': True})
+        self.options.add_bool('title_case', 'Title Case', kwargs={'enable_events': True})
+        self.options.add_bool('no_album_move', 'Do Not Move Album', kwargs={'enable_events': True})
 
     @cached_property
     def file_info_map(self):

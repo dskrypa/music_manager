@@ -18,6 +18,7 @@ from ..prompts import popup_input_invalid
 from ..state import GuiState
 from .base import event_handler, BaseView
 from .path_prompt import get_directory
+from .utils import popup_ok
 
 __all__ = ['MainView']
 
@@ -124,7 +125,7 @@ class MainView(BaseView, view_name='main'):
 
     @event_handler
     def wiki_update(self, event: str, data: dict[str, Any]):
-        popup('Wiki update is not implemented yet.', title='', button_type=POPUP_BUTTONS_OK, any_key_closes=True)
+        popup_ok('Wiki update is not implemented yet.')
 
     def as_workflow(
         self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs

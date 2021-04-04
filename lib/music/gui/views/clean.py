@@ -9,7 +9,6 @@ from multiprocessing import Pool
 from typing import Any, Optional
 
 from PySimpleGUI import Text, Element
-from PySimpleGUI import popup_ok
 
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ...common.utils import aubio_installed
@@ -20,6 +19,7 @@ from ..progress import ProgressTracker
 from ..prompts import popup_input_invalid
 from .base import event_handler
 from .main import MainView
+from .utils import popup_ok
 
 __all__ = ['CleanView']
 

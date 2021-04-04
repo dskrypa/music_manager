@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Union
 
-from PySimpleGUI import Text, Element, Column, Window, Input
+from PySimpleGUI import Text, Element, Column, Window, Input, popup, POPUP_BUTTONS_OK
 
 __all__ = [
     'resize_text_column',
@@ -21,8 +21,14 @@ __all__ = [
     'temp_hidden_window',
     'get_a_to_b',
     'ViewLoggerAdapter',
+    'popup_ok',
 ]
 log = logging.getLogger(__name__)
+
+
+def popup_ok(message: str, title: str = '', **kwargs):
+    """The popup_ok that PySimpleGUI comes with does not provide a way to allow any key to close it"""
+    return popup(message, title=title, button_type=POPUP_BUTTONS_OK, any_key_closes=True, **kwargs)
 
 
 def resize_text_column(rows: list[list[Union[Text, Element]]], column: int = 0):

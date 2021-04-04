@@ -159,7 +159,7 @@ class GuiView(ABC):
         # self.log.debug(f'{self}: No default handler found')
         return None
 
-    def handle_event(self, event: str, data: dict[str, Any]):
+    def _handle_event(self, event: str, data: dict[str, Any]):
         try:
             handler = self.event_handlers[event]
         except KeyError:
@@ -186,6 +186,8 @@ class GuiView(ABC):
                 self.log.debug(f'Finished {result}')
         # else:
         #     self.log.debug(f'{self}: {event=!r} returned {result=!r}')
+
+    handle_event = _handle_event  # make original more easily accessible to descendent classes
 
     @abstractmethod
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:

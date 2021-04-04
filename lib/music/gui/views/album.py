@@ -6,7 +6,7 @@ View: Album + track tag values.  Allows editing, after which the view transition
 
 from dataclasses import fields
 from itertools import chain
-from typing import Any
+from typing import Any, Optional
 
 from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button
 
@@ -17,6 +17,7 @@ from ..progress import Spinner
 from .base import event_handler
 from .formatting import AlbumBlock
 from .main import MainView
+from .utils import popup_ok
 
 __all__ = ['AlbumView']
 
@@ -33,10 +34,10 @@ class AlbumView(MainView, view_name='album'):
         full_layout, kwargs = super().get_render_args()
 
         with Spinner(LoadingSpinner.blue_dots) as spinner:
-            layout = []
-            layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
-            layout.append([HorizontalSeparator()])
-
+            layout = [
+                [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
+                [HorizontalSeparator()],
+            ]
             spinner.update()
             bkw = {'size': (18, 1)}
             view_buttons = [Button('Edit', key='edit', **bkw), Button('View All Tags', key='all_tags', **bkw)]
@@ -71,6 +72,48 @@ class AlbumView(MainView, view_name='album'):
 
         return full_layout, kwargs
 
+    def toggle_editing(self):
+        self.editing = not self.editing
+        always_ro = {'val::album::mp4'}
+        for key, ele in self.window.key_dict.items():
+            if isinstance(key, str) and key.startswith(('val::', 'add::')) and key not in always_ro:
+                ele.update(disabled=not self.editing)
+
+        self.window['col::view_buttons'].update(visible=not self.editing)
+        self.window['col::edit_buttons'].update(visible=self.editing)
+        self.window['btn::back'].update(visible=self.editing)
+        self.window['btn::next'].update(visible=self.editing)
+
+    def handle_event(self, event: str, data: dict[str, Any]):
+        if event.startswith('add::'):
+            data['listbox_key'] = event.replace('add::', 'val::', 1)
+            key_type, obj, field = split_key(event)
+            data.update(object=obj, field=field)
+            event = f'add_{field}'
+
+        return super().handle_event(event, data)
+
+    @event_handler
+    def add_genre(self, event: str, data: dict[str, Any]):
+        # TODO: popup to take a new genre value, then add to working AlbumInfo genre set
+        # listbox_key = data['listbox_key']
+        obj = data['object']  # album or a track path
+
+        new_value = 'TEST'  # TODO: Get a real new value
+
+        if (album_info := self.album_block._new_album_info) is None:  # can't update listbox size without re-draw
+            album_info = self.album_block.album_info.copy()
+            self.album_block.album_info = album_info
+
+        if data['field'] == 'genre':
+            if obj == 'album':
+                album_info.add_genre(new_value)
+            else:
+                album_info.tracks[obj].add_genre(new_value)
+            self.render()
+        else:
+            popup_ok(f'Invalid field to add a value', title='Invalid Field')
+
     @event_handler
     def all_tags(self, event: str, data: dict[str, Any]):
         from .tags import AllTagsView
@@ -94,17 +137,13 @@ class AlbumView(MainView, view_name='album'):
 
         self.toggle_editing()
         info_dict = {}
-        track_info_dict = {}
+        info_dict['tracks'] = track_info_dict = {}
         info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
 
         for data_key, value in data.items():
             # self.log.debug(f'Processing {data_key=!r}')
-            try:  # val::album::key
-                key_type, obj_key = data_key.split('::', 1)
-                obj, key = obj_key.rsplit('::', 1)
-            except Exception:
-                pass
-            else:
+            if key_parts := split_key(data_key):
+                key_type, obj, key = key_parts
                 if key_type == 'val':
                     try:
                         value = info_fields[key].type(value)
@@ -114,20 +153,17 @@ class AlbumView(MainView, view_name='album'):
                         info_dict[key] = value
                     else:
                         track_info_dict.setdefault(obj, {})[key] = value
-        info_dict['tracks'] = track_info_dict
 
         album_info = AlbumInfo.from_dict(info_dict)
         self.album_block.album_info = album_info
         return AlbumDiffView(self.album, album_info, self.album_block)
 
-    def toggle_editing(self):
-        self.editing = not self.editing
-        always_ro = {'val::album::mp4'}
-        for key, ele in self.window.key_dict.items():
-            if isinstance(key, str) and key.startswith('val::') and key not in always_ro:
-                ele.update(disabled=not self.editing)
 
-        self.window['col::view_buttons'].update(visible=not self.editing)
-        self.window['col::edit_buttons'].update(visible=self.editing)
-        self.window['btn::back'].update(visible=self.editing)
-        self.window['btn::next'].update(visible=self.editing)
+def split_key(key: str) -> Optional[tuple[str, str, str]]:
+    try:
+        key_type, obj_key = key.split('::', 1)
+        obj, item = obj_key.rsplit('::', 1)
+    except Exception:
+        return None
+    else:
+        return key_type, obj, item

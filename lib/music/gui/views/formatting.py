@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any
 
-from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox
+from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox, Button
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator, popup_ok
 
 from ...constants import typed_tag_name_map
@@ -77,6 +77,7 @@ class AlbumBlock:
             return Image(data=next(iter(cover_images)), size=self.cover_size, key=key)
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
+        # TODO: Make clickable and show larger version on click
         return Image(size=self.cover_size, key=key)
 
     def get_album_data_rows(self, editable: bool = False):
@@ -123,9 +124,27 @@ class AlbumBlock:
 
 def value_ele(value: Any, val_key: str, disabled: bool) -> Element:
     if isinstance(value, bool):
-        val_ele = Checkbox('', default=value, key=val_key, disabled=disabled)
+        val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0))
     elif isinstance(value, list):
-        val_ele = Listbox(value, default_values=value, key=val_key, disabled=disabled, size=(45, len(value)))
+        val_ele = Listbox(
+            value,
+            default_values=value,
+            key=val_key,
+            disabled=disabled,
+            size=(30, len(value)),
+            no_scrollbar=True,
+            select_mode='extended',  # extended, browse, single, multiple
+        )
+        if val_key.startswith('val::'):
+            val_ele = Column(
+                [[val_ele, Button('Add...', key=val_key.replace('val::', 'add::', 1), disabled=disabled, pad=(0, 0))]],
+                key=f'col::{val_key}',
+                pad=(0, 0),
+                vertical_alignment='center',
+                justification='center',
+                expand_y=True,
+                expand_x=True,
+            )
     else:
         val_ele = Input(value, key=val_key, disabled=disabled)
 
@@ -199,7 +218,6 @@ class TrackBlock:
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
             else:
                 val_ele = value_ele(val, val_key, not editable)
-                # val_ele = Input(val, key=val_key, disabled=not editable)
 
             rows.append([key_ele, val_ele])
 
@@ -209,10 +227,7 @@ class TrackBlock:
         rows = []
         for key, value in self.info.to_dict().items():
             key_ele, val_key = label_and_val_key(self.path_str, key)
-
             val_ele = value_ele(value, val_key, not editable)
-            # val_ele = Input(value, key=val_key, disabled=not editable)
-
             rows.append([key_ele, val_ele])
 
         return resize_text_column(rows) if rows else rows

@@ -9,7 +9,7 @@ Defines the top menu and some common configuration properties.
 from pathlib import Path
 from typing import Any, Optional
 
-from PySimpleGUI import Button, Element, Column, Text, popup, POPUP_BUTTONS_OK, Menu
+from PySimpleGUI import Button, Element, Column, Text, popup, POPUP_BUTTONS_OK
 
 from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
@@ -43,24 +43,12 @@ class MainView(BaseView, view_name='main'):
         return self.output_base_dir.joinpath('sorted_{}'.format(now('%Y-%m-%d')))
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
-        # layout, kwargs = super().get_render_args()
-        layout = []
+        layout, kwargs = super().get_render_args()
         if self.__class__ is MainView:
             select_button = Button(
                 'Select Album', key='select_album', bind_return_key=True, size=(30, 5), font=('Helvetica', 20)
             )
-            # layout.append([Text(key='spacer::4', pad=(0, 0))])
-            # # layout.append([Text(key='spacer::1', pad=(0, 0)), select_button, Text(key='spacer::1', pad=(0, 0))])
-            # layout.append([select_button])
-            # layout.append([Text(key='spacer::3', pad=(0, 0))])
-
-            inner_layout = [
-                [Text(key='spacer::2', pad=(0, 0))],
-                [select_button],
-                [Text(key='spacer::1', pad=(0, 0))],
-            ]
-            # layout.extend(inner_layout)
-            # layout.append([Column(inner_layout, key='col::select_album', justification='center')])
+            inner_layout = [[Text(key='spacer::2', pad=(0, 0))], [select_button], [Text(key='spacer::1', pad=(0, 0))]]
             as_col = Column(
                 inner_layout,
                 key='col::select_album',
@@ -69,51 +57,11 @@ class MainView(BaseView, view_name='main'):
                 pad=(0, 0),
                 expand_y=True,
             )
-
-            # layout.append(self.as_workflow(inner_layout))
-            # layout.append(self.as_workflow([[select_button]]))
-
             layout.append([as_col])
 
-        return layout, {}
-        # return layout, kwargs
+        return layout, kwargs
 
     def render(self):
-        # layout, kwargs = self.get_render_args()
-        # loc = self.__class__ if self.primary else self
-        #
-        # menu_row = [Menu(self.menu, key='menu::main')]
-        # inner_layout = [
-        #     [Text(key='spacer::2', pad=(0, 0))],
-        #     *layout,
-        #     [Text(key='spacer::1', pad=(0, 0))],
-        # ]
-        #
-        # content_wrapper = Column(
-        #     inner_layout,
-        #     key='col::__main_outer_wrapper__',
-        #     # element_justification='center',
-        #     vertical_alignment='center',
-        #     justification='center',
-        #     # expand_x=True,
-        #     expand_y=True,
-        #     pad=(0, 0),
-        #     # size=loc._window_size
-        # )
-        # final_layout = [
-        #     menu_row,
-        #     [content_wrapper]
-        # ]
-        #
-        # loc.window = self._create_window(final_layout, kwargs)
-        # loc._window_size = self.window.size
-        # if self.binds:
-        #     for key, val in self.binds.items():
-        #         self.window.bind(key, val)
-        # self.log.debug(f'Rendered {self}')
-
-        # content_wrapper.expand(True, True, True)
-
         super().render()
         spacers = []
         for key, element in self.window.key_dict.items():
@@ -181,17 +129,7 @@ class MainView(BaseView, view_name='main'):
     def as_workflow(
         self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs
     ) -> list[Element]:
-        section_args = {
-            'back': {},
-            'next': {},
-            'content': {
-                # 'element_justification': 'center',
-                'justification': 'center',
-                'vertical_alignment': 'center',
-                # 'expand_x': True,
-                # 'expand_y': True,
-            },
-        }
+        section_args = {'back': {}, 'next': {}}
         for key, val in tuple(kwargs.items()):
             if key.startswith(('back_', 'next_')):
                 kwargs.pop(key)
@@ -199,24 +137,9 @@ class MainView(BaseView, view_name='main'):
                 section_args[section][arg] = val
 
         kwargs['font'] = ('Helvetica', 60)
-
-        # width, height = self._window_size
-        # size = (width - 300, height - 40)
-        # size = (width - 200, height - 40)
-        # self.log.debug(f'Using workflow content {size=!r}')
         back_btn = Button('\u2770', key=back_key, size=(1, 2), pad=(0, 0), **section_args['back'], **kwargs)
-        back_col = Column(
-            [[back_btn]],
-            key='col::back',
-            # size=(70, 300),
-            # pad=((10, 5), 0),
-            # justification='left',
-            # vertical_alignment='center',
-            # expand_x=False,
-            # expand_y=True,
-        )
-
-        as_col = Column(
+        back_col = Column([[back_btn]], key='col::back')
+        content_column = Column(
             content,
             key='col::__inner_content__',
             justification='center',
@@ -225,37 +148,6 @@ class MainView(BaseView, view_name='main'):
             expand_y=True,
             expand_x=True,
         )
-
-        # content_column = Column(
-        #     [[as_col]],
-        #     key='col::__outer_content__',
-        #     # size=size,
-        #     pad=(0, 0),
-        #     # **section_args['content']
-        #     justification='center',
-        #     vertical_alignment='center',
-        #     expand_y=True,
-        # )
-        # content_column = Column(content, key='col::content', size=size, **section_args['content'])
-
         next_btn = Button('\u2771', key=next_key, size=(1, 2), pad=(0, 0), **section_args['next'], **kwargs)
-        next_col = Column(
-            [[next_btn]],
-            key='col::next',
-            # size=(70, 300),
-            # pad=((5, 10), 0),
-            # justification='right',
-            # vertical_alignment='center',
-            # expand_x=False,
-            # expand_y=True,
-        )
-
-        # sp_1 = Text(key='spacer::2', pad=(0, 0))
-        # sp_2 = Text(key='spacer::1', pad=(0, 0))
-
-        # return [back_col, sp_1, content_column, sp_2, next_col]
-        return [back_col, as_col, next_col]
-        # mega_column = Column(
-        #     [[back_col, content_column, next_col]], element_justification='center', key='col::mega'
-        # )
-        # return [mega_column]
+        next_col = Column([[next_btn]], key='col::next')
+        return [back_col, content_column, next_col]

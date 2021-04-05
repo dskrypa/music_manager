@@ -144,18 +144,18 @@ class AlbumView(MainView, view_name='album'):
 
         return AllTagsView(self.album, self.album_block, last_view=self)
 
-    @event_handler('btn::back')  # noqa
+    @event_handler('btn::back')
     def cancel(self, event: str, data: dict[str, Any]):
         self.editing = False
         self.album_block.reset_changes()
         self.render()
 
-    @event_handler('Edit')  # noqa
+    @event_handler('Edit')
     def edit(self, event: str, data: dict[str, Any]):
         if not self.editing:
             self.toggle_editing()
 
-    @event_handler('btn::next')  # noqa
+    @event_handler('btn::next')
     def save(self, event: str, data: dict[str, Any]):
         from .diff import AlbumDiffView
 

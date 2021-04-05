@@ -113,23 +113,22 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         return full_layout, kwargs
 
-    @event_handler('btn::back')  # noqa
+    @event_handler('btn::back')
     def back_to_album(self, event: str, data: dict[str, Any]):
         from .album import AlbumView
 
-        # TODO: Add alternate back to edit button when last was wiki update
         if self.last_view is not None:
             kwargs = {'editing': True} if isinstance(self.last_view, AlbumView) else {}
             return self.last_view.__class__(self.album, self.album_block, last_view=self, **kwargs)
 
         return AlbumView(self.album, self.album_block, last_view=self)
 
-    @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')  # noqa
+    @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')
     def refresh(self, event: str, data: dict[str, Any]):
         self.options.parse(data)
         self.render()
 
-    @event_handler('btn::next')  # noqa
+    @event_handler('btn::next')
     def apply_changes(self, event: str, data: dict[str, Any]):
         self.options.parse(data)
         dry_run = self.options['dry_run']

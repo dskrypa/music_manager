@@ -115,7 +115,7 @@ class MainView(BaseView, view_name='main'):
 
         return None
 
-    @event_handler('Open')  # noqa
+    @event_handler('Open')
     def select_album(self, event: str, data: dict[str, Any]):
         if album := self.get_album_selection(True):
             from .album import AlbumView

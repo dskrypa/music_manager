@@ -1,17 +1,18 @@
 """
-View: Album + track tag values.  Allows editing, after which the view transitions to the diff view.
+View for choosing Wiki update options
 
 :author: Doug Skrypa
 """
 
 import traceback
 from threading import Thread
-from typing import Any
+from typing import Any, Optional
 
 from PySimpleGUI import Text, Input, Element, HSep
 
 from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
+from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
 from ..constants import LoadingSpinner
 from ..options import GuiOptions
@@ -26,8 +27,10 @@ ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.w
 
 
 class WikiUpdateView(MainView, view_name='wiki_update'):
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None):
-        super().__init__()
+    back_tooltip = 'Go back to Wiki update options'
+
+    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, **kwargs):
+        super().__init__(**kwargs)
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
@@ -69,7 +72,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
     def back_to_album(self, event: str, data: dict[str, Any]):
         from .album import AlbumView
 
-        return AlbumView(self.album, self.album_block)
+        return AlbumView(self.album, self.album_block, last_view=self)
 
     @event_handler('btn::next')  # noqa
     def find_match(self, event: str, data: dict[str, Any]):
@@ -90,7 +93,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             parsed['artist_url'] or None,
         )
 
-        album_info = None
+        album_info: Optional[AlbumInfo] = None
         error = None
 
         # TODO: Add way to capture user input for prompts for disambiguation, etc
@@ -106,14 +109,16 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             t = Thread(target=get_album_info)
             t.start()
+            t.join(0.1)
             while t.is_alive():
                 spinner.update()
                 t.join(0.1)
 
         if album_info is not None:
-            return AlbumDiffView(self.album, album_info, self.album_block, last=self)  # noqa
+            # TODO: Pass common option values
+            return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'
             lines = error_str.splitlines()
             width = max(map(len, lines))
-            popup_error(f'Error finding a wiki match for {self.album}:\n{error}', size=(width, len(lines)))
+            popup_error(error_str, size=(width, len(lines)))

@@ -6,6 +6,7 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Optional
 
@@ -25,8 +26,11 @@ DEFAULT_OUTPUT_DIR = '~/Music/'
 
 
 class MainView(BaseView, view_name='main'):
-    def __init__(self, **kwargs):
+    back_tooltip = 'Go back to previous view'
+
+    def __init__(self, *, last_view: 'MainView' = None, **kwargs):
         super().__init__(**kwargs)
+        self.last_view = last_view
         self.state = GuiState()
         self.menu = [
             ['File', ['Open', 'Output', 'Exit']],
@@ -41,6 +45,10 @@ class MainView(BaseView, view_name='main'):
     @property
     def output_sorted_dir(self) -> Path:
         return self.output_base_dir.joinpath('sorted_{}'.format(now('%Y-%m-%d')))
+
+    @cached_property
+    def display_name(self) -> str:
+        return self.name.replace('_', ' ').title()
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout, kwargs = super().get_render_args()
@@ -59,6 +67,7 @@ class MainView(BaseView, view_name='main'):
             )
             layout.append([as_col])
 
+        kwargs.setdefault('title', f'Music Manager - {self.display_name}')
         return layout, kwargs
 
     def render(self):
@@ -94,21 +103,21 @@ class MainView(BaseView, view_name='main'):
         if album := self.get_album_selection(True):
             from .album import AlbumView
 
-            return AlbumView(album)
+            return AlbumView(album, last_view=self)
 
     @event_handler
     def edit(self, event: str, data: dict[str, Any]):
         if album := self.get_album_selection():
             from .album import AlbumView
 
-            return AlbumView(album, getattr(self, 'album_block', None), editing=True)
+            return AlbumView(album, getattr(self, 'album_block', None), editing=True, last_view=self)
 
     @event_handler
     def clean(self, event: str, data: dict[str, Any]):
         if album := self.get_album_selection():
             from .clean import CleanView
 
-            return CleanView(album)
+            return CleanView(album, last_view=self)
 
     @event_handler
     def output(self, event: str, data: dict[str, Any]):
@@ -127,17 +136,20 @@ class MainView(BaseView, view_name='main'):
         if album := self.get_album_selection():
             from .wiki_update import WikiUpdateView
 
-            return WikiUpdateView(album, getattr(self, 'album_block', None))
+            return WikiUpdateView(album, getattr(self, 'album_block', None), last_view=self)
 
     def as_workflow(
         self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs
     ) -> list[Element]:
-        section_args = {'back': {}, 'next': {}}
+        section_args = {'back': {}, 'next': {}, 'content': {}}
         for key, val in tuple(kwargs.items()):
-            if key.startswith(('back_', 'next_')):
+            if key.startswith(('back_', 'next_', 'content_')):
                 kwargs.pop(key)
                 section, arg = key.split('_', 1)
                 section_args[section][arg] = val
+
+        if self.last_view:
+            section_args['back'].setdefault('tooltip', self.last_view.back_tooltip)
 
         kwargs['font'] = ('Helvetica', 60)
         back_btn = Button('\u2770', key=back_key, size=(1, 2), pad=(0, 0), **section_args['back'], **kwargs)
@@ -150,6 +162,7 @@ class MainView(BaseView, view_name='main'):
             pad=(0, 0),
             expand_y=True,
             expand_x=True,
+            # **section_args['content']
         )
         next_btn = Button('\u2771', key=next_key, size=(1, 2), pad=(0, 0), **section_args['next'], **kwargs)
         next_col = Column([[next_btn]], key='col::next')

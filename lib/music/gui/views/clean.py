@@ -24,8 +24,8 @@ __all__ = ['CleanView']
 
 
 class CleanView(MainView, view_name='clean'):
-    def __init__(self, album: AlbumDir):
-        super().__init__()
+    def __init__(self, album: AlbumDir, **kwargs):
+        super().__init__(**kwargs)
         self.album = album
         bpm_ok = aubio_installed()
         self.options = GuiOptions(self, disable_on_parsed=True)
@@ -77,4 +77,4 @@ class CleanView(MainView, view_name='clean'):
                     pass
 
         popup_ok('Finished processing tracks')
-        return AlbumView(self.album)
+        return AlbumView(self.album, last_view=self)

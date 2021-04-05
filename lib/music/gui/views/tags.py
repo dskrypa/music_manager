@@ -20,8 +20,8 @@ __all__ = ['AllTagsView']
 
 
 class AllTagsView(MainView, view_name='all_tags'):
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None):
-        super().__init__()
+    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, **kwargs):
+        super().__init__(**kwargs)
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self

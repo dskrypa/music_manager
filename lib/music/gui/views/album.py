@@ -24,8 +24,10 @@ __all__ = ['AlbumView']
 
 
 class AlbumView(MainView, view_name='album'):
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, editing: bool = False):
-        super().__init__()
+    back_tooltip = 'Go back to edit'
+
+    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, editing: bool = False, **kwargs):
+        super().__init__(**kwargs)
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
@@ -140,7 +142,7 @@ class AlbumView(MainView, view_name='album'):
     def all_tags(self, event: str, data: dict[str, Any]):
         from .tags import AllTagsView
 
-        return AllTagsView(self.album, self.album_block)
+        return AllTagsView(self.album, self.album_block, last_view=self)
 
     @event_handler('btn::back')  # noqa
     def cancel(self, event: str, data: dict[str, Any]):
@@ -177,8 +179,7 @@ class AlbumView(MainView, view_name='album'):
                         track_info_dict.setdefault(obj, {})[field] = value
 
         album_info = AlbumInfo.from_dict(info_dict)
-        self.album_block.album_info = album_info
-        return AlbumDiffView(self.album, album_info, self.album_block)
+        return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
 
     @event_handler
     def image_clicked(self, event: str, data: dict[str, Any]):

@@ -4,7 +4,8 @@ Gui option rendering and parsing
 :author: Doug Skrypa
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator, Mapping
 
 from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input, Column, Combo, Listbox
 
@@ -36,6 +37,8 @@ class GuiOptions:
         self.align_text = align_text
         self.align_checkboxes = align_checkboxes
         self._rows_per_column = {}
+        self._default_row = 0
+        self._default_col = 0
 
     @property
     def log(self):
@@ -69,6 +72,14 @@ class GuiOptions:
                 raise KeyError(f'No value or default has been provided for option={name!r}') from None
             return default
 
+    def update(self, options: Mapping[str, Any]):
+        """Update the selected options based on previous input"""
+        for key, val in options.items():
+            try:
+                self[key] = val
+            except NoSuchOptionError:
+                pass
+
     def _add_option(
         self,
         opt_type: str,
@@ -76,11 +87,13 @@ class GuiOptions:
         label: str,
         default: Any = _NotSet,
         disabled: bool = False,
-        row: int = 0,
-        col: Optional[int] = 0,
+        row: int = _NotSet,
+        col: Optional[int] = _NotSet,
         required: bool = False,
         **kwargs
     ):
+        row = self._default_row if row is _NotSet else row
+        col = self._default_col if col is _NotSet else col
         self.options[option] = {
             'name': option,
             'label': label,
@@ -245,6 +258,35 @@ class GuiOptions:
             parsed[name] = self.options[name]['default']
 
         return parsed
+
+    @contextmanager
+    def column(self, col: Optional[int]):
+        old = self._default_col
+        self._default_col = col
+        try:
+            yield self
+        finally:
+            self._default_col = old
+
+    @contextmanager
+    def row(self, row: int):
+        old = self._default_row
+        self._default_row = row
+        try:
+            yield self
+        finally:
+            self._default_row = old
+
+    @contextmanager
+    def column_and_row(self, col: Optional[int], row: int):
+        old_col, old_row = self._default_col, self._default_row
+        self._default_col = col
+        self._default_row = row
+        try:
+            yield self
+        finally:
+            self._default_col = old_col
+            self._default_row = old_row
 
 
 class GuiOptionError(Exception):

@@ -108,9 +108,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.append([Text()])
             layout.extend(track_block.as_diff_rows(self.album_info.tracks[path], self.options['title_case']))
 
-        workflow = self.as_workflow(
-            layout, next_tooltip='Apply changes (save)', content_scrollable=True, content_vertical_scroll_only=True
-        )
+        workflow = self.as_workflow(layout, next_tooltip='Apply changes (save)', scrollable=True)
         full_layout.append(workflow)
 
         return full_layout, kwargs

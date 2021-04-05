@@ -35,6 +35,8 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
 
+        # TODO: remember selected options when going back to this view
+
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
 
         self.options.add_input('album_url', 'Album URL', size=(80, 1), col=None, tooltip='A wiki URL')

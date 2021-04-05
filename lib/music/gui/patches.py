@@ -18,7 +18,7 @@ def patch_element_repr():
     def element_repr(self):
         try:
             key = self.Key
-            size = self.get_size()
+            size = self.get_size() if self.Widget is not None else self.Size
         except Exception:
             return f'<{self.__class__.__qualname__}#{id(self)}>'
         else:

@@ -8,17 +8,20 @@ Defines the top menu and some common configuration properties.
 
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from PySimpleGUI import Button, Element, Column, Text
+from PySimpleGUI import Button, Element, Column, Text, Image
 
 from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..state import GuiState
-from .base import event_handler, BaseView
+from .base import event_handler, BaseView, Layout
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
+
+# if TYPE_CHECKING:
+#     import tkinter
 
 __all__ = ['MainView']
 
@@ -50,7 +53,7 @@ class MainView(BaseView, view_name='main'):
     def display_name(self) -> str:
         return self.name.replace('_', ' ').title()
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         layout, kwargs = super().get_render_args()
         if self.__class__ is MainView:
             select_button = Button(
@@ -72,14 +75,28 @@ class MainView(BaseView, view_name='main'):
 
     def render(self):
         super().render()
-        spacers = []
+        # print('-' * 120)
+        # print(f'Window size: {self.window.size}')
         for key, element in self.window.key_dict.items():
-            if isinstance(key, str) and key.startswith('spacer::'):
-                spacers.append((key, element))
+            if isinstance(key, str):
+                if key.startswith('spacer::'):
+                    # self.log.debug(f'Expanding element={key!r}')
+                    # if key == 'spacer::center_content':
+                    #     # print(f'\nSpacer orig size: {element.get_size()}')
+                    #     # print(f'Spacer widget info: {element.Widget.pack_info()}')
+                    #
+                    #     # print(f'Spacer parent container: {element.ParentContainer}')
+                    #     # print(f'Spacer parent row: {element.ParentRowFrame}')
+                    #     # print(f'Spacer parent row widget info: {element.ParentRowFrame.pack_info()}')
+                    #
+                    #     # tk_frame = element.ParentRowFrame  # type: tkinter.Frame
+                    #     # size = (tk_frame.winfo_reqwidth(), tk_frame.winfo_reqheight())
+                    #     # print(f'Spacer parent row size: {size}\n')
+                    element.expand(True, True, True)
 
-        for key, element in sorted(spacers):
-            self.log.debug(f'Expanding element={key!r}')
-            element.expand(True, True, True)
+                # if key.startswith(('col::', 'spacer::', 'btn::')):
+                #     print(f'{key}  -  {element.get_size()}')
+        # print('-' * 120)
 
     def get_album_selection(self, new: bool = False) -> Optional[AlbumDir]:
         if not new:
@@ -139,11 +156,16 @@ class MainView(BaseView, view_name='main'):
             return WikiUpdateView(album, getattr(self, 'album_block', None), last_view=self)
 
     def as_workflow(
-        self, content: list[list[Element]], back_key: str = 'btn::back', next_key: str = 'btn::next', **kwargs
+        self,
+        content: Layout,
+        back_key: str = 'btn::back',
+        next_key: str = 'btn::next',
+        scrollable: bool = False,
+        **kwargs
     ) -> list[Element]:
-        section_args = {'back': {}, 'next': {}, 'content': {}}
+        section_args = {'back': {}, 'next': {}}
         for key, val in tuple(kwargs.items()):
-            if key.startswith(('back_', 'next_', 'content_')):
+            if key.startswith(('back_', 'next_')):
                 kwargs.pop(key)
                 section, arg = key.split('_', 1)
                 section_args[section][arg] = val
@@ -151,19 +173,20 @@ class MainView(BaseView, view_name='main'):
         if self.last_view:
             section_args['back'].setdefault('tooltip', self.last_view.back_tooltip)
 
-        kwargs['font'] = ('Helvetica', 60)
-        back_btn = Button('\u2770', key=back_key, size=(1, 2), pad=(0, 0), **section_args['back'], **kwargs)
-        back_col = Column([[back_btn]], key='col::back')
-        content_column = Column(
-            content,
-            key='col::__inner_content__',
-            justification='center',
-            vertical_alignment='center',
-            pad=(0, 0),
-            expand_y=True,
-            expand_x=True,
-            # **section_args['content']
-        )
-        next_btn = Button('\u2771', key=next_key, size=(1, 2), pad=(0, 0), **section_args['next'], **kwargs)
-        next_col = Column([[next_btn]], key='col::next')
+        kwargs.update(size=(1, 2), pad=(0, 0), font=('Helvetica', 60))
+        back_col = Column([[Button('\u2770', key=back_key, **section_args['back'], **kwargs)]], key='col::back')
+        next_col = Column([[Button('\u2771', key=next_key, **section_args['next'], **kwargs)]], key='col::next')
+
+        content_args = dict(justification='center', vertical_alignment='center', expand_y=True, expand_x=True)
+        if scrollable:
+            content_args.update(scrollable=True, vertical_scroll_only=True)
+            # The below Image is a workaround to make it possible to center scrollable columns.
+            win_w, win_h = self._window_size
+            # back/next button column widths: 55px each => 110 + outer padding (10px each) => 130
+            # + inner padding (left, 10px) => 140
+            # + scrollbar (17px) => 157 + ??? (2px) => 159
+            content.append([Image(size=(win_w - 159, 1), pad=(0, 0), key='img::workflow::spacer')])
+
+        content_column = Column(content, key='col::__inner_content__', pad=(0, 0), **content_args)
+
         return [back_col, content_column, next_col]

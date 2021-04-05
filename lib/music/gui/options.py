@@ -72,12 +72,21 @@ class GuiOptions:
                 raise KeyError(f'No value or default has been provided for option={name!r}') from None
             return default
 
-    def update(self, options: Mapping[str, Any]):
+    def update(self, options: Optional[Mapping[str, Any]]):
         """Update the selected options based on previous input"""
+        if options is None:
+            return
         for key, val in options.items():
             try:
                 self[key] = val
             except NoSuchOptionError:
+                pass
+
+    def items(self) -> Iterator[tuple[str, Any]]:
+        for name in self.options:
+            try:
+                yield name, self[name]
+            except KeyError:
                 pass
 
     def _add_option(

@@ -24,7 +24,14 @@ __all__ = ['AlbumDiffView']
 
 
 class AlbumDiffView(MainView, view_name='album_diff'):
-    def __init__(self, album: AlbumDir, album_info: AlbumInfo, album_block: AlbumBlock = None, **kwargs):
+    def __init__(
+        self,
+        album: AlbumDir,
+        album_info: AlbumInfo,
+        album_block: AlbumBlock = None,
+        options: GuiOptions = None,
+        **kwargs
+    ):
         super().__init__(**kwargs)
         self.album = album
         self.album_info = album_info
@@ -34,9 +41,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
         self.options.add_bool('dry_run', 'Dry Run', default=True)
-        self.options.add_bool('add_genre', 'Add Genre', kwargs={'enable_events': True})
-        self.options.add_bool('title_case', 'Title Case', kwargs={'enable_events': True})
-        self.options.add_bool('no_album_move', 'Do Not Move Album', kwargs={'enable_events': True})
+        self.options.add_bool('add_genre', 'Add Genre', enable_events=True)
+        self.options.add_bool('title_case', 'Title Case', enable_events=True)
+        self.options.add_bool('no_album_move', 'Do Not Move Album', enable_events=True)
+        self.options.update(options)
 
     @cached_property
     def file_info_map(self):
@@ -114,12 +122,16 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         return full_layout, kwargs
 
     @event_handler('btn::back')
-    def back_to_album(self, event: str, data: dict[str, Any]):
+    def back(self, event: str, data: dict[str, Any]):
         from .album import AlbumView
 
-        if self.last_view is not None:
-            kwargs = {'editing': True} if isinstance(self.last_view, AlbumView) else {}
-            return self.last_view.__class__(self.album, self.album_block, last_view=self, **kwargs)
+        if (last := self.last_view) is not None:
+            kwargs = {}
+            if isinstance(last, AlbumView):
+                kwargs['editing'] = True
+            elif last.name == 'wiki_update':
+                kwargs['options'] = last.options  # noqa
+            return last.__class__(album=self.album, album_block=self.album_block, last_view=self, **kwargs)
 
         return AlbumView(self.album, self.album_block, last_view=self)
 

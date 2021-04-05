@@ -35,7 +35,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
 
-        if options is not None:
+        if options is not None and options.view.name == self.name:
             self.options = options
         else:
             self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
@@ -58,6 +58,8 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
 
             with self.options.column(1) as options:
                 options.add_listbox('sites', 'Sites', choices=ALL_SITES, default=ALL_SITES[:-1], tooltip='The wiki sites to search')
+
+            self.options.update(options)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         full_layout, kwargs = super().get_render_args()
@@ -121,8 +123,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 t.join(0.1)
 
         if album_info is not None:
-            # TODO: Pass common option values
-            return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
+            return AlbumDiffView(self.album, album_info, self.album_block, options=self.options, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'
             lines = error_str.splitlines()

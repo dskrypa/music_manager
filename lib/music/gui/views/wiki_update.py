@@ -29,31 +29,35 @@ ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.w
 class WikiUpdateView(MainView, view_name='wiki_update'):
     back_tooltip = 'Go back to Wiki update options'
 
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, **kwargs):
+    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, options: GuiOptions = None, **kwargs):
         super().__init__(**kwargs)
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
 
-        # TODO: remember selected options when going back to this view
+        if options is not None:
+            self.options = options
+        else:
+            self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
+            with self.options.column(None) as options:
+                options.add_input('album_url', 'Album URL', size=(80, 1), tooltip='A wiki URL')
+                options.add_input('artist_url', 'Artist URL', size=(80, 1), row=1, tooltip='Force the use of the given artist instead of an automatically discovered one')
 
-        self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
+            with self.options.row(2) as options:
+                options.add_dropdown('collab_mode', 'Collab Mode', choices=('title', 'artist', 'both'), default='artist', tooltip='List collaborators in the artist tag, the title tag, or both (default: artist)')
+            with self.options.row(3) as options:
+                options.add_bool('soloist', 'Soloist', tooltip='For solo artists, use only their name instead of including their group, and do not sort them with their group')
+                options.add_bool('artist_only', 'Artist Match Only', tooltip='Only match the artist / only use the artist URL if provided')
+                options.add_bool('hide_edition', 'Hide Edition', tooltip='Exclude the edition from the album title, if present (default: include it)')
+            with self.options.row(4) as options:
+                options.add_bool('update_cover', 'Update Cover', tooltip='Update the cover art for the album if it does not match an image in the matched wiki page')
+                options.add_bool('replace_genre', 'Replace Genre', tooltip='Replace genre instead of combining genres')
+                options.add_bool('title_case', 'Title Case', tooltip='Fix track and album names to use Title Case when they are all caps')
+            with self.options.row(5) as options:
+                options.add_bool('no_album_move', 'Do Not Move Album', tooltip='Do not rename the album directory')
 
-        self.options.add_input('album_url', 'Album URL', size=(80, 1), col=None, tooltip='A wiki URL')
-        self.options.add_input('artist_url', 'Artist URL', size=(80, 1), row=1, col=None, tooltip='Force the use of the given artist instead of an automatically discovered one')
-
-        self.options.add_dropdown('collab_mode', 'Collab Mode', row=2, choices=('title', 'artist', 'both'), default='artist', tooltip='List collaborators in the artist tag, the title tag, or both (default: artist)')
-
-        self.options.add_bool('soloist', 'Soloist', row=3, tooltip='For solo artists, use only their name instead of including their group, and do not sort them with their group')
-        self.options.add_bool('artist_only', 'Artist Match Only', row=3, tooltip='Only match the artist / only use the artist URL if provided')
-        self.options.add_bool('hide_edition', 'Hide Edition', row=3, tooltip='Exclude the edition from the album title, if present (default: include it)')
-
-        self.options.add_bool('update_cover', 'Update Cover', row=4, tooltip='Update the cover art for the album if it does not match an image in the matched wiki page')
-        self.options.add_bool('replace_genre', 'Replace Genre', row=4, tooltip='Replace genre instead of combining genres')
-        self.options.add_bool('title_case', 'Title Case', row=4, tooltip='Fix track and album names to use Title Case when they are all caps')
-
-        self.options.add_listbox('sites', 'Sites', col=1, choices=ALL_SITES, default=ALL_SITES[:-1], tooltip='The wiki sites to search')
-        self.options.add_bool('no_album_move', 'Do Not Move Album', row=5, tooltip='Do not rename the album directory')
+            with self.options.column(1) as options:
+                options.add_listbox('sites', 'Sites', choices=ALL_SITES, default=ALL_SITES[:-1], tooltip='The wiki sites to search')
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         full_layout, kwargs = super().get_render_args()
@@ -70,13 +74,13 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         full_layout.append(workflow)
         return full_layout, kwargs
 
-    @event_handler('btn::back')  # noqa
+    @event_handler('btn::back')
     def back_to_album(self, event: str, data: dict[str, Any]):
         from .album import AlbumView
 
         return AlbumView(self.album, self.album_block, last_view=self)
 
-    @event_handler('btn::next')  # noqa
+    @event_handler('btn::next')
     def find_match(self, event: str, data: dict[str, Any]):
         from .diff import AlbumDiffView
 

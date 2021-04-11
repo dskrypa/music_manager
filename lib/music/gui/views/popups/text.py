@@ -29,7 +29,7 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
         if self.auto_size and size == (None, None):
             lines = self.text.splitlines()
             width = max(map(len, lines))
-            size = (width, len(lines))
+            size = (width, len(lines) + 1)
 
         if self.multiline:
             layout = [[Multiline(self.text, key='txt::popup', size=size, disabled=True)]]

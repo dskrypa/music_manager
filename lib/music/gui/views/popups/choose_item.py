@@ -38,7 +38,7 @@ class ChooseItemPopup(BasePopup, view_name='choose_item_popup', primary=False):
     @event_handler(default=True)
     def default(self, event: Union[str, tuple[str, int]], data: dict[str, Any]):
         if isinstance(event, tuple) and event[0] == 'choice':
-            self.window['btn::submit'].update(disabled=False)
+            self.window['submit'].update(disabled=False)
             self.result = self.items[event[1]]
         else:
             raise StopIteration
@@ -63,7 +63,7 @@ class ChooseItemPopup(BasePopup, view_name='choose_item_popup', primary=False):
         self._selected = True
         raise StopIteration
 
-    def get_result(self):
+    def _get_result(self):
         self.render()
         self.run()
         return self.result if self._selected else None

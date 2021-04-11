@@ -5,7 +5,6 @@ View for choosing Wiki update options
 """
 
 import traceback
-from threading import Thread
 from typing import Any, Optional
 
 from PySimpleGUI import Text, Input, Element, HSep
@@ -14,13 +13,12 @@ from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
-from ..constants import LoadingSpinner
 from ..options import GuiOptions
-from ..progress import Spinner
 from .base import event_handler
 from .formatting import AlbumBlock
 from .main import MainView
 from .popups.text import popup_error
+from .thread_tasks import start_task
 
 __all__ = ['WikiUpdateView']
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
@@ -114,13 +112,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 error = traceback.format_exc()
                 self.log.error(str(e), exc_info=True)
 
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
-            t = Thread(target=get_album_info)
-            t.start()
-            t.join(0.1)
-            while t.is_alive():
-                spinner.update()
-                t.join(0.1)
+        start_task(get_album_info)
 
         if album_info is not None:
             # TODO: Link to the matched pages

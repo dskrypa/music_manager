@@ -23,6 +23,7 @@ event handler loop control is transferred to that view until it is closed, and t
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import partial, update_wrapper
+from queue import Queue
 from typing import Any, Optional, Callable, Type, Mapping, Collection
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
@@ -85,6 +86,7 @@ class _EventHandler:
 class GuiView(ABC):
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
+    pending_prompts = Queue()
     _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
     _primary_kwargs = {}
     _event_handlers = {}

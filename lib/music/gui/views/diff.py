@@ -6,12 +6,12 @@ View: Diff between original and modified tag values.  Used for both manual and W
 
 from functools import cached_property
 from io import BytesIO
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from PySimpleGUI import Text, Input, Image, Column, Element, HSep, Button
 
 from ...files.album import AlbumDir
-from ...manager.update import AlbumInfo
+from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..options import GuiOptions
 from ..progress import Spinner
@@ -19,6 +19,9 @@ from .base import event_handler
 from .formatting import AlbumBlock
 from .main import MainView
 from .utils import get_a_to_b
+
+if TYPE_CHECKING:
+    from ...files.track.track import SongFile
 
 __all__ = ['AlbumDiffView']
 
@@ -41,7 +44,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
         self.options.add_bool('dry_run', 'Dry Run', default=True)
-        self.options.add_bool('add_genre', 'Add Genre', enable_events=True)
+        self.options.add_bool('add_genre', 'Add Genre', enable_events=True, tooltip='Add any specified genres instead of replacing them')
         self.options.add_bool('title_case', 'Title Case', enable_events=True)
         self.options.add_bool('no_album_move', 'Do Not Move Album', enable_events=True)
         self.options.update(options)
@@ -142,13 +145,15 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
     @event_handler('btn::next')
     def apply_changes(self, event: str, data: dict[str, Any]):
+        from .album import AlbumView
+
         self.options.parse(data)
         dry_run = self.options['dry_run']
 
         with Spinner(LoadingSpinner.blue_dots, message='Applying Changes...') as spinner:
             file_tag_map = {file: info.tags() for file, info in self.file_info_map.items()}
             src_img_data, new_img_data, new_image_obj = self.cover_images
-            for file, info in spinner(self.file_info_map.items()):
+            for file, info in spinner(self.file_info_map.items()):  # type: SongFile, TrackInfo
                 file.update_tags(file_tag_map[file], dry_run, add_genre=self.options['add_genre'])
                 if new_image_obj is not None:
                     spinner.update()
@@ -169,4 +174,5 @@ class AlbumDiffView(MainView, view_name='album_diff'):
                             self.log.log(19, f'Removing empty directory: {path}')
                             path.rmdir()
 
-        # TODO: Return to view album?
+        if not dry_run:
+            return AlbumView(self.album, last_view=self)

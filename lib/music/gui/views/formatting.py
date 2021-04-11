@@ -290,6 +290,10 @@ class TrackBlock:
         new_info_dict = new_track_info.to_dict(title_case)
         for key, src_val in self._src_info.to_dict(title_case).items():
             new_val = new_info_dict[key]
+            if key == 'genre':
+                if not new_val:
+                    new_val = new_track_info.album.norm_genres()
+
             if (src_val or new_val) and src_val != new_val:
                 self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)

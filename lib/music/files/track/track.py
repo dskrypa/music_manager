@@ -706,7 +706,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :param bool dry_run: Whether tags should actually be updated
         :param container no_log: Names of tags for which updates should not be logged
         :param int none_level: If no changes need to be made, the log level for the message stating that.
-        :param bool add_genre: Add ang specified genres instead of replacing them
+        :param bool add_genre: Add any specified genres instead of replacing them
         """
         no_log = no_log or ()
         to_log = {}

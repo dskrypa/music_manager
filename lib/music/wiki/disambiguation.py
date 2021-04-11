@@ -7,9 +7,9 @@ import logging
 from pathlib import Path
 from typing import Type, Optional, Tuple, List, Iterator
 
-from ds_tools.input import choose_item
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes import MediaWikiClient, WikiPage, Link, CompoundNode, List as ListNode, Section
+from ..common.prompts import choose_item
 from ..text.name import Name
 from .exceptions import AmbiguousPageError
 from .typing import WE, Candidates

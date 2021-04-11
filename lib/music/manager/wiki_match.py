@@ -6,11 +6,11 @@ import logging
 from typing import TYPE_CHECKING, List, Iterable, Optional, Set, Tuple, Collection
 
 from ds_tools.fs.paths import Paths
-from ds_tools.input import choose_item
 from ds_tools.output import uprint
 from ds_tools.unicode import LangCat
 from wiki_nodes.http import URL_MATCH
 from ..common.disco_entry import DiscoEntryType
+from ..common.prompts import choose_item
 from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album

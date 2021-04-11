@@ -11,8 +11,8 @@ from tempfile import TemporaryDirectory
 from typing import Union, Optional, Dict, Tuple, Iterator
 
 from ds_tools.fs.paths import Paths, get_user_cache_dir
-from ds_tools.input import choose_item
 from wiki_nodes.http import MediaWikiClient
+from ..common.prompts import choose_item
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.track.track import SongFile
 from ..wiki import Track, Artist, Singer, Group

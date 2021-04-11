@@ -123,6 +123,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 t.join(0.1)
 
         if album_info is not None:
+            # TODO: Link to the matched pages
             return AlbumDiffView(self.album, album_info, self.album_block, options=self.options, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'

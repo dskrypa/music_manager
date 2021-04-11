@@ -5,7 +5,7 @@
 import logging
 from typing import Union
 
-from ds_tools.input import choose_item
+from ..common.prompts import choose_item
 from ..wiki import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 
 __all__ = ['get_disco_part', 'DiscoObj']

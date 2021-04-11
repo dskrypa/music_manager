@@ -40,6 +40,9 @@ def main():
     if args.match_log:
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
+    from music.common.prompts import set_ui_mode, UIMode
+    set_ui_mode(UIMode.GUI)
+
     from PySimpleGUI import theme
     theme('SystemDefaultForReal')
 

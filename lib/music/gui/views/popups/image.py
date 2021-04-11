@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Any, Union
 
 from PySimpleGUI import Element, Image
 
-from ..base import event_handler, GuiView
+from ..base import event_handler
+from .base import BasePopup
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 __all__ = ['ImageView']
 
 
-class ImageView(GuiView, view_name='show_image', primary=False):
+class ImageView(BasePopup, view_name='show_image', primary=False):
     def __init__(self, image: Union[Image, 'PILImage'], title: str = None, img_key: str = None):
         super().__init__(binds={'<Escape>': 'Exit'})
         self.title = title or 'Image'
@@ -36,10 +37,6 @@ class ImageView(GuiView, view_name='show_image', primary=False):
             self._gui_img = image
         else:
             self._gui_img = Image(data=image_to_bytes(image), size=image.size, key=f'img::{id(image)}', pad=(2, 2))
-
-    @event_handler(default=True)  # noqa
-    def default(self, event: str, data: dict[str, Any]):
-        raise StopIteration
 
     @event_handler
     def window_resized(self, event: str, data: dict[str, Any]):

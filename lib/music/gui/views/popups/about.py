@@ -12,12 +12,13 @@ from typing import Any
 
 from PySimpleGUI import Element, Text, OK
 
-from ..base import event_handler, GuiView
+from ..base import event_handler
+from .base import BasePopup
 
 __all__ = ['AboutView']
 
 
-class AboutView(GuiView, view_name='about', primary=False):
+class AboutView(BasePopup, view_name='about', primary=False):
     def __init__(self):
         super().__init__(binds={'<Escape>': 'Exit'})
 
@@ -44,10 +45,6 @@ class AboutView(GuiView, view_name='about', primary=False):
     @event_handler
     def link_clicked(self, event: str, data: dict[str, Any]):
         webbrowser.open(self.url)
-
-    @event_handler(default=True)  # noqa
-    def default(self, event: str, data: dict[str, Any]):
-        raise StopIteration
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         if self.url != '[unknown]':

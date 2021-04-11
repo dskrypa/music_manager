@@ -13,7 +13,8 @@ from typing import Any, Union, Optional, Collection
 
 from PySimpleGUI import Element, Text, Input, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs, Popup
 
-from ..base import event_handler, GuiView
+from ..base import event_handler
+from .base import BasePopup
 from .utils import temp_hidden_window
 
 __all__ = ['PathPromptView', 'PathPromptType', 'get_directory', 'get_file_path', 'get_save_path', 'get_file_paths']
@@ -34,7 +35,7 @@ NO_WIN_FUNCS = {
 }
 
 
-class PathPromptView(GuiView, view_name='path_prompt', primary=False):
+class PathPromptView(BasePopup, view_name='path_prompt', primary=False):
     def __init__(
         self,
         prompt_type: Union[str, PathPromptType],
@@ -47,22 +48,16 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         default_extension: str = None,
         file_types: Collection[tuple[str, str]] = None,
     ):
-        super().__init__(binds={'<Escape>': 'Exit'})
+        super().__init__(binds={'<Escape>': 'Exit'}, title=title)
         self.type = PathPromptType(prompt_type)
         if self.type == PathPromptType.DIR and (default_extension or file_types):
             raise ValueError('Arguments default_extension/file_types are not supported for directory prompts')
         self.prompt = prompt
-        self.title = title
         self.init_path = '' if default_path is None else Path(default_path).as_posix()
         self.init_dir = '' if initial_folder is None else Path(initial_folder).as_posix()
         self.no_window = no_window
         self.ext = default_extension or ''
         self.file_types = tuple(file_types) if file_types else (('ALL Files', '*.*'),)
-        self._selection: Optional[str] = None
-
-    @event_handler(default=True)
-    def default(self, event: str, data: dict[str, Any]):
-        raise StopIteration
 
     def _without_window(self):
         with temp_hidden_window(self.log) as root:
@@ -95,7 +90,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
 
     @event_handler('OK')
     def submit(self, event: str, data: dict[str, Any]):
-        self._selection = data['_INPUT_']
+        self.result = data['_INPUT_']
         raise StopIteration
 
     def get_path(self, must_exist: bool = True) -> Optional[Path]:
@@ -109,9 +104,9 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         else:
             self.render()
             self.run()
-            if not self._selection:
+            if not self.result:
                 return None
-            path = Path(self._selection).expanduser()
+            path = Path(self.result).expanduser()
 
         if self.type == PathPromptType.DIR:
             if (must_exist and not path.is_dir()) or (path.exists() and not path.is_dir()):
@@ -132,7 +127,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         else:
             self.render()
             self.run()
-            return [Path(p).expanduser() for p in self._selection.split(';')] if self._selection else []
+            return [Path(p).expanduser() for p in self.result.split(';')] if self.result else []
 
 
 def get_directory(*args, must_exist: bool = True, **kwargs) -> Optional[Path]:

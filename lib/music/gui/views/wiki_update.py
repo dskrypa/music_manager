@@ -112,7 +112,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 album_dir, album_info = updater.get_album_info(None, parsed['album_url'] or None, parsed['artist_only'])
             except Exception as e:
                 error = traceback.format_exc()
-                self.log.error(str(e))
+                self.log.error(str(e), exc_info=True)
 
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             t = Thread(target=get_album_info)
@@ -127,6 +127,4 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             return AlbumDiffView(self.album, album_info, self.album_block, options=self.options, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'
-            lines = error_str.splitlines()
-            width = max(map(len, lines))
-            popup_error(error_str, size=(width, len(lines)))
+            popup_error(error_str, multiline=True, auto_size=True)

@@ -4,17 +4,18 @@ View: Choose item from list
 :author: Doug Skrypa
 """
 
-from typing import Callable, Sequence, Any, Optional, Union, Collection
+from typing import Callable, Sequence, Any, Union, Collection
 
 from PySimpleGUI import Element, Text, Button, Radio, Column
 
 from ds_tools.input.prompts import _prepare_source
-from ..base import event_handler, GuiView
+from ..base import event_handler
+from .base import BasePopup
 
 __all__ = ['ChooseItemPopup', 'choose_item']
 
 
-class ChooseItemPopup(GuiView, view_name='choose_item_popup', primary=False):
+class ChooseItemPopup(BasePopup, view_name='choose_item_popup', primary=False):
     def __init__(
         self,
         items: Sequence[Any],
@@ -25,22 +26,20 @@ class ChooseItemPopup(GuiView, view_name='choose_item_popup', primary=False):
         title: str = '',
         **kwargs
     ):
-        super().__init__(binds={'<Escape>': 'Exit'})
+        super().__init__(binds={'<Escape>': 'Exit'}, title=title or f'Select {a_or_an(name)} {name}')
         self.items = items
         self.name = name
         self.source = source
         self.before = before
         self.repr_func = repr_func
-        self.title = title or f'Select {a_or_an(self.name)} {self.name}'
         self.kwargs = kwargs
-        self._selection: Optional[str] = None
         self._selected: bool = False
 
     @event_handler(default=True)
     def default(self, event: Union[str, tuple[str, int]], data: dict[str, Any]):
         if isinstance(event, tuple) and event[0] == 'choice':
             self.window['btn::submit'].update(disabled=False)
-            self._selection = self.items[event[1]]
+            self.result = self.items[event[1]]
         else:
             raise StopIteration
 
@@ -64,10 +63,10 @@ class ChooseItemPopup(GuiView, view_name='choose_item_popup', primary=False):
         self._selected = True
         raise StopIteration
 
-    def get_selection(self):
+    def get_result(self):
         self.render()
         self.run()
-        return self._selection if self._selected else None
+        return self.result if self._selected else None
 
 
 def choose_item(
@@ -99,7 +98,7 @@ def choose_item(
         return items[0]
     else:
         popup = ChooseItemPopup(items, name, source, before, repr_func, **kwargs)
-        return popup.get_selection()
+        return popup.get_result()
 
 
 def a_or_an(noun: str) -> str:

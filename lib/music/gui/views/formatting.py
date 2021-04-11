@@ -9,9 +9,10 @@ from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any, Iterator
 
-from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox, Button
+from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 
+from ...common.disco_entry import DiscoEntryType
 from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
@@ -110,7 +111,14 @@ class AlbumBlock:
             disabled = not editable or key in always_ro
 
             key_ele, val_key = label_and_val_key('album', key)
-            val_ele = value_ele(value, val_key, disabled)
+            if key == 'type':
+                types = [de.real_name for de in DiscoEntryType]
+                if value and value not in types:
+                    types.append(value)
+                val_ele = Combo(types, value, key=val_key, disabled=disabled)
+            else:
+                val_ele = value_ele(value, val_key, disabled)
+
             rows.append([key_ele, val_ele])
 
         return resize_text_column(rows) if rows else rows

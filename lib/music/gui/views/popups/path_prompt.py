@@ -60,7 +60,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         self.file_types = tuple(file_types) if file_types else (('ALL Files', '*.*'),)
         self._selection: Optional[str] = None
 
-    @event_handler(default=True)  # noqa
+    @event_handler(default=True)
     def default(self, event: str, data: dict[str, Any]):
         raise StopIteration
 
@@ -93,7 +93,7 @@ class PathPromptView(GuiView, view_name='path_prompt', primary=False):
         ]
         return layout, {'title': self.title or self.prompt, 'auto_size_text': True}
 
-    @event_handler('OK')  # noqa
+    @event_handler('OK')
     def submit(self, event: str, data: dict[str, Any]):
         self._selection = data['_INPUT_']
         raise StopIteration

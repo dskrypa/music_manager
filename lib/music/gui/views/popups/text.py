@@ -21,7 +21,7 @@ class TextPopup(GuiView, view_name='text_popup', primary=False):
         self.button = button
         self.kwargs = kwargs
 
-    @event_handler(default=True)  # noqa
+    @event_handler(default=True)
     def default(self, event: str, data: dict[str, Any]):
         raise StopIteration
 

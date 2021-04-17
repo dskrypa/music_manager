@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+r"""
+How to add to right-click context menu - Windows:
+    Computer\HKEY_CLASSES_ROOT\Directory\shell\Update Album Tags\command
+    C:\Users\dougs\git\ds_tools\venv\Scripts\python.exe "C:\Users\dougs\git\music_manager\bin\gui_music_manager.py" -a "%1"
+"""
+
 import sys
 from pathlib import Path
 
@@ -18,6 +24,7 @@ log = logging.getLogger(__name__)
 def parser():
     # fmt: off
     parser = ArgParser(description='Music Manager GUI')
+    parser.add_argument('--album_path', '-a', metavar='PATH', help='The path to an album to open rather than the main view')
     parser.include_common_args('verbosity')
     parser.add_common_sp_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
     # fmt: on
@@ -46,13 +53,19 @@ def main():
     from PySimpleGUI import theme
     theme('SystemDefaultForReal')
 
-    from music.gui.views.main import MainView
-    MainView.start(
+    start_kwargs = dict(
         title='Music Manager',
         resizable=True,
         size=(1700, 750),
         element_justification='center'
     )
+    if args.album_path:
+        from music.gui.views.album import AlbumView
+        from music.files.album import AlbumDir
+        AlbumView.start({'album': AlbumDir(args.album_path)}, **start_kwargs)
+    else:
+        from music.gui.views.main import MainView
+        MainView.start(**start_kwargs)
 
 
 if __name__ == '__main__':

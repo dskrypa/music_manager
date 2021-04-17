@@ -133,13 +133,15 @@ class GuiView(ABC):
         self.window.close()
 
     @classmethod
-    def start(cls, **kwargs):
+    def start(cls, cls_kwargs=None, **kwargs):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
         cls._primary_kwargs.update(kwargs)
         if size := kwargs.get('size'):
             cls._window_size = size
-        cls().render()
+
+        obj = cls(**cls_kwargs) if cls_kwargs else cls()
+        obj.render()
 
         while True:
             try:
@@ -218,7 +220,7 @@ class GuiView(ABC):
 
     def render(self):
         layout, kwargs = self.get_render_args()
-        loc = self.__class__ if self.primary else self
+        loc = GuiView if self.primary else self
         loc.window = self._create_window(layout, kwargs)
         loc._window_size = self.window.size
         if self.binds:

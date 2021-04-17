@@ -65,6 +65,7 @@ class PathPromptView(BasePopup, view_name='path_prompt', primary=False):
             if self.type != PathPromptType.DIR:
                 kwargs.update(filetypes=self.file_types, initialfile=self.init_path, defaultextension=self.ext)
 
+            # self.log.debug(f'Opening {self.type} prompt with {kwargs=!r}')
             return NO_WIN_FUNCS[self.type](**kwargs)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:

@@ -103,8 +103,19 @@ class MainView(BaseView, view_name='main'):
             if album := getattr(self, 'album', None):
                 return album
 
-        if path := get_directory('Select Album', no_window=True):
+        if last_dir := self.state.get('last_dir'):
+            last_dir = Path(last_dir)
+            if not last_dir.exists():
+                if last_dir.parent.exists():
+                    last_dir = last_dir.parent
+                else:
+                    last_dir = self.output_base_dir
+
+        if path := get_directory('Select Album', no_window=True, initial_folder=last_dir):
             self.window.force_focus()  # Can't seem to avoid it losing it perceptibly, but this brings it back faster
+            if path != last_dir:
+                self.state['last_dir'] = path.as_posix()
+                self.state.save()
             self.log.debug(f'Selected album {path=}')
             try:
                 return AlbumDir(path)

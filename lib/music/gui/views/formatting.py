@@ -302,6 +302,7 @@ class TrackBlock:
             new_val = new_info_dict[key]
             skip = False
             if key == 'genre':
+                # TODO: OST/Ost shows up here
                 if new_val:
                     new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
                     new_vals.update(album_new_genres)

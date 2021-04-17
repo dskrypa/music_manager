@@ -44,7 +44,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
         self.options.add_bool('dry_run', 'Dry Run', default=True)
-        self.options.add_bool('add_genre', 'Add Genre', enable_events=True, tooltip='Add any specified genres instead of replacing them')
+        self.options.add_bool('add_genre', 'Add Genre', default=True, enable_events=True, tooltip='Add any specified genres instead of replacing them')
         self.options.add_bool('title_case', 'Title Case', enable_events=True)
         self.options.add_bool('no_album_move', 'Do Not Move Album', enable_events=True)
         self.options.update(options)
@@ -108,7 +108,8 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         else:
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
-        if common_rows := self.album_block.get_album_diff_rows(self.album_info, self.options['title_case']):
+        title_case, add_genre = self.options['title_case'], self.options['add_genre']
+        if common_rows := self.album_block.get_album_diff_rows(self.album_info, title_case, add_genre):
             layout.append([Column(common_rows, key='col::album::diff')])
             layout.append([Text()])
         else:
@@ -117,7 +118,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         layout.append([HSep(), Text('Track Changes'), HSep()])
         for path, track_block in self.album_block.track_blocks.items():
             layout.append([Text()])
-            layout.extend(track_block.as_diff_rows(self.album_info.tracks[path], self.options['title_case']))
+            layout.extend(track_block.as_diff_rows(self.album_info.tracks[path], title_case, add_genre))
 
         workflow = self.as_workflow(layout, next_tooltip='Apply changes (save)', scrollable=True)
         full_layout.append(workflow)

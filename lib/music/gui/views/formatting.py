@@ -123,7 +123,7 @@ class AlbumBlock:
 
         return resize_text_column(rows) if rows else rows
 
-    def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False):
+    def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False, add_genre: bool = False):
         rows = []
         skip = {'tracks'}
         new_info_dict = new_album_info.to_dict(title_case)
@@ -132,11 +132,16 @@ class AlbumBlock:
                 continue
 
             new_val = new_info_dict[key]
+            if key == 'genre' and add_genre:
+                new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
+                new_vals.update(src_val)
+                new_val = sorted(new_vals)
+
             if (src_val or new_val) and src_val != new_val:
                 self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
-                src_ele = value_ele(src_val, src_key, True)
-                new_ele = value_ele(new_val, new_key, True)
+                src_ele = value_ele(src_val, src_key, True, 45)
+                new_ele = value_ele(new_val, new_key, True, 45)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows) if rows else rows
@@ -150,7 +155,7 @@ class AlbumBlock:
         return dest_base_dir.joinpath(expected_rel_dir)
 
 
-def value_ele(value: Any, val_key: str, disabled: bool) -> Element:
+def value_ele(value: Any, val_key: str, disabled: bool, list_width: int = 30) -> Element:
     if isinstance(value, bool):
         val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0))
     elif isinstance(value, list):
@@ -159,7 +164,7 @@ def value_ele(value: Any, val_key: str, disabled: bool) -> Element:
             default_values=value,
             key=val_key,
             disabled=disabled,
-            size=(30, len(value)),
+            size=(list_width, len(value)),
             no_scrollbar=True,
             select_mode='extended',  # extended, browse, single, multiple
         )
@@ -285,17 +290,31 @@ class TrackBlock:
 
         return resize_text_column(rows) if rows else rows
 
-    def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False):
+    def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):
+        album_src_genres = set(self.album_block._src_album_info.norm_genres())
+        album_new_genres = set(new_track_info.album.norm_genres())
+        if add_genre:
+            album_new_genres.update(album_src_genres)
+
         rows = []
         new_info_dict = new_track_info.to_dict(title_case)
         for key, src_val in self._src_info.to_dict(title_case).items():
             new_val = new_info_dict[key]
+            skip = False
             if key == 'genre':
-                if not new_val:
-                    new_val = new_track_info.album.norm_genres()
+                if new_val:
+                    new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
+                    new_vals.update(album_new_genres)
+                else:
+                    new_vals = album_new_genres.copy()
+                if add_genre:
+                    new_vals.update(src_val)
 
-            if (src_val or new_val) and src_val != new_val:
-                self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
+                skip = set(src_val) == album_src_genres and new_vals == album_new_genres
+                new_val = sorted(new_vals)
+
+            if not skip and (src_val or new_val) and src_val != new_val:
+                # self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
                 src_ele = value_ele(src_val, src_key, True)
                 new_ele = value_ele(new_val, new_key, True)
@@ -328,7 +347,7 @@ class TrackBlock:
         tags = Column(self.get_tag_rows(editable), key=f'col::{self.path_str}::tags')
         yield [cover, tags]
 
-    def as_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False):
+    def as_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):
         yield [HorizontalSeparator()]
         new_name = new_track_info.expected_name(self.track)
         if self.track.path.name != new_name:
@@ -340,7 +359,7 @@ class TrackBlock:
                 Text('(no change)'),
             ]
 
-        if diff_rows := self.get_diff_rows(new_track_info, title_case):
+        if diff_rows := self.get_diff_rows(new_track_info, title_case, add_genre):
             yield [Column(diff_rows, key=f'col::{self.path_str}::diff')]
         else:
             yield []

@@ -24,7 +24,7 @@ def parser():
 
     with parser.add_subparser('action', 'clean', help='Open directly to the Clean view for the given path') as clean_parser:
         clean_parser.add_argument('path', nargs='+', help='The directory containing files to clean')
-        clean_parser.add_argument('--multi_instance_wait', '-w', type=int, default=2, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
+        clean_parser.add_argument('--multi_instance_wait', '-w', type=int, default=1, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
 
     with parser.add_subparser('action', 'configure', help='Configure registry entries for right-click actions') as config_parser:
         config_parser.include_common_args('dry_run')
@@ -81,17 +81,17 @@ def launch_gui(args):
 
 
 def get_clean_paths(max_wait: int, arg_paths):
-    import os
-    import psutil
-    import selectors
-    import socket
-    import time
+    from os import getpid
+    from selectors import DefaultSelector, EVENT_READ
+    from socket import socket
+    from time import monotonic
     from filelock import FileLock
+    from psutil import Process, NoSuchProcess
     from ds_tools.fs.paths import get_user_cache_dir
 
     cache_dir = Path(get_user_cache_dir('music_manager'))
     with FileLock(cache_dir.joinpath('init.lock').as_posix()):
-        pid = os.getpid()
+        pid = getpid()
         active_path = cache_dir.joinpath('active_pid_port.txt')
         try:
             with active_path.open('r') as f:
@@ -100,11 +100,11 @@ def get_clean_paths(max_wait: int, arg_paths):
             active = True
         else:
             try:
-                active = not psutil.Process(active_pid).is_running()
-            except psutil.NoSuchProcess:
+                active = not Process(active_pid).is_running()
+            except NoSuchProcess:
                 active = True
 
-        sock = socket.socket()
+        sock = socket()
         if active:
             sock.bind(('localhost', 0))
             sock.listen(100)
@@ -118,25 +118,24 @@ def get_clean_paths(max_wait: int, arg_paths):
 
     if active:
         paths = list(arg_paths)
-        selector = selectors.DefaultSelector()
+        selector = DefaultSelector()
 
         def accept(sock, mask):
             conn, addr = sock.accept()
             conn.setblocking(False)
-            selector.register(conn, selectors.EVENT_READ, read)
+            selector.register(conn, EVENT_READ, read)
 
         def read(conn, mask):
             if data := conn.recv(2000):
-                data = data.decode('utf-8')
-                paths.append(data)
-                log.debug(f'Received path={data!r} from other instance')
+                paths.append(data.decode('utf-8'))
+                # log.debug(f'Received path={data!r} from other instance')
             else:
                 selector.unregister(conn)
                 conn.close()
 
-        selector.register(sock, selectors.EVENT_READ, accept)
-        start = time.monotonic()
-        while (time.monotonic() - start) < max_wait:
+        selector.register(sock, EVENT_READ, accept)
+        start = monotonic()
+        while (monotonic() - start) < max_wait:
             for key, mask in selector.select(0.1):
                 key.data(key.fileobj, mask)
     else:

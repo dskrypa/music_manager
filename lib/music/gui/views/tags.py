@@ -43,6 +43,4 @@ class AllTagsView(MainView, view_name='all_tags'):
             )
             layout.append([Column([], key='spacer::1', pad=(0, 0)), track_col, Column([], key='spacer::2', pad=(0, 0))])
 
-        self.log.info(f'{ele_binds=}')
-
         return layout, kwargs, ele_binds

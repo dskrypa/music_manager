@@ -4,7 +4,6 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
-import webbrowser
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
@@ -18,6 +17,7 @@ from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
+from .base import Layout, EleBinds
 from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
 from .popups.simple import popup_ok
 
@@ -191,7 +191,7 @@ def value_ele(
                 expand_x=True,
             )
     else:
-        if isinstance(value, str) and value.startswith(('http://', 'https://')):
+        if value and str(value).startswith(('http://', 'https://')):
             val_ele = Input(value, key=val_key, disabled=disabled, tooltip='Open with ctrl + click')
             bind = {'<Control-Button-1>': ':::open_link'}
         else:
@@ -283,8 +283,9 @@ class TrackBlock:
     def file_name(self) -> str:
         return self.track.path.name
 
-    def get_tag_rows(self, editable: bool = True) -> list[list[Element]]:
+    def get_tag_rows(self, editable: bool = True) -> tuple[Layout, EleBinds]:
         rows = []
+        ele_binds = {}
         for tag, (tag_name, val) in self.tag_values.items():
             key_ele = Text(tag_name, key=f'tag::{self.path_str}::{tag}')
             val_key = f'val::{self.path_str}::{tag}'
@@ -292,10 +293,12 @@ class TrackBlock:
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
             else:
                 val_ele, bind = value_ele(val, val_key, not editable)
+                if bind:
+                    ele_binds[val_key] = bind
 
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows) if rows else rows
+        return (resize_text_column(rows) if rows else rows), ele_binds
 
     def get_info_rows(self, editable: bool = True):
         rows = []
@@ -358,11 +361,11 @@ class TrackBlock:
         yield [Column(self.get_info_rows(editable), key=f'col::{self.path_str}::tags')]
 
     def as_all_tag_rows(self, editable: bool = True):
-        yield [HorizontalSeparator()]
-        yield self.get_basic_info_row()
         cover = Column([[self.cover_image_thumbnail]], key=f'col::{self.path_str}::cover')
-        tags = Column(self.get_tag_rows(editable), key=f'col::{self.path_str}::tags')
-        yield [cover, tags]
+        tag_rows, ele_binds = self.get_tag_rows(editable)
+        tags = Column(tag_rows, key=f'col::{self.path_str}::tags')
+        layout = [[HorizontalSeparator()], self.get_basic_info_row(), [cover, tags]]
+        return layout, ele_binds
 
     def as_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):
         yield [HorizontalSeparator()]

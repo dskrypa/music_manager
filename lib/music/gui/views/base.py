@@ -22,17 +22,20 @@ event handler loop control is transferred to that view until it is closed, and t
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from fnmatch import _compile_pattern
 from functools import partial, update_wrapper
 from queue import Queue
-from typing import Any, Optional, Callable, Type, Mapping, Collection
+from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 
 from .exceptions import NoEventHandlerRegistered
 from .utils import ViewLoggerAdapter
 
-__all__ = ['GuiView', 'BaseView', 'event_handler']
+__all__ = ['GuiView', 'BaseView', 'event_handler', 'Event', 'EventData']
 Layout = list[list[Element]]
+Event = Union[str, tuple]
+EventData = dict[Union[str, int, tuple], Any]
 
 
 def event_handler(*args, **kwargs):
@@ -91,6 +94,7 @@ class GuiView(ABC):
     _primary_kwargs = {}
     _event_handlers = {}
     event_handlers = {}
+    wildcard_handlers: dict[str, dict[Callable, Callable]] = {}
     default_handler: Optional[Callable] = None
     name: str = None
     primary: bool
@@ -110,6 +114,11 @@ class GuiView(ABC):
     def __init__(self, binds: Mapping[str, str] = None):
         self.binds = binds
         # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
+        if self.name not in self.wildcard_handlers:  # Populate/compile wildcard patterns once per class
+            self.wildcard_handlers[self.name] = wildcard_handlers = {}
+            for key, handler in self.event_handlers.items():
+                if isinstance(key, str) and any(c in key for c in '*?[]'):
+                    wildcard_handlers[_compile_pattern(key)] = handler
 
     def __repr__(self):
         return f'<{self.__class__.__name__}[{self.name}][{self.primary=!r}][handlers: {len(self.event_handlers)}]>'
@@ -152,19 +161,22 @@ class GuiView(ABC):
 
         cls.window.close()
 
-    def _get_default_handler(self):
-        for cls in self.__class__.mro():
-            if (handler := getattr(cls, 'default_handler', None)) is not None:
-                return handler
-        return None
-
-    def _handle_event(self, event: str, data: dict[str, Any]):
+    def _find_handler(self, event: Event):
         try:
-            handler = self.event_handlers[event]
+            return self.event_handlers[event]
         except KeyError:
-            if (handler := self._get_default_handler()) is None:
-                raise NoEventHandlerRegistered(self, event) from None
+            if isinstance(event, str):
+                for matches, handler in self.wildcard_handlers[self.name].items():  # noqa
+                    if matches(event):
+                        return handler
+            for cls in self.__class__.mro():
+                if (handler := getattr(cls, 'default_handler', None)) is not None:
+                    return handler
 
+        raise NoEventHandlerRegistered(self, event)
+
+    def _handle_event(self, event: Event, data: EventData):
+        handler = self._find_handler(event)
         if event != 'config_changed':
             self.log.debug(f'Handling {event=}')
         # self.log.debug(f'Calling {handler} with args=({self}, {event!r}, {data!r})')
@@ -229,7 +241,7 @@ class GuiView(ABC):
         self.log.debug(f'Rendered {self}')
 
     @event_handler
-    def config_changed(self, event: str, data: dict[str, Any]):
+    def config_changed(self, event: Event, data: EventData):
         """
         Event handler for window configuration changes.
         Known triggers: resize window, move window, window gains focus, scroll
@@ -255,7 +267,7 @@ class BaseView(GuiView, view_name='base'):
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return [[Menu(self.menu)]], {}
 
-    def handle_event(self, event: str, data: dict[str, Any]):
+    def handle_event(self, event: Event, data: EventData):
         try:
             return super().handle_event(event, data)
         except NoEventHandlerRegistered:
@@ -270,13 +282,13 @@ class BaseView(GuiView, view_name='base'):
                 raise
 
     @event_handler
-    def about(self, event: str, data: dict[str, Any]):
+    def about(self, event: Event, data: EventData):
         from .popups.about import AboutView
 
         return AboutView()
 
     # @event_handler
-    # def window_resized(self, event: str, data: dict[str, Any]):
+    # def window_resized(self, event: Event, data: EventData):
     #     self.log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
     #     if self.state.get('view') == 'tracks':
     #         self.log.debug(f'Expanding columns on {self.window}')

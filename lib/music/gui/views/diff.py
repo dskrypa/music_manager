@@ -4,6 +4,7 @@ View: Diff between original and modified tag values.  Used for both manual and W
 :author: Doug Skrypa
 """
 
+import webbrowser
 from functools import cached_property
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Optional
@@ -15,7 +16,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..options import GuiOptions
 from ..progress import Spinner
-from .base import event_handler
+from .base import event_handler, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
 from .utils import get_a_to_b
@@ -126,7 +127,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         return full_layout, kwargs
 
     @event_handler('btn::back')
-    def back(self, event: str, data: dict[str, Any]):
+    def back(self, event: Event, data: EventData):
         from .album import AlbumView
 
         if (last := self.last_view) is not None:
@@ -140,12 +141,12 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         return AlbumView(self.album, self.album_block, last_view=self)
 
     @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')
-    def refresh(self, event: str, data: dict[str, Any]):
+    def refresh(self, event: Event, data: EventData):
         self.options.parse(data)
         self.render()
 
     @event_handler('btn::next')
-    def apply_changes(self, event: str, data: dict[str, Any]):
+    def apply_changes(self, event: Event, data: EventData):
         from .album import AlbumView
 
         self.options.parse(data)
@@ -177,3 +178,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         if not dry_run:
             return AlbumView(self.album, last_view=self)
+
+    @event_handler('open_link::*')
+    def open_link(self, event: Event, data: EventData):
+        self.log.debug(f'Open link request received for {event=!r}')
+        key = event.split('::', 1)[1]
+        webbrowser.open(data[key])

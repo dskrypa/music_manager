@@ -4,6 +4,7 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
+import webbrowser
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
@@ -179,7 +180,10 @@ def value_ele(value: Any, val_key: str, disabled: bool, list_width: int = 30) ->
                 expand_x=True,
             )
     else:
-        val_ele = Input(value, key=val_key, disabled=disabled)
+        if isinstance(value, str) and value.startswith(('http://', 'https://')):
+            val_ele = Input(value, key=val_key, disabled=disabled, right_click_menu=['-', [f'Open Link::{val_key}']])
+        else:
+            val_ele = Input(value, key=val_key, disabled=disabled)
 
     return val_ele
 

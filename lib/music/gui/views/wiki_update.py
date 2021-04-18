@@ -103,8 +103,6 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         album_info: Optional[AlbumInfo] = None
         error = None
 
-        # TODO: Add way to capture user input for prompts for disambiguation, etc
-
         def get_album_info():
             nonlocal album_info, error
             try:

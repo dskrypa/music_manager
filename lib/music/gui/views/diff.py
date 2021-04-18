@@ -84,6 +84,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             edit_col = Column([[edit_button]], key='col::edit', expand_x=True)
             right_spacer = Text(key='spacer::1', **top_side_kwargs)
             first_row = [edit_col, options_frame, right_spacer]
+            self.binds['<Control-e>'] = 'edit'
         else:
             first_row = [options_frame]
 

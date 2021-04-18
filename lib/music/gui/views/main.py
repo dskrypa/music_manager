@@ -26,6 +26,8 @@ from .popups.simple import popup_input_invalid
 __all__ = ['MainView']
 
 DEFAULT_OUTPUT_DIR = '~/Music/'
+BACK_BIND = '<Control-Left>'
+NEXT_BIND = '<Control-Right>'
 
 
 class MainView(BaseView, view_name='main'):
@@ -36,9 +38,9 @@ class MainView(BaseView, view_name='main'):
         self.last_view = last_view
         self.state = GuiState()
         self.menu = [
-            ['File', ['Open', 'Output', 'Exit']],
-            ['Actions', ['Clean', 'Edit', 'Wiki Update']],
-            ['Help', ['About']],
+            ['&File', ['&Open', 'Ou&tput', 'E&xit']],
+            ['&Actions', ['&Clean', '&Edit', '&Wiki Update']],
+            ['&Help', ['&About']],
         ]
 
     @property
@@ -53,7 +55,15 @@ class MainView(BaseView, view_name='main'):
     def display_name(self) -> str:
         return self.name.replace('_', ' ').title()
 
+    def _clear_binds(self):
+        for key in (BACK_BIND, NEXT_BIND):
+            try:
+                del self.binds[key]
+            except KeyError:
+                pass
+
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
+        self._clear_binds()
         layout, kwargs = super().get_render_args()
         if self.__class__ is MainView:
             select_button = Button(
@@ -174,6 +184,8 @@ class MainView(BaseView, view_name='main'):
         scrollable: bool = False,
         **kwargs
     ) -> list[Element]:
+        self.binds[BACK_BIND] = back_key
+        self.binds[NEXT_BIND] = next_key
         section_args = {'back': {}, 'next': {}}
         for key, val in tuple(kwargs.items()):
             if key.startswith(('back_', 'next_')):

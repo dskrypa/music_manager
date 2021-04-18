@@ -15,7 +15,7 @@ from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .base import event_handler
+from .base import event_handler, RenderArgs
 from .formatting import AlbumBlock, split_key
 from .main import MainView
 from .popups.simple import popup_ok
@@ -32,10 +32,11 @@ class AlbumView(MainView, view_name='album'):
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
         self.editing = editing
+        self.binds['<Control-w>'] = 'wiki_update'
+        self.binds['<Control-e>'] = 'edit'
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             layout = [
                 [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
@@ -49,21 +50,17 @@ class AlbumView(MainView, view_name='album'):
                 Button('Wiki Update', key='wiki_update', **bkw),
             ]
             edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
+            album_data = [
+                Column([[self.album_block.cover_image_thumbnail]], key='col::album_cover'),
+                Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
+            ]
+            album_buttons = [
+                Column([view_buttons], key='col::view_buttons', visible=not self.editing),
+                Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
+            ]
+            alb_col = [album_data, [HorizontalSeparator()], album_buttons]
             album_container = Column(
-                [
-                    [
-                        Column([[self.album_block.cover_image_thumbnail]], key='col::album_cover'),
-                        Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
-                    ],
-                    [HorizontalSeparator()],
-                    [
-                        Column([view_buttons], key='col::view_buttons', visible=not self.editing),
-                        Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
-                    ],
-                ],
-                vertical_alignment='top',
-                element_justification='center',
-                key='col::album_container',
+                alb_col, vertical_alignment='top', element_justification='center', key='col::album_container'
             )
             track_rows = list(chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_block)))
             track_data = Column(
@@ -92,7 +89,9 @@ class AlbumView(MainView, view_name='album'):
         self.window['btn::next'].update(visible=self.editing)
 
     def handle_event(self, event: str, data: dict[str, Any]):
-        if event.startswith('add::'):
+        if not self.editing and (event == 'btn::back' or event == 'btn::next'):
+            return None
+        elif event.startswith('add::'):
             data['listbox_key'] = event.replace('add::', 'val::', 1)
             key_type, obj, field = split_key(event)
             data.update(object=obj, field=field)

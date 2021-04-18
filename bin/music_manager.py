@@ -163,7 +163,7 @@ def main():
     from ds_tools.logging import init_logging
     init_logging(args.verbose, log_path=None, names=None)
 
-    from music.common.utils import aubio_installed
+    from music.common.utils import can_add_bpm
     from music.files.patches import apply_mutagen_patches
     apply_mutagen_patches()
 
@@ -197,7 +197,7 @@ def main():
         if action == 'path2tag':
             path_to_tag(args.path, args.dry_run, args.yes, args.title)
         elif action == 'clean':
-            bpm = aubio_installed() if args.bpm is None else args.bpm
+            bpm = can_add_bpm() if args.bpm is None else args.bpm
             clean_tags(args.path, args.dry_run, bpm)
         elif action == 'remove':
             if not args.tag and not args.all:
@@ -212,7 +212,7 @@ def main():
     elif action == 'wiki':
         if sub_action == 'update':
             from music.manager.wiki_update import update_tracks
-            bpm = aubio_installed() if args.bpm is None else args.bpm
+            bpm = can_add_bpm() if args.bpm is None else args.bpm
             update_tracks(
                 args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
                 args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover,

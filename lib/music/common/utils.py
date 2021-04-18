@@ -2,7 +2,10 @@
 :author: Doug Skrypa
 """
 
-__all__ = ['stars', 'deinit_colorama', 'aubio_installed']
+import shutil
+from pathlib import Path
+
+__all__ = ['stars', 'deinit_colorama', 'can_add_bpm', 'find_ffmpeg']
 
 
 def stars(rating, out_of=10, num_stars=5, chars=('\u2605', '\u2730'), half='\u00BD'):
@@ -31,9 +34,18 @@ def deinit_colorama():
         atexit.unregister(colorama.initialise.reset_all)
 
 
-def aubio_installed():
+def can_add_bpm():
     try:
         import aubio
+        import ffmpeg
+        import numpy
     except ImportError:
         return False
-    return True
+    return bool(find_ffmpeg())
+
+
+def find_ffmpeg():
+    for path in (None, Path('~/sbin/ffmpeg/bin').expanduser(), Path('~/bin/ffmpeg/bin').expanduser()):
+        if ffmpeg := shutil.which('ffmpeg', path=path):
+            return ffmpeg
+    return None

@@ -17,6 +17,8 @@ try:
 except ImportError:
     aubio = None
 
+from ...common.utils import find_ffmpeg
+
 __all__ = ['get_bpm', 'BPMDetectionError']
 
 
@@ -33,7 +35,7 @@ def get_bpm(path: Union[str, Path], sample_rate=44100, window_size=1024, hop_siz
 
         with TemporaryDirectory() as d:
             temp_path = Path(d).joinpath('temp.wav').as_posix()
-            ffmpeg.input(path.as_posix()).output(temp_path).run(quiet=True)
+            ffmpeg.input(path.as_posix()).output(temp_path).run(quiet=True, cmd=find_ffmpeg())
             return _get_bpm(temp_path, sample_rate, window_size, hop_size)
     else:
         return _get_bpm(path, sample_rate, window_size, hop_size)

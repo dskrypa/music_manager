@@ -146,14 +146,23 @@ class MainView(BaseView, view_name='main'):
             return AlbumView(album, last_view=self)
 
     @event_handler
-    def init_album(self, event: Event, data: EventData):
-        from .album import AlbumView
-        try:
-            album = AlbumDir(data[event]['path'])
-        except InvalidAlbumDir as e:
-            popup_input_invalid(str(e), logger=self.log)
+    def init_view(self, event: Event, data: EventData):
+        data = data[event]
+        path = data['path']
+        if (view := data['view']) == 'album':
+            from .album import AlbumView
+            try:
+                album = AlbumDir(path)
+            except InvalidAlbumDir as e:
+                popup_input_invalid(str(e), logger=self.log)
+            else:
+                return AlbumView(album, last_view=self)
+        elif view == 'clean':
+            from .clean import CleanView
+
+            return CleanView(path=path, last_view=self)
         else:
-            return AlbumView(album, last_view=self)
+            popup_input_invalid(f'Unexpected initial {view=!r}', logger=self.log)
 
     @event_handler
     def edit(self, event: Event, data: EventData):

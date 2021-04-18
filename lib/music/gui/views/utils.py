@@ -6,10 +6,13 @@ Utilities for formatting gui elements.
 
 import logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Union
 
-from PySimpleGUI import Text, Element, Column, Input, Checkbox
+from PySimpleGUI import Text, Element, Column, Input, Checkbox, Output, Multiline
+
+from ds_tools.logging import DatetimeFormatter, ENTRY_FMT_DETAILED
 
 __all__ = [
     'resize_text_column',
@@ -19,6 +22,8 @@ __all__ = [
     'get_a_to_b',
     'ViewLoggerAdapter',
     'make_checkbox_grid',
+    'output_log_handler',
+    'OutputHandler',
 ]
 log = logging.getLogger(__name__)
 
@@ -120,3 +125,41 @@ class ViewLoggerAdapter(logging.LoggerAdapter):
 
     def process(self, msg, kwargs):
         return f'[view={self._view_name}] {msg}', kwargs
+
+
+class OutputHandler(logging.Handler):
+    def __init__(self, element: Union[Output, Multiline], level = logging.NOTSET):
+        super().__init__(level)
+        self.element = element
+        self.kwargs = {'append': True} if isinstance(element, Multiline) else {}
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.element.update(msg + '\n', **self.kwargs)
+        except RecursionError:  # See issue 36272
+            raise
+        except Exception:
+            self.handleError(record)
+
+
+@contextmanager
+def output_log_handler(
+    element: Union[Output, Multiline],
+    logger_name: str = None,
+    level: int = logging.DEBUG,
+    detail: bool = False,
+    logger: logging.Logger = None,
+):
+    handler = OutputHandler(element, level)
+    if detail:
+        handler.setFormatter(DatetimeFormatter(ENTRY_FMT_DETAILED, '%Y-%m-%d %H:%M:%S %Z'))
+
+    loggers = [logging.getLogger(logger_name), logger] if logger else [logging.getLogger(logger_name)]
+    for logger in loggers:
+        logger.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        for logger in loggers:
+            logger.removeHandler(handler)

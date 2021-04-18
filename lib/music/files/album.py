@@ -11,7 +11,7 @@ from datetime import date
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Iterator, List, Union, Optional, Set, Dict, Callable
+from typing import Iterator, List, Union, Optional, Set, Dict, Callable, Iterable
 
 from mutagen.id3 import TDRC
 
@@ -229,9 +229,15 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return None
 
     def fix_song_tags(self, dry_run=False, add_bpm=False, callback: Optional[Callable] = None):
+        self._fix_song_tags(self.songs, dry_run=dry_run, add_bpm=add_bpm, callback=callback)
+
+    @classmethod
+    def _fix_song_tags(
+        cls, tracks: Iterable[SongFile], dry_run: bool = False, add_bpm: bool = False, callback: Callable = None
+    ):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
 
-        for n, music_file in enumerate(self.songs, 1):
+        for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
             music_file.cleanup_lyrics(dry_run)
@@ -263,7 +269,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 EXECUTOR = futures.ThreadPoolExecutor(max_workers=8)
                 atexit.register(EXECUTOR.shutdown)
 
-            for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in self.songs}):
+            for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
                 future.result()
 
     def remove_bad_tags(self, dry_run=False, callback: Optional[Callable] = None):
@@ -289,6 +295,31 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
         if not i:
             log.debug(f'None of the songs in {self} had any tags that needed to be removed')
+
+    @classmethod
+    def _remove_bad_tags(cls, tracks: Iterable[SongFile], dry_run: bool = False, callback: Optional[Callable] = None):
+        keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
+        i = 0
+        for n, music_file in enumerate(tracks, 1):
+            if callback:
+                callback(music_file, n)
+            rm_tag_match = _rm_tag_matcher(music_file.tag_type)
+            if music_file.tag_type == 'flac':
+                log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
+                # noinspection PyArgumentList
+                if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
+                    if i:
+                        log.debug('')
+            else:
+                # noinspection PyArgumentList
+                if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
+                    if i:
+                        log.debug('')
+
+            i += int(music_file.remove_tags(to_remove, dry_run))
+
+        if not i:
+            log.debug(f'None of the provided songs had any tags that needed to be removed')
 
     def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         updates = {file: file.get_tag_updates(tag_ids, value, patterns=patterns, partial=partial) for file in self}

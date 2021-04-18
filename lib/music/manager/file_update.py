@@ -86,6 +86,9 @@ def _add_bpm(track: SongFile, dry_run=False):
     bpm = track.bpm(False, False)
     if bpm is None:
         bpm = track.bpm(not dry_run, calculate=True)
-        log.info(f'{prefix}{add_msg} BPM={bpm} to {track}')
+        level, message = 20, f'{prefix}{add_msg} BPM={bpm} to {track}'
     else:
-        log.log(19, f'{track} already has BPM={bpm}')
+        level, message = 19, f'{track} already has BPM={bpm}'
+
+    log.log(level, message)
+    return message

@@ -8,7 +8,7 @@ import logging
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 from PySimpleGUI import Text, Element, Column, Input, Checkbox, Output, Multiline
 
@@ -24,6 +24,7 @@ __all__ = [
     'make_checkbox_grid',
     'output_log_handler',
     'OutputHandler',
+    'split_key',
 ]
 log = logging.getLogger(__name__)
 
@@ -163,3 +164,13 @@ def output_log_handler(
     finally:
         for logger in loggers:
             logger.removeHandler(handler)
+
+
+def split_key(key: str) -> Optional[tuple[str, str, str]]:
+    try:
+        key_type, obj_key = key.split('::', 1)
+        obj, item = obj_key.rsplit('::', 1)
+    except Exception:
+        return None
+    else:
+        return key_type, obj, item

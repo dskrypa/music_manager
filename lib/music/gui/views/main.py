@@ -18,9 +18,9 @@ from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..state import GuiState
 from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
-from .formatting import split_key
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
+from .utils import split_key
 
 # if TYPE_CHECKING:
 #     import tkinter

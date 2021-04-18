@@ -7,18 +7,19 @@ View: Album + track tag values.  Allows editing, after which the view transition
 from dataclasses import fields
 from itertools import chain
 from pathlib import Path
-from typing import Any
 
 from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Button, popup_get_text
 
+from ds_tools.fs.paths import get_user_cache_dir
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .base import event_handler, RenderArgs
-from .formatting import AlbumBlock, split_key
+from .base import event_handler, RenderArgs, Event, EventData
+from .formatting import AlbumBlock
 from .main import MainView
 from .popups.simple import popup_ok
+from .utils import split_key
 
 __all__ = ['AlbumView']
 
@@ -34,6 +35,7 @@ class AlbumView(MainView, view_name='album'):
         self.editing = editing
         self.binds['<Control-w>'] = 'wiki_update'
         self.binds['<Control-e>'] = 'edit'
+        self._image_path = None
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -91,7 +93,7 @@ class AlbumView(MainView, view_name='album'):
         self.window['btn::back'].update(visible=self.editing)
         self.window['btn::next'].update(visible=self.editing)
 
-    def handle_event(self, event: str, data: dict[str, Any]):
+    def handle_event(self, event: Event, data: EventData):
         if not self.editing and (event == 'btn::back' or event == 'btn::next'):
             return None
         elif event.startswith('add::'):
@@ -103,7 +105,7 @@ class AlbumView(MainView, view_name='album'):
         return super().handle_event(event, data)
 
     @event_handler
-    def add_field_value(self, event: str, data: dict[str, Any]):
+    def add_field_value(self, event: Event, data: EventData):
         # listbox_key = data['listbox_key']
         obj = data['object']  # album or a track path
         field = data['field']
@@ -138,24 +140,24 @@ class AlbumView(MainView, view_name='album'):
             self.render()
 
     @event_handler
-    def all_tags(self, event: str, data: dict[str, Any]):
+    def all_tags(self, event: Event, data: EventData):
         from .tags import AllTagsView
 
         return AllTagsView(self.album, self.album_block, last_view=self)
 
     @event_handler('btn::back')
-    def cancel(self, event: str, data: dict[str, Any]):
+    def cancel(self, event: Event, data: EventData):
         self.editing = False
         self.album_block.reset_changes()
         self.render()
 
     @event_handler('Edit')
-    def edit(self, event: str, data: dict[str, Any]):
+    def edit(self, event: Event, data: EventData):
         if not self.editing:
             self.toggle_editing()
 
     @event_handler('btn::next')
-    def save(self, event: str, data: dict[str, Any]):
+    def save(self, event: Event, data: EventData):
         from .diff import AlbumDiffView
 
         self.toggle_editing()
@@ -177,5 +179,28 @@ class AlbumView(MainView, view_name='album'):
                     else:
                         track_info_dict.setdefault(obj, {})[field] = value
 
+        if self._image_path:
+            info_dict['cover_path'] = self._image_path.as_posix()
+
         album_info = AlbumInfo.from_dict(info_dict)
         return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
+
+    @event_handler
+    def replace_image(self, event: Event, data: EventData):
+        if not self.editing:
+            return
+
+        from .popups.choose_image import choose_image
+
+        urls = self.album_block.wiki_image_urls
+        client = self.album_block.wiki_client
+        images = {title: client.get_image(title) for title in urls}
+        if title := choose_image(images):
+            cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
+            name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
+            path = cover_dir.joinpath(name)
+            if not path.is_file():
+                img_data = client.get_image(title)
+                with path.open('wb') as f:
+                    f.write(img_data)
+            self._image_path = path

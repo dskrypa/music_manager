@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING, Optional, Any, Iterator
 from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 
+from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
 from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from .base import Layout, EleBinds
-from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
+from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, split_key
 from .popups.simple import popup_ok
 
 if TYPE_CHECKING:
@@ -78,14 +79,31 @@ class AlbumBlock:
         return set(filter(None, (tb._cover_image_full for tb in self)))
 
     @property
+    def wiki_client(self) -> Optional[MediaWikiClient]:
+        if wiki_album_url := self.album_info.wiki_album:
+            return MediaWikiClient(wiki_album_url)
+        return None
+
+    @property
+    def wiki_image_urls(self) -> Optional[dict[str, str]]:
+        if client := self.wiki_client:
+            page = client.get_page(client.article_url_to_title(self.album_info.wiki_album))
+            if image_titles := client.get_page_image_titles(page.title)[page.title]:
+                return client.get_image_urls(image_titles)
+        return None
+
+    @property
     def cover_image_thumbnail(self) -> Image:
         key = 'img::album::cover-thumb'
         cover_images = self._cover_image_thumbnail
+        kwargs = dict(size=self.cover_size, key=key)
         if len(cover_images) == 1:
-            return Image(data=next(iter(cover_images)), size=self.cover_size, key=key, enable_events=True)
+            # if self.wiki_image_urls:
+            #     kwargs['right_click_menu'] = ['Image', ['Replace Image']]
+            return Image(data=next(iter(cover_images)), enable_events=True, **kwargs)
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
-        return Image(size=self.cover_size, key=key)
+        return Image(**kwargs)
 
     @property
     def cover_image_full_obj(self) -> Optional['PILImage']:
@@ -383,13 +401,3 @@ class TrackBlock:
             yield [Column(diff_rows, key=f'col::{self.path_str}::diff')]
         else:
             yield []
-
-
-def split_key(key: str) -> Optional[tuple[str, str, str]]:
-    try:
-        key_type, obj_key = key.split('::', 1)
-        obj, item = obj_key.rsplit('::', 1)
-    except Exception:
-        return None
-    else:
-        return key_type, obj, item

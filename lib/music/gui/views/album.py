@@ -9,7 +9,7 @@ from itertools import chain
 from pathlib import Path
 from typing import Any
 
-from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Element, Button, popup_get_text
+from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Button, popup_get_text
 
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
@@ -99,9 +99,6 @@ class AlbumView(MainView, view_name='album'):
             key_type, obj, field = split_key(event)
             data.update(object=obj, field=field)
             event = 'add_field_value'
-        elif event.startswith('img::'):
-            data['image_key'] = event
-            event = 'image_clicked'
 
         return super().handle_event(event, data)
 
@@ -182,9 +179,3 @@ class AlbumView(MainView, view_name='album'):
 
         album_info = AlbumInfo.from_dict(info_dict)
         return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
-
-    @event_handler
-    def image_clicked(self, event: str, data: dict[str, Any]):
-        from .popups.image import ImageView
-
-        return ImageView(self.album_block.cover_image_full_obj, f'Album Cover: {self.album_block.album_info.name}')

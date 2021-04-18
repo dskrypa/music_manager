@@ -221,6 +221,8 @@ class AlbumInfo(GenreMixin):
             name=file.tag_album,
             parent=file.tag_album_artist,
             mp4=all(f.tag_type == 'mp4' for f in album_dir),
+            wiki_album=file.album_url,
+            wiki_artist=file.artist_url,
         )
         self.tracks = {
             f.path.as_posix(): TrackInfo(self, f.tag_title, f.tag_artist, f.track_num, genre=f.tag_genres)

@@ -18,6 +18,7 @@ from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..state import GuiState
 from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
+from .formatting import split_key
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
 
@@ -220,3 +221,15 @@ class MainView(BaseView, view_name='main'):
         # self.log.debug(f'Open link request received for {event=!r}')
         key = event.rsplit(':::', 1)[0]
         webbrowser.open(data[key])
+
+    @event_handler('img::*')
+    def image_clicked(self, event: Event, data: EventData):
+        from .popups.image import ImageView
+
+        if album_block := getattr(self, 'album_block', None):
+            img_src = split_key(event)[1]
+            if img_src == 'album':
+                return ImageView(album_block.cover_image_full_obj, f'Album Cover: {album_block.album_info.name}')
+            else:
+                track_block = album_block.track_blocks[img_src]
+                return ImageView(track_block.cover_image_obj, f'Track Album Cover: {track_block.file_name}')

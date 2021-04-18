@@ -30,6 +30,8 @@ optional_dependencies = {
         'pypod@ git+git://github.com/dskrypa/pypod',
     ],
     'gui': [
+        'filelock',
+        'psutil',
         'pysimplegui',
     ],
 }

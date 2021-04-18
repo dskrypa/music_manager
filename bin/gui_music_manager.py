@@ -24,6 +24,7 @@ def parser():
 
     with parser.add_subparser('action', 'clean', help='Open directly to the Clean view for the given path') as clean_parser:
         clean_parser.add_argument('path', nargs='+', help='The directory containing files to clean')
+        clean_parser.add_argument('--multi_instance_wait', '-w', type=int, default=2, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
 
     with parser.add_subparser('action', 'configure', help='Configure registry entries for right-click actions') as config_parser:
         config_parser.include_common_args('dry_run')
@@ -47,9 +48,109 @@ def main():
         launch_gui(args)
 
 
+def launch_gui(args):
+    if args.action == 'clean':
+        if (clean_paths := get_clean_paths(args.multi_instance_wait, args.path)) is None:
+            log.debug('Exiting non-primary clean process')
+            return
+
+    from PySimpleGUI import theme
+
+    from music.common.prompts import set_ui_mode, UIMode
+    from music.files.patches import apply_mutagen_patches
+    from music.gui.patches import patch_all
+    from music.gui.views.main import MainView
+
+    apply_mutagen_patches()
+    patch_all()
+    # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
+    if args.match_log:
+        logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
+
+    set_ui_mode(UIMode.GUI)
+    theme('SystemDefaultForReal')
+
+    start_kwargs = dict(title='Music Manager', resizable=True, size=(1700, 750), element_justification='center')
+    if args.action == 'open':
+        start_kwargs['init_event'] = ('init_view', {'view': 'album', 'path': args.album_path})
+    elif args.action == 'clean':
+        start_kwargs['init_event'] = ('init_view', {'view': 'clean', 'path': clean_paths})  # noqa
+        log.debug(f'Clean paths={args.path}')
+
+    MainView.start(**start_kwargs)
+
+
+def get_clean_paths(max_wait: int, arg_paths):
+    import os
+    import psutil
+    import selectors
+    import socket
+    import time
+    from filelock import FileLock
+    from ds_tools.fs.paths import get_user_cache_dir
+
+    cache_dir = Path(get_user_cache_dir('music_manager'))
+    with FileLock(cache_dir.joinpath('init.lock').as_posix()):
+        pid = os.getpid()
+        active_path = cache_dir.joinpath('active_pid_port.txt')
+        try:
+            with active_path.open('r') as f:
+                active_pid, port = map(int, f.read().split(','))
+        except OSError:
+            active = True
+        else:
+            try:
+                active = not psutil.Process(active_pid).is_running()
+            except psutil.NoSuchProcess:
+                active = True
+
+        sock = socket.socket()
+        if active:
+            sock.bind(('localhost', 0))
+            sock.listen(100)
+            sock.setblocking(False)
+            port = sock.getsockname()[1]
+            log.info(f'Primary instance with {pid=} {port=}')
+            with active_path.open('w') as f:
+                f.write(f'{pid},{port}')
+        else:
+            log.info(f'Follower instance with {pid=} {port=}')
+
+    if active:
+        paths = list(arg_paths)
+        selector = selectors.DefaultSelector()
+
+        def accept(sock, mask):
+            conn, addr = sock.accept()
+            conn.setblocking(False)
+            selector.register(conn, selectors.EVENT_READ, read)
+
+        def read(conn, mask):
+            if data := conn.recv(2000):
+                data = data.decode('utf-8')
+                paths.append(data)
+                log.debug(f'Received path={data!r} from other instance')
+            else:
+                selector.unregister(conn)
+                conn.close()
+
+        selector.register(sock, selectors.EVENT_READ, accept)
+        start = time.monotonic()
+        while (time.monotonic() - start) < max_wait:
+            for key, mask in selector.select(0.1):
+                key.data(key.fileobj, mask)
+    else:
+        paths = None
+        sock.connect(('localhost', port))
+        for path in arg_paths:
+            sock.send(path.encode('utf-8'))
+
+    sock.close()
+    return paths
+
+
 def configure(args):
     import platform
-
     if (system := platform.system()) != 'Windows':
         raise RuntimeError(f'Automatic right-click menu integration is not supported on {system=!r}')
 
@@ -64,17 +165,13 @@ def configure(args):
             maybe_set_key(f'{location}\\{entry}\\command', command, dry_run)
             if entry == 'Clean Tags':
                 maybe_set_key(f'{location}\\{entry}', 'Player', dry_run, 'MultiSelectModel')
+                # maybe_set_key(f'*\\shell\\Clean Tags', 'Player', dry_run, 'MultiSelectModel')
 
     # maybe_set_key(f'SystemFileAssociations\\audio\\shell\\Clean Song Tags\\command', expected['Clean Tags'], dry_run)
     # maybe_set_key(
     #     f'SystemFileAssociations\\Directory.Audio\\shell\\Clean Song Tags\\command', expected['Clean Tags'], dry_run
     # )
-
-                # maybe_set_key(f'*\\shell\\Clean Tags', 'Player', dry_run, 'MultiSelectModel')
-
     # send_to_dir = Path('~/AppData/Roaming/Microsoft/Windows/SendTo').expanduser()
-
-
 
 
 def maybe_set_key(key_path: str, expected: str, dry_run: bool = False, var_name: str = None):
@@ -104,33 +201,6 @@ def maybe_set_key(key_path: str, expected: str, dry_run: bool = False, var_name:
                     SetValue(entry_key, None, REG_SZ, expected)  # noqa
     else:
         log.info(f'Already contains expected value: HKEY_CLASSES_ROOT\\{key_path}')
-
-
-def launch_gui(args):
-    from PySimpleGUI import theme
-
-    from music.common.prompts import set_ui_mode, UIMode
-    from music.files.patches import apply_mutagen_patches
-    from music.gui.patches import patch_all
-    from music.gui.views.main import MainView
-
-    apply_mutagen_patches()
-    patch_all()
-    # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
-    if args.match_log:
-        logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
-
-    set_ui_mode(UIMode.GUI)
-    theme('SystemDefaultForReal')
-
-    start_kwargs = dict(title='Music Manager', resizable=True, size=(1700, 750), element_justification='center')
-    if args.action == 'open':
-        start_kwargs['init_event'] = ('init_view', {'view': 'album', 'path': args.album_path})
-    elif args.action == 'clean':
-        start_kwargs['init_event'] = ('init_view', {'view': 'clean', 'path': args.path})
-        log.debug(f'Clean paths={args.path}')
-
-    MainView.start(**start_kwargs)
 
 
 if __name__ == '__main__':

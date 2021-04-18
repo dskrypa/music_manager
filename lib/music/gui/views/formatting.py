@@ -23,7 +23,7 @@ from .popups.simple import popup_ok
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
-    from .base import GuiView
+    from .base import GuiView, Event
 
 __all__ = ['TrackBlock', 'AlbumBlock', 'split_key']
 
@@ -118,7 +118,7 @@ class AlbumBlock:
                     types.append(value)
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
-                val_ele = value_ele(value, val_key, disabled)
+                val_ele, bind = value_ele(value, val_key, disabled)
 
             rows.append([key_ele, val_ele])
 
@@ -127,6 +127,7 @@ class AlbumBlock:
     def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False, add_genre: bool = False):
         rows = []
         skip = {'tracks'}
+        ele_binds = {}
         new_info_dict = new_album_info.to_dict(title_case)
         for key, src_val in self._src_album_info.to_dict(title_case).items():
             if key in skip:
@@ -141,11 +142,15 @@ class AlbumBlock:
             if (src_val or new_val) and src_val != new_val:
                 self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
-                src_ele = value_ele(src_val, src_key, True, 45)
-                new_ele = value_ele(new_val, new_key, True, 45)
+                src_ele, src_bind = value_ele(src_val, src_key, True, 45)
+                new_ele, new_bind = value_ele(new_val, new_key, True, 45)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
+                if src_bind:
+                    ele_binds[src_key] = src_bind
+                if new_bind:
+                    ele_binds[new_key] = new_bind
 
-        return resize_text_column(rows) if rows else rows
+        return (resize_text_column(rows) if rows else rows), ele_binds
 
     def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path) -> Optional[Path]:
         try:
@@ -156,7 +161,10 @@ class AlbumBlock:
         return dest_base_dir.joinpath(expected_rel_dir)
 
 
-def value_ele(value: Any, val_key: str, disabled: bool, list_width: int = 30) -> Element:
+def value_ele(
+    value: Any, val_key: str, disabled: bool, list_width: int = 30
+) -> tuple[Element, Optional[dict[str, 'Event']]]:
+    bind = None
     if isinstance(value, bool):
         val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0))
     elif isinstance(value, list):
@@ -181,11 +189,12 @@ def value_ele(value: Any, val_key: str, disabled: bool, list_width: int = 30) ->
             )
     else:
         if isinstance(value, str) and value.startswith(('http://', 'https://')):
-            val_ele = Input(value, key=val_key, disabled=disabled, right_click_menu=['-', [f'Open Link::{val_key}']])
+            val_ele = Input(value, key=val_key, disabled=disabled, tooltip='Use ctrl + click to open')
+            bind = {'<Control-Button-1>': ':::open_link'}
         else:
             val_ele = Input(value, key=val_key, disabled=disabled)
 
-    return val_ele
+    return val_ele, bind
 
 
 class TrackBlock:
@@ -279,7 +288,7 @@ class TrackBlock:
             if tag_name == 'Lyrics':
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
             else:
-                val_ele = value_ele(val, val_key, not editable)
+                val_ele, bind = value_ele(val, val_key, not editable)
 
             rows.append([key_ele, val_ele])
 
@@ -289,7 +298,7 @@ class TrackBlock:
         rows = []
         for key, value in self.info.to_dict().items():
             key_ele, val_key = label_and_val_key(self.path_str, key)
-            val_ele = value_ele(value, val_key, not editable)
+            val_ele, bind = value_ele(value, val_key, not editable)
             rows.append([key_ele, val_ele])
 
         return resize_text_column(rows) if rows else rows
@@ -321,8 +330,8 @@ class TrackBlock:
             if not skip and (src_val or new_val) and src_val != new_val:
                 # self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
-                src_ele = value_ele(src_val, src_key, True)
-                new_ele = value_ele(new_val, new_key, True)
+                src_ele, src_bind = value_ele(src_val, src_key, True)
+                new_ele, new_bind = value_ele(new_val, new_key, True)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows) if rows else rows

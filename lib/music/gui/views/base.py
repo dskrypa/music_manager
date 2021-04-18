@@ -20,6 +20,7 @@ event handler loop control is transferred to that view until it is closed, and t
 :author: Doug Skrypa
 """
 
+import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from fnmatch import _compile_pattern
@@ -32,10 +33,13 @@ from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 from .exceptions import NoEventHandlerRegistered
 from .utils import ViewLoggerAdapter
 
-__all__ = ['GuiView', 'BaseView', 'event_handler', 'Event', 'EventData']
+__all__ = ['GuiView', 'BaseView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
 Layout = list[list[Element]]
 Event = Union[str, tuple]
 EventData = dict[Union[str, int, tuple], Any]
+Kwargs = dict[str, Any]
+EleBinds = dict[str, dict[str, Event]]
+RenderArgs = Union[Layout, tuple[Layout, Kwargs], tuple[Layout, Kwargs, EleBinds]]
 
 
 def event_handler(*args, **kwargs):
@@ -87,6 +91,7 @@ class _EventHandler:
 
 
 class GuiView(ABC):
+    _ele_event_match = re.compile(r'^(.*?):::([a-zA-Z_]+)$').match
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
     pending_prompts = Queue()
@@ -112,7 +117,7 @@ class GuiView(ABC):
         # print(f'Initialized subclass={cls.__name__!r}')
 
     def __init__(self, binds: Mapping[str, str] = None):
-        self.binds = binds
+        self.binds = binds or {}
         # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
         if self.name not in self.wildcard_handlers:  # Populate/compile wildcard patterns once per class
             self.wildcard_handlers[self.name] = wildcard_handlers = {}
@@ -169,6 +174,17 @@ class GuiView(ABC):
                 for matches, handler in self.wildcard_handlers[self.name].items():  # noqa
                     if matches(event):
                         return handler
+                if m := self._ele_event_match(event):
+                    try:
+                        return self._find_handler(m.group(2))
+                    except NoEventHandlerRegistered:
+                        pass  # Raise the exception for the full event
+            elif event and isinstance(event, tuple) and isinstance(event_0 := event[0], str):
+                try:
+                    return self._find_handler(event_0)
+                except NoEventHandlerRegistered:
+                    pass  # Raise the exception for the full event
+
             for cls in self.__class__.mro():
                 if (handler := getattr(cls, 'default_handler', None)) is not None:
                     return handler
@@ -194,10 +210,10 @@ class GuiView(ABC):
     handle_event = _handle_event  # make original more easily accessible to descendent classes
 
     @abstractmethod
-    def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         return NotImplemented
 
-    def _create_window(self, layout: Layout, kwargs: dict[str, Any]) -> Window:
+    def _create_window(self, layout: Layout, kwargs: Kwargs) -> Window:
         # self.log.debug('Creating window')
         old_window = None if (last_view := GuiView.active_view) is None else last_view.window
 
@@ -231,13 +247,32 @@ class GuiView(ABC):
         return new_window
 
     def render(self):
-        layout, kwargs = self.get_render_args()
+        render_args = self.get_render_args()
+        if isinstance(render_args, tuple):
+            try:
+                layout, kwargs = render_args
+            except ValueError:
+                try:
+                    layout, kwargs, ele_binds = render_args
+                except ValueError:
+                    raise ValueError(f'Invalid render_args returned by view={self.name!r}: {render_args}')
+            else:
+                ele_binds = {}
+        elif isinstance(render_args, list):
+            layout = render_args
+            kwargs, ele_binds = {}, {}
+        else:
+            raise TypeError(f'Invalid render_args returned by view={self.name!r}: {render_args}')
+
         loc = GuiView if self.primary else self
         loc.window = self._create_window(layout, kwargs)
         loc._window_size = self.window.size
-        if self.binds:
-            for key, val in self.binds.items():
-                self.window.bind(key, val)
+        for key, val in self.binds.items():
+            self.window.bind(key, val)
+        for ele_key, binds in ele_binds.items():
+            ele = self.window[ele_key]
+            for key, val in binds.items():
+                ele.bind(key, val)
         self.log.debug(f'Rendered {self}')
 
     @event_handler

@@ -6,9 +6,8 @@ View: Text Popup
 
 from concurrent.futures import Future
 from threading import current_thread
-from typing import Any
 
-from ..base import event_handler, GuiView
+from ..base import event_handler, GuiView, Event, EventData
 
 __all__ = ['BasePopup']
 
@@ -20,7 +19,7 @@ class BasePopup(GuiView, view_name='_base_popup', primary=False):
         self.result = None
 
     @event_handler(default=True)
-    def default(self, event: str, data: dict[str, Any]):
+    def default(self, event: Event, data: EventData):
         raise StopIteration
 
     def _get_result(self):
@@ -35,3 +34,8 @@ class BasePopup(GuiView, view_name='_base_popup', primary=False):
         future = Future()
         self.pending_prompts.put((future, self._get_result, (), {}))
         return future.result()
+
+    @classmethod
+    def start_popup(cls, *args, **kwargs):
+        popup = cls(*args, **kwargs)
+        return popup.get_result()

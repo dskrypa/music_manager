@@ -7,16 +7,16 @@ View: Diff between original and modified tag values.  Used for both manual and W
 import webbrowser
 from functools import cached_property
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
-from PySimpleGUI import Text, Input, Image, Column, Element, HSep, Button
+from PySimpleGUI import Text, Input, Image, Column, HSep, Button
 
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..options import GuiOptions
 from ..progress import Spinner
-from .base import event_handler, Event, EventData
+from .base import event_handler, Event, EventData, RenderArgs
 from .formatting import AlbumBlock
 from .main import MainView
 from .utils import get_a_to_b
@@ -74,9 +74,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             return dest_album_path
         return None
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-
+        ele_binds = {}
         options_frame = self.options.as_frame('apply_changes')
         if self.last_view and self.last_view.name != 'album':
             top_side_kwargs = dict(size=(6, 1), pad=(0, 0), font=('Helvetica', 20))
@@ -110,9 +110,11 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
         title_case, add_genre = self.options['title_case'], self.options['add_genre']
-        if common_rows := self.album_block.get_album_diff_rows(self.album_info, title_case, add_genre):
+        common_rows, common_binds = self.album_block.get_album_diff_rows(self.album_info, title_case, add_genre)
+        if common_rows:
             layout.append([Column(common_rows, key='col::album::diff')])
             layout.append([Text()])
+            ele_binds.update(common_binds)
         else:
             layout.extend([[Text()], [Text('No common album tag changes.', justification='center')], [Text()]])
 
@@ -124,7 +126,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         workflow = self.as_workflow(layout, next_tooltip='Apply changes (save)', scrollable=True)
         full_layout.append(workflow)
 
-        return full_layout, kwargs
+        return full_layout, kwargs, ele_binds
 
     @event_handler('btn::back')
     def back(self, event: Event, data: EventData):
@@ -179,8 +181,8 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         if not dry_run:
             return AlbumView(self.album, last_view=self)
 
-    @event_handler('open_link::*')
+    @event_handler
     def open_link(self, event: Event, data: EventData):
-        self.log.debug(f'Open link request received for {event=!r}')
-        key = event.split('::', 1)[1]
+        # self.log.debug(f'Open link request received for {event=!r}')
+        key = event.rsplit(':::', 1)[0]
         webbrowser.open(data[key])

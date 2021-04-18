@@ -146,6 +146,16 @@ class MainView(BaseView, view_name='main'):
             return AlbumView(album, last_view=self)
 
     @event_handler
+    def init_album(self, event: Event, data: EventData):
+        from .album import AlbumView
+        try:
+            album = AlbumDir(data[event]['path'])
+        except InvalidAlbumDir as e:
+            popup_input_invalid(str(e), logger=self.log)
+        else:
+            return AlbumView(album, last_view=self)
+
+    @event_handler
     def edit(self, event: Event, data: EventData):
         if album := self.get_album_selection():
             from .album import AlbumView

@@ -147,7 +147,7 @@ class GuiView(ABC):
         self.window.close()
 
     @classmethod
-    def start(cls, cls_kwargs=None, **kwargs):
+    def start(cls, cls_kwargs=None, init_event: tuple[Event, EventData] = None, **kwargs):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
         cls._primary_kwargs.update(kwargs)
@@ -156,6 +156,8 @@ class GuiView(ABC):
 
         obj = cls(**cls_kwargs) if cls_kwargs else cls()
         obj.render()
+        if init_event:
+            obj.window.write_event_value(*init_event)  # Note: data[event] => the EventData value passed here
 
         while True:
             try:

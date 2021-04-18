@@ -62,12 +62,12 @@ def main():
         from music.gui.views.clean import CleanView
         # TODO: Make CleanView support any path rather than an AlbumDir
         # CleanView.start({'path': args.path}, **start_kwargs)
-    elif args.action == 'open':
-        from music.gui.views.album import AlbumView
-        from music.files.album import AlbumDir
-        AlbumView.start({'album': AlbumDir(args.album_path)}, **start_kwargs)
     else:
+        if args.action == 'open':
+            start_kwargs['init_event'] = ('init_album', {'path': args.album_path})
+
         from music.gui.views.main import MainView
+
         MainView.start(**start_kwargs)
 
 

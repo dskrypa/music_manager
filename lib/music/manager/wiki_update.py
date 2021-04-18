@@ -112,12 +112,8 @@ class WikiUpdater:
             else:
                 album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
 
-    def get_album_info(
-        self, load_path: Optional[str], album_url: Optional[str], artist_only: bool
-    ) -> Tuple[AlbumDir, AlbumInfo]:
-        if load_path:
-            return self._from_path(load_path)
-        elif album_url:
+    def get_album_info(self, album_url: Optional[str], artist_only: bool) -> Tuple[AlbumDir, 'ArtistInfoProcessor']:
+        if album_url:
             return self._from_album_url(album_url)
         else:
             if artist_only:
@@ -126,7 +122,7 @@ class WikiUpdater:
                 else:
                     album_dir = next(iter(iter_album_dirs(self.paths)))
                     processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
-                    return album_dir, processor.to_album_info()
+                    return album_dir, processor
             else:
                 album_dir = next(iter(iter_album_dirs(self.paths)))
                 processor = AlbumInfoProcessor.for_album_dir(
@@ -139,17 +135,19 @@ class WikiUpdater:
                     self.sites,
                     self.update_cover,
                 )
-                return album_dir, processor.to_album_info()
+                return album_dir, processor
 
     def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         if load_path:
             yield self._from_path(load_path)
         elif album_url:
-            yield self._from_album_url(album_url)
+            album_dir, processor = self._from_album_url(album_url)
+            yield album_dir, processor.to_album_info()
         else:
             if artist_only:
                 if self.artist:
-                    yield from self._from_artist()
+                    for album_dir, processor in self._from_artist():
+                        yield album_dir, processor.to_album_info()
                 else:
                     yield from self._from_artist_matches()
             else:
@@ -163,7 +161,7 @@ class WikiUpdater:
             album_dir = get_album_dir(self.paths, 'load path')
         return album_dir, album_info
 
-    def _from_album_url(self, album_url: str) -> Tuple[AlbumDir, AlbumInfo]:
+    def _from_album_url(self, album_url: str) -> Tuple[AlbumDir, 'AlbumInfoProcessor']:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
         processor = AlbumInfoProcessor(
@@ -176,12 +174,12 @@ class WikiUpdater:
             self.title_case,
             self.update_cover,
         )
-        return album_dir, processor.to_album_info()
+        return album_dir, processor
 
-    def _from_artist(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
+    def _from_artist(self) -> Iterator[Tuple[AlbumDir, 'ArtistInfoProcessor']]:
         for album_dir in iter_album_dirs(self.paths):
             processor = ArtistInfoProcessor(album_dir, self.artist, self.soloist, self.title_case)
-            yield album_dir, processor.to_album_info()
+            yield album_dir, processor
 
     def _from_artist_matches(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
@@ -531,55 +529,59 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                     log.warning(f'Error finding alternate version of {artist=!r}: {e}')
         return artist
 
+    @cached_property
+    def _edition_client(self):
+        page = self.edition.page
+        return MediaWikiClient(page.site)
+
+    def get_album_cover_urls(self) -> Optional[dict[str, str]]:
+        page = self.edition.page
+        if image_titles := self._edition_client.get_page_image_titles(page.title)[page.title]:
+            return self._edition_client.get_image_urls(image_titles)
+        return None
+
     def get_album_cover(self) -> Optional[str]:
         if not self.update_cover:
             return None
-        cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
-        page = self.edition.page
-        client = MediaWikiClient(page.site)
-        image_titles = client.get_page_image_titles(page.title)[page.title]
-        if not image_titles:
+        elif not (urls := self.get_album_cover_urls()):
             return None
 
-        tmp_dir = None
-        if len(image_titles) > 0:
-            # TODO: Compare images here and only prompt if none match?
-            urls = client.get_image_urls(image_titles)
-            tmp_dir = TemporaryDirectory()
-            _tmp_dir = Path(tmp_dir.name)
-            tmp_html = _tmp_dir.joinpath('options.html')
-            try:
-                song_file = next(iter(self.album_dir))  # type: SongFile
-                cover_data, ext = song_file.get_cover_data()
-            except Exception as e:
-                log.error(f'Unable to extract current album art: {e}')
-                tmp_img = None
-            else:
-                tmp_img = _tmp_dir.joinpath(f'current.{ext}')
-                with tmp_img.open('wb') as f:
-                    f.write(cover_data)
+        cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
+        tmp_dir = TemporaryDirectory()
+        _tmp_dir = Path(tmp_dir.name)
+        tmp_html = _tmp_dir.joinpath('options.html')
+        try:
+            song_file = next(iter(self.album_dir))  # type: SongFile
+            cover_data, ext = song_file.get_cover_data()
+        except Exception as e:
+            log.error(f'Unable to extract current album art: {e}')
+            tmp_img = None
+        else:
+            tmp_img = _tmp_dir.joinpath(f'current.{ext}')
+            with tmp_img.open('wb') as f:
+                f.write(cover_data)
 
-            with tmp_html.open('w', encoding='utf-8', newline='\n') as f:
-                text = (
-                    '<html>\n<head><title>Album Cover Options</title></head>\n<body>\n'
-                    + (
-                        f'<h1>Current Cover</h1><img src="file:///{tmp_img.as_posix()}" style="max-width: 800;"></img>'
-                        if tmp_img else ''
-                    )
-                    + '<h1>Album Cover Options</h1>\n<ul>\n'
-                    + ''.join(
-                        f'<li><div>{title}</div><img src="{urls[title]}" style="max-width: 800;"></img></li>\n'
-                        for title in image_titles
-                    )
-                    + '</ul>\n</body>\n</html>\n'
+        with tmp_html.open('w', encoding='utf-8', newline='\n') as f:
+            text = (
+                '<html>\n<head><title>Album Cover Options</title></head>\n<body>\n'
+                + (
+                    f'<h1>Current Cover</h1><img src="file:///{tmp_img.as_posix()}" style="max-width: 800;"></img>'
+                    if tmp_img else ''
                 )
-                f.write(text)
-                f.flush()
+                + '<h1>Album Cover Options</h1>\n<ul>\n'
+                + ''.join(
+                    f'<li><div>{title}</div><img src="{url}" style="max-width: 800;"></img></li>\n'
+                    for title, url in urls.items()
+                )
+                + '</ul>\n</body>\n</html>\n'
+            )
+            f.write(text)
+            f.flush()
 
-            webbrowser.open(f'file:///{tmp_html.as_posix()}')
+        webbrowser.open(f'file:///{tmp_html.as_posix()}')
 
         try:
-            title = choose_item(image_titles + ['[Keep Current]'], 'album cover image')
+            title = choose_item(list(urls) + ['[Keep Current]'], 'album cover image')
         finally:
             if tmp_dir is not None:
                 tmp_dir.cleanup()
@@ -592,7 +594,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         if path.is_file():
             return path.as_posix()
 
-        img_data = client.get_image(title)
+        img_data = self._edition_client.get_image(title)
         with path.open('wb') as f:
             f.write(img_data)
         return path.as_posix()

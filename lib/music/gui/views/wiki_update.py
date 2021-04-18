@@ -100,13 +100,15 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             parsed['artist_url'] or None,
         )
 
+        processor = None
         album_info: Optional[AlbumInfo] = None
         error = None
 
         def get_album_info():
-            nonlocal album_info, error
+            nonlocal processor, error, album_info
             try:
-                album_dir, album_info = updater.get_album_info(None, parsed['album_url'] or None, parsed['artist_only'])
+                album_dir, processor = updater.get_album_info(parsed['album_url'] or None, parsed['artist_only'])
+                album_info = processor.to_album_info()
             except Exception as e:
                 error = traceback.format_exc()
                 self.log.error(str(e), exc_info=True)
@@ -114,7 +116,6 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         start_task(get_album_info)
 
         if album_info is not None:
-            # TODO: Link to the matched pages
             return AlbumDiffView(self.album, album_info, self.album_block, options=self.options, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'

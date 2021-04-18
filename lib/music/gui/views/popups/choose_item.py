@@ -28,7 +28,7 @@ class ChooseItemPopup(BasePopup, view_name='choose_item_popup', primary=False):
     ):
         super().__init__(binds={'<Escape>': 'Exit'}, title=title or f'Select {a_or_an(name)} {name}')
         self.items = items
-        self.name = name
+        self.item_name = name
         self.source = source
         self.before = before
         self.repr_func = repr_func
@@ -46,7 +46,7 @@ class ChooseItemPopup(BasePopup, view_name='choose_item_popup', primary=False):
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         size = self.kwargs.pop('size', (None, None))
         before = self.before or (
-            f'Found multiple {self.name}s{_prepare_source(self.source)} - which {self.name} should be used?'
+            f'Found multiple {self.item_name}s{_prepare_source(self.source)} - which {self.item_name} should be used?'
         )
         choices = [
             [Radio(self.repr_func(item), 'rad::choices', key=('choice', i), enable_events=True)]

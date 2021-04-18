@@ -37,6 +37,7 @@ class AlbumView(MainView, view_name='album'):
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
+        ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             layout = [
                 [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
@@ -50,9 +51,11 @@ class AlbumView(MainView, view_name='album'):
                 Button('Wiki Update', key='wiki_update', **bkw),
             ]
             edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
+            album_data_rows, album_binds = self.album_block.get_album_data_rows(self.editing)
+            ele_binds.update(album_binds)
             album_data = [
                 Column([[self.album_block.cover_image_thumbnail]], key='col::album_cover'),
-                Column(self.album_block.get_album_data_rows(self.editing), key='col::album_data'),
+                Column(album_data_rows, key='col::album_data'),
             ]
             album_buttons = [
                 Column([view_buttons], key='col::view_buttons', visible=not self.editing),
@@ -74,7 +77,7 @@ class AlbumView(MainView, view_name='album'):
         )
         full_layout.append(workflow)
 
-        return full_layout, kwargs
+        return full_layout, kwargs, ele_binds
 
     def toggle_editing(self):
         self.editing = not self.editing

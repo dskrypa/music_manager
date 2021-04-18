@@ -30,14 +30,14 @@ def parser():
     with parser.add_subparser('action', 'clean', help='Open directly to the Clean view for the given path') as clean_parser:
         clean_parser.add_argument('path', help='The directory containing files to clean')
     parser.include_common_args('verbosity')
-    parser.add_common_sp_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
+    parser.add_common_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
     # fmt: on
     return parser
 
 
 @wrap_main
 def main():
-    args = parser().parse_args()
+    args = parser().parse_args(req_subparser_value=False)
 
     from ds_tools.logging import init_logging
     init_logging(args.verbose, names=None, millis=True)

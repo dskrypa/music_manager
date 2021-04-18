@@ -106,6 +106,7 @@ class AlbumBlock:
         rows = []
         skip = {'tracks'}
         always_ro = {'mp4'}
+        ele_binds = {}
         for key, value in self.album_info.to_dict().items():
             if key in skip:
                 continue
@@ -119,10 +120,12 @@ class AlbumBlock:
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
                 val_ele, bind = value_ele(value, val_key, disabled)
+                if bind:
+                    ele_binds[val_key] = bind
 
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows) if rows else rows
+        return (resize_text_column(rows) if rows else rows), ele_binds
 
     def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False, add_genre: bool = False):
         rows = []
@@ -189,7 +192,7 @@ def value_ele(
             )
     else:
         if isinstance(value, str) and value.startswith(('http://', 'https://')):
-            val_ele = Input(value, key=val_key, disabled=disabled, tooltip='Use ctrl + click to open')
+            val_ele = Input(value, key=val_key, disabled=disabled, tooltip='Open with ctrl + click')
             bind = {'<Control-Button-1>': ':::open_link'}
         else:
             val_ele = Input(value, key=val_key, disabled=disabled)

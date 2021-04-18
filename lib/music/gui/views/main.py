@@ -6,9 +6,10 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
+import webbrowser
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from PySimpleGUI import Button, Element, Column, Text, Image
 
@@ -16,7 +17,7 @@ from tz_aware_dt.tz_aware_dt import now
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..state import GuiState
-from .base import event_handler, BaseView, Layout
+from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
 
@@ -62,7 +63,7 @@ class MainView(BaseView, view_name='main'):
             except KeyError:
                 pass
 
-    def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         self._clear_binds()
         layout, kwargs = super().get_render_args()
         if self.__class__ is MainView:
@@ -137,28 +138,28 @@ class MainView(BaseView, view_name='main'):
         return None
 
     @event_handler('Open')
-    def select_album(self, event: str, data: dict[str, Any]):
+    def select_album(self, event: Event, data: EventData):
         if album := self.get_album_selection(True):
             from .album import AlbumView
 
             return AlbumView(album, last_view=self)
 
     @event_handler
-    def edit(self, event: str, data: dict[str, Any]):
+    def edit(self, event: Event, data: EventData):
         if album := self.get_album_selection():
             from .album import AlbumView
 
             return AlbumView(album, getattr(self, 'album_block', None), editing=True, last_view=self)
 
     @event_handler
-    def clean(self, event: str, data: dict[str, Any]):
+    def clean(self, event: Event, data: EventData):
         if album := self.get_album_selection():
             from .clean import CleanView
 
             return CleanView(album, last_view=self)
 
     @event_handler
-    def output(self, event: str, data: dict[str, Any]):
+    def output(self, event: Event, data: EventData):
         current = self.output_base_dir.as_posix()
         kwargs = dict(must_exist=False, no_window=False, default_path=current, initial_folder=current)
         if path := get_directory('Select Output Directory', **kwargs):
@@ -170,7 +171,7 @@ class MainView(BaseView, view_name='main'):
                 self.log.debug(f'Selected output base directory path={path.as_posix()} == current={current}')
 
     @event_handler
-    def wiki_update(self, event: str, data: dict[str, Any]):
+    def wiki_update(self, event: Event, data: EventData):
         if album := self.get_album_selection():
             from .wiki_update import WikiUpdateView
 
@@ -213,3 +214,9 @@ class MainView(BaseView, view_name='main'):
         content_column = Column(content, key='col::__inner_content__', pad=(0, 0), **content_args)
 
         return [back_col, content_column, next_col]
+
+    @event_handler
+    def open_link(self, event: Event, data: EventData):
+        # self.log.debug(f'Open link request received for {event=!r}')
+        key = event.rsplit(':::', 1)[0]
+        webbrowser.open(data[key])

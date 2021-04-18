@@ -4,7 +4,6 @@ View: Diff between original and modified tag values.  Used for both manual and W
 :author: Doug Skrypa
 """
 
-import webbrowser
 from functools import cached_property
 from io import BytesIO
 from typing import TYPE_CHECKING, Optional
@@ -181,9 +180,3 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         if not dry_run:
             return AlbumView(self.album, last_view=self)
-
-    @event_handler
-    def open_link(self, event: Event, data: EventData):
-        # self.log.debug(f'Open link request received for {event=!r}')
-        key = event.rsplit(':::', 1)[0]
-        webbrowser.open(data[key])

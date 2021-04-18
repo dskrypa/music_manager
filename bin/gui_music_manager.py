@@ -24,7 +24,9 @@ def parser():
 
     with parser.add_subparser('action', 'clean', help='Open directly to the Clean view for the given path') as clean_parser:
         clean_parser.add_argument('path', nargs='+', help='The directory containing files to clean')
-        clean_parser.add_argument('--multi_instance_wait', '-w', type=int, default=1, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
+        wait_group = clean_parser.add_argument_group('Wait Options').add_mutually_exclusive_group()
+        wait_group.add_argument('--multi_instance_wait', '-w', type=int, default=1, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
+        wait_group.add_argument('--no_wait', '-W', action='store_true', help='Do not wait for other instances')
 
     with parser.add_subparser('action', 'configure', help='Configure registry entries for right-click actions') as config_parser:
         config_parser.include_common_args('dry_run')
@@ -50,7 +52,9 @@ def main():
 
 def launch_gui(args):
     if args.action == 'clean':
-        if (clean_paths := get_clean_paths(args.multi_instance_wait, args.path)) is None:
+        if args.no_wait:
+            clean_paths = args.path
+        elif (clean_paths := get_clean_paths(args.multi_instance_wait, args.path)) is None:
             log.debug('Exiting non-primary clean process')
             return
 
@@ -159,12 +163,19 @@ def configure(args):
         'Update Album Tags': f'"{venv_exe}" "{THIS_PATH}" open "%L" -vv',
         'Clean Tags': f'"{venv_exe}" "{THIS_PATH}" clean "%1" -vv',
     }
-    for location in ('*\\shell', 'Directory\\shell', 'Directory\\Background\\shell'):
+    locations = (
+        '*\\shell',
+        'Directory\\shell',
+        # 'Directory\\Background\\shell',
+    )
+    for location in locations:
         for entry, command in expected.items():
+            # if entry == 'Clean Tags' and not location.startswith('*'):
+            #     command += ' -W'
             maybe_set_key(f'{location}\\{entry}\\command', command, dry_run)
-            if entry == 'Clean Tags':
-                maybe_set_key(f'{location}\\{entry}', 'Player', dry_run, 'MultiSelectModel')
-                # maybe_set_key(f'*\\shell\\Clean Tags', 'Player', dry_run, 'MultiSelectModel')
+            # if entry == 'Clean Tags':
+            #     maybe_set_key(f'{location}\\{entry}', 'Player', dry_run, 'MultiSelectModel')
+            #     maybe_set_key(f'*\\shell\\Clean Tags', 'Player', dry_run, 'MultiSelectModel')
 
     # maybe_set_key(f'SystemFileAssociations\\audio\\shell\\Clean Song Tags\\command', expected['Clean Tags'], dry_run)
     # maybe_set_key(

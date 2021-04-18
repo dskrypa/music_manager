@@ -9,13 +9,12 @@ from functools import partial, cached_property
 from multiprocessing import Pool
 from typing import Optional
 
-from PySimpleGUI import Text, Multiline
+from PySimpleGUI import Text, Multiline, Column
 
 from ds_tools.fs.paths import Paths
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ...common.utils import can_add_bpm
 from ...files.album import AlbumDir, iter_albums_or_files
-from ...files.track.track import SongFile, iter_music_files
 from ...manager.file_update import _add_bpm
 from ..options import GuiOptions, GuiOptionError, SingleParsingError
 from ..progress import ProgressTracker
@@ -48,9 +47,6 @@ class CleanView(MainView, view_name='clean'):
                 self.no_alb_files.add(obj)
                 self.files.add(obj)
 
-        # self.files = list(iter_music_files(self.paths))
-        # self.albums = set(f.album for f in self.files)
-
         bpm_ok = can_add_bpm()
         self.options = GuiOptions(self, disable_on_parsed=True)
         self.options.add_bool('bpm', 'Add BPM', bpm_ok, disabled=not bpm_ok, tooltip='requires Aubio')
@@ -61,7 +57,11 @@ class CleanView(MainView, view_name='clean'):
 
     def get_render_args(self) -> RenderArgs:
         layout, kwargs = super().get_render_args()
-        layout.append([self.options.as_frame('run_clean')])
+
+        file_list_str = '\n'.join(sorted((f.path.as_posix() for f in self.files)))
+        file_list = Multiline(file_list_str, key='file_list', size=(120, 5), disabled=True)
+        file_col = Column([[Text(f'Files ({len(self.files)}):')], [file_list]], key='col::file_list')
+        layout.append([self.options.as_frame('run_clean'), file_col])
 
         n_tracks = len(self.files)
         total_steps = n_tracks * 2 + (n_tracks if self.options['bpm'] else 0)
@@ -69,7 +69,7 @@ class CleanView(MainView, view_name='clean'):
         self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(300, 30))
         layout.append([self.prog_tracker.bar])
         layout.append([Text('Processing:'), track_text])
-        self.output = Multiline(size=(200, 30), key='output', echo_stdout_stderr=True)
+        self.output = Multiline(size=(200, 30), key='output', autoscroll=True)
         layout.append([self.output])
         return layout, kwargs
 
@@ -110,7 +110,6 @@ class CleanView(MainView, view_name='clean'):
                 _init_logging = partial(init_logging, 2, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
                 add_bpm_func = partial(_add_bpm, dry_run=dry_run)
                 # Using a list instead of an iterator because pool.map needs to be able to chunk the items
-                # tracks = [f for f in self.album if f.tag_type != 'flac']
                 tracks = [f for f in self.files if f.tag_type != 'flac']
                 with Pool(self.options['threads'], _init_logging) as pool:
                     for result in self.prog_tracker(pool.imap_unordered(add_bpm_func, tracks)):

@@ -63,8 +63,10 @@ class CleanView(MainView, view_name='clean'):
         file_col = Column([[Text(f'Files ({len(self.files)}):')], [file_list]], key='col::file_list')
         layout.append([self.options.as_frame('run_clean'), file_col])
 
-        n_tracks = len(self.files)
-        total_steps = n_tracks * 2 + (n_tracks if self.options['bpm'] else 0)
+        n_files = len(self.files)
+        to_clean = sum(1 for f in self.files if f.tag_type != 'flac')
+        total_steps = to_clean + n_files + (n_files if self.options['bpm'] else 0)
+
         track_text = Text('', size=(100, 1))
         self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(300, 30))
         layout.append([self.prog_tracker.bar])

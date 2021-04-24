@@ -180,12 +180,21 @@ def split_key(key: str) -> Optional[tuple[str, str, str]]:
 class DarkInput(Input):
     def __init__(self, *args, **kwargs):
         if 'dark' in theme().lower():
-            # kwargs.setdefault('disabled_readonly_background_color', None)
+            kwargs.setdefault('disabled_readonly_background_color', '#a2a2a2')
             kwargs.setdefault('disabled_readonly_text_color', '#000000')
         super().__init__(*args, **kwargs)
 
     def update(self, *args, disabled=None, **kwargs):
         was_enabled = self.TKEntry['state'] == 'normal'
         super().update(*args, disabled=disabled, **kwargs)
-        if 'dark' in theme().lower() and not was_enabled and disabled is False:
-            self.TKEntry.configure(background=self.BackgroundColor, fg=self.TextColor)
+        if 'dark' in theme().lower() and not was_enabled:
+            if disabled is False:
+                # self.TKEntry.configure(background=self.BackgroundColor, fg=self.TextColor)
+                self.TKEntry.configure(readonlybackground=self.BackgroundColor, disabledforeground=self.TextColor)
+            else:
+                if background_color := kwargs.get('background_color'):
+                    # log.info(f'Setting {background_color=!r} for {self!r}')
+                    self.TKEntry.configure(readonlybackground=background_color)
+                if text_color := kwargs.get('text_color'):
+                    # log.info(f'Setting {text_color=!r} for {self!r}')
+                    self.TKEntry.configure(fg=text_color)

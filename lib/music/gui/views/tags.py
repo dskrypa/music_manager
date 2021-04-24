@@ -4,12 +4,12 @@ View: All tags on each track (as opposed to the album view which only shows comm
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Text, HorizontalSeparator, Column
+from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox
 
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .base import RenderArgs
+from .base import RenderArgs, event_handler, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
 from .utils import DarkInput as Input
@@ -33,7 +33,7 @@ class AllTagsView(MainView, view_name='all_tags'):
 
             track_rows = []
             for track_block in spinner(self.album_block):
-                track_layout, track_binds = track_block.as_all_tag_rows(False)
+                track_layout, track_binds = track_block.as_all_tag_rows(True)
                 track_rows.extend(track_layout)
                 ele_binds.update(track_binds)
 
@@ -45,3 +45,29 @@ class AllTagsView(MainView, view_name='all_tags'):
             layout.append([Column([], key='spacer::1', pad=(0, 0)), track_col, Column([], key='spacer::2', pad=(0, 0))])
 
         return layout, kwargs, ele_binds
+
+    @event_handler('del::*')
+    def row_clicked(self, event: Event, data: EventData):
+        try:
+            key, event = event.rsplit(':::', 1)
+        except ValueError:
+            check_box_key, key = event, f'val{event[3:]}'
+            check_box = self.window[check_box_key]
+            to_be_deleted = check_box.TKIntVar.get()
+        else:
+            check_box_key = f'del{key[3:]}'
+            check_box = self.window[check_box_key]
+            to_be_deleted = not check_box.TKIntVar.get()
+            check_box.update(to_be_deleted)
+
+        input_ele = self.window[key]
+        if to_be_deleted:
+            bg, fg = '#781F1F', '#FFFFFF'
+        else:
+            bg = getattr(input_ele, 'disabled_readonly_background_color', input_ele.BackgroundColor)
+            fg = getattr(input_ele, 'disabled_readonly_text_color', input_ele.TextColor)
+
+        if isinstance(input_ele, Input):
+            input_ele.update(background_color=bg, text_color=fg)
+        elif isinstance(input_ele, Listbox):
+            input_ele.TKListbox.configure(bg=bg, fg=fg)

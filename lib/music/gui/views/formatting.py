@@ -81,7 +81,7 @@ class AlbumBlock:
     @property
     def wiki_client(self) -> Optional[MediaWikiClient]:
         if wiki_album_url := self.album_info.wiki_album:
-            return MediaWikiClient(wiki_album_url)
+            return MediaWikiClient(wiki_album_url, nopath=True)
         return None
 
     @property
@@ -194,7 +194,7 @@ class AlbumBlock:
 
 
 def value_ele(
-    value: Any, val_key: str, disabled: bool, list_width: int = 30
+    value: Any, val_key: str, disabled: bool, list_width: int = 30, no_add: bool = False
 ) -> tuple[Element, Optional[dict[str, 'Event']]]:
     bind = None
     if isinstance(value, bool):
@@ -209,7 +209,7 @@ def value_ele(
             no_scrollbar=True,
             select_mode='extended',  # extended, browse, single, multiple
         )
-        if val_key.startswith('val::'):
+        if not no_add and val_key.startswith('val::'):
             val_ele = Column(
                 [[val_ele, Button('Add...', key=val_key.replace('val::', 'add::', 1), disabled=disabled, pad=(0, 0))]],
                 key=f'col::{val_key}',
@@ -319,17 +319,22 @@ class TrackBlock:
     def get_tag_rows(self, editable: bool = True) -> tuple[Layout, EleBinds]:
         rows = []
         ele_binds = {}
+        flac = self.track.tag_type == 'flac'
         for tag, (tag_name, val) in self.tag_values.items():
             key_ele = Text(tag_name, key=f'tag::{self.path_str}::{tag}')
             val_key = f'val::{self.path_str}::{tag}'
             if tag_name == 'Lyrics':
-                val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=not editable)
+                val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True)
             else:
-                val_ele, bind = value_ele(val, val_key, not editable)
-                if bind:
-                    ele_binds[val_key] = bind
+                if flac and tag_name != 'genre':
+                    val = val[0]
+                val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45)
+                bind = bind or {}
+                bind['<Button-1>'] = ':::row_clicked'
+                ele_binds[val_key] = bind
 
-            rows.append([key_ele, val_ele])
+            sel_box = Checkbox('', key=f'del::{self.path_str}::{tag}', visible=editable, enable_events=True)
+            rows.append([key_ele, sel_box, val_ele])
 
         return (resize_text_column(rows) if rows else rows), ele_binds
 

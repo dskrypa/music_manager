@@ -4,6 +4,7 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
+from concurrent import futures
 from dataclasses import fields
 from itertools import chain
 from pathlib import Path
@@ -194,7 +195,10 @@ class AlbumView(MainView, view_name='album'):
 
         urls = self.album_block.wiki_image_urls
         client = self.album_block.wiki_client
+
+        # TODO: Multithread with spinner
         images = {title: client.get_image(title) for title in urls}
+
         if title := choose_image(images):
             cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
             name = title.split(':', 1)[1] if title.lower().startswith('file:') else title

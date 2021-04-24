@@ -98,8 +98,8 @@ class AlbumBlock:
         cover_images = self._cover_image_thumbnail
         kwargs = dict(size=self.cover_size, key=key)
         if len(cover_images) == 1:
-            # if self.wiki_image_urls:
-            #     kwargs['right_click_menu'] = ['Image', ['Replace Image']]
+            if self.wiki_image_urls:
+                kwargs['right_click_menu'] = ['Image', ['Replace Image']]
             return Image(data=next(iter(cover_images)), enable_events=True, **kwargs)
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')

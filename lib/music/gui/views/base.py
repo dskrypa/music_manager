@@ -275,7 +275,7 @@ class GuiView(ABC):
             ele = self.window[ele_key]
             for key, val in binds.items():
                 ele.bind(key, val)
-        self.log.debug(f'Rendered {self}')
+        self.log.debug(f'Rendered {self} @ loc={loc.window.current_location()}')
 
     @event_handler
     def config_changed(self, event: Event, data: EventData):

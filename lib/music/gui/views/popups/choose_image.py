@@ -5,6 +5,7 @@ View: Choose image from list
 """
 
 from io import BytesIO
+from textwrap import wrap
 from typing import Any, Union, Optional
 
 import PIL
@@ -12,7 +13,6 @@ from PIL.Image import Image as PILImage
 from PySimpleGUI import Element, Button, Radio, Column, Image
 
 from ..base import event_handler, Event, EventData
-from ..utils import split_key
 from .base import BasePopup
 from .image import ImageView
 
@@ -46,23 +46,34 @@ class ChooseImagePopup(BasePopup, view_name='choose_image_popup', primary=False)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         choices = []
-        for title, image in self.images.items():
-            image.thumbnail(self.img_size)
-            bio = BytesIO()
-            image.save(bio, format='PNG')
+        for title, image in self.images.items():  # type: str, PILImage
+            try:
+                image = image.copy()
+                image.thumbnail(self.img_size)
+            except Exception:
+                self.log.error(f'Unable to render image={title!r}:', exc_info=True)
+                data = None
+            else:
+                bio = BytesIO()
+                image.save(bio, format='PNG')
+                data = bio.getvalue()
+
+            button_text = '\n'.join(wrap(title, break_long_words=False, break_on_hyphens=False, tabsize=4, width=30))
             choices.append([
-                Radio(title, 'rad::choices', key=('choice', title), enable_events=True),
-                Image(data=bio.getvalue(), key=f'img::{title}', enable_events=True)
+                Radio(button_text, 'rad::choices', key=('choice', title), enable_events=True),
+                Image(data=data, key=f'img::{title}', enable_events=True, size=self.img_size)
             ])
 
-        layout = [
-            [Column(choices, key='col::choices'), Button('Submit', key='submit', disabled=True)],
-        ]
+        imgs_shown = max(1, min(self.window.get_screen_size()[1] // 270, len(self.images)) - 1)
+        content_col = Column(
+            choices, key='col::choices', scrollable=True, vertical_scroll_only=True, size=(500, imgs_shown * 270)
+        )
+        layout = [[content_col, Button('Submit', key='submit', disabled=True)]]
         return layout, {'title': self.title, **self.kwargs}
 
     @event_handler('img::*')
     def image_clicked(self, event: Event, data: EventData):
-        title = split_key(event)[1]
+        title = event.split('::', 1)[1]
         image = self.images[title]
         return ImageView(image, f'Album Cover: {title}')
 

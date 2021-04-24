@@ -252,7 +252,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                     existing.add(value)
                 value = sorted(value)
 
-            if tag_type == 'flac' and tag_id == 'TRACKNUMBER':
+            if tag_type == 'flac' and tag_id in ('TRACKNUMBER', 'DISCNUMBER'):
                 value = str(value)
 
             try:

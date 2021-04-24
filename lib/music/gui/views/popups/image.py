@@ -50,11 +50,19 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout = [[self.gui_img]]
+        # TODO: Make large images scrollable instead of always shrinking the image; allow zoom without window resize
+        # TODO: Show image dimensions
 
         # width, height = img_size = self.image.Size
         # window_size = (width + 10, height + 10)
         # self.log.debug(f'Showing image with {img_size=} in window with {window_size=}')
         kwargs = {'title': self.title, 'resizable': True, 'element_justification': 'center', 'margins': (0, 0)}
+
+        dsp_w, dsp_h = self.window.get_screen_size()
+        img_w, img_h = self.pil_img.size
+        if img_h > dsp_h:
+            kwargs['location'] = ((dsp_w - img_w) // 2 - 3, 0)
+
         return layout, kwargs
 
 

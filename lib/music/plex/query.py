@@ -7,7 +7,7 @@ import re
 from collections import defaultdict
 from itertools import chain
 from operator import eq
-from typing import TYPE_CHECKING, Collection, List, Optional, Dict, Any, Set, Union, Iterator, Tuple
+from typing import TYPE_CHECKING, Collection, Optional, Any, Union, Iterator
 from xml.etree.ElementTree import Element
 
 from ds_tools.output import short_repr
@@ -33,7 +33,12 @@ class QueryResults:
         self.server = server
         self._type = obj_type
         self._data = data
-        self._library_section_id = library_section_id or data.attrib.get('librarySectionID')
+        if library_section_id:
+            self._library_section_id = library_section_id
+        elif library_section_id := data.attrib.get('librarySectionID'):
+            self._library_section_id = int(library_section_id)
+        else:
+            self._library_section_id = None
 
     def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> 'QueryResults':
         return self.__class__(self.server, obj_type or self._type, data, self._library_section_id)
@@ -82,13 +87,13 @@ class QueryResults:
     def __serializable__(self):
         return self.results()
 
-    def keys(self, trim=None, level='key', suffix=None) -> Set[str]:
+    def keys(self, trim=None, level='key', suffix=None) -> set[str]:
         keys = {o.attrib[level] for o in self._data} if trim is None else {o.attrib[level][:trim] for o in self._data}
         if suffix:
             keys = {f'{key}{suffix}' for key in keys}
         return keys
 
-    def items(self, trim=None) -> Iterator[Tuple[str, Element]]:
+    def items(self, trim=None) -> Iterator[tuple[str, Element]]:
         if trim is None:
             for obj in self._data:
                 yield obj.attrib['key'], obj
@@ -96,7 +101,7 @@ class QueryResults:
             for obj in self._data:
                 yield obj.attrib['key'][:trim], obj
 
-    def key_map(self, trim=None) -> Dict[str, Element]:
+    def key_map(self, trim=None) -> dict[str, Element]:
         return dict(self.items(trim))
 
     def in_playlist(self, name: str) -> 'QueryResults':
@@ -169,10 +174,10 @@ class QueryResults:
 
         return self._new(results)
 
-    def results(self) -> List[PlexObj]:
+    def results(self) -> set[PlexObj]:
         build_item = self.server.music._buildItemOrNone
         library_section_id = self._library_section_id
-        results = list(filter(None, (build_item(elem, None, None) for elem in self._data)))
+        results = set(filter(None, (build_item(elem, None, None) for elem in self._data)))
         for obj in results:
             obj.librarySectionID = library_section_id
         return results
@@ -229,12 +234,11 @@ class QueryResults:
         :param bool singles: Before applying the `latest` filter, allow singles
         """
         if self._type != 'track':
-            raise InvalidQueryFilter(f'unique() is only permitted for track results')
+            raise InvalidQueryFilter('unique() is only permitted for track results')
 
         artist_title_obj_map = defaultdict(dict)
         for track in self._data:
             td = track.attrib
-
             if (artist := td['grandparentTitle']) == 'Various Artists':
                 try:
                     artist = td['originalTitle']
@@ -391,7 +395,7 @@ def _resolve_custom_ops(kwargs):
     return kwargs
 
 
-def _merge_filters(kwargs: Dict[str, Any], key: str, value: Any, union=False):
+def _merge_filters(kwargs: dict[str, Any], key: str, value: Any, union=False):
     if key in kwargs:
         current = kwargs[key]
         if key.endswith('__in'):

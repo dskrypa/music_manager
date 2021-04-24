@@ -42,7 +42,13 @@ def apply_plex_patches(deinit_colorama=True):
         _deinit_colorama()
 
     def removeItems(self, items):
-        """ Remove multiple tracks from a playlist. """
+        """
+        Remove multiple tracks from a playlist.  Avoids calling reload after every removal when removing items in bulk.
+
+        Original::
+            for track in items:
+                plist.removeItem(track)
+        """
         del_method = self._server._session.delete
         uri_fmt = '{}/items/{{}}'.format(self.key)
         results = [self._server.query(uri_fmt.format(item.playlistItemID), method=del_method) for item in items]

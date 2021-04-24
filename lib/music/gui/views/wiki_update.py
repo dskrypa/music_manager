@@ -49,7 +49,6 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 options.add_bool('artist_only', 'Artist Match Only', tooltip='Only match the artist / only use the artist URL if provided')
                 options.add_bool('hide_edition', 'Hide Edition', tooltip='Exclude the edition from the album title, if present (default: include it)')
             with self.options.row(4) as options:
-                # TODO: Make the update cover prompt give a popup instead of opening a browser
                 options.add_bool('update_cover', 'Update Cover', tooltip='Update the cover art for the album if it does not match an image in the matched wiki page')
                 options.add_bool('replace_genre', 'Replace Genre', tooltip='Replace genre instead of combining genres')
                 options.add_bool('title_case', 'Title Case', tooltip='Fix track and album names to use Title Case when they are all caps')
@@ -97,7 +96,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             parsed['soloist'],
             parsed['hide_edition'],
             parsed['title_case'],
-            parsed['update_cover'],
+            False,
             parsed['artist_url'] or None,
         )
 
@@ -117,6 +116,10 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         start_task(get_album_info)
 
         if album_info is not None:
+            if parsed['update_cover']:
+                self.album_block.album_info = album_info
+                album_info.cover_path = self.album_block.get_cover_choice()
+
             return AlbumDiffView(self.album, album_info, self.album_block, options=self.options, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'

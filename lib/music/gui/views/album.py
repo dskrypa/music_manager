@@ -4,15 +4,12 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
-from concurrent import futures
 from dataclasses import fields
 from itertools import chain
 from pathlib import Path
-from typing import Optional
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
 
-from ds_tools.fs.paths import get_user_cache_dir
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
@@ -21,7 +18,6 @@ from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
 from .popups.simple import popup_ok
-from .thread_tasks import start_task
 from .utils import split_key, DarkInput as Input
 
 __all__ = ['AlbumView']
@@ -39,7 +35,6 @@ class AlbumView(MainView, view_name='album'):
         self.binds['<Control-w>'] = 'wiki_update'
         self.binds['<Control-e>'] = 'edit'
         self._image_path = None
-        self._images = None  # type: Optional[dict[str, bytes]]
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -188,32 +183,11 @@ class AlbumView(MainView, view_name='album'):
         album_info = AlbumInfo.from_dict(info_dict)
         return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
 
-    def _get_cover_images(self):
-        urls = self.album_block.wiki_image_urls
-        client = self.album_block.wiki_client
-        self._images = {}
-        with futures.ThreadPoolExecutor(max_workers=4) as executor:
-            future_objs = {executor.submit(client.get_image, title): title for title in urls}
-            for future in futures.as_completed(future_objs):
-                title = future_objs[future]
-                self._images[title] = future.result()
-
     @event_handler
     def replace_image(self, event: Event, data: EventData):
         if not self.editing:
             self.toggle_editing()
 
-        from .popups.choose_image import choose_image
-
-        client = self.album_block.wiki_client
-        start_task(self._get_cover_images, message='Downloading images...')
-        if title := choose_image(self._images):
-            cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
-            name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
-            path = cover_dir.joinpath(name)
-            if not path.is_file():
-                img_data = client.get_image(title)
-                with path.open('wb') as f:
-                    f.write(img_data)
-            self._image_path = path
+        if path := self.album_block.get_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
+            # TODO: Update image data

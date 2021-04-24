@@ -4,6 +4,7 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
+from concurrent import futures
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
@@ -13,6 +14,7 @@ from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 
+from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
 from ...constants import typed_tag_name_map
@@ -22,6 +24,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from .base import Layout, EleBinds
 from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, split_key, DarkInput as Input
 from .popups.simple import popup_ok
+from .thread_tasks import start_task
 
 if TYPE_CHECKING:
     from .base import GuiView, Event
@@ -36,6 +39,7 @@ class AlbumBlock:
         self._src_album_info = AlbumInfo.from_album_dir(album_dir)
         self._new_album_info = None
         self.cover_size = cover_size
+        self._images = None  # type: Optional[dict[str, bytes]]
 
     @property
     def log(self):
@@ -91,6 +95,34 @@ class AlbumBlock:
             if image_titles := client.get_page_image_titles(page.title)[page.title]:
                 return client.get_image_urls(image_titles)
         return None
+
+    def _get_cover_images(self):
+        urls = self.wiki_image_urls
+        self._images = {}
+        with futures.ThreadPoolExecutor(max_workers=4) as executor:
+            future_objs = {executor.submit(self.wiki_client.get_image, title): title for title in urls}
+            for future in futures.as_completed(future_objs):
+                title = future_objs[future]
+                self._images[title] = future.result()
+
+    def get_cover_images(self):
+        if self._images is None:
+            start_task(self._get_cover_images, message='Downloading images...')
+        return self._images
+
+    def get_cover_choice(self) -> Optional[Path]:
+        from .popups.choose_image import choose_image
+
+        images = self.get_cover_images()
+        if title := choose_image(images):
+            cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
+            name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
+            path = cover_dir.joinpath(name)
+            if not path.is_file():
+                img_data = self.wiki_client.get_image(title)
+                with path.open('wb') as f:
+                    f.write(img_data)
+            return path
 
     def cover_image_thumbnail(self, key: str = 'img::album::cover-thumb', can_replace: bool = True) -> Image:
         cover_images = self._cover_image_thumbnail

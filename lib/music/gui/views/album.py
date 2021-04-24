@@ -186,6 +186,20 @@ class AlbumView(MainView, view_name='album'):
         album_info = AlbumInfo.from_dict(info_dict)
         return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
 
+    def _get_cover_images(self) -> dict[str, bytes]:
+        urls = self.album_block.wiki_image_urls
+        client = self.album_block.wiki_client
+        images = {}
+        with Spinner(LoadingSpinner.blue_dots, message='Downloading images...') as spinner:
+            with futures.ThreadPoolExecutor(max_workers=4) as executor:
+                future_objs = {executor.submit(client.get_image, title): title for title in urls}
+                for future in futures.as_completed(future_objs):
+                    title = future_objs[future]
+                    images[title] = future.result()
+                    spinner.update()
+
+        return images
+
     @event_handler
     def replace_image(self, event: Event, data: EventData):
         if not self.editing:
@@ -193,12 +207,8 @@ class AlbumView(MainView, view_name='album'):
 
         from .popups.choose_image import choose_image
 
-        urls = self.album_block.wiki_image_urls
         client = self.album_block.wiki_client
-
-        # TODO: Multithread with spinner
-        images = {title: client.get_image(title) for title in urls}
-
+        images = self._get_cover_images()
         if title := choose_image(images):
             cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
             name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
@@ -208,3 +218,4 @@ class AlbumView(MainView, view_name='album'):
                 with path.open('wb') as f:
                     f.write(img_data)
             self._image_path = path
+            self.window['val::album::cover_path'].update(path.as_posix())

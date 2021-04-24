@@ -13,8 +13,8 @@ from ..progress import Spinner
 from .base import GuiView
 
 
-def start_task(func: Callable, args=(), kwargs=None, spinner_img=LoadingSpinner.blue_dots):
-    with Spinner(spinner_img) as spinner:
+def start_task(func: Callable, args=(), kwargs=None, spinner_img=LoadingSpinner.blue_dots, **spin_kwargs):
+    with Spinner(spinner_img, **spin_kwargs) as spinner:
         t = Thread(target=func, args=args, kwargs=kwargs)
         t.start()
         t.join(0.05)

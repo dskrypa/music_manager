@@ -62,7 +62,8 @@ class AlbumView(MainView, view_name='album'):
                 Column([view_buttons], key='col::view_buttons', visible=not self.editing),
                 Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
             ]
-            alb_col = [album_data, [HorizontalSeparator()], album_buttons]
+            open_button = Button('\U0001f5c1', key='select_album', font=('Helvetica', 20), size=(10, 1), tooltip='Open')
+            alb_col = [album_data, [HorizontalSeparator()], album_buttons, [open_button]]
             album_container = Column(
                 alb_col, vertical_alignment='top', element_justification='center', key='col::album_container'
             )

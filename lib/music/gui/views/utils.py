@@ -10,7 +10,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Union, Optional
 
-from PySimpleGUI import Text, Element, Column, Input, Checkbox, Output, Multiline, theme
+from PySimpleGUI import Text, Element, Column, Input, Checkbox, Output, Multiline
+from PySimpleGUI import theme, theme_input_background_color, theme_input_text_color
 
 from ds_tools.logging import DatetimeFormatter, ENTRY_FMT_DETAILED
 
@@ -130,7 +131,7 @@ class ViewLoggerAdapter(logging.LoggerAdapter):
 
 
 class OutputHandler(logging.Handler):
-    def __init__(self, element: Union[Output, Multiline], level = logging.NOTSET):
+    def __init__(self, element: Union[Output, Multiline], level: int = logging.NOTSET):
         super().__init__(level)
         self.element = element
         self.kwargs = {'append': True} if isinstance(element, Multiline) else {}
@@ -179,15 +180,42 @@ def split_key(key: str) -> Optional[tuple[str, str, str]]:
 
 class DarkInput(Input):
     def __init__(self, *args, **kwargs):
-        if 'dark' in theme().lower():
+        self._dark = 'dark' in theme().lower()
+        if self._dark:
+            kwargs.setdefault('background_color', theme_input_background_color())
+            kwargs.setdefault('text_color', theme_input_text_color())
             kwargs.setdefault('disabled_readonly_background_color', '#a2a2a2')
             kwargs.setdefault('disabled_readonly_text_color', '#000000')
         super().__init__(*args, **kwargs)
 
+    @property
+    def disabled_readonly_background_color(self):
+        if self.TKEntry['state'] == 'normal' and not self.Disabled:
+            # print(f'Returning {self}.disabled_readonly_background_color = None')
+            return None
+        return self._disabled_readonly_background_color
+
+    @disabled_readonly_background_color.setter
+    def disabled_readonly_background_color(self, value):
+        self._disabled_readonly_background_color = value
+
+    @property
+    def disabled_readonly_text_color(self):
+        if self.TKEntry['state'] == 'normal' and not self.Disabled:
+            # print(f'Returning {self}.disabled_readonly_text_color = None')
+            return None
+        return self._disabled_readonly_text_color
+
+    @disabled_readonly_text_color.setter
+    def disabled_readonly_text_color(self, value):
+        self._disabled_readonly_text_color = value
+
     def update(self, *args, disabled=None, **kwargs):
         was_enabled = self.TKEntry['state'] == 'normal'
         super().update(*args, disabled=disabled, **kwargs)
-        if 'dark' in theme().lower() and not was_enabled:
+        if disabled is not None:
+            self.Disabled = disabled
+        if self._dark and not was_enabled:
             if disabled is False:
                 # bg = getattr(input_ele, 'disabled_readonly_background_color', input_ele.BackgroundColor)
                 # fg = getattr(input_ele, 'disabled_readonly_text_color', input_ele.TextColor)

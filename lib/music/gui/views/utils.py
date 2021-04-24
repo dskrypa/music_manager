@@ -189,8 +189,10 @@ class DarkInput(Input):
         super().update(*args, disabled=disabled, **kwargs)
         if 'dark' in theme().lower() and not was_enabled:
             if disabled is False:
-                # self.TKEntry.configure(background=self.BackgroundColor, fg=self.TextColor)
-                self.TKEntry.configure(readonlybackground=self.BackgroundColor, disabledforeground=self.TextColor)
+                # bg = getattr(input_ele, 'disabled_readonly_background_color', input_ele.BackgroundColor)
+                # fg = getattr(input_ele, 'disabled_readonly_text_color', input_ele.TextColor)
+                self.TKEntry.configure(background=self.BackgroundColor, fg=self.TextColor)
+                # self.TKEntry.configure(readonlybackground=self.BackgroundColor, disabledforeground=self.TextColor)
             else:
                 if background_color := kwargs.get('background_color'):
                     # log.info(f'Setting {background_color=!r} for {self!r}')

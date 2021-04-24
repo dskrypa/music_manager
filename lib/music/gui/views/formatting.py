@@ -7,8 +7,9 @@ Album / track formatting helper functions.
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any, Iterator
+from typing import TYPE_CHECKING, Optional, Any, Iterator, Union
 
+from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 
@@ -23,7 +24,6 @@ from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, g
 from .popups.simple import popup_ok
 
 if TYPE_CHECKING:
-    from PIL.Image import Image as PILImage
     from .base import GuiView, Event
 
 __all__ = ['TrackBlock', 'AlbumBlock', 'split_key']
@@ -92,18 +92,25 @@ class AlbumBlock:
                 return client.get_image_urls(image_titles)
         return None
 
-    @property
-    def cover_image_thumbnail(self) -> Image:
-        key = 'img::album::cover-thumb'
+    def cover_image_thumbnail(self, key: str = 'img::album::cover-thumb', can_replace: bool = True) -> Image:
         cover_images = self._cover_image_thumbnail
-        kwargs = dict(size=self.cover_size, key=key)
+        image = None
         if len(cover_images) == 1:
-            if self.wiki_image_urls:
-                kwargs['right_click_menu'] = ['Image', ['Replace Image']]
-            return Image(data=next(iter(cover_images)), enable_events=True, **kwargs)
+            image = next(iter(cover_images))
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
-        return Image(**kwargs)
+        return self._make_thumnail_image(image, key, can_replace)
+
+    def _make_thumnail_image(self, image: Union[Optional[bytes], 'PILImage'], key, can_replace: bool = False):
+        kwargs = dict(size=self.cover_size, key=key)
+        if image is not None:
+            if isinstance(image, PILImage):
+                image = make_thumbnail(image, self.cover_size)
+
+            kwargs['enable_events'] = True
+            if can_replace and self.wiki_image_urls:
+                kwargs['right_click_menu'] = ['Image', ['Replace Image']]
+        return Image(data=image, **kwargs)
 
     @property
     def cover_image_full_obj(self) -> Optional['PILImage']:
@@ -113,12 +120,6 @@ class AlbumBlock:
         elif cover_images:
             popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
         return None
-
-    @property
-    def cover_image_full(self) -> Image:
-        image_obj = self.cover_image_full_obj
-        size = (100, 100) if image_obj is None else image_obj.size
-        return Image(data=next(iter(self._cover_image_full)), size=size, key='img::album::cover-full')
 
     def get_album_data_rows(self, editable: bool = False):
         rows = []
@@ -144,6 +145,16 @@ class AlbumBlock:
             rows.append([key_ele, val_ele])
 
         return (resize_text_column(rows) if rows else rows), ele_binds
+
+    def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image, PILImage, bytes]]:
+        if new_album_info.cover_path:
+            src_pil_image = self.cover_image_full_obj
+            new_pil_image, img_data = new_album_info.get_new_cover(self.album_dir, src_pil_image, force=True)
+            if new_pil_image is not None:
+                src_img_ele = self.cover_image_thumbnail('img::album::cover-src', False)
+                new_img_ele = self._make_thumnail_image(new_pil_image, 'img::album::cover-new')
+                return src_img_ele, new_img_ele, new_pil_image, img_data
+        return None
 
     def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False, add_genre: bool = False):
         rows = []
@@ -218,6 +229,14 @@ def value_ele(
     return val_ele, bind
 
 
+def make_thumbnail(pil_img: PILImage, size: tuple[int, int]) -> bytes:
+    image = pil_img.copy()
+    image.thumbnail(size)
+    bio = BytesIO()
+    image.save(bio, format='PNG')
+    return bio.getvalue()
+
+
 class TrackBlock:
     def __init__(
         self, album_block: AlbumBlock, track: SongFile, info: TrackInfo, cover_size: tuple[int, int] = (250, 250)
@@ -261,11 +280,7 @@ class TrackBlock:
     @cached_property
     def _cover_image_thumbnail(self) -> Optional[bytes]:
         if (image := self.cover_image_obj) is not None:
-            image = image.copy()
-            image.thumbnail(self.cover_size)
-            bio = BytesIO()
-            image.save(bio, format='PNG')
-            return bio.getvalue()
+            return make_thumbnail(image, self.cover_size)
         return None
 
     @property

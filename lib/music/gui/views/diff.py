@@ -5,10 +5,9 @@ View: Diff between original and modified tag values.  Used for both manual and W
 """
 
 from functools import cached_property
-from io import BytesIO
 from typing import TYPE_CHECKING, Optional
 
-from PySimpleGUI import Text, Input, Image, Column, HSep, Button
+from PySimpleGUI import Text, Image, Column, HSep, Button
 
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
@@ -18,9 +17,11 @@ from ..progress import Spinner
 from .base import event_handler, Event, EventData, RenderArgs
 from .formatting import AlbumBlock
 from .main import MainView
-from .utils import get_a_to_b
+from .utils import get_a_to_b, DarkInput as Input
+from .popups.simple import popup_ok
 
 if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
     from ...files.track.track import SongFile
 
 __all__ = ['AlbumDiffView']
@@ -53,16 +54,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
     def file_info_map(self):
         return self.album_info.get_file_info_map(self.album)
 
-    @cached_property
-    def cover_images(self) -> tuple[Optional[bytes], Optional[bytes], Optional[Image]]:
-        if self.album_info.cover_path:
-            file_img = self.album_info.get_current_cover(self.file_info_map)
-            new_image_obj, new_img_data = self.album_info.get_new_cover(self.album, file_img)
-            if new_img_data is not None:
-                bio = BytesIO()
-                file_img.save(bio, 'jpeg')
-                return bio.getvalue(), new_img_data, new_image_obj
-        return None, None, None
+    @property
+    def cover_images(self) -> Optional[tuple[Image, Image, 'PILImage', bytes]]:
+        return self.album_block.get_cover_image_diff(self.album_info)
 
     def get_dest_album_path(self):
         if self.options['no_album_move']:
@@ -87,22 +81,13 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         else:
             first_row = [options_frame]
 
-        layout = [
-            first_row,
-            [Text()],
-            [HSep(), Text('Common Album Changes'), HSep()],
-            [Text()],
-        ]
+        layout = [first_row, [Text()], [HSep(), Text('Common Album Changes'), HSep()], [Text()]]
 
-        src_img_data, new_img_data, new_image_obj = self.cover_images
-        if new_img_data is not None:
-            layout.append([
-                # TODO: These need to be made into thumbnails
-                Image(data=src_img_data, size=(250, 250), key='img::cover::src'),
-                Text('->', key='txt::cover::arrow'),
-                Image(data=new_img_data, size=(250, 250), key='img::cover::new'),
-            ])
-            layout.append([HSep()])
+        if diff_imgs := self.cover_images:
+            src_img_ele, new_img_ele = diff_imgs[:2]
+            img_row = [src_img_ele, Text('\u2794', key='txt::cover::arrow', font=('Helvetica', 20)), new_img_ele]
+            img_diff_col = Column([img_row], key='col::img_diff', justification='center')
+            layout.extend([[img_diff_col], [HSep()]])
 
         if dest_album_path := self.get_dest_album_path():
             layout.append(get_a_to_b('Album Rename:', self.album.path, dest_album_path, 'album', 'path'))
@@ -147,6 +132,21 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.options.parse(data)
         self.render()
 
+    @event_handler('img::*')
+    def image_clicked(self, event: Event, data: EventData):
+        from .popups.image import ImageView
+
+        if event == 'img::album::cover-src':
+            title_prefix = 'Original'
+            pil_image = self.album_block.cover_image_full_obj
+        elif event == 'img::album::cover-new':
+            title_prefix = 'New'
+            pil_image = self.cover_images[2]
+        else:
+            popup_ok(f'Unknown image: {event}')
+            return
+        return ImageView(pil_image, f'{title_prefix} Album Cover: {self.album_block.album_info.name}')
+
     @event_handler('btn::next')
     def apply_changes(self, event: Event, data: EventData):
         from .album import AlbumView
@@ -156,12 +156,13 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         with Spinner(LoadingSpinner.blue_dots, message='Applying Changes...') as spinner:
             file_tag_map = {file: info.tags() for file, info in self.file_info_map.items()}
-            src_img_data, new_img_data, new_image_obj = self.cover_images
+            new_image_obj, new_img_data = self.cover_images[-2:] if self.cover_images else (None, None)
             for file, info in spinner(self.file_info_map.items()):  # type: SongFile, TrackInfo
                 file.update_tags(file_tag_map[file], dry_run, add_genre=self.options['add_genre'])
                 if new_image_obj is not None:
                     spinner.update()
                     file.set_cover_data(new_image_obj, dry_run, new_img_data)
+
                 spinner.update()
                 info.maybe_rename(file, dry_run)
 

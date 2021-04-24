@@ -57,7 +57,7 @@ class AlbumView(MainView, view_name='album'):
             album_data_rows, album_binds = self.album_block.get_album_data_rows(self.editing)
             ele_binds.update(album_binds)
             album_data = [
-                Column([[self.album_block.cover_image_thumbnail]], key='col::album_cover'),
+                Column([[self.album_block.cover_image_thumbnail()]], key='col::album_cover'),
                 Column(album_data_rows, key='col::album_data'),
             ]
             album_buttons = [
@@ -107,7 +107,6 @@ class AlbumView(MainView, view_name='album'):
 
     @event_handler
     def add_field_value(self, event: Event, data: EventData):
-        # listbox_key = data['listbox_key']
         obj = data['object']  # album or a track path
         field = data['field']
 
@@ -203,7 +202,7 @@ class AlbumView(MainView, view_name='album'):
     @event_handler
     def replace_image(self, event: Event, data: EventData):
         if not self.editing:
-            return
+            self.toggle_editing()
 
         from .popups.choose_image import choose_image
 

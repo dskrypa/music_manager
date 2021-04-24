@@ -28,6 +28,7 @@ class GuiOptions:
         disable_on_parsed: bool = False,
         align_text: bool = True,
         align_checkboxes: bool = True,
+        title: Optional[str] = 'options'
     ):
         self.view = view
         self.options = {}
@@ -36,6 +37,7 @@ class GuiOptions:
         self.submit_text = submit
         self.align_text = align_text
         self.align_checkboxes = align_checkboxes
+        self.title = title
         self._rows_per_column = {}
         self._default_row = 0
         self._default_col = 0
@@ -223,9 +225,9 @@ class GuiOptions:
 
         return layout
 
-    def as_frame(self, *args, **kwargs) -> Column:
-        frame = Frame('options', self.layout(*args, **kwargs), key='frame::options')
-        return Column([[frame]], key='col::frame_options', justification='center')
+    def as_frame(self, submit_key: str, disable_all: bool = None, submit_row: int = None, **kwargs) -> Column:
+        frame = Frame(self.title, self.layout(submit_key, disable_all, submit_row), key='frame::options')
+        return Column([[frame]], key='col::frame_options', justification='center', **kwargs)
 
     def parse(self, data: dict[str, Any]) -> dict[str, Any]:
         errors = []

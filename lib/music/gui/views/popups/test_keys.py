@@ -38,3 +38,7 @@ class KeypressTesterPopup(BasePopup, view_name='keypress_tester_popup', primary=
 
 def test_keys(*args, **kwargs):
     return KeypressTesterPopup(*args, **kwargs).get_result()
+
+
+if __name__ == '__main__':
+    test_keys()

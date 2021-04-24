@@ -331,6 +331,7 @@ class TrackBlock:
                 val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45)
                 bind = bind or {}
                 bind['<Button-1>'] = ':::row_clicked'
+                bind['<Shift-Button-1>'] = ':::tag_clicked'
                 ele_binds[val_key] = bind
 
             sel_box = Checkbox('', key=f'del::{self.path_str}::{tag}', visible=editable, enable_events=True)

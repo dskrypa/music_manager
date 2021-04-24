@@ -72,6 +72,16 @@ class AlbumDir(ClearableCachedPropertyMixin):
     def __len__(self) -> int:
         return len(self.songs)
 
+    def __getitem__(self, path: Union[str, Path]) -> SongFile:
+        if isinstance(path, str):
+            path = Path(path).expanduser()
+        try:
+            return self.path_track_map[path]
+        except KeyError:
+            pass
+        path = path.resolve()
+        return self.path_track_map[path]
+
     def move(self, dest_path: Union[Path, str]):
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
@@ -95,6 +105,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
             song._in_album_dir = True
             song._album_dir = self
         return songs
+
+    @cached_property
+    def path_track_map(self) -> dict[Path, SongFile]:
+        return {track.path: track for track in self.songs}
 
     @cached_property
     def title(self) -> Optional[str]:

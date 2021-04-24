@@ -4,15 +4,19 @@ View: All tags on each track (as opposed to the album view which only shows comm
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox
+from collections import defaultdict
+
+from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox, Frame, Image, Checkbox
 
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
+from ..options import GuiOptions
 from ..progress import Spinner
 from .base import RenderArgs, event_handler, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
-from .utils import DarkInput as Input
+from .utils import DarkInput as Input, split_key
+from .popups.simple import popup_ok
 
 __all__ = ['AllTagsView']
 
@@ -23,6 +27,9 @@ class AllTagsView(MainView, view_name='all_tags'):
         self.album = album
         self.album_block = album_block or AlbumBlock(self, self.album)
         self.album_block.view = self
+
+        self.options = GuiOptions(self, submit='Delete Selected Tags', title=None)
+        self.options.add_bool('dry_run', 'Dry Run', default=False)
 
     def get_render_args(self) -> RenderArgs:
         layout, kwargs = super().get_render_args()
@@ -37,12 +44,21 @@ class AllTagsView(MainView, view_name='all_tags'):
                 track_rows.extend(track_layout)
                 ele_binds.update(track_binds)
 
+            col_left = Column([[Image(size=(165, 0), pad=(0, 0))]], key='spacer::1', pad=(0, 0))  # image fixes center
             common = dict(pad=(0, 0), justification='center', vertical_alignment='center')
             tracks_inner = Column(track_rows, key='col::__tracks_inner__', expand_y=True, expand_x=True, **common)
             track_col = Column(
                 [[tracks_inner]], key='col::track_data', scrollable=True, vertical_scroll_only=True, **common
             )
-            layout.append([Column([], key='spacer::1', pad=(0, 0)), track_col, Column([], key='spacer::2', pad=(0, 0))])
+
+            options_frame = Frame(None, self.options.layout('delete_tags'), key='frame::options')  # noqa
+            options_layout = [[options_frame, Image(data=None, size=(0, self._window_size[1]))]]
+            options_col = Column(
+                options_layout, key='col::options', justification='center', vertical_alignment='center', pad=(0, 0)
+            )
+
+            col_right = Column([[options_col]], key='spacer::2', pad=(0, 0))
+            layout.append([col_left, track_col, col_right])
 
         return layout, kwargs, ele_binds
 
@@ -50,16 +66,23 @@ class AllTagsView(MainView, view_name='all_tags'):
     def row_clicked(self, event: Event, data: EventData):
         try:
             key, event = event.rsplit(':::', 1)
-        except ValueError:
-            check_box_key, key = event, f'val{event[3:]}'
-            check_box = self.window[check_box_key]
-            to_be_deleted = check_box.TKIntVar.get()
-        else:
-            check_box_key = f'del{key[3:]}'
-            check_box = self.window[check_box_key]
-            to_be_deleted = not check_box.TKIntVar.get()
+        except ValueError:  # Checkbox was clicked - toggle already happened
+            key = event
+        else:               # Input was clicked - need to toggle checkbox
+            check_box, to_be_deleted = self._get_check_box(key, True)
             check_box.update(to_be_deleted)
 
+        self._update_color(key)
+
+    def _get_check_box(self, key: str, inverse: bool = False) -> tuple[Checkbox, bool]:
+        if key.startswith('val::'):
+            key = f'del{key[3:]}'
+        box = self.window[key]  # type: Checkbox
+        to_be_deleted = bool(box.TKIntVar.get())
+        return box, (not to_be_deleted) if inverse else to_be_deleted
+
+    def _update_color(self, key: str):
+        to_be_deleted = self._get_check_box(key)[1]
         input_ele = self.window[key]
         if to_be_deleted:
             bg, fg = '#781F1F', '#FFFFFF'
@@ -71,3 +94,43 @@ class AllTagsView(MainView, view_name='all_tags'):
             input_ele.update(background_color=bg, text_color=fg)
         elif isinstance(input_ele, Listbox):
             input_ele.TKListbox.configure(bg=bg, fg=fg)
+
+    @event_handler
+    def tag_clicked(self, event: Event, data: EventData):
+        key, event = event.rsplit(':::', 1)
+        tag = split_key(key)[2]
+
+        row_box, to_be_deleted = self._get_check_box(key, True)
+        for tb in self.album_block:
+            track_key = f'val::{tb.path_str}::{tag}'
+            track_box, track_tbd = self._get_check_box(track_key)
+            if track_tbd != to_be_deleted:
+                track_box.update(to_be_deleted)
+                self._update_color(track_key)
+
+    @event_handler
+    def delete_tags(self, event: Event, data: EventData):
+        self.options.parse(data)
+        dry_run = self.options['dry_run']
+        prefix = '[DRY RUN] Would delete' if dry_run else 'Deleting'
+
+        to_delete = defaultdict(set)
+        for data_key, value in data.items():
+            if key_parts := split_key(data_key):
+                key_type, path, field = key_parts
+                if key_type == 'del' and value:
+                    to_delete[path].add(field)
+
+        if not to_delete:
+            return popup_ok('No tags were selected for deletion')
+
+        for path, tags in sorted(to_delete.items()):
+            track = self.album[path]
+            tag_str = ', '.join(sorted(tags))
+            self.log.info(f'{prefix} {len(tags)} tags from {track.path.name}: {tag_str}')
+            if not dry_run:
+                track.remove_tags(tags)
+
+        if not dry_run:
+            self.album_block = AlbumBlock(self, self.album)  # Reset cached info
+            self.render()

@@ -118,7 +118,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None  # prevents calling __setstate__ on unpickle; simpler for rebuilt obj to re-calculate cached attrs
 
     @property
-    def path(self):
+    def path(self) -> Path:
         return self._path
 
     def rename(self, dest_path: Union[Path, str]):

@@ -32,11 +32,13 @@ class AllTagsView(MainView, view_name='all_tags'):
         self.options.add_bool('dry_run', 'Dry Run', default=False)
 
     def get_render_args(self) -> RenderArgs:
-        layout, kwargs = super().get_render_args()
+        full_layout, kwargs = super().get_render_args()
         ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
-            layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
-            layout.append([HorizontalSeparator()])
+            layout = [
+                [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
+                [HorizontalSeparator()],
+            ]
 
             track_rows = []
             for track_block in spinner(self.album_block):
@@ -60,7 +62,8 @@ class AllTagsView(MainView, view_name='all_tags'):
             col_right = Column([[options_col]], key='spacer::2', pad=(0, 0))
             layout.append([col_left, track_col, col_right])
 
-        return layout, kwargs, ele_binds
+        full_layout.append([self.as_workflow(layout)])
+        return full_layout, kwargs, ele_binds
 
     @event_handler('del::*')
     def row_clicked(self, event: Event, data: EventData):
@@ -108,7 +111,7 @@ class AllTagsView(MainView, view_name='all_tags'):
                 track_box.update(to_be_deleted)
                 self._update_color(track_key)
 
-    @event_handler
+    @event_handler('btn::next')
     def delete_tags(self, event: Event, data: EventData):
         self.options.parse(data)
         dry_run = self.options['dry_run']
@@ -134,3 +137,11 @@ class AllTagsView(MainView, view_name='all_tags'):
         if not dry_run:
             self.album_block = AlbumBlock(self, self.album)  # Reset cached info
             self.render()
+
+    @event_handler('btn::back')
+    def back(self, event: Event, data: EventData):
+        from .album import AlbumView
+
+        if (last := self.last_view) is not None:
+            return last.__class__(album=self.album, album_block=self.album_block, last_view=self)
+        return AlbumView(self.album, self.album_block, last_view=self)

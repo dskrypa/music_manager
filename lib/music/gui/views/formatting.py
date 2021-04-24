@@ -226,11 +226,11 @@ class AlbumBlock:
 
 
 def value_ele(
-    value: Any, val_key: str, disabled: bool, list_width: int = 30, no_add: bool = False
+    value: Any, val_key: str, disabled: bool, list_width: int = 30, no_add: bool = False, **kwargs
 ) -> tuple[Element, Optional[dict[str, 'Event']]]:
     bind = None
     if isinstance(value, bool):
-        val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0))
+        val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0), **kwargs)
     elif isinstance(value, list):
         val_ele = Listbox(
             value,
@@ -240,6 +240,7 @@ def value_ele(
             size=(list_width, len(value)),
             no_scrollbar=True,
             select_mode='extended',  # extended, browse, single, multiple
+            ** kwargs
         )
         if not no_add and val_key.startswith('val::'):
             val_ele = Column(
@@ -256,7 +257,7 @@ def value_ele(
             val_ele = Input(value, key=val_key, disabled=disabled, tooltip='Open with ctrl + click')
             bind = {'<Control-Button-1>': ':::open_link'}
         else:
-            val_ele = Input(value, key=val_key, disabled=disabled)
+            val_ele = Input(value, key=val_key, disabled=disabled, **kwargs)
 
     return val_ele, bind
 
@@ -358,7 +359,6 @@ class TrackBlock:
         ele_binds = {}
         flac = self.track.tag_type == 'flac'
         for tag, (tag_name, val) in self.tag_values.items():
-            self.log.info(f'Processing {self.path_str} {tag=!r} {tag_name=!r} {val=!r}')
             key_ele = Text(tag_name, key=f'tag::{self.path_str}::{tag}')
             val_key = f'val::{self.path_str}::{tag}'
             if tag_name == 'Lyrics':
@@ -368,7 +368,9 @@ class TrackBlock:
             else:
                 if flac and tag_name != 'genre':
                     val = val[0]
-                val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45)
+                val_ele, bind = value_ele(
+                    val, val_key, True, no_add=True, list_width=45, tooltip=f'Toggle all {tag} tags with Shift+Click'
+                )
                 bind = bind or {}
                 bind['<Button-1>'] = ':::row_clicked'
                 bind['<Shift-Button-1>'] = ':::tag_clicked'

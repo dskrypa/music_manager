@@ -9,7 +9,7 @@ from dataclasses import fields
 from itertools import chain
 from pathlib import Path
 
-from PySimpleGUI import Text, Input, HorizontalSeparator, Column, Button, popup_get_text
+from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
 
 from ds_tools.fs.paths import get_user_cache_dir
 from ...files.album import AlbumDir
@@ -20,7 +20,7 @@ from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
 from .popups.simple import popup_ok
-from .utils import split_key
+from .utils import split_key, DarkInput as Input
 
 __all__ = ['AlbumView']
 

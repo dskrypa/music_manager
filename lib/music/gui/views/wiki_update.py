@@ -7,7 +7,7 @@ View for choosing Wiki update options
 import traceback
 from typing import Any, Optional
 
-from PySimpleGUI import Text, Input, Element, HSep
+from PySimpleGUI import Text, Element, HSep
 
 from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
@@ -19,6 +19,7 @@ from .formatting import AlbumBlock
 from .main import MainView
 from .popups.text import popup_error
 from .thread_tasks import start_task
+from .utils import DarkInput as Input
 
 __all__ = ['WikiUpdateView']
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')

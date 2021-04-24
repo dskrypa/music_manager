@@ -253,7 +253,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 value = sorted(value)
 
             if tag_type == 'flac' and tag_id in ('TRACKNUMBER', 'DISCNUMBER'):
-                value = str(value)
+                value = list(map(str, value))
 
             try:
                 tags[tag_id] = value

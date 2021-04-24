@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any, Iterator
 
-from PySimpleGUI import Text, Input, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
+from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 
 from wiki_nodes.http import MediaWikiClient
@@ -19,7 +19,7 @@ from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from .base import Layout, EleBinds
-from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, split_key
+from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, split_key, DarkInput as Input
 from .popups.simple import popup_ok
 
 if TYPE_CHECKING:

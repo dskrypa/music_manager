@@ -42,7 +42,7 @@ def main():
     args = parser().parse_args(req_subparser_value=False)
 
     from ds_tools.logging import init_logging
-    init_logging(args.verbose, names=None, millis=True)
+    init_logging(args.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
     if args.action == 'configure':
         configure(args)
@@ -72,7 +72,8 @@ def launch_gui(args):
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
     set_ui_mode(UIMode.GUI)
-    theme('SystemDefaultForReal')
+    # theme('SystemDefaultForReal')
+    theme('DarkGrey10')
 
     start_kwargs = dict(title='Music Manager', resizable=True, size=(1700, 750), element_justification='center')
     if args.action == 'open':

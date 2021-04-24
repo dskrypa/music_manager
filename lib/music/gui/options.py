@@ -7,9 +7,9 @@ Gui option rendering and parsing
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator, Mapping
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Input, Column, Combo, Listbox
+from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox
 
-from .views.utils import resize_text_column, make_checkbox_grid
+from .views.utils import resize_text_column, make_checkbox_grid, DarkInput as Input
 
 if TYPE_CHECKING:
     from .views.base import GuiView

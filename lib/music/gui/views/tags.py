@@ -4,7 +4,7 @@ View: All tags on each track (as opposed to the album view which only shows comm
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Text, Input, HorizontalSeparator, Column
+from PySimpleGUI import Text, HorizontalSeparator, Column
 
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
@@ -12,6 +12,7 @@ from ..progress import Spinner
 from .base import RenderArgs
 from .formatting import AlbumBlock
 from .main import MainView
+from .utils import DarkInput as Input
 
 __all__ = ['AllTagsView']
 

@@ -244,6 +244,7 @@ flac_tag_name_map = {
     'title': 'Song title',
     'titlesort': 'Song title [for sorting]',
     'tracknumber': 'Track',
+    'unsynced lyrics': 'Lyrics',
 }
 
 

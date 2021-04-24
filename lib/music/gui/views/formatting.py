@@ -332,8 +332,13 @@ class TrackBlock:
     def tag_values(self) -> dict[str, tuple[str, Any]]:
         tag_name_map = typed_tag_name_map.get(self.track.tag_type, {})
         tag_values = {}
+        flac = self.track.tag_type == 'flac'
         for tag, val in sorted(self.track.tags.items()):
-            tag_name = tag_name_map.get(tag[:4], tag)
+            if flac:
+                tag_name = tag_name_map.get(tag, tag)
+            else:
+                tag_name = tag_name_map.get(tag[:4], tag)
+
             if tag_name == 'Album Cover':
                 continue
 
@@ -353,9 +358,12 @@ class TrackBlock:
         ele_binds = {}
         flac = self.track.tag_type == 'flac'
         for tag, (tag_name, val) in self.tag_values.items():
+            self.log.info(f'Processing {self.path_str} {tag=!r} {tag_name=!r} {val=!r}')
             key_ele = Text(tag_name, key=f'tag::{self.path_str}::{tag}')
             val_key = f'val::{self.path_str}::{tag}'
             if tag_name == 'Lyrics':
+                if isinstance(val, list):
+                    val = val[0]
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True)
             else:
                 if flac and tag_name != 'genre':

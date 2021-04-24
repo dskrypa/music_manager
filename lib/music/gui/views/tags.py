@@ -80,12 +80,15 @@ class AllTagsView(MainView, view_name='all_tags'):
     def _get_check_box(self, key: str, inverse: bool = False) -> tuple[Checkbox, bool]:
         if key.startswith('val::'):
             key = f'del{key[3:]}'
-        box = self.window[key]  # type: Checkbox
+
+        box = self.window.key_dict[key]  # type: Checkbox  # noqa
         to_be_deleted = bool(box.TKIntVar.get())
         return box, (not to_be_deleted) if inverse else to_be_deleted
 
     def _update_color(self, key: str):
         to_be_deleted = self._get_check_box(key)[1]
+        if key.startswith('del::'):
+            key = f'val{key[3:]}'
         input_ele = self.window[key]
         if to_be_deleted:
             bg, fg = '#781F1F', '#FFFFFF'
@@ -106,10 +109,11 @@ class AllTagsView(MainView, view_name='all_tags'):
         row_box, to_be_deleted = self._get_check_box(key, True)
         for tb in self.album_block:
             track_key = f'val::{tb.path_str}::{tag}'
-            track_box, track_tbd = self._get_check_box(track_key)
-            if track_tbd != to_be_deleted:
-                track_box.update(to_be_deleted)
-                self._update_color(track_key)
+            if track_key in self.window.key_dict:
+                track_box, track_tbd = self._get_check_box(track_key)
+                if track_tbd != to_be_deleted:
+                    track_box.update(to_be_deleted)
+                    self._update_color(track_key)
 
     @event_handler('btn::next')
     def delete_tags(self, event: Event, data: EventData):

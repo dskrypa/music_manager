@@ -33,7 +33,7 @@ from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import EXTRACT_PART_MATCH, LYRIC_URL_MATCH, compiled_fnmatch_patterns, cleanup_album_name
-from .utils import RATING_RANGES, stars_from_256, tag_repr, parse_file_date, tag_id_to_name_map_for_type
+from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type, stars_to_256, stars_from_256
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -623,13 +623,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @star_rating_10.setter
     def star_rating_10(self, value: Union[int, float]):
-        if not isinstance(value, (int, float)) or not 0 < value < 11:
-            raise ValueError('Star ratings must be ints on a scale of 1-10; invalid value: {}'.format(value))
-        elif value == 1:
-            self.rating = 1
-        else:
-            base, extra = divmod(int(value), 2)
-            self.rating = RATING_RANGES[base - 1][2] + extra
+        self.rating = stars_to_256(value, 10)
 
     @property
     def star_rating(self) -> Optional[int]:
@@ -644,21 +638,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @star_rating.setter
     def star_rating(self, value: Union[int, float]):
-        """
-        This implementation uses the same values specified in the following link, except for 1 star, which uses 15
-        instead of 1: https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
-
-        :param int value: The number of stars to set
-        """
-        if not isinstance(value, (int, float)) or not 0 < value < 5.5:
-            raise ValueError('Star ratings must on a scale of 1-5; invalid value: {}'.format(value))
-        elif int(value) != value:
-            if int(value) + 0.5 == value:
-                self.star_rating_10 = int(value * 2)
-            else:
-                raise ValueError('Star ratings must be a multiple of 0.5; invalid value: {}'.format(value))
-        else:
-            self.rating = RATING_RANGES[int(value) - 1][2]
+        self.rating = stars_to_256(value, 5)
 
     # endregion
 

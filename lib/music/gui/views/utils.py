@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Union, Optional
 
-from PySimpleGUI import Text, Element, Column, Input, Checkbox, Output, Multiline
+from PySimpleGUI import Text, Element, Column, Input, Checkbox, Output, Multiline, Listbox
 from PySimpleGUI import theme, theme_input_background_color, theme_input_text_color
 
 from ds_tools.logging import DatetimeFormatter, ENTRY_FMT_DETAILED
@@ -27,6 +27,7 @@ __all__ = [
     'OutputHandler',
     'split_key',
     'DarkInput',
+    'update_color',
 ]
 log = logging.getLogger(__name__)
 
@@ -176,6 +177,13 @@ def split_key(key: str) -> Optional[tuple[str, str, str]]:
         return None
     else:
         return key_type, obj, item
+
+
+def update_color(ele: Element, fg: str = None, bg: str = None):
+    if isinstance(ele, (Input, Multiline)):
+        ele.update(background_color=bg, text_color=fg)
+    elif isinstance(ele, Listbox):
+        ele.TKListbox.configure(bg=bg, fg=fg)
 
 
 class DarkInput(Input):

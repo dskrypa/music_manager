@@ -7,7 +7,7 @@ View: All tags on each track (as opposed to the album view which only shows comm
 import re
 from collections import defaultdict
 
-from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox, Frame, Image, Checkbox, Multiline
+from PySimpleGUI import Text, HorizontalSeparator, Column, Frame, Image, Checkbox
 
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
@@ -18,7 +18,7 @@ from .formatting import AlbumBlock
 from .main import MainView
 from .popups.simple import popup_ok, popup
 from .popups.text import TextPopup
-from .utils import DarkInput as Input, split_key
+from .utils import DarkInput as Input, split_key, update_color
 
 __all__ = ['AllTagsView']
 
@@ -109,10 +109,7 @@ class AllTagsView(MainView, view_name='all_tags'):
             bg = getattr(input_ele, 'disabled_readonly_background_color', input_ele.BackgroundColor)
             fg = getattr(input_ele, 'disabled_readonly_text_color', input_ele.TextColor)
 
-        if isinstance(input_ele, (Input, Multiline)):
-            input_ele.update(background_color=bg, text_color=fg)
-        elif isinstance(input_ele, Listbox):
-            input_ele.TKListbox.configure(bg=bg, fg=fg)
+        update_color(input_ele, fg, bg)
 
     @event_handler
     def tag_clicked(self, event: Event, data: EventData):

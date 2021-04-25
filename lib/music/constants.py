@@ -19,18 +19,34 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN', 'flac': 'LANGUAGE'},
     'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
     'cover': {'mp4': 'covr', 'mp3': 'APIC'},  # flac: FLAC.pictures
-    'wiki:album': {'mp4': 'WIKI:ALBUM', 'mp3': 'WXXX:WIKI:ALBUM', 'flac': 'WIKI:ALBUM'},
-    'wiki:artist': {'mp4': 'WIKI:ARTIST', 'mp3': 'WXXX:WIKI:ARTIST', 'flac': 'WIKI:ARTIST'},
+    'wiki:album': {'mp4': '----:WIKI:ALBUM', 'mp3': 'WXXX:WIKI:ALBUM', 'flac': 'WIKI:ALBUM'},
+    'wiki:artist': {'mp4': '----:WIKI:ARTIST', 'mp3': 'WXXX:WIKI:ARTIST', 'flac': 'WIKI:ARTIST'},
     'kpop:gen': {'mp4': 'KPOP:GEN', 'mp3': 'TXXX:KPOP:GEN', 'flac': 'KPOP:GEN'},
     # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
+# Note: Reverse mapping is handled by music.files.track.utils.tag_id_to_name_map_for_type
 
-tag_name_map = {
-    # Custom
-    'WXXX:WIKI:ALBUM': 'Album\'s Wiki URL',
-    'WXXX:WIKI:ARTIST': 'Artist\'s Wiki URL',
-    'TXXX:KPOP:GEN': 'K-Pop Generation',
+TAG_NAME_DISPLAY_NAME_MAP = {
+    # Common tags
+    'album': 'Album',
+    'artist': 'Artist',
+    'bpm': 'BPM',
+    'date': 'Date',
+    'genre': 'Genre',
+    'grouping': 'Grouping',
+    'isrc': 'ISRC',
+    'language': 'Language',
+    'lyrics': 'Lyrics',
+    'title': 'Song title',
 
+    # Custom tags
+    'wiki:album': 'Album\'s Wiki URL',
+    'wiki:artist': 'Artist\'s Wiki URL',
+    'kpop:gen': 'K-Pop Generation',
+}
+
+
+MP3_TAG_DISPLAY_NAME_MAP = {
     # iTunes Verified Fields
     'TIT2': 'Song title',
     'TALB': 'Album',
@@ -164,7 +180,7 @@ tag_name_map = {
 }
 
 
-mp4_tag_name_map = {
+MP4_TAG_DISPLAY_NAME_MAP = {
     '\xa9nam': 'Song title',
     '\xa9alb': 'Album',
     '\xa9ART': 'Artist',
@@ -225,7 +241,7 @@ mp4_tag_name_map = {
 }
 
 
-flac_tag_name_map = {
+FLAC_TAG_DISPLAY_NAME_MAP = {
     'album': 'Album',
     'albumartist': 'Album Artist',
     'albumartistsort': 'Album Artist [for sorting]',
@@ -248,4 +264,6 @@ flac_tag_name_map = {
 }
 
 
-typed_tag_name_map = {'mp3': tag_name_map, 'mp4': mp4_tag_name_map, 'flac': flac_tag_name_map}
+TYPED_TAG_DISPLAY_NAME_MAP = {
+    'mp3': MP3_TAG_DISPLAY_NAME_MAP, 'mp4': MP4_TAG_DISPLAY_NAME_MAP, 'flac': FLAC_TAG_DISPLAY_NAME_MAP
+}

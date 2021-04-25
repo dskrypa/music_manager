@@ -6,7 +6,7 @@ from pypod.shell.argparse import ShellArgParser
 from pypod.shell.commands.base import ShellCommand
 
 from ds_tools.output import Table, SimpleColumn
-from .constants import tag_name_map
+from .constants import MP3_TAG_DISPLAY_NAME_MAP
 from .files.track.track import SongFile
 from .files.track.utils import tag_repr
 
@@ -25,7 +25,9 @@ class TrackTags(ShellCommand, cmd='tags'):
             for tag, val in sorted(music_file.tags.items()):
                 if len(tag) > 4:
                     tag = tag[:4]
-                rows.append({'Tag': tag, 'Tag Name': tag_name_map.get(tag, '[unknown]'), 'Value': tag_repr(val)})
+                rows.append(
+                    {'Tag': tag, 'Tag Name': MP3_TAG_DISPLAY_NAME_MAP.get(tag, '[unknown]'), 'Value': tag_repr(val)}
+                )
 
         if rows:
             tbl.print_rows(rows)

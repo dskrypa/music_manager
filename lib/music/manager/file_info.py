@@ -10,7 +10,7 @@ from mutagen.id3 import ID3
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.fs.paths import Paths
 from ds_tools.output import uprint, Table, SimpleColumn, TableBar
-from ..constants import typed_tag_name_map
+from ..constants import TYPED_TAG_DISPLAY_NAME_MAP
 from ..files.track.track import iter_music_files
 from ..files.track.utils import tag_repr
 from ..files.album import iter_album_dirs, AlbumDir
@@ -78,7 +78,7 @@ def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
             if music_file.tags is None:
                 uprint('[No tags]')
                 continue
-            tag_name_map = typed_tag_name_map.get(music_file.tag_type, {})
+            tag_name_map = TYPED_TAG_DISPLAY_NAME_MAP.get(music_file.tag_type, {})
             tbl = Table(SimpleColumn('Tag'), SimpleColumn('Tag Name'), SimpleColumn('Value'), update_width=True)
             rows = []
             for tag, val in sorted(music_file.tags.items()):
@@ -97,7 +97,7 @@ def table_song_tags(paths: Paths, include_tags=None):
     values = defaultdict(Counter)
     headers = {}
     for music_file in iter_music_files(paths):
-        tag_name_map = typed_tag_name_map[music_file.tag_type]
+        tag_name_map = TYPED_TAG_DISPLAY_NAME_MAP[music_file.tag_type]
         row = defaultdict(str, path=music_file.rel_path)
         for tag, val in sorted(music_file.tags.items()):
             tag = ':'.join(tag.split(':')[:2])
@@ -139,7 +139,7 @@ def table_unique_tag_values(paths: Paths, tag_ids):
     matches = FnMatcher(tag_ids, ignore_case=True).matches
     unique_vals = defaultdict(Counter)
     for music_file in iter_music_files(paths):
-        tag_name_map = typed_tag_name_map[music_file.tag_type]
+        tag_name_map = TYPED_TAG_DISPLAY_NAME_MAP[music_file.tag_type]
         for tag, name, val in music_file.iter_clean_tags():
             if matches((tag, name)):
                 tag = (tag, tag_name_map.get(tag, '[unknown]'))
@@ -163,7 +163,7 @@ def table_tag_type_counts(paths: Paths):
     for music_file in iter_music_files(paths):
         files += 1
         tag_set = set()
-        tag_name_map = typed_tag_name_map[music_file.tag_type]
+        tag_name_map = TYPED_TAG_DISPLAY_NAME_MAP[music_file.tag_type]
         for tag, name, val in music_file.iter_clean_tags():
             tag_tup = (tag, tag_name_map.get(tag, '[unknown]'))
             tag_set.add(tag_tup)

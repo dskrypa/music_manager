@@ -210,7 +210,7 @@ class AlbumView(MainView, view_name='album'):
         element.TKEntry.bind('<Key>', partial(self._edited_field, key))
 
     def _edited_field(self, key: str, event):
-        self.log.info(f'_edited_field({key=}, {event=})')
+        self.log.debug(f'_edited_field({key=}, {event=})')
         if element := self._failed_validation.pop(key, None):
             element.TKEntry.unbind('<Key>')
             update_color(element, element.TextColor, element.BackgroundColor)

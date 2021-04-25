@@ -113,6 +113,15 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Hwaa (Dimitri Vegas & Like Mike Remix)')})
 
+    def test_misc_1(self):
+        page = fake_page(as_node(
+            "'''''Take.1 Are You There?''''' is part one of [[MONSTA X]]'s second full-length album."
+            ' It was released on October 22, 2018 with "Shoot Out" serving as the album\'s title track.'
+            ' The physical release comes in four versions: I, II, III, and IV.'
+        ))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Take.1 Are You There?')})
+
 
 if __name__ == '__main__':
     main()

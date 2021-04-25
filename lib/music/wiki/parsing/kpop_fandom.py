@@ -206,7 +206,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
-        name = cls._album_page_name(entry_page)
+        try:
+            name = cls._album_page_name(entry_page)
+        except Exception as e:
+            raise RuntimeError(f'Error parsing page name from {entry_page=}') from e
         infobox = entry_page.infobox
         repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
         if name.extra:
@@ -745,7 +748,10 @@ def _find_release_dates(infobox: Template) -> List[date]:
 
 
 def _find_artist_links(infobox: Template, entry_page: WikiPage) -> Set[Link]:
-    all_links = {link.title: link for link in entry_page.find_all(Link)}
+    try:
+        all_links = {link.title: link for link in entry_page.find_all(Link)}
+    except Exception as e:
+        raise RuntimeError(f'Error finding artist links for {entry_page=}') from e
     artist_links = set()
     if artists := infobox.value.get('artist'):
         if isinstance(artists, String):

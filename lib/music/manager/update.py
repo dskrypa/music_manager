@@ -317,7 +317,7 @@ class AlbumInfo(GenreMixin):
     def get_new_cover(
         self, album_dir: AlbumDir, file_img: Image.Image = None, force: bool = False
     ) -> tuple[Image.Image, bytes]:
-        if self.cover_path and file_img:
+        if self.cover_path and (file_img or force):
             log.debug(f'Loading cover image from {self.cover_path}')
             image, img_data = _jpeg_from_path(self.cover_path, self.cover_max_width)
             if not force and ComparableImage(image).is_same_as(ComparableImage(file_img)):

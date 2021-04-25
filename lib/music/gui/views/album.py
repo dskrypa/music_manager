@@ -218,7 +218,7 @@ class AlbumView(MainView, view_name='album'):
             element.TKEntry.unbind('<Key>')
             update_color(element, element.TextColor, element.BackgroundColor)
 
-    @event_handler
+    @event_handler('Add Image')
     def replace_image(self, event: Event, data: EventData):
         if not self.editing:
             self.toggle_editing()

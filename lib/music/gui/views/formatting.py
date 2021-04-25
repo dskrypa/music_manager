@@ -146,6 +146,8 @@ class AlbumBlock:
             kwargs['enable_events'] = True
             if can_replace and self.wiki_image_urls:
                 kwargs['right_click_menu'] = ['Image', ['Replace Image']]
+        elif can_replace and self.wiki_image_urls:
+            kwargs['right_click_menu'] = ['Image', ['Add Image']]
         return Image(data=image, **kwargs)
 
     @property

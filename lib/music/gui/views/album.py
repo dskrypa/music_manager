@@ -186,15 +186,15 @@ class AlbumView(MainView, view_name='album'):
                             try:
                                 stars_to_256(int(value), 10)
                             except ValueError as e:
-                                popup_error(f'Invalid rating for track={obj}:\n{e}', multiline=True, auto_size=True)
-                                failed.append(data_key)
+                                failed.append((data_key, f'Invalid rating for track={obj}:\n{e}'))
 
                         track_info_dict.setdefault(obj, {})[field] = value
 
         if failed:
             self.toggle_editing()
-            for key in failed:
+            for key, message in failed:
                 self._register_validation_failed(key)
+                popup_error(message, multiline=True, auto_size=True)
             return
 
         if self._image_path:

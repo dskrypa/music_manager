@@ -7,16 +7,17 @@ Mainly added this to just be able to make ESC work to cancel the path prompt...
 """
 
 from enum import Enum
-from tkinter.filedialog import askdirectory, asksaveasfilename, askopenfilenames, askopenfilename
 from pathlib import Path
+from tkinter.filedialog import askdirectory, asksaveasfilename, askopenfilenames, askopenfilename
 from typing import Any, Union, Optional, Collection
 
-from PySimpleGUI import Element, Text, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs, Popup
+from PySimpleGUI import Element, Text, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs
 
 from ..base import event_handler
 from ..utils import DarkInput as Input
 from .base import BasePopup
 from .utils import temp_hidden_window
+from .simple import popup_ok
 
 __all__ = ['PathPromptView', 'PathPromptType', 'get_directory', 'get_file_path', 'get_save_path', 'get_file_paths']
 
@@ -58,16 +59,16 @@ class PathPromptView(BasePopup, view_name='path_prompt', primary=False):
         self.init_dir = '' if initial_folder is None else Path(initial_folder).as_posix()
         self.no_window = no_window
         self.ext = default_extension or ''
-        self.file_types = tuple(file_types) if file_types else (('ALL Files', '*.*'),)
+        self.file_types = tuple(file_types) if file_types else (('All Files', '*.*'),)
 
     def _without_window(self):
+        kwargs = {'initialdir': self.init_dir, 'title': self.title or self.prompt}
+        if self.type != PathPromptType.DIR:
+            kwargs.update(filetypes=self.file_types, initialfile=self.init_path, defaultextension=self.ext)
+        if self.window is not None and (root := self.window.TKroot) is not None:
+            return NO_WIN_FUNCS[self.type](parent=root, **kwargs)
         with temp_hidden_window(self.log) as root:
-            kwargs = {'initialdir': self.init_dir, 'parent': root}
-            if self.type != PathPromptType.DIR:
-                kwargs.update(filetypes=self.file_types, initialfile=self.init_path, defaultextension=self.ext)
-
-            # self.log.debug(f'Opening {self.type} prompt with {kwargs=!r}')
-            return NO_WIN_FUNCS[self.type](**kwargs)
+            return NO_WIN_FUNCS[self.type](parent=root, **kwargs)
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         if self.type == PathPromptType.DIR:
@@ -112,11 +113,9 @@ class PathPromptView(BasePopup, view_name='path_prompt', primary=False):
 
         if self.type == PathPromptType.DIR:
             if (must_exist and not path.is_dir()) or (path.exists() and not path.is_dir()):
-                Popup(f'Invalid directory: {path}', title='Invalid directory')
-                return None
+                return popup_ok(f'Invalid directory: {path}', title='Invalid directory')
         elif must_exist and not path.is_file():
-            Popup(f'Invalid file: {path}', title='Invalid file')
-            return None
+            return popup_ok(f'Invalid file: {path}', title='Invalid file')
         return path
 
     def get_paths(self) -> list[Path]:

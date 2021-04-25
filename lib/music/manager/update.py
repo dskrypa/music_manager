@@ -15,7 +15,7 @@ from datetime import datetime, date
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Union, Optional, Dict, Mapping, Any, Iterator, Collection
+from typing import Union, Optional, Mapping, Any, Iterator, Collection
 
 from PIL import Image
 
@@ -74,8 +74,9 @@ class TrackInfo(GenreMixin):
     title: str = None                           # Track title (tag)
     artist: str = None                          # Artist name (if different than the album artist)
     num: int = None                             # Track number
-    name: str = None                            # File name to be used
     genre: Union[str, Collection[str]] = None   # Track genre
+    rating: int = None                          # Rating out of 10
+    name: str = None                            # File name to be used
     # fmt: on
 
     @cached_property
@@ -95,7 +96,7 @@ class TrackInfo(GenreMixin):
             return SongFile(self.path).tag_type == 'mp4'
         return self.path.suffix.lower() == '.mp4'
 
-    def to_dict(self, title_case: bool = False) -> Dict[str, Any]:
+    def to_dict(self, title_case: bool = False) -> dict[str, Any]:
         if title_case:
             return {
                 'artist': normalize_case(self.artist) if self.artist else self.artist,
@@ -103,13 +104,19 @@ class TrackInfo(GenreMixin):
                 'name': normalize_case(self.name) if self.name else self.name,
                 'num': self.num,
                 'genre': self.norm_genres(),
+                'rating': self.rating,
             }
         else:
             return {
-                'title': self.title, 'artist': self.artist, 'num': self.num, 'name': self.name, 'genre': self.genre_list
+                'title': self.title,
+                'artist': self.artist,
+                'num': self.num,
+                'name': self.name,
+                'genre': self.genre_list,
+                'rating': self.rating,
             }
 
-    def tags(self) -> Dict[str, Any]:
+    def tags(self) -> dict[str, Any]:
         tags = {
             'title': self.title,
             'artist': self.artist or self.album.artist,
@@ -146,7 +153,7 @@ class AlbumInfo(GenreMixin):
     _date: date = _hidden()                         # _Workaround for property.setter to normalize/validate date values
     disk: int = None                                # Disk number
     genre: Union[str, Collection[str]] = None       # Album genre
-    tracks: Dict[str, TrackInfo] = _default(dict)   # Mapping of {path: TrackInfo} for the tracks in this album
+    tracks: dict[str, TrackInfo] = _default(dict)   # Mapping of {path: TrackInfo} for the tracks in this album
     name: str = None                                # Directory name to be used
     parent: str = None                              # Artist name to use in file paths
     singer: str = None                              # Solo singer when in a group, to be sorted under that group
@@ -243,7 +250,7 @@ class AlbumInfo(GenreMixin):
             wiki_artist=file.artist_url,
         )
         self.tracks = {
-            f.path.as_posix(): TrackInfo(self, f.tag_title, f.tag_artist, f.track_num, genre=f.tag_genres)
+            f.path.as_posix(): TrackInfo(self, f.tag_title, f.tag_artist, f.track_num, f.tag_genres, f.star_rating_10)
             for f in album_dir
         }
         return self
@@ -276,7 +283,7 @@ class AlbumInfo(GenreMixin):
             data = json.load(f)
         return cls.from_dict(data)
 
-    def get_file_info_map(self, album_dir: AlbumDir) -> Dict[SongFile, TrackInfo]:
+    def get_file_info_map(self, album_dir: AlbumDir) -> dict[SongFile, TrackInfo]:
         try:
             return {file: self.tracks[file.path.as_posix()] for file in album_dir}
         except KeyError as e:
@@ -296,7 +303,7 @@ class AlbumInfo(GenreMixin):
         if not no_album_move:
             self.move_album(album_dir, dest_base_dir, dry_run)
 
-    def get_current_cover(self, file_info_map: Dict[SongFile, TrackInfo]) -> Optional[Image.Image]:
+    def get_current_cover(self, file_info_map: dict[SongFile, TrackInfo]) -> Optional[Image.Image]:
         try:
             song_file = next(iter(file_info_map))
             return song_file.get_cover_image()

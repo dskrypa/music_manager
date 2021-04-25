@@ -129,8 +129,9 @@ class TrackInfo(GenreMixin):
             'disk': (self.album.disk, self.album.disks) if self.mp4 else self.album.disk,
             'wiki:album': self.album.wiki_album,
             'wiki:artist': self.album.wiki_artist,
-            'rating': stars_to_256(self.rating, 10),
         }
+        if (rating := self.rating) is not None:
+            tags['rating'] = stars_to_256(rating, 10)
         return {k: v for k, v in tags.items() if v is not None}
 
     def expected_name(self, file: SongFile):

@@ -345,27 +345,23 @@ class TrackBlock:
         rows = []
         ele_binds = {}
         nums = defaultdict(count)
+        common_binds = {'<Button-1>': ':::row_clicked', '<Shift-Button-1>': ':::tag_clicked'}
         for trunc_id, tag_id, tag_name, disp_name, val in self.track.iter_tag_id_name_values():
             if disp_name == 'Album Cover':
                 continue
-            self.log.info(f'Making tag row for {tag_id=} {tag_name=} {disp_name=} {val=}')
+            # self.log.debug(f'Making tag row for {tag_id=} {tag_name=} {disp_name=} {val=}')
             if n := next(nums[tag_id]):
                 tag_id = f'{tag_id}--{n}'
             key_ele = Text(disp_name, key=f'tag::{self.path_str}::{tag_id}')
             val_key = f'val::{self.path_str}::{tag_id}'
             if disp_name == 'Lyrics':
-                if isinstance(val, list):
-                    val = val[0]
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True, tooltip='Pop out with ctrl + click')
-                ele_binds[val_key] = {'<Control-Button-1>': ':::pop_out'}
+                ele_binds[val_key] = {'<Control-Button-1>': ':::pop_out', **common_binds}
             else:
                 val_ele, bind = value_ele(
                     val, val_key, True, no_add=True, list_width=45, tooltip=f'Toggle all {tag_id} tags with Shift+Click'
                 )
-                bind = bind or {}
-                bind['<Button-1>'] = ':::row_clicked'
-                bind['<Shift-Button-1>'] = ':::tag_clicked'
-                ele_binds[val_key] = bind
+                ele_binds[val_key] = (bind or {}) | common_binds
 
             sel_box = Checkbox('', key=f'del::{self.path_str}::{tag_id}', visible=editable, enable_events=True)
             rows.append([key_ele, sel_box, val_ele])

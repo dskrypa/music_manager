@@ -7,7 +7,7 @@ View: All tags on each track (as opposed to the album view which only shows comm
 import re
 from collections import defaultdict
 
-from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox, Frame, Image, Checkbox
+from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox, Frame, Image, Checkbox, Multiline
 
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
@@ -99,8 +99,6 @@ class AllTagsView(MainView, view_name='all_tags'):
         return box, (not to_be_deleted) if inverse else to_be_deleted
 
     def _update_color(self, key: str):
-        # TODO: Multiline
-
         to_be_deleted = self._get_check_box(key)[1]
         if key.startswith('del::'):
             key = f'val{key[3:]}'
@@ -111,7 +109,7 @@ class AllTagsView(MainView, view_name='all_tags'):
             bg = getattr(input_ele, 'disabled_readonly_background_color', input_ele.BackgroundColor)
             fg = getattr(input_ele, 'disabled_readonly_text_color', input_ele.TextColor)
 
-        if isinstance(input_ele, Input):
+        if isinstance(input_ele, (Input, Multiline)):
             input_ele.update(background_color=bg, text_color=fg)
         elif isinstance(input_ele, Listbox):
             input_ele.TKListbox.configure(bg=bg, fg=fg)

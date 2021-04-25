@@ -12,6 +12,7 @@ import logging
 import re
 from dataclasses import dataclass, fields, field
 from datetime import datetime, date
+from functools import cached_property
 from itertools import chain
 from pathlib import Path
 from typing import Union, Optional, Dict, Mapping, Any, Iterator, Collection
@@ -77,6 +78,23 @@ class TrackInfo(GenreMixin):
     genre: Union[str, Collection[str]] = None   # Track genre
     # fmt: on
 
+    @cached_property
+    def path(self) -> Path:
+        # Far from ideal, but a better solution would require more changes to other places in the code at this point
+        for path, track_info in self.album.tracks.items():
+            if track_info is self:
+                return Path(path)
+
+    @cached_property
+    def mp4(self) -> bool:
+        if self.album.mp4:
+            return True
+        elif len({t.path.suffix for t in self.album.tracks.values()}) == 1:
+            return False
+        elif self.path.exists():
+            return SongFile(self.path).tag_type == 'mp4'
+        return self.path.suffix.lower() == '.mp4'
+
     def to_dict(self, title_case: bool = False) -> Dict[str, Any]:
         if title_case:
             return {
@@ -95,12 +113,12 @@ class TrackInfo(GenreMixin):
         tags = {
             'title': self.title,
             'artist': self.artist or self.album.artist,
-            'track': (self.num, len(self.album.tracks)) if self.album.mp4 else self.num,
-            'date': self.album.date.strftime('%Y%m%d'),
+            'track': (self.num, len(self.album.tracks)) if self.mp4 else self.num,
+            'date': self.album.date.strftime('%Y%m%d') if self.album.date else None,
             'genre': list(filter(None, self.genre_set.union(self.album.genre_set))) or None,
             'album': self.album.title,
             'album_artist': self.album.artist,
-            'disk': (self.album.disk, self.album.disks) if self.album.mp4 else self.album.disk,
+            'disk': (self.album.disk, self.album.disks) if self.mp4 else self.album.disk,
             'wiki:album': self.album.wiki_album,
             'wiki:artist': self.album.wiki_artist,
         }

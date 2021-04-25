@@ -22,6 +22,7 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'wiki:album': {'mp4': '----:WIKI:ALBUM', 'mp3': 'WXXX:WIKI:ALBUM', 'flac': 'WIKI:ALBUM'},
     'wiki:artist': {'mp4': '----:WIKI:ARTIST', 'mp3': 'WXXX:WIKI:ARTIST', 'flac': 'WIKI:ARTIST'},
     'kpop:gen': {'mp4': 'KPOP:GEN', 'mp3': 'TXXX:KPOP:GEN', 'flac': 'KPOP:GEN'},
+    'rating': {'mp4': 'POPM', 'mp3': 'POPM', 'flac': 'POPM'},  # No official mp4/flac version; 0-255 maps to 0-10
     # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
 }
 # Note: Reverse mapping is handled by music.files.track.utils.tag_id_to_name_map_for_type
@@ -38,6 +39,7 @@ TAG_NAME_DISPLAY_NAME_MAP = {
     'language': 'Language',
     'lyrics': 'Lyrics',
     'title': 'Song title',
+    'rating': 'Rating',
 
     # Custom tags
     'wiki:album': 'Album\'s Wiki URL',

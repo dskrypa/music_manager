@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Coll
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
 from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType, Encoding
-from mutagen.id3._specs import MultiSpec
+from mutagen.id3._specs import MultiSpec, Spec
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover, AtomDataType, MP4FreeForm
 from plexapi.audio import Track
@@ -67,6 +67,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     date = TextTagProperty('date', parse_file_date, default=None)       # type: Optional[date]
     album_url = TextTagProperty('wiki:album', default=None)             # type: Optional[str]
     artist_url = TextTagProperty('wiki:artist', default=None)           # type: Optional[str]
+    rating = TextTagProperty('rating', int, default=None, save=True)    # type: Optional[int]
 
     def __new__(cls, file_path: Union[Path, str], *args, options=_NotSet, **kwargs):
         file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path
@@ -201,7 +202,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return tags.__name__
 
     # region Add/Remove/Get Tags
-    def delete_tag(self, tag_id: str):
+    def delete_tag(self, tag_id: str, save: bool = False):
         tag_type = self.tag_type
         if tag_type == 'mp3':
             self.tags.delall(tag_id)
@@ -209,6 +210,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             del self.tags[tag_id]
         else:
             raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
+        if save:
+            self.save()
 
     def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG, remove_all=False) -> bool:
         tag_ids = list(map(self.normalize_tag_id, tag_ids))
@@ -237,7 +240,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
                 return False
 
-    def set_text_tag(self, tag: str, value, by_id=False, replace: bool = True):
+    def set_text_tag(self, tag: str, value, by_id=False, replace: bool = True, save: bool = False):
         tag_id = tag if by_id else self.normalize_tag_id(tag)
         tag_type = self.tag_type
         if tag_type in ('mp4', 'flac'):
@@ -246,6 +249,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self._set_mp3_text_tag(tag, tag_id, value, replace)
         else:
             raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
+        if save:
+            self.save()
 
     def _set_mp3_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
         tags = self._f.tags  # type: ID3
@@ -264,7 +269,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         if desc and 'desc' not in spec_fields:
             raise TypeError(f'Unhandled tag type - {tag=} has {desc=} but {tag_cls=} has {spec_fields=}')
 
-        value_spec = frame_spec[-1]  # main value field is usually last
+        value_spec = frame_spec[-1]  # type: Spec  # main value field is usually last
         value_key = value_spec.name
         kwargs = {'encoding': Encoding.UTF8} if 'encoding' in spec_fields else {}  # noqa
         if not (isinstance(value, Collection) and not isinstance(value, str)):
@@ -280,12 +285,17 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 values.append(tag_cls(**val_kwargs))
         else:
             if replace:
-                kwargs[value_key] = sorted(map(str, value))
+                if not isinstance(value_spec.default, list) and isinstance(value, list) and len(value) == 1:
+                    kwargs[value_key] = value[0]
+                else:
+                    kwargs[value_key] = sorted(map(str, value))
+                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
                 values = [tag_cls(**kwargs)]
             elif value_key == 'text' and isinstance(value_spec, MultiSpec):
                 text_values = set(chain.from_iterable(t.text for t in tags.getall(tag_id)))
                 text_values.update(map(str, value))
                 kwargs['text'] = sorted(text_values)
+                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
                 values = [tag_cls(**kwargs)]
             else:
                 raise TypeError(f'Unable to add {value=} for {tag=} - {tag_cls=} has {value_key=} ({spec_fields=})')
@@ -306,7 +316,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 existing.add(value)
             value = sorted(existing)
 
-        if tag_type == 'flac' and tag_id in ('TRACKNUMBER', 'DISCNUMBER'):
+        if tag_type == 'flac' and tag_id in ('TRACKNUMBER', 'DISCNUMBER', 'POPM'):
             value = list(map(str, value))
         elif tag_type == 'mp4' and tag_id.startswith('----:'):
             value = [v.encode('utf-8') if isinstance(v, str) else v for v in value]
@@ -441,7 +451,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 try:
                     text = tag_obj.text
                 except AttributeError:
-                    vals.append(tag_obj)
+                    if isinstance(tag_obj, POPM):
+                        vals.append(tag_obj.rating)  # noqa
+                    else:
+                        vals.append(tag_obj)
                 else:
                     if isinstance(text, str):
                         vals.append(text)  # The text attr for USLT/Lyrics is a string, while most others are a list
@@ -601,33 +614,6 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 log.debug(f'{self}: Error converting disk num={orig!r} [{disk!r}] to int: {e}')
                 disk = 0
         return disk or 0
-
-    @property
-    def rating(self) -> Optional[int]:
-        """The rating for this track on a scale of 1-255"""
-        if isinstance(self._f.tags, MP4Tags):
-            try:
-                return self._f.tags['POPM'][0]
-            except KeyError:
-                return None
-        else:
-            try:
-                return self.get_tag('POPM', True).rating
-            except TagNotFound:
-                return None
-
-    @rating.setter
-    def rating(self, value: Union[int, float]):
-        if isinstance(self._f.tags, MP4Tags):
-            self._f.tags['POPM'] = [value]
-        else:
-            try:
-                tag = self.get_tag('POPM', True)
-            except TagNotFound:
-                self._f.tags.add(POPM(rating=value))
-            else:
-                tag.rating = value
-        self.save()
 
     @property
     def star_rating_10(self) -> Optional[int]:

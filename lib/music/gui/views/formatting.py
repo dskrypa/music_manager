@@ -4,9 +4,11 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
+from collections import defaultdict
 from concurrent import futures
 from functools import cached_property
 from io import BytesIO
+from itertools import count
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any, Iterator, Union
 
@@ -17,7 +19,6 @@ from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
-from ...constants import typed_tag_name_map
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
     from .base import GuiView, Event
 
 __all__ = ['TrackBlock', 'AlbumBlock', 'split_key']
+_multiple_covers_warned = set()
 
 
 class AlbumBlock:
@@ -130,7 +132,9 @@ class AlbumBlock:
         if len(cover_images) == 1:
             image = next(iter(cover_images))
         elif cover_images:
-            popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
+            if self.album_dir.path not in _multiple_covers_warned:
+                _multiple_covers_warned.add(self.album_dir.path)
+                popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}', keep_on_top=True)
         return self._make_thumnail_image(image, key, can_replace)
 
     def _make_thumnail_image(self, image: Union[Optional[bytes], 'PILImage'], key, can_replace: bool = False):
@@ -330,23 +334,6 @@ class TrackBlock:
         return Image(data=self._cover_image_full, size=size, key=f'img::{self.path_str}::cover-full')
 
     @cached_property
-    def tag_values(self) -> dict[str, tuple[str, Any]]:
-        tag_name_map = typed_tag_name_map.get(self.track.tag_type, {})
-        tag_values = {}
-        flac = self.track.tag_type == 'flac'
-        for tag, val in sorted(self.track.tags.items()):
-            if flac:
-                tag_name = tag_name_map.get(tag, tag)
-            else:
-                tag_name = tag_name_map.get(tag[:4], tag)
-
-            if tag_name == 'Album Cover':
-                continue
-
-            tag_values[tag] = (tag_name, val)
-        return tag_values
-
-    @cached_property
     def path_str(self) -> str:
         return self.track.path.as_posix()
 
@@ -357,26 +344,29 @@ class TrackBlock:
     def get_tag_rows(self, editable: bool = True) -> tuple[Layout, EleBinds]:
         rows = []
         ele_binds = {}
-        flac = self.track.tag_type == 'flac'
-        for tag, (tag_name, val) in self.tag_values.items():
-            key_ele = Text(tag_name, key=f'tag::{self.path_str}::{tag}')
-            val_key = f'val::{self.path_str}::{tag}'
-            if tag_name == 'Lyrics':
+        nums = defaultdict(count)
+        for trunc_id, tag_id, tag_name, disp_name, val in self.track.iter_tag_id_name_values():
+            if disp_name == 'Album Cover':
+                continue
+            self.log.info(f'Making tag row for {tag_id=} {tag_name=} {disp_name=} {val=}')
+            if n := next(nums[tag_id]):
+                tag_id = f'{tag_id}--{n}'
+            key_ele = Text(disp_name, key=f'tag::{self.path_str}::{tag_id}')
+            val_key = f'val::{self.path_str}::{tag_id}'
+            if disp_name == 'Lyrics':
                 if isinstance(val, list):
                     val = val[0]
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True)
             else:
-                if flac and tag_name != 'genre':
-                    val = val[0]
                 val_ele, bind = value_ele(
-                    val, val_key, True, no_add=True, list_width=45, tooltip=f'Toggle all {tag} tags with Shift+Click'
+                    val, val_key, True, no_add=True, list_width=45, tooltip=f'Toggle all {tag_id} tags with Shift+Click'
                 )
                 bind = bind or {}
                 bind['<Button-1>'] = ':::row_clicked'
                 bind['<Shift-Button-1>'] = ':::tag_clicked'
                 ele_binds[val_key] = bind
 
-            sel_box = Checkbox('', key=f'del::{self.path_str}::{tag}', visible=editable, enable_events=True)
+            sel_box = Checkbox('', key=f'del::{self.path_str}::{tag_id}', visible=editable, enable_events=True)
             rows.append([key_ele, sel_box, val_ele])
 
         return (resize_text_column(rows) if rows else rows), ele_binds

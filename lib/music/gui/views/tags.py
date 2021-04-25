@@ -4,6 +4,7 @@ View: All tags on each track (as opposed to the album view which only shows comm
 :author: Doug Skrypa
 """
 
+import re
 from collections import defaultdict
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Listbox, Frame, Image, Checkbox
@@ -16,7 +17,7 @@ from .base import RenderArgs, event_handler, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
 from .utils import DarkInput as Input, split_key
-from .popups.simple import popup_ok
+from .popups.simple import popup_ok, popup
 
 __all__ = ['AllTagsView']
 
@@ -86,6 +87,8 @@ class AllTagsView(MainView, view_name='all_tags'):
         return box, (not to_be_deleted) if inverse else to_be_deleted
 
     def _update_color(self, key: str):
+        # TODO: Multiline
+
         to_be_deleted = self._get_check_box(key)[1]
         if key.startswith('del::'):
             key = f'val{key[3:]}'
@@ -121,12 +124,22 @@ class AllTagsView(MainView, view_name='all_tags'):
         dry_run = self.options['dry_run']
         prefix = '[DRY RUN] Would delete' if dry_run else 'Deleting'
 
+        multi_value_match = re.compile(r'^(.*?)--\d+$').match
+        prompted = set()
         to_delete = defaultdict(set)
         for data_key, value in data.items():
             if key_parts := split_key(data_key):
-                key_type, path, field = key_parts
+                key_type, path, tag_id = key_parts
                 if key_type == 'del' and value:
-                    to_delete[path].add(field)
+                    if m := multi_value_match(tag_id):
+                        tag_id = m.group(1)
+                        if tag_id not in prompted:
+                            prompted.add(tag_id)
+                            msg = f'Found multiple tags for file with {tag_id=}. Continue with delete?'
+                            if not popup(msg, 'Warning', button_text={'Cancel': False, 'Yes, delete all': True}):
+                                return
+
+                    to_delete[path].add(tag_id)
 
         if not to_delete:
             return popup_ok('No tags were selected for deletion')

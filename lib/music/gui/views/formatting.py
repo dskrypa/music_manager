@@ -57,7 +57,11 @@ class AlbumBlock:
     def album_info(self, value: AlbumInfo):
         self._new_album_info = value
         for path, track in self.track_blocks.items():
-            track.info = value.tracks[path]
+            try:
+                track.info = value.tracks[path]
+            except KeyError:
+                self.log.warning(f'No track match found for {path=}')
+                value.tracks[path] = track.info
 
     def reset_changes(self):
         self._new_album_info = None

@@ -27,6 +27,7 @@ from ..files.album import iter_album_dirs, AlbumDir
 from ..files.changes import get_common_changes
 from ..files.paths import SafePath
 from ..files.track.track import SongFile
+from ..files.track.utils import stars_to_256
 from .images import _jpeg_from_path
 
 __all__ = ['TrackInfo', 'AlbumInfo']
@@ -128,6 +129,7 @@ class TrackInfo(GenreMixin):
             'disk': (self.album.disk, self.album.disks) if self.mp4 else self.album.disk,
             'wiki:album': self.album.wiki_album,
             'wiki:artist': self.album.wiki_artist,
+            'rating': stars_to_256(self.rating, 10),
         }
         return {k: v for k, v in tags.items() if v is not None}
 

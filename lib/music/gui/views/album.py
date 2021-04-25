@@ -5,12 +5,14 @@ View: Album + track tag values.  Allows editing, after which the view transition
 """
 
 from dataclasses import fields
+from functools import partial
 from itertools import chain
 from pathlib import Path
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
 
 from ...files.album import AlbumDir
+from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
@@ -18,7 +20,8 @@ from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
 from .popups.simple import popup_ok
-from .utils import split_key, DarkInput as Input
+from .popups.text import popup_error
+from .utils import split_key, DarkInput as Input, update_color
 
 __all__ = ['AlbumView']
 
@@ -35,6 +38,7 @@ class AlbumView(MainView, view_name='album'):
         self.binds['<Control-w>'] = 'wiki_update'
         self.binds['<Control-e>'] = 'edit'
         self._image_path = None
+        self._failed_validation = {}
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -164,6 +168,7 @@ class AlbumView(MainView, view_name='album'):
         info_dict['tracks'] = track_info_dict = {}
         info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
 
+        failed = []
         for data_key, value in data.items():
             # self.log.debug(f'Processing {data_key=!r}')
             if key_parts := split_key(data_key):
@@ -176,13 +181,39 @@ class AlbumView(MainView, view_name='album'):
                     if obj == 'album':
                         info_dict[field] = value
                     else:
+                        # self.log.debug(f'Processing {key_type=} {obj=} {field=} {value=}')
+                        if field == 'rating':
+                            try:
+                                stars_to_256(int(value), 10)
+                            except ValueError as e:
+                                popup_error(f'Invalid rating for track={obj}:\n{e}', multiline=True, auto_size=True)
+                                failed.append(data_key)
+
                         track_info_dict.setdefault(obj, {})[field] = value
+
+        if failed:
+            self.toggle_editing()
+            for key in failed:
+                self._register_validation_failed(key)
+            return
 
         if self._image_path:
             info_dict['cover_path'] = self._image_path.as_posix()
 
         album_info = AlbumInfo.from_dict(info_dict)
         return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
+
+    def _register_validation_failed(self, key: str):
+        element = self.window[key]
+        update_color(element, '#FFFFFF', '#781F1F')
+        self._failed_validation[key] = element
+        element.TKEntry.bind('<Key>', partial(self._edited_field, key))
+
+    def _edited_field(self, key: str, event):
+        self.log.info(f'_edited_field({key=}, {event=})')
+        if element := self._failed_validation.pop(key, None):
+            element.TKEntry.unbind('<Key>')
+            update_color(element, element.TextColor, element.BackgroundColor)
 
     @event_handler
     def replace_image(self, event: Event, data: EventData):

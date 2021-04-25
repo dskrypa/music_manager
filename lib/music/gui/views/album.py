@@ -182,11 +182,14 @@ class AlbumView(MainView, view_name='album'):
                         info_dict[field] = value
                     else:
                         # self.log.debug(f'Processing {key_type=} {obj=} {field=} {value=}')
-                        if field == 'rating' and value is not None:
-                            try:
-                                stars_to_256(int(value), 10)
-                            except ValueError as e:
-                                failed.append((data_key, f'Invalid rating for track={obj}:\n{e}'))
+                        if field == 'rating':
+                            if value:
+                                try:
+                                    stars_to_256(int(value), 10)
+                                except ValueError as e:
+                                    failed.append((data_key, f'Invalid rating for track={obj}:\n{e}'))
+                            else:
+                                continue
 
                         track_info_dict.setdefault(obj, {})[field] = value
 

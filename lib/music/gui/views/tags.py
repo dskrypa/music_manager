@@ -16,8 +16,9 @@ from ..progress import Spinner
 from .base import RenderArgs, event_handler, Event, EventData
 from .formatting import AlbumBlock
 from .main import MainView
-from .utils import DarkInput as Input, split_key
 from .popups.simple import popup_ok, popup
+from .popups.text import TextPopup
+from .utils import DarkInput as Input, split_key
 
 __all__ = ['AllTagsView']
 
@@ -65,6 +66,17 @@ class AllTagsView(MainView, view_name='all_tags'):
 
         full_layout.append([self.as_workflow(layout)])
         return full_layout, kwargs, ele_binds
+
+    @event_handler
+    def pop_out(self, event: Event, data: EventData):
+        key, event = event.rsplit(':::', 1)
+        path = split_key(key)[1]  # Tag should always be lyrics
+        if path.endswith('::USLT'):  # MP3 USLT may be formatted as `USLT::eng` to indicate language
+            path = path[:-6]
+        track = self.album_block.track_blocks[path].track
+        lyrics = track.get_tag_value_or_values('lyrics')
+        title = f'Lyrics: {track.tag_artist} - {track.tag_album} - {track.tag_title}'
+        TextPopup(lyrics, title, multiline=True, auto_size=True, font=('sans-serif', 14)).get_result()
 
     @event_handler('del::*')
     def row_clicked(self, event: Event, data: EventData):

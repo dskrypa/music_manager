@@ -65,7 +65,7 @@ class AlbumBlock:
             track._new_info = None
 
     @cached_property
-    def track_blocks(self):
+    def track_blocks(self) -> dict[str, 'TrackBlock']:
         blocks = {}
         for track in self.album_dir:
             path = track.path.as_posix()
@@ -356,7 +356,8 @@ class TrackBlock:
             if disp_name == 'Lyrics':
                 if isinstance(val, list):
                     val = val[0]
-                val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True)
+                val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True, tooltip='Pop out with ctrl + click')
+                ele_binds[val_key] = {'<Control-Button-1>': ':::pop_out'}
             else:
                 val_ele, bind = value_ele(
                     val, val_key, True, no_add=True, list_width=45, tooltip=f'Toggle all {tag_id} tags with Shift+Click'

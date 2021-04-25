@@ -64,9 +64,9 @@ class ChooseImagePopup(BasePopup, view_name='choose_image_popup', primary=False)
                 Image(data=data, key=f'img::{title}', enable_events=True, size=self.img_size)
             ])
 
-        imgs_shown = max(1, min(self.window.get_screen_size()[1] // 270, len(self.images)) - 1)
+        images_shown = max(1, min(self.window.get_screen_size()[1] // 270, len(self.images)) - 1)
         content_col = Column(
-            choices, key='col::choices', scrollable=True, vertical_scroll_only=True, size=(500, imgs_shown * 270)
+            choices, key='col::choices', scrollable=True, vertical_scroll_only=True, size=(500, images_shown * 270)
         )
         layout = [[content_col, Button('Submit', key='submit', disabled=True)]]
         return layout, {'title': self.title, **self.kwargs}

@@ -19,8 +19,10 @@ from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
+from ...common.utils import stars
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
+from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from .base import Layout, EleBinds
 from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, DarkInput as Input
@@ -356,25 +358,44 @@ class TrackFormatter:
         ele_binds = {}
         nums = defaultdict(count)
         common_binds = {'<Button-1>': ':::row_clicked', '<Shift-Button-1>': ':::tag_clicked'}
+
         for trunc_id, tag_id, tag_name, disp_name, val in self.track.iter_tag_id_name_values():
             if disp_name == 'Album Cover':
                 continue
+
             # self.log.debug(f'Making tag row for {tag_id=} {tag_name=} {disp_name=} {val=}')
             if n := next(nums[tag_id]):
                 tag_id = f'{tag_id}--{n}'
+
             key_ele = Text(disp_name, key=f'tag::{self.path_str}::{tag_id}')
+            sel_box = Checkbox('', key=f'del::{self.path_str}::{tag_id}', visible=editable, enable_events=True)
+            tooltip = f'Toggle all {tag_id} tags with Shift+Click'
             val_key = f'val::{self.path_str}::{tag_id}'
+
             if disp_name == 'Lyrics':
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True, tooltip='Pop out with ctrl + click')
+                rows.append([key_ele, sel_box, val_ele])
                 ele_binds[val_key] = {'<Control-Button-1>': ':::pop_out', **common_binds}
+            elif disp_name == 'Rating':
+                try:
+                    rating = stars_from_256(int(val), 10)
+                except (ValueError, TypeError):
+                    val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45, tooltip=tooltip)
+                    rows.append([key_ele, sel_box, val_ele])
+                else:
+                    row = [
+                        key_ele,
+                        sel_box,
+                        Input(val, key=val_key, disabled=True, tooltip=tooltip, size=(15, 1)),
+                        Text(f'({rating} / 10)', key=val_key + '::1', size=(15, 1)),
+                        Text(stars(rating), key=val_key + '::2', size=(15, 1)),
+                    ]
+                    rows.append(row)
+                ele_binds[val_key] = common_binds
             else:
-                val_ele, bind = value_ele(
-                    val, val_key, True, no_add=True, list_width=45, tooltip=f'Toggle all {tag_id} tags with Shift+Click'
-                )
+                val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45, tooltip=tooltip)
+                rows.append([key_ele, sel_box, val_ele])
                 ele_binds[val_key] = (bind or {}) | common_binds
-
-            sel_box = Checkbox('', key=f'del::{self.path_str}::{tag_id}', visible=editable, enable_events=True)
-            rows.append([key_ele, sel_box, val_ele])
 
         return resize_text_column(rows), ele_binds
 

@@ -36,7 +36,7 @@ class MainView(BaseView, view_name='main'):
     state = GuiState()
 
     def __init__(self, *, last_view: 'MainView' = None, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(binds=kwargs.get('binds'))
         self.last_view = last_view
         self.menu = [
             ['&File', ['&Open', 'Ou&tput', 'E&xit']],
@@ -98,14 +98,16 @@ class MainView(BaseView, view_name='main'):
                     element.expand(True, True, True)
 
     @classmethod
-    def _get_last_dir(cls) -> Optional[Path]:
-        if last_dir := cls.state.get('last_dir'):
+    def _get_last_dir(cls, type: str = None) -> Optional[Path]:
+        if last_dir := cls.state.get(f'last_dir:{type}' if type else 'last_dir'):
             last_dir = Path(last_dir)
             if not last_dir.exists():
                 if last_dir.parent.exists():
                     return last_dir.parent
                 else:
                     return cls.output_base_dir
+            else:
+                return last_dir
         return None
 
     def get_album_selection(self, new: bool = False, require_album: bool = True) -> Optional[Union[AlbumDir, Path]]:
@@ -236,23 +238,17 @@ class MainView(BaseView, view_name='main'):
     @event_handler('btn::back')
     def back(self, event: Event, data: EventData, default_cls: Type['MainView'] = None):
         if ((last := self.last_view) is not None) or default_cls is not None:
-            cls = last.__class__ if last else default_cls
-            kwargs = {'last_view': self}
-            if cls is not MainView:
-                kwargs.update(self._back_kwargs(last))
-                to_copy = [
-                    (last, 'options'),
-                    (last, 'src_album'),
-                    (last, 'dst_album'),
-                    (self, 'album'),
-                    (self, 'album_formatter'),
-                ]
-                for obj, attr in to_copy:
-                    try:
-                        kwargs[attr] = getattr(obj, attr)
-                    except AttributeError:
-                        pass
+            kwargs = {'last_view': self, **self._back_kwargs(last)}
+            to_copy = [
+                (last, 'options'), (last, 'src_album'), (last, 'dst_album'), (self, 'album'), (self, 'album_formatter')
+            ]
+            for obj, attr in to_copy:
+                try:
+                    kwargs[attr] = getattr(obj, attr)
+                except AttributeError:
+                    pass
 
+            cls = last.__class__ if last else default_cls
             self.log.debug(f'Returning previous view={cls.__name__} with {kwargs=}')
             return cls(**kwargs)
 

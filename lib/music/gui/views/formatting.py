@@ -404,11 +404,12 @@ class TrackFormatter:
 
     def _rating_row(self, key: str, value, editable: bool = False, suffix: str = None):
         key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, suffix))
+        color = '#f2d250' if value else '#000000'
         row = [
             key_ele,
             Input(value, key=self.key_for('val', key, suffix), disabled=not editable, size=(15, 1)),
             Text(f'(out of 10)', key=self.key_for('out_of', key, suffix), size=(12, 1)),
-            Text(stars(value or 0), key=self.key_for('stars', key, suffix), size=(8, 1)),
+            Text(stars(value or 0), key=self.key_for('stars', key, suffix), size=(8, 1), text_color=color),
         ]
         return row
 

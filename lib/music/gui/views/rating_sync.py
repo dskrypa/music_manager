@@ -50,12 +50,17 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
         ver = 'new' if self.src_album else 'original'
         old_album = self.src_album or self.dst_album
         prompt = f'Select {ver} version of {old_album.name}' if old_album else 'Select an album'
-        if path := get_directory(prompt, no_window=True, initial_folder=self._get_last_dir()):
+        dir_type = 'sync_dst' if self.src_album else 'sync_src'
+        last_dir = self._get_last_dir(dir_type)
+        if path := get_directory(prompt, no_window=True, initial_folder=last_dir):
             try:
                 album_dir = AlbumDir(path)
             except InvalidAlbumDir as e:
                 popup_input_invalid(str(e), logger=cls.log)  # noqa
             else:
+                if path != last_dir:
+                    self.state[f'last_dir:{dir_type}'] = path.as_posix()
+                    self.state.save()
                 setattr(self, 'dst_album' if self.src_album else 'src_album', album_dir)
                 return True
         return False
@@ -65,7 +70,6 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
         ele_binds = {}
         win_w, win_h = self._window_size
         max_h = win_h - 66
-        col_w = (win_w - 159) // 2
 
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             layout = [[]]
@@ -81,8 +85,14 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
                     [HorizontalSeparator()],
                     *chain.from_iterable(tb.as_sync_rows() for tb in spinner(formatter)),  # 86 px each
                 ]
-                kwargs = dict(scrollable=True, vertical_scroll_only=True) if (len(album) * 86) > max_h else {}
-                layout[0].append(Column(rows, key=f'col::track_data::{loc}', size=(col_w, max_h), **kwargs))
+                col_w = (win_w - 159) // 2
+                if (len(album) * 86) > max_h:
+                    col_kwargs = dict(scrollable=True, vertical_scroll_only=True)
+                    col_w -= 17
+                else:
+                    col_kwargs = {}
+
+                layout[0].append(Column(rows, key=f'col::track_data::{loc}', size=(col_w, max_h), **col_kwargs))
 
         workflow = self.as_workflow(layout, back_tooltip='Cancel Changes', next_tooltip='Review & Save Changes')
         full_layout.append(workflow)

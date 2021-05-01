@@ -19,6 +19,7 @@ from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_input_invalid
 from .popups.path_prompt import get_directory
+from .popups.text import popup_ok
 from .utils import DarkInput as Input
 
 __all__ = ['SyncRatingsView']
@@ -56,6 +57,8 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
                 popup_input_invalid(str(e), logger=cls.log)  # noqa
             else:
                 setattr(self, 'dst_album' if self.src_album else 'src_album', album_dir)
+                return True
+        return False
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -68,9 +71,14 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
             layout = [[]]
             albums, formatters = (self.src_album, self.dst_album), (self.src_formatter, self.dst_formatter)
             for loc, album, formatter in zip(('src', 'dst'), albums, formatters):
+                path_key = f'path::{loc}'
+                path = Input(
+                    album.path.as_posix(), key=path_key, disabled=True, size=(150, 1), tooltip='Click to change album'
+                )
+                ele_binds[path_key] = {'<Button-1>': ':::album_clicked'}
                 rows = [  # menu = 20px; 46 px from menu to 1st track's horizontal separator
-                    [Text('Album Path:'), Input(album.path.as_posix(), disabled=True, size=(150, 1))],
-                    [HorizontalSeparator()],  # 46 px from menu to 1st track's horizontal separator
+                    [Text('Album Path:'), path],
+                    [HorizontalSeparator()],
                     *chain.from_iterable(tb.as_sync_rows() for tb in spinner(formatter)),  # 86 px each
                 ]
                 kwargs = dict(scrollable=True, vertical_scroll_only=True) if (len(album) * 86) > max_h else {}
@@ -80,6 +88,19 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
         full_layout.append(workflow)
 
         return full_layout, kwargs, ele_binds
+
+    @event_handler
+    def album_clicked(self, event: Event, data: EventData):
+        loc = event.split('::')[1]
+        attr = f'{loc}_album'
+        original = getattr(self, attr)
+        setattr(self, attr, None)
+        if not self._get_album():
+            popup_ok(f'Keeping previous {attr}={original!r}')
+            setattr(self, attr, original)
+        else:
+            del self.__dict__[f'{loc}_formatter']
+            self.render()
 
     def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
         if last.name == 'album':

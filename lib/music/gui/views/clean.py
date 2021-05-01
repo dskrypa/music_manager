@@ -56,24 +56,27 @@ class CleanView(MainView, view_name='clean'):
         self.output: Optional[Multiline] = None
 
     def get_render_args(self) -> RenderArgs:
-        layout, kwargs = super().get_render_args()
+        full_layout, kwargs = super().get_render_args()
 
         file_list_str = '\n'.join(sorted((f.path.as_posix() for f in self.files)))
         file_list = Multiline(file_list_str, key='file_list', size=(120, 5), disabled=True)
         file_col = Column([[Text(f'Files ({len(self.files)}):')], [file_list]], key='col::file_list')
-        layout.append([self.options.as_frame('run_clean'), file_col])
 
-        n_files = len(self.files)
         to_clean = sum(1 for f in self.files if f.tag_type != 'flac')
-        total_steps = to_clean + n_files + (n_files if self.options['bpm'] else 0)
-
-        track_text = Text('', size=(100, 1))
-        self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(300, 30))
-        layout.append([self.prog_tracker.bar])
-        layout.append([Text('Processing:'), track_text])
-        self.output = Multiline(size=(200, 30), key='output', autoscroll=True)
-        layout.append([self.output])
-        return layout, kwargs
+        total_steps = to_clean + len(self.files) + (len(self.files) if self.options['bpm'] else 0)
+        win_w, win_h = self._window_size
+        bar_w = (win_w - 159) // 11
+        track_text = Text('', size=(bar_w - 12, 1))
+        self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(bar_w, 30))
+        self.output = Multiline(size=((win_w - 180) // 7, (win_h - 214) // 16), key='output', autoscroll=True)
+        layout = [
+            [self.options.as_frame('run_clean'), file_col],
+            [self.prog_tracker.bar],
+            [Text('Processing:'), track_text],
+            [self.output],
+        ]
+        full_layout.append([self.as_workflow(layout, back_tooltip='Go back to view album')])
+        return full_layout, kwargs
 
     @cached_property
     def result_logger(self):
@@ -81,7 +84,7 @@ class CleanView(MainView, view_name='clean'):
         result_logger.propagate = False
         return result_logger
 
-    @event_handler
+    @event_handler('btn::next')
     def run_clean(self, event: Event, data: EventData):
         try:
             self.options.parse(data)
@@ -92,7 +95,7 @@ class CleanView(MainView, view_name='clean'):
                 )
                 self.options['threads'] = 4
             else:
-                popup_input_invalid(e, logger=self.log)
+                popup_input_invalid(str(e), logger=self.log)
                 return self
 
         self.render()  # to disable inputs
@@ -113,6 +116,7 @@ class CleanView(MainView, view_name='clean'):
                 add_bpm_func = partial(_add_bpm, dry_run=dry_run)
                 # Using a list instead of an iterator because pool.map needs to be able to chunk the items
                 tracks = [f for f in self.files if f.tag_type != 'flac']
+                # tracks = list(self.files)
                 with Pool(self.options['threads'], _init_logging) as pool:
                     for result in self.prog_tracker(pool.imap_unordered(add_bpm_func, tracks)):
                         self.result_logger.info(result)

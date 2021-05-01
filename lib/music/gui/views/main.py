@@ -9,7 +9,7 @@ Defines the top menu and some common configuration properties.
 import webbrowser
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from PySimpleGUI import Button, Element, Column, Text, Image
 
@@ -21,9 +21,6 @@ from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
 from .utils import split_key
-
-# if TYPE_CHECKING:
-#     import tkinter
 
 __all__ = ['MainView']
 
@@ -87,42 +84,27 @@ class MainView(BaseView, view_name='main'):
 
     def render(self):
         super().render()
-        # print('-' * 120)
-        # print(f'Window size: {self.window.size}')
         for key, element in self.window.key_dict.items():
             if isinstance(key, str):
                 if key.startswith('spacer::'):
-                    # self.log.debug(f'Expanding element={key!r}')
-                    # if key == 'spacer::center_content':
-                    #     # print(f'\nSpacer orig size: {element.get_size()}')
-                    #     # print(f'Spacer widget info: {element.Widget.pack_info()}')
-                    #
-                    #     # print(f'Spacer parent container: {element.ParentContainer}')
-                    #     # print(f'Spacer parent row: {element.ParentRowFrame}')
-                    #     # print(f'Spacer parent row widget info: {element.ParentRowFrame.pack_info()}')
-                    #
-                    #     # tk_frame = element.ParentRowFrame  # type: tkinter.Frame
-                    #     # size = (tk_frame.winfo_reqwidth(), tk_frame.winfo_reqheight())
-                    #     # print(f'Spacer parent row size: {size}\n')
                     element.expand(True, True, True)
 
-                # if key.startswith(('col::', 'spacer::', 'btn::')):
-                #     print(f'{key}  -  {element.get_size()}')
-        # print('-' * 120)
+    def _get_last_dir(self) -> Optional[Path]:
+        if last_dir := self.state.get('last_dir'):
+            last_dir = Path(last_dir)
+            if not last_dir.exists():
+                if last_dir.parent.exists():
+                    return last_dir.parent
+                else:
+                    return self.output_base_dir
+        return None
 
     def get_album_selection(self, new: bool = False) -> Optional[AlbumDir]:
         if not new:
             if album := getattr(self, 'album', None):
                 return album
 
-        if last_dir := self.state.get('last_dir'):
-            last_dir = Path(last_dir)
-            if not last_dir.exists():
-                if last_dir.parent.exists():
-                    last_dir = last_dir.parent
-                else:
-                    last_dir = self.output_base_dir
-
+        last_dir = self._get_last_dir()
         if path := get_directory('Select Album', no_window=True, initial_folder=last_dir):
             self.window.force_focus()  # Can't seem to avoid it losing it perceptibly, but this brings it back faster
             if path != last_dir:
@@ -169,7 +151,7 @@ class MainView(BaseView, view_name='main'):
         if album := self.get_album_selection():
             from .album import AlbumView
 
-            return AlbumView(album, getattr(self, 'album_block', None), editing=True, last_view=self)
+            return AlbumView(album, getattr(self, 'album_formatter', None), editing=True, last_view=self)
 
     @event_handler
     def clean(self, event: Event, data: EventData):
@@ -195,7 +177,7 @@ class MainView(BaseView, view_name='main'):
         if album := self.get_album_selection():
             from .wiki_update import WikiUpdateView
 
-            return WikiUpdateView(album, getattr(self, 'album_block', None), last_view=self)
+            return WikiUpdateView(album, getattr(self, 'album_formatter', None), last_view=self)
 
     def as_workflow(
         self,
@@ -245,10 +227,12 @@ class MainView(BaseView, view_name='main'):
     def image_clicked(self, event: Event, data: EventData):
         from .popups.image import ImageView
 
-        if album_block := getattr(self, 'album_block', None):
+        if album_formatter := getattr(self, 'album_formatter', None):
             img_src = split_key(event)[1]
             if img_src == 'album':
-                return ImageView(album_block.cover_image_full_obj, f'Album Cover: {album_block.album_info.name}')
+                return ImageView(
+                    album_formatter.cover_image_full_obj, f'Album Cover: {album_formatter.album_info.name}'
+                )
             else:
-                track_block = album_block.track_blocks[img_src]
-                return ImageView(track_block.cover_image_obj, f'Track Album Cover: {track_block.file_name}')
+                track_formatter = album_formatter.track_formatters[img_src]
+                return ImageView(track_formatter.cover_image_obj, f'Track Album Cover: {track_formatter.file_name}')

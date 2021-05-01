@@ -33,9 +33,10 @@ log = logging.getLogger(__name__)
 
 
 def resize_text_column(rows: list[list[Union[Text, Element]]], column: int = 0):
-    longest = max(map(len, (row[column].DisplayText for row in rows)))
-    for row in rows:
-        row[column].Size = (longest, 1)
+    if rows:
+        longest = max(map(len, (row[column].DisplayText for row in rows)))
+        for row in rows:
+            row[column].Size = (longest, 1)
 
     return rows
 

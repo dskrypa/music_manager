@@ -10,7 +10,7 @@ from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any, Iterator, Union
+from typing import TYPE_CHECKING, Optional, Any, Iterator, Union, Collection
 
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
@@ -30,11 +30,11 @@ from .thread_tasks import start_task
 if TYPE_CHECKING:
     from .base import GuiView, Event
 
-__all__ = ['TrackBlock', 'AlbumBlock', 'split_key']
+__all__ = ['TrackFormatter', 'AlbumFormatter']
 _multiple_covers_warned = set()
 
 
-class AlbumBlock:
+class AlbumFormatter:
     def __init__(self, view: 'GuiView', album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
         self.view = view
         self.album_dir = album_dir
@@ -56,7 +56,7 @@ class AlbumBlock:
     @album_info.setter
     def album_info(self, value: AlbumInfo):
         self._new_album_info = value
-        for path, track in self.track_blocks.items():
+        for path, track in self.track_formatters.items():
             try:
                 track.info = value.tracks[path]
             except KeyError:
@@ -69,16 +69,16 @@ class AlbumBlock:
             track._new_info = None
 
     @cached_property
-    def track_blocks(self) -> dict[str, 'TrackBlock']:
-        blocks = {}
+    def track_formatters(self) -> dict[str, 'TrackFormatter']:
+        formatters = {}
         for track in self.album_dir:
             path = track.path.as_posix()
             info = self.album_info.tracks[path]
-            blocks[path] = TrackBlock(self, track, info, self.cover_size)
-        return blocks
+            formatters[path] = TrackFormatter(self, track, info, self.cover_size)
+        return formatters
 
-    def __iter__(self) -> Iterator['TrackBlock']:
-        yield from self.track_blocks.values()
+    def __iter__(self) -> Iterator['TrackFormatter']:
+        yield from self.track_formatters.values()
 
     @cached_property
     def _cover_image_thumbnail(self) -> set[bytes]:
@@ -186,7 +186,7 @@ class AlbumBlock:
 
             rows.append([key_ele, val_ele])
 
-        return (resize_text_column(rows) if rows else rows), ele_binds
+        return resize_text_column(rows), ele_binds
 
     def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image, PILImage, bytes]]:
         if new_album_info.cover_path:
@@ -224,7 +224,7 @@ class AlbumBlock:
                 if new_bind:
                     ele_binds[new_key] = new_bind
 
-        return (resize_text_column(rows) if rows else rows), ele_binds
+        return resize_text_column(rows), ele_binds
 
     def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path) -> Optional[Path]:
         try:
@@ -280,11 +280,15 @@ def make_thumbnail(pil_img: PILImage, size: tuple[int, int]) -> bytes:
     return bio.getvalue()
 
 
-class TrackBlock:
+class TrackFormatter:
     def __init__(
-        self, album_block: AlbumBlock, track: SongFile, info: TrackInfo, cover_size: tuple[int, int] = (250, 250)
+        self,
+        album_formatter: AlbumFormatter,
+        track: SongFile,
+        info: TrackInfo,
+        cover_size: tuple[int, int] = (250, 250),
     ):
-        self.album_block = album_block
+        self.album_formatter = album_formatter
         self.track = track
         self.cover_size = cover_size
         self._src_info = info
@@ -292,7 +296,7 @@ class TrackBlock:
 
     @property
     def log(self):
-        return self.album_block.view.log
+        return self.album_formatter.view.log
 
     @property
     def info(self):
@@ -372,19 +376,21 @@ class TrackBlock:
             sel_box = Checkbox('', key=f'del::{self.path_str}::{tag_id}', visible=editable, enable_events=True)
             rows.append([key_ele, sel_box, val_ele])
 
-        return (resize_text_column(rows) if rows else rows), ele_binds
+        return resize_text_column(rows), ele_binds
 
-    def get_info_rows(self, editable: bool = True):
+    def get_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         rows = []
         for key, value in self.info.to_dict().items():
+            if keys and key not in keys:
+                continue
             key_ele, val_key = label_and_val_key(self.path_str, key)
             val_ele, bind = value_ele(value, val_key, not editable)
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows) if rows else rows
+        return resize_text_column(rows)
 
     def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):
-        album_src_genres = set(self.album_block._src_album_info.norm_genres())
+        album_src_genres = set(self.album_formatter._src_album_info.norm_genres())
         album_new_genres = set(new_track_info.album.norm_genres())
         if add_genre:
             album_new_genres.update(album_src_genres)
@@ -414,7 +420,7 @@ class TrackBlock:
                 new_ele, new_bind = value_ele(new_val, new_key, True)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
-        return resize_text_column(rows) if rows else rows
+        return resize_text_column(rows)
 
     def get_basic_info_row(self):
         track = self.track
@@ -429,10 +435,10 @@ class TrackBlock:
             Input(track.tag_version, size=(10, 1), disabled=True),
         ]
 
-    def as_info_rows(self, editable: bool = True):
+    def as_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         yield [HorizontalSeparator()]
         yield self.get_basic_info_row()
-        yield [Column(self.get_info_rows(editable), key=f'col::{self.path_str}::tags')]
+        yield [Column(self.get_info_rows(editable, keys), key=f'col::{self.path_str}::tags')]
 
     def as_all_tag_rows(self, editable: bool = True):
         cover = Column([[self.cover_image_thumbnail]], key=f'col::{self.path_str}::cover')

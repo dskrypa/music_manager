@@ -14,7 +14,7 @@ from ..constants import LoadingSpinner
 from ..options import GuiOptions
 from ..progress import Spinner
 from .base import RenderArgs, event_handler, Event, EventData
-from .formatting import AlbumBlock
+from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok, popup
 from .popups.text import TextPopup
@@ -24,11 +24,11 @@ __all__ = ['AllTagsView']
 
 
 class AllTagsView(MainView, view_name='all_tags'):
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, **kwargs):
+    def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, **kwargs):
         super().__init__(**kwargs)
         self.album = album
-        self.album_block = album_block or AlbumBlock(self, self.album)
-        self.album_block.view = self
+        self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
+        self.album_formatter.view = self
 
         self.options = GuiOptions(self, submit='Delete Selected Tags', title=None)
         self.options.add_bool('dry_run', 'Dry Run', default=False)
@@ -43,7 +43,7 @@ class AllTagsView(MainView, view_name='all_tags'):
             ]
 
             track_rows = []
-            for track_block in spinner(self.album_block):
+            for track_block in spinner(self.album_formatter):
                 track_layout, track_binds = track_block.as_all_tag_rows(True)
                 track_rows.extend(track_layout)
                 ele_binds.update(track_binds)
@@ -73,7 +73,7 @@ class AllTagsView(MainView, view_name='all_tags'):
         path = split_key(key)[1]  # Tag should always be lyrics
         if path.endswith('::USLT'):  # MP3 USLT may be formatted as `USLT::eng` to indicate language
             path = path[:-6]
-        track = self.album_block.track_blocks[path].track
+        track = self.album_formatter.track_formatters[path].track
         lyrics = track.get_tag_value_or_values('lyrics')
         title = f'Lyrics: {track.tag_artist} - {track.tag_album} - {track.tag_title}'
         TextPopup(lyrics, title, multiline=True, auto_size=True, font=('sans-serif', 14)).get_result()
@@ -117,7 +117,7 @@ class AllTagsView(MainView, view_name='all_tags'):
         tag = split_key(key)[2]
 
         row_box, to_be_deleted = self._get_check_box(key, True)
-        for tb in self.album_block:
+        for tb in self.album_formatter:
             track_key = f'val::{tb.path_str}::{tag}'
             if track_key in self.window.key_dict:
                 track_box, track_tbd = self._get_check_box(track_key)
@@ -159,7 +159,7 @@ class AllTagsView(MainView, view_name='all_tags'):
                 track.remove_tags(tags)
 
         if not dry_run:
-            self.album_block = AlbumBlock(self, self.album)  # Reset cached info
+            self.album_formatter = AlbumFormatter(self, self.album)  # Reset cached info
             self.render()
 
     @event_handler('btn::back')
@@ -167,5 +167,5 @@ class AllTagsView(MainView, view_name='all_tags'):
         from .album import AlbumView
 
         if (last := self.last_view) is not None:
-            return last.__class__(album=self.album, album_block=self.album_block, last_view=self)
-        return AlbumView(self.album, self.album_block, last_view=self)
+            return last.__class__(album=self.album, album_formatter=self.album_formatter, last_view=self)
+        return AlbumView(self.album, self.album_formatter, last_view=self)

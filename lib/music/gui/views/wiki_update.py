@@ -15,7 +15,7 @@ from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
 from ..options import GuiOptions
 from .base import event_handler
-from .formatting import AlbumBlock
+from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.text import popup_error
 from .thread_tasks import start_task
@@ -28,11 +28,11 @@ ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.w
 class WikiUpdateView(MainView, view_name='wiki_update'):
     back_tooltip = 'Go back to Wiki update options'
 
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, options: GuiOptions = None, **kwargs):
+    def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, options: GuiOptions = None, **kwargs):
         super().__init__(**kwargs)
         self.album = album
-        self.album_block = album_block or AlbumBlock(self, self.album)
-        self.album_block.view = self
+        self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
+        self.album_formatter.view = self
 
         if options is not None and options.view.name == self.name:
             self.options = options
@@ -79,7 +79,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
     def back_to_album(self, event: str, data: dict[str, Any]):
         from .album import AlbumView
 
-        return AlbumView(self.album, self.album_block, last_view=self)
+        return AlbumView(self.album, self.album_formatter, last_view=self)
 
     @event_handler('btn::next')
     def find_match(self, event: str, data: dict[str, Any]):
@@ -117,10 +117,10 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
 
         if album_info is not None:
             if parsed['update_cover']:
-                self.album_block.album_info = album_info
-                album_info.cover_path = self.album_block.get_cover_choice()
+                self.album_formatter.album_info = album_info
+                album_info.cover_path = self.album_formatter.get_cover_choice()
 
-            return AlbumDiffView(self.album, album_info, self.album_block, options=self.options, last_view=self)
+            return AlbumDiffView(self.album, album_info, self.album_formatter, options=self.options, last_view=self)
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'
             popup_error(error_str, multiline=True, auto_size=True)

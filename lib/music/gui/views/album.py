@@ -17,7 +17,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
 from .base import event_handler, RenderArgs, Event, EventData
-from .formatting import AlbumBlock
+from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok
 from .popups.text import popup_error
@@ -28,12 +28,13 @@ __all__ = ['AlbumView']
 
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
+    # TODO: Don't make ctrl+left go back when a text field has focus
 
-    def __init__(self, album: AlbumDir, album_block: AlbumBlock = None, editing: bool = False, **kwargs):
+    def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.album = album
-        self.album_block = album_block or AlbumBlock(self, self.album)
-        self.album_block.view = self
+        self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
+        self.album_formatter.view = self
         self.editing = editing
         self.binds['<Control-w>'] = 'wiki_update'
         self.binds['<Control-e>'] = 'edit'
@@ -56,10 +57,10 @@ class AlbumView(MainView, view_name='album'):
                 Button('Wiki Update', key='wiki_update', **bkw),
             ]
             edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
-            album_data_rows, album_binds = self.album_block.get_album_data_rows(self.editing)
+            album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing)
             ele_binds.update(album_binds)
             album_data = [
-                Column([[self.album_block.cover_image_thumbnail()]], key='col::album_cover'),
+                Column([[self.album_formatter.cover_image_thumbnail()]], key='col::album_cover'),
                 Column(album_data_rows, key='col::album_data'),
             ]
             album_buttons = [
@@ -71,7 +72,9 @@ class AlbumView(MainView, view_name='album'):
             album_container = Column(
                 alb_col, vertical_alignment='top', element_justification='center', key='col::album_container'
             )
-            track_rows = list(chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_block)))
+            track_rows = list(
+                chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_formatter))
+            )
             track_data = Column(
                 track_rows, key='col::track_data', size=(685, 690), scrollable=True, vertical_scroll_only=True
             )
@@ -120,10 +123,10 @@ class AlbumView(MainView, view_name='album'):
         if not new_value:
             return
 
-        if (album_info := self.album_block._new_album_info) is None:  # can't update listbox size without re-draw
+        if (album_info := self.album_formatter._new_album_info) is None:  # can't update listbox size without re-draw
             self.log.debug('Copying album_info to provide new field values...')
-            album_info = self.album_block.album_info.copy()
-            self.album_block.album_info = album_info
+            album_info = self.album_formatter.album_info.copy()
+            self.album_formatter.album_info = album_info
 
         info_obj = album_info if obj == 'album' else album_info.tracks[obj]
         if field == 'genre':
@@ -146,12 +149,12 @@ class AlbumView(MainView, view_name='album'):
     def all_tags(self, event: Event, data: EventData):
         from .tags import AllTagsView
 
-        return AllTagsView(self.album, self.album_block, last_view=self)
+        return AllTagsView(self.album, self.album_formatter, last_view=self)
 
     @event_handler('btn::back')
     def cancel(self, event: Event, data: EventData):
         self.editing = False
-        self.album_block.reset_changes()
+        self.album_formatter.reset_changes()
         self.render()
 
     @event_handler('Edit')
@@ -204,7 +207,7 @@ class AlbumView(MainView, view_name='album'):
             info_dict['cover_path'] = self._image_path.as_posix()
 
         album_info = AlbumInfo.from_dict(info_dict)
-        return AlbumDiffView(self.album, album_info, self.album_block, last_view=self)
+        return AlbumDiffView(self.album, album_info, self.album_formatter, last_view=self)
 
     def _register_validation_failed(self, key: str):
         element = self.window[key]
@@ -223,6 +226,6 @@ class AlbumView(MainView, view_name='album'):
         if not self.editing:
             self.toggle_editing()
 
-        if path := self.album_block.get_cover_choice():
+        if path := self.album_formatter.get_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
             # TODO: Update image data

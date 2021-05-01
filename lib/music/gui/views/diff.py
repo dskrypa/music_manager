@@ -15,7 +15,7 @@ from ..constants import LoadingSpinner
 from ..options import GuiOptions
 from ..progress import Spinner
 from .base import event_handler, Event, EventData, RenderArgs
-from .formatting import AlbumBlock
+from .formatting import AlbumFormatter
 from .main import MainView
 from .utils import get_a_to_b, DarkInput as Input
 from .popups.simple import popup_ok
@@ -32,16 +32,16 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self,
         album: AlbumDir,
         album_info: AlbumInfo,
-        album_block: AlbumBlock = None,
+        album_formatter: AlbumFormatter = None,
         options: GuiOptions = None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.album = album
         self.album_info = album_info
-        self.album_block = album_block or AlbumBlock(self, self.album)
-        self.album_block.view = self
-        self.album_block.album_info = album_info
+        self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
+        self.album_formatter.view = self
+        self.album_formatter.album_info = album_info
 
         self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
         self.options.add_bool('dry_run', 'Dry Run', default=False)
@@ -56,13 +56,13 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
     @property
     def cover_images(self) -> Optional[tuple[Image, Image, 'PILImage', bytes]]:
-        return self.album_block.get_cover_image_diff(self.album_info)
+        return self.album_formatter.get_cover_image_diff(self.album_info)
 
     def get_dest_album_path(self):
         if self.options['no_album_move']:
             return None
 
-        dest_album_path = self.album_block.get_dest_path(self.album_info, self.output_sorted_dir)
+        dest_album_path = self.album_formatter.get_dest_path(self.album_info, self.output_sorted_dir)
         if dest_album_path and self.album.path != dest_album_path:
             return dest_album_path
         return None
@@ -95,7 +95,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
         title_case, add_genre = self.options['title_case'], self.options['add_genre']
-        common_rows, common_binds = self.album_block.get_album_diff_rows(self.album_info, title_case, add_genre)
+        common_rows, common_binds = self.album_formatter.get_album_diff_rows(self.album_info, title_case, add_genre)
         if common_rows:
             layout.append([Column(common_rows, key='col::album::diff')])
             layout.append([Text()])
@@ -104,9 +104,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.extend([[Text()], [Text('No common album tag changes.', justification='center')], [Text()]])
 
         layout.append([HSep(), Text('Track Changes'), HSep()])
-        for path, track_block in self.album_block.track_blocks.items():
+        for path, track_formatter in self.album_formatter.track_formatters.items():
             layout.append([Text()])
-            layout.extend(track_block.as_diff_rows(self.album_info.tracks[path], title_case, add_genre))
+            layout.extend(track_formatter.as_diff_rows(self.album_info.tracks[path], title_case, add_genre))
 
         workflow = self.as_workflow(layout, next_tooltip='Apply changes (save)', scrollable=True)
         full_layout.append(workflow)
@@ -123,9 +123,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
                 kwargs['editing'] = True
             elif last.name == 'wiki_update':
                 kwargs['options'] = last.options  # noqa
-            return last.__class__(album=self.album, album_block=self.album_block, last_view=self, **kwargs)
+            return last.__class__(album=self.album, album_formatter=self.album_formatter, last_view=self, **kwargs)
 
-        return AlbumView(self.album, self.album_block, last_view=self)
+        return AlbumView(self.album, self.album_formatter, last_view=self)
 
     @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')
     def refresh(self, event: Event, data: EventData):
@@ -138,14 +138,14 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         if event == 'img::album::cover-src':
             title_prefix = 'Original'
-            pil_image = self.album_block.cover_image_full_obj
+            pil_image = self.album_formatter.cover_image_full_obj
         elif event == 'img::album::cover-new':
             title_prefix = 'New'
             pil_image = self.cover_images[2]
         else:
             popup_ok(f'Unknown image: {event}')
             return
-        return ImageView(pil_image, f'{title_prefix} Album Cover: {self.album_block.album_info.name}')
+        return ImageView(pil_image, f'{title_prefix} Album Cover: {self.album_formatter.album_info.name}')
 
     @event_handler('btn::next')
     def apply_changes(self, event: Event, data: EventData):

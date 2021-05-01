@@ -755,7 +755,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         to_update = {}
         for tag_name, new_value in sorted(name_value_map.items()):
             file_val = self.tag_text(tag_name, default=None)
-            cmp_val = str(new_value) if tag_name in ('disk', 'track') else new_value
+            cmp_val = str(new_value) if tag_name in ('disk', 'track', 'rating') else new_value
             if tag_name == 'genre':  # TODO: Check value case?
                 new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
                 file_vals = set(self.tag_genres)

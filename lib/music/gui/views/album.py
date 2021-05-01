@@ -34,6 +34,8 @@ class AlbumView(MainView, view_name='album'):
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.album = album
+        self._albums = sorted(self.album.path.parent.iterdir())
+        self._album_index = self._albums.index(self.album.path)
         self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
         self.album_formatter.view = self
         self.editing = editing
@@ -106,7 +108,11 @@ class AlbumView(MainView, view_name='album'):
             ele_binds.update(album_binds)
 
         workflow = self.as_workflow(
-            layout, back_tooltip='Cancel Changes', next_tooltip='Review & Save Changes', visible=self.editing
+            layout,
+            back_tooltip='Cancel Changes' if self.editing else 'View previous album',
+            next_tooltip='Review & Save Changes' if self.editing else 'View next album',
+            back_visible=bool(self.editing or self._album_index),
+            next_visible=bool(self.editing or self._album_index < len(self._albums) - 1),
         )
         full_layout.append(workflow)
 
@@ -121,8 +127,15 @@ class AlbumView(MainView, view_name='album'):
         self.window['col::view_buttons'].update(visible=not self.editing)
         self.window['col::edit_buttons'].update(visible=self.editing)
         self.window['select_album'].update(visible=not self.editing)
-        self.window['btn::back'].update(visible=self.editing)
-        self.window['btn::next'].update(visible=self.editing)
+
+        back_button = self.window['btn::back']
+        back_button.update(visible=self.editing or self._album_index)
+        back_button.set_tooltip('Cancel Changes' if self.editing else 'View previous album')
+
+        next_button = self.window['btn::next']
+        next_button.update(visible=self.editing or self._album_index < len(self._albums) - 1)
+        next_button.set_tooltip('Review & Save Changes' if self.editing else 'View next album')
+
         self._toggle_rating_handlers()
         if self.editing:
             self.window.TKroot.bind('<Button-1>', self._handle_click)
@@ -185,9 +198,7 @@ class AlbumView(MainView, view_name='album'):
         star_ele.update(stars(value))
 
     def handle_event(self, event: Event, data: EventData):
-        if not self.editing and (event == 'btn::back' or event == 'btn::next'):
-            return None
-        elif event.startswith('add::'):
+        if event.startswith('add::'):
             data['listbox_key'] = event.replace('add::', 'val::', 1)
             key_type, obj, field = split_key(event)
             data.update(object=obj, field=field)
@@ -251,12 +262,26 @@ class AlbumView(MainView, view_name='album'):
             super().ctrl_right(event, data)
 
     @event_handler('btn::back')
+    def go_back(self, event: Event, data: EventData):
+        if self.editing:
+            self.handle_event('cancel', data)
+        else:
+            return AlbumView(AlbumDir(self._albums[self._album_index - 1]), last_view=self)
+
+    @event_handler
     def cancel(self, event: Event, data: EventData):
         self.editing = False
         self.album_formatter.reset_changes()
         self.render()
 
     @event_handler('btn::next')
+    def go_next(self, event: Event, data: EventData):
+        if self.editing:
+            self.handle_event('save', data)
+        else:
+            return AlbumView(AlbumDir(self._albums[self._album_index + 1]), last_view=self)
+
+    @event_handler
     def save(self, event: Event, data: EventData):
         from .diff import AlbumDiffView
 

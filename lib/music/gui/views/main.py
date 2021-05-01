@@ -233,7 +233,10 @@ class MainView(BaseView, view_name='main'):
     def back(self, event: Event, data: EventData, default_cls: Type['MainView'] = None):
         if ((last := self.last_view) is not None) or default_cls is not None:
             kwargs = {'last_view': self, **self._back_kwargs(last)}
-            for attr, obj in zip(('options', 'album', 'album_formatter'), (last, self, self)):
+            to_copy = [
+                (last, 'options'), (last, 'src_album'), (last, 'dst_album'), (self, 'album'), (self, 'album_formatter')
+            ]
+            for obj, attr in to_copy:
                 try:
                     kwargs[attr] = getattr(obj, attr)
                 except AttributeError:

@@ -234,14 +234,12 @@ class AlbumView(MainView, view_name='album'):
 
     @event_handler
     def ctrl_left(self, event: Event, data: EventData):
-        ele_with_focus = self.window.find_element_with_focus()
-        if not isinstance(ele_with_focus, Input):
+        if not isinstance(self.window.find_element_with_focus(), Input):
             super().ctrl_left(event, data)
 
     @event_handler
     def ctrl_right(self, event: Event, data: EventData):
-        ele_with_focus = self.window.find_element_with_focus()
-        if not isinstance(ele_with_focus, Input):
+        if not isinstance(self.window.find_element_with_focus(), Input):
             super().ctrl_right(event, data)
 
     @event_handler('btn::back')

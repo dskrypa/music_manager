@@ -109,4 +109,13 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
 
     @event_handler('btn::next')
     def save(self, event: Event, data: EventData):
-        pass
+        from .diff import AlbumDiffView
+
+        src_info = self.src_formatter.album_info
+        new_info = self.dst_formatter.album_info.copy()
+
+        for src_track, dst_track in zip(src_info.tracks.values(), new_info.tracks.values()):
+            dst_track.rating = src_track.rating
+
+        options = {'no_album_move': True, 'add_genre': False}
+        return AlbumDiffView(self.dst_album, new_info, self.dst_formatter, last_view=self, options=options)

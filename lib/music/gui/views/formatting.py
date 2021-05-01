@@ -402,13 +402,13 @@ class TrackFormatter:
 
         return resize_text_column(rows), ele_binds
 
-    def _rating_row(self, key: str, value, editable: bool = False):
-        key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
+    def _rating_row(self, key: str, value, editable: bool = False, suffix: str = None):
+        key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, suffix))
         row = [
             key_ele,
-            Input(value, key=self.key_for('val', key), disabled=not editable, size=(15, 1)),
-            Text(f'(out of 10)', key=self.key_for('out_of', key), size=(15, 1)),
-            Text(stars(value or 0), key=self.key_for('stars', key), size=(8, 1)),
+            Input(value, key=self.key_for('val', key, suffix), disabled=not editable, size=(15, 1)),
+            Text(f'(out of 10)', key=self.key_for('out_of', key, suffix), size=(12, 1)),
+            Text(stars(value or 0), key=self.key_for('stars', key, suffix), size=(8, 1)),
         ]
         return row
 
@@ -464,9 +464,14 @@ class TrackFormatter:
             if not skip and (src_val or new_val) and src_val != new_val:
                 # self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
-                src_ele, src_bind = value_ele(src_val, src_key, True)
-                new_ele, new_bind = value_ele(new_val, new_key, True)
-                rows.append([label, sep_1, src_ele, sep_2, new_ele])
+                if key == 'rating':
+                    src_row = self._rating_row(key, src_val, suffix='src')[1:]
+                    new_row = self._rating_row(key, new_val, suffix='new')[1:]
+                    rows.append([label, sep_1, *src_row, sep_2, *new_row])
+                else:
+                    src_ele, src_bind = value_ele(src_val, src_key, True)
+                    new_ele, new_bind = value_ele(new_val, new_key, True)
+                    rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows)
 

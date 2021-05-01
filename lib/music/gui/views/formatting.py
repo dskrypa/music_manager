@@ -353,6 +353,9 @@ class TrackFormatter:
     def file_name(self) -> str:
         return self.track.path.name
 
+    def key_for(self, type: str, field: str, suffix: str = None):
+        return f'{type}::{self.path_str}::{field}::{suffix}' if suffix else f'{type}::{self.path_str}::{field}'
+
     def get_tag_rows(self, editable: bool = True) -> tuple[Layout, EleBinds]:
         rows = []
         ele_binds = {}
@@ -367,10 +370,10 @@ class TrackFormatter:
             if n := next(nums[tag_id]):
                 tag_id = f'{tag_id}--{n}'
 
-            key_ele = Text(disp_name, key=f'tag::{self.path_str}::{tag_id}')
-            sel_box = Checkbox('', key=f'del::{self.path_str}::{tag_id}', visible=editable, enable_events=True)
+            key_ele = Text(disp_name, key=self.key_for('tag', tag_id))
+            sel_box = Checkbox('', key=self.key_for('del', tag_id), visible=editable, enable_events=True)
             tooltip = f'Toggle all {tag_id} tags with Shift+Click'
-            val_key = f'val::{self.path_str}::{tag_id}'
+            val_key = self.key_for('val', tag_id)
 
             if disp_name == 'Lyrics':
                 val_ele = Multiline(val, size=(45, 4), key=val_key, disabled=True, tooltip='Pop out with ctrl + click')
@@ -387,8 +390,8 @@ class TrackFormatter:
                         key_ele,
                         sel_box,
                         Input(val, key=val_key, disabled=True, tooltip=tooltip, size=(15, 1)),
-                        Text(f'({rating} / 10)', key=val_key + '::1', size=(15, 1)),
-                        Text(stars(rating), key=val_key + '::2', size=(15, 1)),
+                        Text(f'({rating} / 10)', key=self.key_for('out_of', tag_id), size=(15, 1)),
+                        Text(stars(rating), key=self.key_for('stars', tag_id), size=(15, 1)),
                     ]
                     rows.append(row)
                 ele_binds[val_key] = common_binds
@@ -404,9 +407,19 @@ class TrackFormatter:
         for key, value in self.info.to_dict().items():
             if keys and key not in keys:
                 continue
-            key_ele, val_key = label_and_val_key(self.path_str, key)
-            val_ele, bind = value_ele(value, val_key, not editable)
-            rows.append([key_ele, val_ele])
+
+            key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
+            if key == 'rating':
+                row = [
+                    key_ele,
+                    Input(value, key=self.key_for('val', key), disabled=not editable, size=(15, 1)),
+                    Text(f'(out of 10)', key=self.key_for('out_of', key), size=(15, 1)),
+                    Text(stars(value), key=self.key_for('stars', key), size=(15, 1)),
+                ]
+                rows.append(row)
+            else:
+                val_ele, bind = value_ele(value, self.key_for('val', key), not editable)
+                rows.append([key_ele, val_ele])
 
         return resize_text_column(rows)
 

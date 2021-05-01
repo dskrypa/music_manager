@@ -196,6 +196,7 @@ class DarkInput(Input):
             kwargs.setdefault('disabled_readonly_background_color', '#a2a2a2')
             kwargs.setdefault('disabled_readonly_text_color', '#000000')
         super().__init__(*args, **kwargs)
+        self._valid_value = True
 
     @property
     def disabled_readonly_background_color(self):
@@ -237,3 +238,11 @@ class DarkInput(Input):
                 if text_color := kwargs.get('text_color'):
                     # log.info(f'Setting {text_color=!r} for {self!r}')
                     self.TKEntry.configure(fg=text_color)
+
+    def validated(self, valid: bool):
+        if self._valid_value != valid:
+            self._valid_value = valid
+            if valid:
+                self.update(background_color=self.TextColor, text_color=self.BackgroundColor)
+            else:
+                self.update(background_color='#781F1F', text_color='#FFFFFF')

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
 
+from ...common.utils import stars
 from ...files.album import AlbumDir
 from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
@@ -40,6 +41,7 @@ class AlbumView(MainView, view_name='album'):
         self.binds['<Control-e>'] = 'edit'
         self._image_path = None
         self._failed_validation = {}
+        self._rating_callback_names = {}
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -90,15 +92,52 @@ class AlbumView(MainView, view_name='album'):
 
     def toggle_editing(self):
         self.editing = not self.editing
-        always_ro = {'val::album::mp4'}
         for key, ele in self.window.key_dict.items():
-            if isinstance(key, str) and key.startswith(('val::', 'add::')) and key not in always_ro:
+            if can_toggle_editable(key, ele):
                 ele.update(disabled=not self.editing)
 
         self.window['col::view_buttons'].update(visible=not self.editing)
         self.window['col::edit_buttons'].update(visible=self.editing)
         self.window['btn::back'].update(visible=self.editing)
         self.window['btn::next'].update(visible=self.editing)
+        self._toggle_rating_handlers()
+
+    def _toggle_rating_handlers(self):
+        for track_formatter in self.album_formatter:
+            val_key = track_formatter.key_for('val', 'rating')
+            rating_ele = self.window[val_key]
+            if self.editing:
+                star_key = track_formatter.key_for('stars', 'rating')
+                self._rating_callback_names[val_key] = rating_ele.TKStringVar.trace_add(
+                    'write', partial(self._handle_rating_edit, val_key, star_key)
+                )
+            else:
+                try:
+                    cb_name = self._rating_callback_names.pop(val_key)
+                except KeyError:
+                    pass
+                else:
+                    rating_ele.TKStringVar.trace_remove('write', cb_name)
+
+    def _handle_rating_edit(self, val_key: str, star_key: str, tk_var_name: str, index, operation: str):
+        # noinspection PyTypeChecker
+        rating_ele = self.window[val_key]  # type: Input
+        star_ele = self.window[star_key]  # type: Text
+
+        if value := rating_ele.TKStringVar.get():
+            try:
+                value = int(value)
+                stars_to_256(value, 10)
+            except (ValueError, TypeError) as e:
+                rating_ele.validated(False)
+                popup_error(f'Invalid rating for track={split_key(val_key)[1]}:\n{e}', multiline=True, auto_size=True)
+                value = 0
+            else:
+                rating_ele.validated(True)
+        else:
+            rating_ele.validated(True)
+            value = 0
+        star_ele.update(stars(value))
 
     def handle_event(self, event: Event, data: EventData):
         if not self.editing and (event == 'btn::back' or event == 'btn::next'):
@@ -229,3 +268,8 @@ class AlbumView(MainView, view_name='album'):
         if path := self.album_formatter.get_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
             # TODO: Update image data
+
+
+def can_toggle_editable(key, ele):
+    if isinstance(key, str) and key.startswith(('val::', 'add::')) and key != 'val::album::mp4':
+        return not isinstance(ele, Text)

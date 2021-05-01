@@ -5,7 +5,10 @@ View: Text Popup
 """
 
 from concurrent.futures import Future
+from contextlib import contextmanager
 from threading import current_thread
+
+from PySimpleGUI import Window
 
 from ..base import event_handler, GuiView, Event, EventData
 
@@ -29,7 +32,8 @@ class BasePopup(GuiView, view_name='_base_popup', primary=False):
 
     def get_result(self):
         if current_thread().name == 'MainThread':
-            return self._get_result()
+            with mainloop_fixer():
+                return self._get_result()
 
         future = Future()
         self.pending_prompts.put((future, self._get_result, (), {}))
@@ -39,3 +43,18 @@ class BasePopup(GuiView, view_name='_base_popup', primary=False):
     def start_popup(cls, *args, **kwargs):
         popup = cls(*args, **kwargs)
         return popup.get_result()
+
+
+@contextmanager
+def mainloop_fixer():
+    """
+    Restores the expected mainloop in case a TK callback opened a Window (most likely as a popup) while a call to
+    Window.read was still pending
+    """
+    original = Window._window_running_mainloop
+    try:
+        yield
+    finally:
+        if original:
+            Window._window_running_mainloop = original
+            Window._root_running_mainloop = original.TKroot

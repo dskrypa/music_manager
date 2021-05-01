@@ -25,6 +25,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from fnmatch import _compile_pattern
 from functools import partial, update_wrapper
+from itertools import count
 from queue import Queue
 from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
@@ -92,6 +93,7 @@ class _EventHandler:
 
 class GuiView(ABC):
     _ele_event_match = re.compile(r'^(.*?):::([a-zA-Z_]+)$').match
+    _counter = count()
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
     pending_prompts = Queue()
@@ -117,6 +119,7 @@ class GuiView(ABC):
         # print(f'Initialized subclass={cls.__name__!r}')
 
     def __init__(self, binds: Mapping[str, str] = None):
+        self._view_num = next(self._counter)
         self.binds = binds or {}
         # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
         if self.name not in self.wildcard_handlers:  # Populate/compile wildcard patterns once per class
@@ -132,7 +135,9 @@ class GuiView(ABC):
         return self
 
     def __next__(self) -> tuple[str, dict[str, Any]]:
+        # self.log.debug(f'[View#{self._view_num}] Calling self.window.read...', extra={'color': 11})
         event, data = self.window.read()
+        # self.log.debug(f'[View#{self._view_num}] Read {event=}', extra={'color': 10})
         if event == 'Exit' or event == WIN_CLOSED:
             raise StopIteration
         return event, data
@@ -242,6 +247,7 @@ class GuiView(ABC):
         if self.primary:
             if old_window is not None:
                 old_window.close()
+                del old_window
 
             self.log.debug(f'Replacing GuiView.active_view={last_view.name if last_view else last_view}')
             GuiView.active_view = self

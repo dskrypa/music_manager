@@ -6,7 +6,7 @@ Album / track formatting helper functions.
 
 from collections import defaultdict
 from concurrent import futures
-from functools import cached_property
+from functools import cached_property, partial
 from io import BytesIO
 from itertools import count
 from pathlib import Path
@@ -402,25 +402,39 @@ class TrackFormatter:
 
         return resize_text_column(rows), ele_binds
 
+    def _rating_row(self, key: str, value, editable: bool = False):
+        key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
+        row = [
+            key_ele,
+            Input(value, key=self.key_for('val', key), disabled=not editable, size=(15, 1)),
+            Text(f'(out of 10)', key=self.key_for('out_of', key), size=(15, 1)),
+            Text(stars(value or 0), key=self.key_for('stars', key), size=(8, 1)),
+        ]
+        return row
+
     def get_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         rows = []
         for key, value in self.info.to_dict().items():
             if keys and key not in keys:
                 continue
 
-            key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
             if key == 'rating':
-                row = [
-                    key_ele,
-                    Input(value, key=self.key_for('val', key), disabled=not editable, size=(15, 1)),
-                    Text(f'(out of 10)', key=self.key_for('out_of', key), size=(15, 1)),
-                    Text(stars(value or 0), key=self.key_for('stars', key), size=(8, 1)),
-                ]
-                rows.append(row)
+                rows.append(self._rating_row(key, value, editable))
             else:
+                key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
                 val_ele, bind = value_ele(value, self.key_for('val', key), not editable)
                 rows.append([key_ele, val_ele])
 
+        return resize_text_column(rows)
+
+    def get_sync_rows(self):
+        row = [
+            Text('Num', key=self.key_for('tag', 'num')),
+            Input(self.info.num, key=self.key_for('val', 'num'), disabled=True, size=(5, 1)),
+            Text('Title', key=self.key_for('tag', 'title')),
+            Input(self.info.title, key=self.key_for('val', 'title'), disabled=True),
+        ]
+        rows = [row, self._rating_row('rating', self.info.rating, False)]
         return resize_text_column(rows)
 
     def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):
@@ -497,3 +511,8 @@ class TrackFormatter:
             yield [Column(diff_rows, key=f'col::{self.path_str}::diff')]
         else:
             yield []
+
+    def as_sync_rows(self):
+        yield [HorizontalSeparator()]
+        yield self.get_basic_info_row()
+        yield from self.get_sync_rows()

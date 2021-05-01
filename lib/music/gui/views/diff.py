@@ -5,7 +5,7 @@ View: Diff between original and modified tag values.  Used for both manual and W
 """
 
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 from PySimpleGUI import Text, Image, Column, HSep, Button
 
@@ -113,19 +113,16 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         return full_layout, kwargs, ele_binds
 
+    def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
+        if last.name == 'album':
+            return {'editing': True}
+        return {}
+
     @event_handler('btn::back')
     def back(self, event: Event, data: EventData):
         from .album import AlbumView
 
-        if (last := self.last_view) is not None:
-            kwargs = {}
-            if isinstance(last, AlbumView):
-                kwargs['editing'] = True
-            elif last.name == 'wiki_update':
-                kwargs['options'] = last.options  # noqa
-            return last.__class__(album=self.album, album_formatter=self.album_formatter, last_view=self, **kwargs)
-
-        return AlbumView(self.album, self.album_formatter, last_view=self)
+        return super().back(event, data, AlbumView)
 
     @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')
     def refresh(self, event: Event, data: EventData):

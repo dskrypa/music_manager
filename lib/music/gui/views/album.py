@@ -43,6 +43,47 @@ class AlbumView(MainView, view_name='album'):
         self._failed_validation = {}
         self._rating_callback_names = {}
 
+    def _prepare_button_rows(self):
+        bkw = {'size': (18, 1)}
+        view_buttons = [
+            Button('Edit', key='edit', **bkw),
+            Button('View All Tags', key='all_tags', **bkw),
+            Button('Wiki Update', key='wiki_update', **bkw),
+        ]
+        sync_buttons = [
+            Button('Sync Ratings From...', key='sync_ratings::dst_album', **bkw),
+            Button('Sync Ratings To...', key='sync_ratings::src_album', **bkw),
+        ]
+        edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
+        album_buttons = [
+            Column([view_buttons, sync_buttons], key='col::view_buttons', visible=not self.editing),
+            Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
+        ]
+        button_rows = [
+            album_buttons,
+            [Button('\U0001f5c1', key='select_album', font=('Helvetica', 20), size=(10, 1), tooltip='Open')],
+        ]
+        return button_rows
+
+    def _prepare_album_column(self, spinner: Spinner):
+        spinner.update()
+        album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing)
+        spinner.update()
+        album_data = [
+            Column([[self.album_formatter.cover_image_thumbnail()]], key='col::album_cover'),
+            Column(album_data_rows, key='col::album_data'),
+        ]
+        spinner.update()
+        alb_col_rows = [album_data, [HorizontalSeparator()], *self._prepare_button_rows()]
+        album_column = Column(
+            alb_col_rows, vertical_alignment='top', element_justification='center', key='col::album_container'
+        )
+        return album_column, album_binds
+
+    def _prepare_track_column(self, spinner: Spinner):
+        track_rows = list(chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_formatter)))
+        return Column(track_rows, key='col::track_data', size=(685, 690), scrollable=True, vertical_scroll_only=True)
+
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
         ele_binds = {}
@@ -51,37 +92,11 @@ class AlbumView(MainView, view_name='album'):
                 [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
                 [HorizontalSeparator()],
             ]
-            spinner.update()
-            bkw = {'size': (18, 1)}
-            view_buttons = [
-                Button('Edit', key='edit', **bkw),
-                Button('View All Tags', key='all_tags', **bkw),
-                Button('Wiki Update', key='wiki_update', **bkw),
-            ]
-            edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
-            album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing)
-            ele_binds.update(album_binds)
-            album_data = [
-                Column([[self.album_formatter.cover_image_thumbnail()]], key='col::album_cover'),
-                Column(album_data_rows, key='col::album_data'),
-            ]
-            album_buttons = [
-                Column([view_buttons], key='col::view_buttons', visible=not self.editing),
-                Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
-            ]
-            open_button = Button('\U0001f5c1', key='select_album', font=('Helvetica', 20), size=(10, 1), tooltip='Open')
-            alb_col = [album_data, [HorizontalSeparator()], album_buttons, [open_button]]
-            album_container = Column(
-                alb_col, vertical_alignment='top', element_justification='center', key='col::album_container'
-            )
-            track_rows = list(
-                chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_formatter))
-            )
-            track_data = Column(
-                track_rows, key='col::track_data', size=(685, 690), scrollable=True, vertical_scroll_only=True
-            )
-            data_col = Column([[album_container, track_data]], key='col::all_data', justification='center', pad=(0, 0))
+            album_column, album_binds = self._prepare_album_column(spinner)
+            track_column = self._prepare_track_column(spinner)
+            data_col = Column([[album_column, track_column]], key='col::all_data', justification='center', pad=(0, 0))
             layout.append([data_col])
+            ele_binds.update(album_binds)
 
         workflow = self.as_workflow(
             layout, back_tooltip='Cancel Changes', next_tooltip='Review & Save Changes', visible=self.editing
@@ -302,6 +317,19 @@ class AlbumView(MainView, view_name='album'):
         if path := self.album_formatter.get_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
             # TODO: Update image data
+
+    @event_handler('sync_ratings::*')
+    def sync_ratings(self, event: Event, data: EventData):
+        from .rating_sync import SyncRatingsView
+
+        try:
+            kwargs = {event.split('::', 1)[1]: self.album}
+        except IndexError:
+            kwargs = {}
+        try:
+            return SyncRatingsView(last_view=self, **kwargs)
+        except ValueError as e:
+            popup_error(str(e))
 
 
 def can_toggle_editable(key, ele):

@@ -50,7 +50,7 @@ class AlbumFormatter:
         return self.view.log
 
     @property
-    def album_info(self):
+    def album_info(self) -> AlbumInfo:
         if self._new_album_info is None:
             return self._src_album_info
         return self._new_album_info
@@ -414,7 +414,7 @@ class TrackFormatter:
                     key_ele,
                     Input(value, key=self.key_for('val', key), disabled=not editable, size=(15, 1)),
                     Text(f'(out of 10)', key=self.key_for('out_of', key), size=(15, 1)),
-                    Text(stars(value), key=self.key_for('stars', key), size=(8, 1)),
+                    Text(stars(value or 0), key=self.key_for('stars', key), size=(8, 1)),
                 ]
                 rows.append(row)
             else:

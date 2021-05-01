@@ -9,17 +9,19 @@ Defines the top menu and some common configuration properties.
 import webbrowser
 from functools import cached_property
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Type
 
 from PySimpleGUI import Button, Element, Column, Text, Image
 
 from tz_aware_dt.tz_aware_dt import now
+from ds_tools.core.decorate import classproperty
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..state import GuiState
 from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
+from .popups.text import popup_error
 from .utils import split_key
 
 __all__ = ['MainView']
@@ -31,14 +33,14 @@ NEXT_BIND = '<Control-Right>'
 
 class MainView(BaseView, view_name='main'):
     back_tooltip = 'Go back to previous view'
+    state = GuiState()
 
     def __init__(self, *, last_view: 'MainView' = None, **kwargs):
         super().__init__(**kwargs)
         self.last_view = last_view
-        self.state = GuiState()
         self.menu = [
             ['&File', ['&Open', 'Ou&tput', 'E&xit']],
-            ['&Actions', ['&Clean', '&Edit', '&Wiki Update']],
+            ['&Actions', ['&Clean', '&Edit', '&Wiki Update', '&Sync Ratings']],
             ['&Help', ['&About']],
         ]
         self.binds[BACK_BIND] = 'ctrl_left'
@@ -56,13 +58,13 @@ class MainView(BaseView, view_name='main'):
         if self._next_key:
             return self.handle_event(self._next_key, data)
 
-    @property
-    def output_base_dir(self) -> Path:
-        return Path(self.state.get('output_base_dir', DEFAULT_OUTPUT_DIR)).expanduser()
+    @classproperty
+    def output_base_dir(cls) -> Path:
+        return Path(cls.state.get('output_base_dir', DEFAULT_OUTPUT_DIR)).expanduser()
 
-    @property
-    def output_sorted_dir(self) -> Path:
-        return self.output_base_dir.joinpath('sorted_{}'.format(now('%Y-%m-%d')))
+    @classproperty
+    def output_sorted_dir(cls) -> Path:
+        return cls.output_base_dir.joinpath('sorted_{}'.format(now('%Y-%m-%d')))
 
     @cached_property
     def display_name(self) -> str:
@@ -95,14 +97,15 @@ class MainView(BaseView, view_name='main'):
                 if key.startswith('spacer::'):
                     element.expand(True, True, True)
 
-    def _get_last_dir(self) -> Optional[Path]:
-        if last_dir := self.state.get('last_dir'):
+    @classmethod
+    def _get_last_dir(cls) -> Optional[Path]:
+        if last_dir := cls.state.get('last_dir'):
             last_dir = Path(last_dir)
             if not last_dir.exists():
                 if last_dir.parent.exists():
                     return last_dir.parent
                 else:
-                    return self.output_base_dir
+                    return cls.output_base_dir
         return None
 
     def get_album_selection(self, new: bool = False) -> Optional[AlbumDir]:
@@ -223,6 +226,24 @@ class MainView(BaseView, view_name='main'):
 
         return [back_col, content_column, next_col]
 
+    def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
+        return {}
+
+    @event_handler('btn::back')
+    def back(self, event: Event, data: EventData, default_cls: Type['MainView'] = None):
+        if ((last := self.last_view) is not None) or default_cls is not None:
+            kwargs = {'last_view': self, **self._back_kwargs(last)}
+            for attr, obj in zip(('options', 'album', 'album_formatter'), (last, self, self)):
+                try:
+                    kwargs[attr] = getattr(obj, attr)
+                except AttributeError:
+                    pass
+
+            cls = last.__class__ if last else default_cls
+            return cls(**kwargs)
+
+        self.log.warning(f'The back button was clicked, but there was no last view to return to', extra={'color': 11})
+
     @event_handler
     def open_link(self, event: Event, data: EventData):
         # self.log.debug(f'Open link request received for {event=!r}')
@@ -242,3 +263,12 @@ class MainView(BaseView, view_name='main'):
             else:
                 track_formatter = album_formatter.track_formatters[img_src]
                 return ImageView(track_formatter.cover_image_obj, f'Track Album Cover: {track_formatter.file_name}')
+
+    @event_handler
+    def sync_ratings(self, event: Event, data: EventData):
+        from .rating_sync import SyncRatingsView
+
+        try:
+            return SyncRatingsView(last_view=self)
+        except ValueError as e:
+            popup_error(str(e))

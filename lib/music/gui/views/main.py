@@ -41,6 +41,20 @@ class MainView(BaseView, view_name='main'):
             ['&Actions', ['&Clean', '&Edit', '&Wiki Update']],
             ['&Help', ['&About']],
         ]
+        self.binds[BACK_BIND] = 'ctrl_left'
+        self.binds[NEXT_BIND] = 'ctrl_right'
+        self._back_key = None
+        self._next_key = None
+
+    @event_handler
+    def ctrl_left(self, event: Event, data: EventData):
+        if self._back_key:
+            return self.handle_event(self._back_key, data)
+
+    @event_handler
+    def ctrl_right(self, event: Event, data: EventData):
+        if self._next_key:
+            return self.handle_event(self._next_key, data)
 
     @property
     def output_base_dir(self) -> Path:
@@ -54,15 +68,7 @@ class MainView(BaseView, view_name='main'):
     def display_name(self) -> str:
         return self.name.replace('_', ' ').title()
 
-    def _clear_binds(self):
-        for key in (BACK_BIND, NEXT_BIND):
-            try:
-                del self.binds[key]
-            except KeyError:
-                pass
-
     def get_render_args(self) -> RenderArgs:
-        self._clear_binds()
         layout, kwargs = super().get_render_args()
         if self.__class__ is MainView:
             select_button = Button(
@@ -187,8 +193,8 @@ class MainView(BaseView, view_name='main'):
         scrollable: bool = False,
         **kwargs
     ) -> list[Element]:
-        self.binds[BACK_BIND] = back_key
-        self.binds[NEXT_BIND] = next_key
+        self._back_key = back_key
+        self._next_key = next_key
         section_args = {'back': {}, 'next': {}}
         for key, val in tuple(kwargs.items()):
             if key.startswith(('back_', 'next_')):

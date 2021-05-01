@@ -10,10 +10,11 @@ from itertools import chain
 from pathlib import Path
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
+from tkinter import Frame
 
 from ...common.utils import stars
 from ...files.album import AlbumDir
-from ...files.track.utils import stars_to_256, stars_from_256
+from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
@@ -29,7 +30,6 @@ __all__ = ['AlbumView']
 
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
-    # TODO: Don't make ctrl+left go back when a text field has focus
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(**kwargs)
@@ -101,6 +101,15 @@ class AlbumView(MainView, view_name='album'):
         self.window['btn::back'].update(visible=self.editing)
         self.window['btn::next'].update(visible=self.editing)
         self._toggle_rating_handlers()
+        if self.editing:
+            self.window.TKroot.bind('<Button-1>', self._handle_click)
+        else:
+            self.window.TKroot.unbind('<Button-1>')
+
+    def _handle_click(self, event):
+        widget = event.widget
+        if isinstance(widget, Frame):
+            widget.focus_set()
 
     def _toggle_rating_handlers(self):
         for track_formatter in self.album_formatter:
@@ -203,16 +212,28 @@ class AlbumView(MainView, view_name='album'):
 
         return AllTagsView(self.album, self.album_formatter, last_view=self)
 
+    @event_handler('Edit')
+    def edit(self, event: Event, data: EventData):
+        if not self.editing:
+            self.toggle_editing()
+
+    @event_handler
+    def ctrl_left(self, event: Event, data: EventData):
+        ele_with_focus = self.window.find_element_with_focus()
+        if not isinstance(ele_with_focus, Input):
+            super().ctrl_left(event, data)
+
+    @event_handler
+    def ctrl_right(self, event: Event, data: EventData):
+        ele_with_focus = self.window.find_element_with_focus()
+        if not isinstance(ele_with_focus, Input):
+            super().ctrl_right(event, data)
+
     @event_handler('btn::back')
     def cancel(self, event: Event, data: EventData):
         self.editing = False
         self.album_formatter.reset_changes()
         self.render()
-
-    @event_handler('Edit')
-    def edit(self, event: Event, data: EventData):
-        if not self.editing:
-            self.toggle_editing()
 
     @event_handler('btn::next')
     def save(self, event: Event, data: EventData):

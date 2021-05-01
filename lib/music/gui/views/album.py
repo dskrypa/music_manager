@@ -62,11 +62,15 @@ class AlbumView(MainView, view_name='album'):
             Column(view_button_rows, key='col::view_buttons', visible=not self.editing, element_justification='center'),
             Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
         ]
-        button_rows = [
-            album_buttons,
-            [Button('\U0001f5c1', key='select_album', font=('Helvetica', 20), size=(10, 1), tooltip='Open')],
-        ]
-        return button_rows
+        open_button = Button(
+            '\U0001f5c1',
+            key='select_album',
+            font=('Helvetica', 20),
+            size=(10, 1),
+            tooltip='Open',
+            visible=not self.editing,
+        )
+        return [album_buttons, [open_button]]
 
     def _prepare_album_column(self, spinner: Spinner):
         spinner.update()

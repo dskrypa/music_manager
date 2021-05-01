@@ -48,6 +48,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.options.add_bool('add_genre', 'Add Genre', default=True, enable_events=True, tooltip='Add any specified genres instead of replacing them')
         self.options.add_bool('title_case', 'Title Case', enable_events=True)
         self.options.add_bool('no_album_move', 'Do Not Move Album', enable_events=True)
+        self.options.add_bool('rename_in_place', 'Rename Album In-Place', enable_events=True)
         self.options.update(options)
 
     @cached_property
@@ -62,7 +63,8 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         if self.options['no_album_move']:
             return None
 
-        dest_album_path = self.album_formatter.get_dest_path(self.album_info, self.output_sorted_dir)
+        dest_base_dir = self.album.path.parents[2] if self.options['rename_in_place'] else self.output_sorted_dir
+        dest_album_path = self.album_formatter.get_dest_path(self.album_info, dest_base_dir)
         if dest_album_path and self.album.path != dest_album_path:
             return dest_album_path
         return None
@@ -124,10 +126,19 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         return super().back(event, data, AlbumView)
 
-    @event_handler('opt::title_case', 'opt::add_genre', 'opt::no_album_move')
+    @event_handler('opt::*')
     def refresh(self, event: Event, data: EventData):
         self.options.parse(data)
         self.render()
+        if self.options['no_album_move']:
+            self.window['opt::rename_in_place'].update(disabled=True)
+            self.window['opt::no_album_move'].update(disabled=False)
+        elif self.options['rename_in_place']:
+            self.window['opt::no_album_move'].update(disabled=True)
+            self.window['opt::rename_in_place'].update(disabled=False)
+        else:
+            self.window['opt::rename_in_place'].update(disabled=False)
+            self.window['opt::no_album_move'].update(disabled=False)
 
     @event_handler('img::*')
     def image_clicked(self, event: Event, data: EventData):

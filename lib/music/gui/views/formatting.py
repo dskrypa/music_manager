@@ -141,9 +141,9 @@ class AlbumFormatter:
             if self.album_dir.path not in _multiple_covers_warned:
                 _multiple_covers_warned.add(self.album_dir.path)
                 popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}', keep_on_top=True)
-        return self._make_thumnail_image(image, key, can_replace)
+        return self._make_thumbnail_image(image, key, can_replace)
 
-    def _make_thumnail_image(self, image: Union[Optional[bytes], 'PILImage'], key, can_replace: bool = False):
+    def _make_thumbnail_image(self, image: Union[Optional[bytes], 'PILImage'], key, can_replace: bool = False):
         kwargs = dict(size=self.cover_size, key=key)
         if image is not None:
             if isinstance(image, PILImage):
@@ -196,7 +196,7 @@ class AlbumFormatter:
             new_pil_image, img_data = new_album_info.get_new_cover(self.album_dir, src_pil_image, force=True)
             if new_pil_image is not None:
                 src_img_ele = self.cover_image_thumbnail('img::album::cover-src', False)
-                new_img_ele = self._make_thumnail_image(new_pil_image, 'img::album::cover-new')
+                new_img_ele = self._make_thumbnail_image(new_pil_image, 'img::album::cover-new')
                 return src_img_ele, new_img_ele, new_pil_image, img_data
         return None
 
@@ -228,7 +228,7 @@ class AlbumFormatter:
 
         return resize_text_column(rows), ele_binds
 
-    def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path) -> Optional[Path]:
+    def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path = None) -> Optional[Path]:
         try:
             expected_rel_dir = new_album_info.expected_rel_dir
         except AttributeError:

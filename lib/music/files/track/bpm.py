@@ -35,7 +35,13 @@ def get_bpm(path: Union[str, Path], sample_rate=44100, window_size=1024, hop_siz
 
         with TemporaryDirectory() as d:
             temp_path = Path(d).joinpath('temp.wav').as_posix()
-            ffmpeg.input(path.as_posix()).output(temp_path).run(quiet=True, cmd=find_ffmpeg())
+            ffmpeg_obj = ffmpeg.input(path.as_posix())
+            if sample_rate > 44100:
+                ffmpeg_obj = ffmpeg_obj.output(temp_path, ar=44100)  # Aubio was choking on 96000 Hz FLACs
+                sample_rate = 44100
+            else:
+                ffmpeg_obj = ffmpeg_obj.output(temp_path)
+            ffmpeg_obj.run(quiet=True, cmd=find_ffmpeg())
             return _get_bpm(temp_path, sample_rate, window_size, hop_size)
     else:
         return _get_bpm(path, sample_rate, window_size, hop_size)

@@ -316,7 +316,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 existing.add(value)
             value = sorted(existing)
 
-        if tag_type == 'flac' and tag_id in ('TRACKNUMBER', 'DISCNUMBER', 'POPM'):
+        if tag_type == 'flac' and tag_id in ('TRACKNUMBER', 'DISCNUMBER', 'POPM', 'BPM'):
             value = list(map(str, value))
         elif tag_type == 'mp4' and tag_id.startswith('----:'):
             value = [v.encode('utf-8') if isinstance(v, str) else v for v in value]

@@ -62,8 +62,7 @@ class CleanView(MainView, view_name='clean'):
         file_list = Multiline(file_list_str, key='file_list', size=(120, 5), disabled=True)
         file_col = Column([[Text(f'Files ({len(self.files)}):')], [file_list]], key='col::file_list')
 
-        to_clean = sum(1 for f in self.files if f.tag_type != 'flac')
-        total_steps = to_clean + len(self.files) + (len(self.files) if self.options['bpm'] else 0)
+        total_steps = len(self.files) * (3 if self.options['bpm'] else 2)
         win_w, win_h = self._window_size
         bar_w = (win_w - 159) // 11
         track_text = Text('', size=(bar_w - 12, 1))
@@ -114,11 +113,8 @@ class CleanView(MainView, view_name='clean'):
                 self.prog_tracker.text.update('Adding BPM...')
                 _init_logging = partial(init_logging, 2, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
                 add_bpm_func = partial(_add_bpm, dry_run=dry_run)
-                # Using a list instead of an iterator because pool.map needs to be able to chunk the items
-                tracks = [f for f in self.files if f.tag_type != 'flac']
-                # tracks = list(self.files)
                 with Pool(self.options['threads'], _init_logging) as pool:
-                    for result in self.prog_tracker(pool.imap_unordered(add_bpm_func, tracks)):
+                    for result in self.prog_tracker(pool.imap_unordered(add_bpm_func, list(self.files))):
                         self.result_logger.info(result)
 
         popup_ok('Finished processing tracks')

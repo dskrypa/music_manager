@@ -9,7 +9,7 @@ Defines the top menu and some common configuration properties.
 import webbrowser
 from functools import cached_property
 from pathlib import Path
-from typing import Optional, Any, Type
+from typing import Optional, Any, Type, Union
 
 from PySimpleGUI import Button, Element, Column, Text, Image
 
@@ -108,7 +108,7 @@ class MainView(BaseView, view_name='main'):
                     return cls.output_base_dir
         return None
 
-    def get_album_selection(self, new: bool = False) -> Optional[AlbumDir]:
+    def get_album_selection(self, new: bool = False, require_album: bool = True) -> Optional[Union[AlbumDir, Path]]:
         if not new:
             if album := getattr(self, 'album', None):
                 return album
@@ -120,10 +120,13 @@ class MainView(BaseView, view_name='main'):
                 self.state['last_dir'] = path.as_posix()
                 self.state.save()
             self.log.debug(f'Selected album {path=}')
-            try:
-                return AlbumDir(path)
-            except InvalidAlbumDir as e:
-                popup_input_invalid(str(e), logger=self.log)
+            if require_album:
+                try:
+                    return AlbumDir(path)
+                except InvalidAlbumDir as e:
+                    popup_input_invalid(str(e), logger=self.log)
+            else:
+                return path
         else:
             self.window.force_focus()
 
@@ -164,10 +167,11 @@ class MainView(BaseView, view_name='main'):
 
     @event_handler
     def clean(self, event: Event, data: EventData):
-        if album := self.get_album_selection():
+        if album := self.get_album_selection(require_album=False):
             from .clean import CleanView
 
-            return CleanView(album, last_view=self)
+            kwargs = {'album' if isinstance(album, AlbumDir) else 'path': album}
+            return CleanView(last_view=self, **kwargs)
 
     @event_handler
     def output(self, event: Event, data: EventData):
@@ -232,17 +236,23 @@ class MainView(BaseView, view_name='main'):
     @event_handler('btn::back')
     def back(self, event: Event, data: EventData, default_cls: Type['MainView'] = None):
         if ((last := self.last_view) is not None) or default_cls is not None:
-            kwargs = {'last_view': self, **self._back_kwargs(last)}
-            to_copy = [
-                (last, 'options'), (last, 'src_album'), (last, 'dst_album'), (self, 'album'), (self, 'album_formatter')
-            ]
-            for obj, attr in to_copy:
-                try:
-                    kwargs[attr] = getattr(obj, attr)
-                except AttributeError:
-                    pass
-
             cls = last.__class__ if last else default_cls
+            kwargs = {'last_view': self}
+            if cls is not MainView:
+                kwargs.update(self._back_kwargs(last))
+                to_copy = [
+                    (last, 'options'),
+                    (last, 'src_album'),
+                    (last, 'dst_album'),
+                    (self, 'album'),
+                    (self, 'album_formatter'),
+                ]
+                for obj, attr in to_copy:
+                    try:
+                        kwargs[attr] = getattr(obj, attr)
+                    except AttributeError:
+                        pass
+
             self.log.debug(f'Returning previous view={cls.__name__} with {kwargs=}')
             return cls(**kwargs)
 

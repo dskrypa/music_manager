@@ -13,7 +13,7 @@ from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_tex
 
 from ...common.utils import stars
 from ...files.album import AlbumDir
-from ...files.track.utils import stars_to_256
+from ...files.track.utils import stars_to_256, stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..progress import Spinner
@@ -105,9 +105,12 @@ class AlbumView(MainView, view_name='album'):
     def _toggle_rating_handlers(self):
         for track_formatter in self.album_formatter:
             val_key = track_formatter.key_for('val', 'rating')
+            star_key = track_formatter.key_for('stars', 'rating')
             rating_ele = self.window[val_key]
+            star_ele = self.window[star_key]
             if self.editing:
-                star_key = track_formatter.key_for('stars', 'rating')
+                star_ele.Widget.bind('<Button-1>', partial(self._handle_star_clicked, val_key, star_key))
+                star_ele.Widget.bind('<B1-Motion>', partial(self._handle_star_clicked, val_key, star_key))
                 self._rating_callback_names[val_key] = rating_ele.TKStringVar.trace_add(
                     'write', partial(self._handle_rating_edit, val_key, star_key)
                 )
@@ -118,6 +121,16 @@ class AlbumView(MainView, view_name='album'):
                     pass
                 else:
                     rating_ele.TKStringVar.trace_remove('write', cb_name)
+                    star_ele.Widget.unbind('<Button-1>')
+                    star_ele.Widget.unbind('<B1-Motion>')
+
+    def _handle_star_clicked(self, val_key: str, star_key: str, event):
+        # noinspection PyTypeChecker
+        rating_ele = self.window[val_key]  # type: Input
+        star_ele = self.window[star_key]
+        rating = round(int(100 * event.x / star_ele.Widget.winfo_width()) / 10)
+        rating_ele.update(10 if rating > 10 else 0 if rating < 0 else rating)
+        rating_ele.validated(True)
 
     def _handle_rating_edit(self, val_key: str, star_key: str, tk_var_name: str, index, operation: str):
         # noinspection PyTypeChecker

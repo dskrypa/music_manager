@@ -23,7 +23,7 @@ from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from .base import Layout, EleBinds
-from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, split_key, DarkInput as Input
+from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, DarkInput as Input
 from .popups.simple import popup_ok
 from .thread_tasks import start_task
 

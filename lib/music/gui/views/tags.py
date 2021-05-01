@@ -49,10 +49,12 @@ class AllTagsView(MainView, view_name='all_tags'):
                 ele_binds.update(track_binds)
 
             col_left = Column([[Image(size=(165, 0), pad=(0, 0))]], key='spacer::1', pad=(0, 0))  # image fixes center
-            common = dict(pad=(0, 0), justification='center', vertical_alignment='center')
-            tracks_inner = Column(track_rows, key='col::__tracks_inner__', expand_y=True, expand_x=True, **common)
+
+            common = dict(pad=(0, 0), justification='center', vertical_alignment='center', expand_y=True, expand_x=True)
+            tracks_inner = Column(track_rows, key='col::__tracks_inner__', **common)
+            scroll = len(self.album_formatter.track_formatters) > 1
             track_col = Column(
-                [[tracks_inner]], key='col::track_data', scrollable=True, vertical_scroll_only=True, **common
+                [[tracks_inner]], key='col::track_data', scrollable=scroll, vertical_scroll_only=True, **common
             )
 
             options_frame = Frame(None, self.options.layout('delete_tags'), key='frame::options')  # noqa

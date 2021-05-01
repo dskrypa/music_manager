@@ -45,18 +45,21 @@ class AlbumView(MainView, view_name='album'):
 
     def _prepare_button_rows(self):
         bkw = {'size': (18, 1)}
-        view_buttons = [
-            Button('Edit', key='edit', **bkw),
-            Button('View All Tags', key='all_tags', **bkw),
-            Button('Wiki Update', key='wiki_update', **bkw),
-        ]
-        sync_buttons = [
-            Button('Sync Ratings From...', key='sync_ratings::dst_album', **bkw),
-            Button('Sync Ratings To...', key='sync_ratings::src_album', **bkw),
+        view_button_rows = [
+            [
+                Button('Clean & Add BPM', key='clean', **bkw),
+                Button('View All Tags', key='all_tags', **bkw),
+                Button('Wiki Update', key='wiki_update', **bkw),
+            ],
+            [
+                Button('Edit', key='edit', **bkw),
+                Button('Sync Ratings From...', key='sync_ratings::dst_album', **bkw),
+                Button('Sync Ratings To...', key='sync_ratings::src_album', **bkw),
+            ],
         ]
         edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
         album_buttons = [
-            Column([view_buttons, sync_buttons], key='col::view_buttons', visible=not self.editing),
+            Column(view_button_rows, key='col::view_buttons', visible=not self.editing, element_justification='center'),
             Column([edit_buttons], key='col::edit_buttons', visible=self.editing),
         ]
         button_rows = [
@@ -113,6 +116,7 @@ class AlbumView(MainView, view_name='album'):
 
         self.window['col::view_buttons'].update(visible=not self.editing)
         self.window['col::edit_buttons'].update(visible=self.editing)
+        self.window['select_album'].update(visible=not self.editing)
         self.window['btn::back'].update(visible=self.editing)
         self.window['btn::next'].update(visible=self.editing)
         self._toggle_rating_handlers()

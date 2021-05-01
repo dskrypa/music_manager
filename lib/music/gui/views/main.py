@@ -243,6 +243,7 @@ class MainView(BaseView, view_name='main'):
                     pass
 
             cls = last.__class__ if last else default_cls
+            self.log.debug(f'Returning previous view={cls.__name__} with {kwargs=}')
             return cls(**kwargs)
 
         self.log.warning(f'The back button was clicked, but there was no last view to return to', extra={'color': 11})

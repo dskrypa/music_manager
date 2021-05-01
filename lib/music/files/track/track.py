@@ -798,7 +798,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             for tag_name, (file_val, new_value) in to_update.items():
                 if not dry_run:
                     replace = not (add_genre and tag_name == 'genre')
-                    log.info(f'Calling {self!r}.set_text_tag({tag_name=!r}, {new_value=!r}, {replace=!r})')
+                    log.log(9, f'Calling {self!r}.set_text_tag({tag_name=!r}, {new_value=!r}, {replace=!r})')
                     try:
                         self.set_text_tag(tag_name, new_value, by_id=False, replace=replace)
                     except TagException as e:

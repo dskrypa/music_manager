@@ -756,19 +756,38 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         for tag_name, new_value in sorted(name_value_map.items()):
             file_val = self.tag_text(tag_name, default=None)
             cmp_val = str(new_value) if tag_name in ('disk', 'track') else new_value
-            if add_genre and tag_name == 'genre':
-                # TODO: Check value case?
+            if tag_name == 'genre':  # TODO: Check value case?
                 new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
                 file_vals = set(self.tag_genres)
-                if not file_vals.issuperset(new_vals):
+                if (add_genre and not file_vals.issuperset(new_vals)) or (not add_genre and new_vals != file_vals):
                     to_update[tag_name] = (file_val, new_value)
                     if tag_name not in no_log:
-                        to_log[tag_name] = (file_val, ';'.join(sorted(file_vals.union(new_vals))))
-
+                        new_to_log = sorted(file_vals.union(new_vals) if add_genre else new_vals)
+                        to_log[tag_name] = (sorted(file_vals), new_to_log)
             elif cmp_val != file_val:
                 to_update[tag_name] = (file_val, new_value)
                 if tag_name not in no_log:
                     to_log[tag_name] = (file_val, new_value)
+
+            # if add_genre and tag_name == 'genre':
+            #     # TODO: Check value case?
+            #     new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
+            #     file_vals = set(self.tag_genres)
+            #     if not file_vals.issuperset(new_vals):
+            #         to_update[tag_name] = (file_val, new_value)
+            #         if tag_name not in no_log:
+            #             to_log[tag_name] = (file_val, ';'.join(sorted(file_vals.union(new_vals))))
+            #
+            # elif cmp_val != file_val:
+            #     if tag_name == 'genre':
+            #         new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
+            #         file_vals = set(self.tag_genres)
+            #         if new_vals == file_vals:
+            #             continue
+            #
+            #     to_update[tag_name] = (file_val, new_value)
+            #     if tag_name not in no_log:
+            #         to_log[tag_name] = (file_val, new_value)
 
         if to_update:
             from ..changes import print_tag_changes

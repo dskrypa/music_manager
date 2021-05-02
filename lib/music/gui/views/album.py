@@ -345,7 +345,7 @@ class AlbumView(MainView, view_name='album'):
         if not self.editing:
             self.toggle_editing()
 
-        if path := self.album_formatter.get_cover_choice():
+        if path := self.album_formatter.get_wiki_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
             # TODO: Update image data
 

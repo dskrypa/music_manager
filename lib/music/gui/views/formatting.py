@@ -6,7 +6,7 @@ Album / track formatting helper functions.
 
 from collections import defaultdict
 from concurrent import futures
-from functools import cached_property, partial
+from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
@@ -104,7 +104,7 @@ class AlbumFormatter:
                 return client.get_image_urls(image_titles)
         return None
 
-    def _get_cover_images(self):
+    def _get_wiki_cover_images(self):
         urls = self.wiki_image_urls
         self._images = {}
         with futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -113,15 +113,15 @@ class AlbumFormatter:
                 title = future_objs[future]
                 self._images[title] = future.result()
 
-    def get_cover_images(self):
+    def get_wiki_cover_images(self):
         if self._images is None:
-            start_task(self._get_cover_images, message='Downloading images...')
+            start_task(self._get_wiki_cover_images, message='Downloading images...')
         return self._images
 
-    def get_cover_choice(self) -> Optional[Path]:
+    def get_wiki_cover_choice(self) -> Optional[Path]:
         from .popups.choose_image import choose_image
 
-        images = self.get_cover_images()
+        images = self.get_wiki_cover_images()
         if title := choose_image(images):
             cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
             name = title.split(':', 1)[1] if title.lower().startswith('file:') else title

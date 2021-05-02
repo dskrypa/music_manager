@@ -14,7 +14,7 @@ __all__ = ['KeypressTesterPopup']
 
 
 class KeypressTesterPopup(BasePopup, view_name='keypress_tester_popup', primary=False):
-    def __init__(self, title: str = 'Test', size=(50, 20), **kwargs):
+    def __init__(self, title: str = 'Test', size=(120, 30), **kwargs):
         super().__init__(title=title)
         self.kwargs = kwargs
         self.size = size
@@ -25,14 +25,20 @@ class KeypressTesterPopup(BasePopup, view_name='keypress_tester_popup', primary=
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout = [[self.output]]
-        return layout, {'title': self.title, 'return_keyboard_events': True, **self.kwargs}
+        return layout, {'title': self.title, 'return_keyboard_events': True, 'resizable': True, **self.kwargs}
+
+    def render(self):
+        super().render()
+        self.output.TKText.bind('<Button-1>', self.bound)
+        self.output.TKText.bind('<Button-2>', self.bound)
+        self.output.TKText.bind('<Button-3>', self.bound)
 
     @event_handler(default=True)
     def default(self, event: Event, data: EventData):
         self.output.update(f'{event}\n', append=True)
 
     @event_handler
-    def bound(self, event: Event, data: EventData):
+    def bound(self, event: Event, data: EventData = None):
         self.output.update(f'BOUND: [{event}]\n', append=True)
 
 

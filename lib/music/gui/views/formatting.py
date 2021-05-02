@@ -10,7 +10,7 @@ from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection
+from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection, Callable
 
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
@@ -26,7 +26,7 @@ from ...files.track.track import SongFile
 from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..elements.image import ExtendedImage
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import DarkInput as Input, MenuDict
 from .base import Layout, EleBinds
 from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
 from .popups.simple import popup_ok
@@ -220,7 +220,7 @@ class AlbumFormatter:
         dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
         return dest_base_dir.joinpath(expected_rel_dir)
 
-    def get_album_data_rows(self, editable: bool = False):
+    def get_album_data_rows(self, editable: bool = False, right_click_selection: tuple[MenuDict, Callable] = None):
         rows = []
         ele_binds = {}
         for key, value in self.album_info.to_dict().items():
@@ -235,6 +235,9 @@ class AlbumFormatter:
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
                 val_ele, bind = value_ele(value, val_key, disabled)
+                bind = bind or {}
+                if isinstance(val_ele, Input) and right_click_selection:
+                    val_ele.right_click_selection = right_click_selection
                 if bind:
                     ele_binds[val_key] = bind
 

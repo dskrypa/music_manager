@@ -4,13 +4,15 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
+import webbrowser
 from dataclasses import fields
 from functools import partial
 from itertools import chain
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
-from tkinter import Frame
+from tkinter import Frame, TclError
 
 from ...common.utils import stars
 from ...files.album import AlbumDir
@@ -31,6 +33,7 @@ __all__ = ['AlbumView']
 
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
+    search_menu_options = {'google': 'Search Google for {!r}', 'kpop.fandom': 'Search kpop.fandom.com for {!r}'}
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(**kwargs)
@@ -77,7 +80,8 @@ class AlbumView(MainView, view_name='album'):
 
     def _prepare_album_column(self, spinner: Spinner):
         spinner.update()
-        album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing)
+        right_click_selection = (self.search_menu_options, self.search_for_selection)
+        album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing, right_click_selection)
         spinner.update()
         album_data = [
             Column([[self.album_formatter.cover_image_thumbnail()]], key='col::album_cover'),
@@ -206,6 +210,12 @@ class AlbumView(MainView, view_name='album'):
             event = 'add_field_value'
 
         return super().handle_event(event, data)
+
+    def search_for_selection(self, key: str, selected: str):
+        if key == 'kpop.fandom':
+            webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quote_plus(selected)}')
+        elif key == 'google':
+            webbrowser.open(f'https://www.google.com/search?q={quote_plus(selected)}')
 
     @event_handler
     def add_field_value(self, event: Event, data: EventData):

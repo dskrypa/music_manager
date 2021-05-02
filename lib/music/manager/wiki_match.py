@@ -15,7 +15,7 @@ from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album
 from ..wiki.artist import Artist, Group
-from ..wiki.exceptions import AmbiguousPagesError, AmbiguousPageError
+from ..wiki.exceptions import AmbiguousWikiPageError
 from ..wiki.typing import StrOrStrs
 from .exceptions import NoArtistFoundException
 from .wiki_info import print_de_part
@@ -105,7 +105,7 @@ def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> List[Artist]:
             if artist_names := {a for a in artists if a.english != 'Various Artists'}:
                 try:
                     _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=sites)
-                except (AmbiguousPageError, AmbiguousPagesError) as e:
+                except AmbiguousWikiPageError as e:
                     if all(a.english == a.english.upper() for a in artist_names):
                         log.debug(e)
                         artist_names = {a.with_part(_english=a.english.title()) for a in artist_names}
@@ -197,7 +197,7 @@ def _find_album(
                         mlog.debug(f'{entry=} has {len(parts)} parts that match by type + number', extra={'color': 11})
                         candidates.update(parts)
                 else:
-                    mlog.debug(f'{alb_name!r} does not match {entry}', extra={'color': 8})
+                    mlog.debug(f'{alb_name!r} does not match {entry._basic_repr}', extra={'color': 8})
 
     if not candidates and (name_str := alb_name.english or alb_name.non_eng):
         cls = Soundtrack if album_dir.name.ost else Album

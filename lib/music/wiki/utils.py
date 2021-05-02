@@ -4,20 +4,24 @@
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Dict, Tuple, List, Union
+from typing import Iterable, Union
 
 from wiki_nodes import MediaWikiClient, WikiPage, Link, String
 from ..text.name import Name
 from .exceptions import NoLinkSite, NoLinkTarget
 
 __all__ = [
-    'site_titles_map', 'link_client_and_title', 'page_name', 'titles_and_title_name_map', 'multi_site_page_map',
-    'short_site'
+    'site_titles_map',
+    'link_client_and_title',
+    'page_name',
+    'titles_and_title_name_map',
+    'multi_site_page_map',
+    'short_site',
 ]
 log = logging.getLogger(__name__)
 
 
-def link_client_and_title(link: Link) -> Tuple[MediaWikiClient, str]:
+def link_client_and_title(link: Link) -> tuple[MediaWikiClient, str]:
     if not link.source_site:
         raise NoLinkSite(link)
     mw_client = MediaWikiClient(link.source_site)
@@ -30,21 +34,21 @@ def link_client_and_title(link: Link) -> Tuple[MediaWikiClient, str]:
     return mw_client, title
 
 
-def site_titles_map(links: Iterable[Link]) -> Dict[MediaWikiClient, Dict[str, Link]]:
+def site_titles_map(links: Iterable[Link]) -> dict[MediaWikiClient, dict[str, Link]]:
     site_map = defaultdict(dict)
     for link in links:
         mw_client, title = link_client_and_title(link)
         site_map[mw_client][title] = link
-    return site_map
+    return site_map  # noqa
 
 
-def multi_site_page_map(get_multi_site_pages_results) -> Dict[str, List[WikiPage]]:
+def multi_site_page_map(get_multi_site_pages_results) -> dict[str, list[WikiPage]]:
     title_page_map = defaultdict(list)
     for site, pages in get_multi_site_pages_results.items():
         log.debug(f'Found {len(pages)} pages from {site=!r}: {", ".join(sorted(pages))}')
         for title, page in pages.items():
             title_page_map[title].append(page)
-    return title_page_map
+    return title_page_map  # noqa
 
 
 def page_name(page: WikiPage) -> str:
@@ -60,7 +64,7 @@ def page_name(page: WikiPage) -> str:
     return name
 
 
-def titles_and_title_name_map(titles: Iterable[Union[str, Name]]) -> Tuple[List[str], Dict[str, Name]]:
+def titles_and_title_name_map(titles: Iterable[Union[str, Name]]) -> tuple[list[str], dict[str, Name]]:
     title_name_map = {}
     _titles = []
     for title in titles:

@@ -74,7 +74,7 @@ def handle_disambiguation_candidates(
         if choice == '[None - skip & remember]':
             _always_skip(p_name, links[:-2])  # noqa
             choice = '[None - skip]'
-        if choice == '[None - skip]':
+        if choice in ('[None - skip]', None):
             raise AmbiguousPageError(page_name(page), page, list(candidates))
 
         return candidates[choice]

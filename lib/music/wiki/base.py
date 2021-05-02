@@ -8,7 +8,7 @@ import logging
 from collections import defaultdict
 from functools import cached_property
 from itertools import chain
-from typing import Iterable, Optional, Union, Dict, Iterator, Type, Tuple, List, Collection, Mapping, Set
+from typing import Iterable, Optional, Union, Iterator, Type, Collection, Mapping
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
@@ -52,10 +52,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
         if name is not None and not isinstance(name, str):
             raise TypeError(f'Unexpected {name=!r} with {pages=}')
         self._name = name
-        if isinstance(pages, Dict):
-            self._pages = pages         # type: Dict[str, WikiPage]
+        if isinstance(pages, dict):
+            self._pages = pages         # type: dict[str, WikiPage]
         else:
-            self._pages = {}            # type: Dict[str, WikiPage]
+            self._pages = {}            # type: dict[str, WikiPage]
             if pages and not isinstance(pages, DiscoEntry):
                 if isinstance(pages, str):
                     raise TypeError(f'pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
@@ -86,7 +86,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
 
-    def page_parsers(self, method: Optional[str] = None) -> Iterator[Tuple[WikiPage, 'WikiParser']]:
+    def page_parsers(self, method: Optional[str] = None) -> Iterator[tuple[WikiPage, 'WikiParser']]:
         for site, page in sorted(self._pages.items(), key=_site_page_key):
             if parser := WikiParser.for_site(site, method):
                 yield page, parser
@@ -100,8 +100,8 @@ class WikiEntity(ClearableCachedPropertyMixin):
         existing: Optional[WE] = None,
         name: Optional[Name] = None,
         prompt: bool = True,
-        visited: Optional[Set[Link]] = None,
-    ) -> Tuple[Type[WE], PageEntry]:
+        visited: Optional[set[Link]] = None,
+    ) -> tuple[Type[WE], PageEntry]:
         """
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
         :param WikiEntity existing: An existing WikiEntity that the given page/entry will be added to; used to filter
@@ -153,8 +153,8 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _handle_disambiguation_link(
-        cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: Optional[Set[Link]] = None
-    ) -> Tuple[Type[WE], PageEntry]:
+        cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: Optional[set[Link]] = None
+    ) -> tuple[Type[WE], PageEntry]:
         visited = visited or set()
         visited.add(link)
         mw_client, title = link_client_and_title(link)
@@ -167,8 +167,8 @@ class WikiEntity(ClearableCachedPropertyMixin):
         existing: Optional[WE] = None,
         name: Optional[Name] = None,
         prompt: bool = True,
-        visited: Optional[Set[Link]] = None,
-    ) -> Tuple[Type[WE], WikiPage]:
+        visited: Optional[set[Link]] = None,
+    ) -> tuple[Type[WE], WikiPage]:
         """
         :param WikiPage page: A disambiguation page
         :param WikiEntity existing: An existing WikiEntity that the resolved page will be added to; used to filter
@@ -182,7 +182,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         if not links:
             raise AmbiguousPageError(page_name(page), page, links)
 
-        client, title_link_map = next(iter(site_titles_map(links).items()))     # type: MediaWikiClient, Dict[str, Link]
+        client, title_link_map = next(iter(site_titles_map(links).items()))     # type: MediaWikiClient, dict[str, Link]
         pages = client.get_pages(title_link_map)
         candidates = {}
         for title, _page in pages.items():
@@ -301,7 +301,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         search: bool = True,
         strict: int = 2,
         research: bool = False,
-    ) -> Dict[Union[str, Name], WE]:
+    ) -> dict[Union[str, Name], WE]:
         """
         :param Iterable titles: Page titles to retrieve
         :param str|Iterable sites: Sites from which to retrieve them
@@ -367,7 +367,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         search: bool = False,
         strict: int = 2,
         title_name_map=None,
-    ) -> Dict[Union[str, Name], WE]:
+    ) -> dict[Union[str, Name], WE]:
         # log.debug(f'{cls.__name__}._from_site_title_map({site_title_map=},\n{search=}, {strict=},\n{title_name_map=})')
         title_name_map = title_name_map or {}
         results, _errors = MediaWikiClient.get_multi_site_pages(site_title_map, search=search)
@@ -394,7 +394,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
     @classmethod
     def from_link(cls: Type[WE], link: Link, **kwargs) -> WE:
         mw_client, title = link_client_and_title(link)
-        return cls._by_category(mw_client.get_page(title), **kwargs)
+        try:
+            return cls._by_category(mw_client.get_page(title), **kwargs)
+        except AmbiguousPageError as e:
+            e.add_context(f'While processing {link=} from {link.root}')
+            raise
 
     @classmethod
     def find_from_links(cls: Type[WE], links: Iterable[Link]) -> WE:
@@ -404,26 +408,33 @@ class WikiEntity(ClearableCachedPropertyMixin):
           thereof
         """
         last_exc = None
-        results, errors = MediaWikiClient.get_multi_site_pages(site_titles_map(links))
+        client_title_link_map = site_titles_map(links)
+        results, errors = MediaWikiClient.get_multi_site_pages(client_title_link_map)
         for site, pages in results.items():
             for title, page in pages.items():
                 try:
                     return cls._by_category(page)
                 except EntityTypeError as e:
                     last_exc = e
+                except AmbiguousPageError as e:
+                    link = client_title_link_map[page._client][title]
+                    e.add_context(f'While processing {link=} from {link.root}')
+                    # last_exc = e
+                    raise
 
         if last_exc:
             raise last_exc
         raise ValueError(f'No pages were found')
 
     @classmethod
-    def from_links(cls: Type[WE], links: Iterable[Link], strict=2) -> Dict[Link, WE]:
+    def from_links(cls: Type[WE], links: Iterable[Link], strict=2) -> dict[Link, WE]:
         link_entity_map = {}
-        site_title_link_map = site_titles_map(links)
-        title_entity_map = cls._from_site_title_map(site_title_link_map, False, strict)
+        client_title_link_map = site_titles_map(links)
+        title_entity_map = cls._from_site_title_map(client_title_link_map, False, strict)
         for title, entity in title_entity_map.items():
             for site, page in entity._pages.items():
-                link = site_title_link_map[MediaWikiClient(site)][title]
+                # link = client_title_link_map[MediaWikiClient(site)][title]
+                link = client_title_link_map[page._client][title]
                 link_entity_map[link] = entity
         return link_entity_map
 
@@ -433,7 +444,7 @@ class EntertainmentEntity(WikiEntity):
     _categories = ()
 
     @classmethod
-    def _validate(cls: Type[WE], obj: PageEntry, *args, **kwargs) -> Tuple[Type[WE], PageEntry]:
+    def _validate(cls: Type[WE], obj: PageEntry, *args, **kwargs) -> tuple[Type[WE], PageEntry]:
         if isinstance(obj, WikiPage) and obj.title.lower().startswith('category:'):
             # log.error(f'{obj} is a Category page, which is not compatible with {cls.__name__}', stack_info=True)
             raise EntityTypeError(f'{obj} is a Category page, which is not compatible with {cls.__name__}')
@@ -469,7 +480,7 @@ class SpecialEvent(EntertainmentEntity):
 class TVSeries(EntertainmentEntity):
     _categories = ('television program', 'television series', 'drama', 'survival show', 'music shows')
 
-    def soundtrack_links(self) -> List[Link]:
+    def soundtrack_links(self) -> list[Link]:
         links = []
         for page, parser in self.page_parsers('parse_soundtrack_links'):
             links.extend(parser.parse_soundtrack_links(page))
@@ -495,7 +506,7 @@ class TemplateEntity(WikiEntity):
         return None
 
 
-def _sites(sites: StrOrStrs) -> List[str]:
+def _sites(sites: StrOrStrs) -> list[str]:
     if isinstance(sites, str):
         sites = [sites]
     return sites or DEFAULT_WIKIS

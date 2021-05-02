@@ -8,7 +8,7 @@ from datetime import datetime, date
 from functools import cached_property, reduce
 from itertools import chain
 from operator import xor
-from typing import List, Optional, Tuple, Sequence, Iterator, MutableSet, Set, Union, Iterable, Any
+from typing import Optional, Sequence, Iterator, MutableSet, Union, Iterable, Any
 
 from ordered_set import OrderedSet
 
@@ -21,7 +21,7 @@ from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, BadLinkError
+from .exceptions import EntityTypeError, BadLinkError, AmbiguousWikiPageError
 from .parsing import WikiParser
 from .utils import short_site
 
@@ -60,7 +60,7 @@ class DiscographyEntry(EntertainmentEntity):
         if name and name.startswith('"') and name.endswith('"'):
             name = name[1:-1]
         super().__init__(name, pages)
-        self.disco_entries = [disco_entry] if disco_entry else []   # type: List[DiscoEntry]
+        self.disco_entries = [disco_entry] if disco_entry else []   # type: list[DiscoEntry]
         self._date = None                                           # type: Optional[date]
         self._artist = artist                                       # type: Optional[Artist]
         self._type = entry_type                                     # type: Optional[DiscoEntryType]
@@ -108,7 +108,7 @@ class DiscographyEntry(EntertainmentEntity):
         return bool(self.editions)
 
     @cached_property
-    def artists(self) -> Set['Artist']:
+    def artists(self) -> set['Artist']:
         artists = set()
         if isinstance(self._artist, Artist):
             artists.add(self._artist)
@@ -143,12 +143,12 @@ class DiscographyEntry(EntertainmentEntity):
         return self.type.name if self.type else self.__class__.__name__
 
     @cached_property
-    def _sort_key(self) -> Tuple[int, date, Name]:
+    def _sort_key(self) -> tuple[int, date, Name]:
         date = self.date or datetime.fromtimestamp(0).date()
         return self.year or date.year, date, self.name
 
     @cached_property
-    def _merge_key(self) -> Tuple[Optional[int], str, Optional['DiscoEntryType']]:
+    def _merge_key(self) -> tuple[Optional[int], str, Optional['DiscoEntryType']]:
         uc_name = self._name.upper()
         if ost_match := OST_MATCH(uc_name):
             uc_name = ost_match.group(1)
@@ -194,7 +194,7 @@ class DiscographyEntry(EntertainmentEntity):
             raise
 
     @cached_property
-    def editions(self) -> List['DiscographyEntryEdition']:
+    def editions(self) -> list['DiscographyEntryEdition']:
         editions = []
         for entry_page, parser in self.page_parsers('process_album_editions'):
             editions.extend(parser.process_album_editions(self, entry_page))
@@ -291,11 +291,11 @@ class Soundtrack(DiscographyEntry):
 # noinspection PyUnresolvedReferences
 class _ArtistMixin:
     @property
-    def track_artists(self) -> Set['Artist']:
+    def track_artists(self) -> set['Artist']:
         return set()
 
     @cached_property
-    def _artists(self) -> Set['Artist']:
+    def _artists(self) -> set['Artist']:
         log.debug(f'{self._basic_repr}: Processing {self._artist}', extra={'color': 13})
         artists = set()
         if isinstance(self._artist, Artist):
@@ -314,18 +314,25 @@ class _ArtistMixin:
 
             strict = 0 if artists or len(artist_links) > 1 else 1
             log.debug(f'Looking for artists from links: {artist_links} {strict=!r}')
-            artists.update(Artist.from_links(artist_links, strict=strict).values())
+            try:
+                artists.update(Artist.from_links(artist_links, strict=strict).values())
+            except AmbiguousWikiPageError as e:
+                e.add_context(f'While processing {self._basic_repr}._artists {artist_links=}')
+                raise
         elif isinstance(self._artist, Link):
             try:
                 artists.add(Artist.from_link(self._artist))
             except (BadLinkError, PageMissingError, EntityTypeError) as e:
                 log.debug(f'Error getting artist={self._artist} for {self._basic_repr}: {e}')
+            except AmbiguousWikiPageError as e:
+                e.add_context(f'While looking for {self._basic_repr}._artist={self._artist}')
+                raise
         else:
             log.debug(f'Found unexpected value for {self._basic_repr}._artist: {self._artist!r}', extra={'color': 11})
         return artists
 
     @cached_property
-    def artists(self) -> Set['Artist']:
+    def artists(self) -> set['Artist']:
         if artists := self._artists:
             return artists
         elif artists := self.track_artists:
@@ -467,11 +474,11 @@ class DiscographyEntryEdition(_ArtistMixin):
             return None
 
     @cached_property
-    def track_artists(self) -> Set['Artist']:
+    def track_artists(self) -> set['Artist']:
         return set(chain.from_iterable(part.track_artists for part in self.parts))
 
     @cached_property
-    def parts(self) -> List['DiscographyEntryPart']:
+    def parts(self) -> list['DiscographyEntryPart']:
         if parser := WikiParser.for_site(self.page.site, 'process_edition_parts'):
             return list(parser.process_edition_parts(self))
         else:
@@ -606,11 +613,11 @@ class DiscographyEntryPart:
         return full_name
 
     @cached_property
-    def track_artists(self) -> Set['Artist']:
+    def track_artists(self) -> set['Artist']:
         return set(chain.from_iterable(track.artists for track in self.tracks))
 
     @cached_property
-    def track_names(self) -> List[Name]:
+    def track_names(self) -> list[Name]:
         if parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name'):
             if self._tracks is None:
                 if self.edition.type == DiscoEntryType.Single:
@@ -629,7 +636,7 @@ class DiscographyEntryPart:
         return []
 
     @cached_property
-    def tracks(self) -> List['Track']:
+    def tracks(self) -> list['Track']:
         tracks = [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
         eng_non_eng_map = {}
         for track in tracks:
@@ -659,7 +666,7 @@ def _strip(text):
 
 def _name_parts(
         base: Name, edition: Optional[str] = None, hide_edition=False, part: Optional[str] = None
-) -> Tuple[Tuple[str, ...], ...]:
+) -> tuple[tuple[str, ...], ...]:
     eng, non_eng = (_strip(base.english), _strip(base.non_eng))
     edition = None if hide_edition else edition
     part_filter = lambda *parts: tuple(filter(None, parts))

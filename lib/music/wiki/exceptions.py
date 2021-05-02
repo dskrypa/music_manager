@@ -7,8 +7,16 @@ from typing import Optional, Mapping, Sequence
 from wiki_nodes import WikiPage, Link
 
 __all__ = [
-    'MusicWikiException', 'EntityTypeError', 'NoPagesFoundError', 'BadLinkError', 'NoLinkTarget', 'NoLinkSite',
-    'AmbiguousPageError', 'AmbiguousPagesError', 'SiteDoesNotExist'
+    'MusicWikiException',
+    'EntityTypeError',
+    'NoPagesFoundError',
+    'BadLinkError',
+    'NoLinkTarget',
+    'NoLinkSite',
+    'AmbiguousWikiPageError',
+    'AmbiguousPageError',
+    'AmbiguousPagesError',
+    'SiteDoesNotExist',
 ]
 
 
@@ -16,23 +24,38 @@ class MusicWikiException(Exception):
     """Base Music Manager Wiki exception class"""
 
 
-class AmbiguousPageError(MusicWikiException):
+class AmbiguousWikiPageError(MusicWikiException):
+    def __init__(self, name: str):
+        self.name = name
+        self._context = []
+
+    def add_context(self, context: str):
+        self._context.append(context)
+
+    @property
+    def context(self):
+        return ''.join(f'[{entry}]' for entry in reversed(self._context))
+
+
+class AmbiguousPageError(AmbiguousWikiPageError):
     """The provided title/link pointed to a disambiguation page"""
     def __init__(self, name: str, page: WikiPage, links: Optional[Sequence[Link]] = None):
-        self.name = name
+        super().__init__(name)
         self.page = page
         self.links = links
 
     def __str__(self):
+        context = f'{context} ' if (context := self.context) else ''
+        base = f'{context}{self.page} is a disambiguation page'
         if self.links:
-            return '{} is a disambiguation page - links:\n - {}'.format(self.page, '\n - '.join(map(str, self.links)))
+            return '{} - links:\n - {}'.format(base, '\n - '.join(map(str, self.links)))
         else:
-            return f'{self.page} is a disambiguation page, but no links to valid candidates were found'
+            return f'{base}, but no links to valid candidates were found'
 
 
-class AmbiguousPagesError(MusicWikiException):
+class AmbiguousPagesError(AmbiguousWikiPageError):
     def __init__(self, name, page_link_map: Mapping[WikiPage, Sequence[Link]]):
-        self.name = name
+        super().__init__(name)
         self.page_link_map = page_link_map
 
     def __str__(self):
@@ -41,7 +64,9 @@ class AmbiguousPagesError(MusicWikiException):
             parts.append(f'{page}:')
             parts.append('\n - '.join(map(str, links)))
         parts = '\n'.join(parts)
-        return f'Only disambiguation pages with no valid candidates could be found for name={self.name!r}:\n{parts}'
+        mid = 'Only disambiguation pages with no valid candidates could be found'
+        context = f'{context} ' if (context := self.context) else ''
+        return f'{context}{mid} for name={self.name!r}:\n{parts}'
 
 
 class EntityTypeError(MusicWikiException, TypeError):

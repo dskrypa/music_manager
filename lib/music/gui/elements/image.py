@@ -23,7 +23,7 @@ class ExtendedImage(Image):
         if image and data:
             raise ValueError('Only one of image / data are accepted')
         super().__init__(*args, **kwargs)
-        self._image = image if image else ImageModule.open(BytesIO(data))
+        self._image = image if image else ImageModule.open(BytesIO(data)) if data else None
         self._border_width = border_width
         self._background_color = background_color
         self._widget = None
@@ -50,10 +50,11 @@ class ExtendedImage(Image):
         return image.resize((new_w, new_h), 1)  # 1 = ANTIALIAS
 
     def resize(self, width: int, height: int):
-        image = PhotoImage(self._resize(width, height))
-        self._widget.configure(image=image, width=width, height=height)
-        self._widget.image = image
-        self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+        if self._image:
+            image = PhotoImage(self._resize(width, height))
+            self._widget.configure(image=image, width=width, height=height)
+            self._widget.image = image
+            self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
 
 
 def calculate_resize(src_w, src_h, new_size):

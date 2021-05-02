@@ -331,10 +331,13 @@ def _get_latest(a: Element, b: Element, server_root, singles):
         log.debug(f'Error getting date for {b_file}: {e}')
         return None
 
-    if a_date > b_date:
-        return a
-    elif b_date > a_date:
-        return b
+    try:
+        if a_date > b_date:
+            return a
+        elif b_date > a_date:
+            return b
+    except TypeError:
+        pass
     return None
 
 

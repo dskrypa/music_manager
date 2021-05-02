@@ -33,7 +33,11 @@ __all__ = ['AlbumView']
 
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
-    search_menu_options = {'google': 'Search Google for {!r}', 'kpop.fandom': 'Search kpop.fandom.com for {!r}'}
+    search_menu_options = {
+        'google': 'Search Google for {!r}',
+        'kpop.fandom': 'Search kpop.fandom.com for {!r}',
+        'generasia': 'Search generasia for {!r}',
+    }
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(**kwargs)
@@ -212,10 +216,14 @@ class AlbumView(MainView, view_name='album'):
         return super().handle_event(event, data)
 
     def search_for_selection(self, key: str, selected: str):
+        quoted = quote_plus(selected)
         if key == 'kpop.fandom':
-            webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quote_plus(selected)}')
+            webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quoted}')
         elif key == 'google':
-            webbrowser.open(f'https://www.google.com/search?q={quote_plus(selected)}')
+            webbrowser.open(f'https://www.google.com/search?q={quoted}')
+        elif key == 'generasia':
+            url = f'https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={quoted}'
+            webbrowser.open(url)
 
     @event_handler
     def add_field_value(self, event: Event, data: EventData):

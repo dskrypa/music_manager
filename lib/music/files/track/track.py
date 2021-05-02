@@ -443,7 +443,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         raise TagNotFound(f'No {tag!r} tag values were found for {self}')
 
     def _normalize_values(self, values, strip: bool = True):
-        if self.tag_type == 'mp3':
+        if isinstance(values, bool):
+            return [values]
+        elif self.tag_type == 'mp3':
             if not isinstance(values, list):
                 values = [values]
             vals = []
@@ -524,6 +526,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             disp_name = self._get_tag_display_name(tag_id)
             trunc_id = tag_id[:4] if mp3 else tag_id
             tag_name = self.normalize_tag_name(tag_id)
+            log.debug(f'Processing values for {tag_name=} {tag_id=} {value=} on {self}')
             if values := self._normalize_values(value):
                 if isinstance(values, list) and len(values) == 1 and disp_name != 'Genre':
                     values = values[0]
@@ -875,10 +878,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             raise TypeError(f'{self} has unexpected type={self.tag_type!r} for album cover extraction')
 
-    def get_cover_image(self) -> 'Image.Image':
+    def get_cover_image(self, extras: bool = False) -> Union['Image.Image', tuple['Image.Image', bytes, str]]:
         from PIL import Image
+
         data, ext = self.get_cover_data()
-        return Image.open(BytesIO(data))
+        image = Image.open(BytesIO(data))
+        return (image, data, ext) if extras else image
 
     def del_cover_tag(self, save: bool = False, dry_run: bool = False):
         prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'

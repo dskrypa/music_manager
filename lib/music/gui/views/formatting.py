@@ -10,8 +10,9 @@ from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any, Iterator, Union, Collection
+from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection
 
+from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator
@@ -24,8 +25,10 @@ from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
+from ..elements.image import ExtendedImage
+from ..elements.inputs import DarkInput as Input
 from .base import Layout, EleBinds
-from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, DarkInput as Input
+from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
 from .popups.simple import popup_ok
 from .thread_tasks import start_task
 
@@ -82,13 +85,7 @@ class AlbumFormatter:
     def __iter__(self) -> Iterator['TrackFormatter']:
         yield from self.track_formatters.values()
 
-    @cached_property
-    def _cover_image_thumbnail(self) -> set[bytes]:
-        return set(filter(None, (tb._cover_image_thumbnail for tb in self)))
-
-    @cached_property
-    def _cover_image_full(self) -> set[bytes]:
-        return set(filter(None, (tb._cover_image_full for tb in self)))
+    # region Wiki methods
 
     @property
     def wiki_client(self) -> Optional[MediaWikiClient]:
@@ -132,63 +129,49 @@ class AlbumFormatter:
                     f.write(img_data)
             return path
 
+    # endregion
+
+    # region Cover Image methods
+
+    @cached_property
+    def _cover_image_count(self):
+        return len(set(filter(None, (tb._cover_image_raw[0] for tb in self))))
+
+    def _get_cover_image_obj(self) -> Optional[PILImage]:
+        if (image_count := self._cover_image_count) == 1:
+            return next(iter(self.track_formatters.values())).cover_image_obj
+        elif image_count:
+            raise MultipleCoversFound(image_count)
+        return None
+
     def cover_image_thumbnail(self, key: str = 'img::album::cover-thumb', can_replace: bool = True) -> Image:
-        cover_images = self._cover_image_thumbnail
-        image = None
-        if len(cover_images) == 1:
-            image = next(iter(cover_images))
-        elif cover_images:
+        try:
+            image = self._get_cover_image_obj()
+        except MultipleCoversFound as e:
+            image = None
             if self.album_dir.path not in _multiple_covers_warned:
                 _multiple_covers_warned.add(self.album_dir.path)
-                popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}', keep_on_top=True)
+                popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}', keep_on_top=True)
+
         return self._make_thumbnail_image(image, key, can_replace)
 
-    def _make_thumbnail_image(self, image: Union[Optional[bytes], 'PILImage'], key, can_replace: bool = False):
+    def _make_thumbnail_image(self, image: Optional[PILImage], key, can_replace: bool = False):
         kwargs = dict(size=self.cover_size, key=key)
         if image is not None:
-            if isinstance(image, PILImage):
-                image = make_thumbnail(image, self.cover_size)
-
             kwargs['enable_events'] = True
             if can_replace and self.wiki_image_urls:
                 kwargs['right_click_menu'] = ['Image', ['Replace Image']]
         elif can_replace and self.wiki_image_urls:
             kwargs['right_click_menu'] = ['Image', ['Add Image']]
-        return Image(data=image, **kwargs)
+        return ExtendedImage(image=image, **kwargs)
 
     @property
     def cover_image_full_obj(self) -> Optional['PILImage']:
-        cover_images = self._cover_image_full
-        if len(cover_images) == 1:
-            return next(iter(self)).cover_image_obj
-        elif cover_images:
-            popup_ok(f'Warning: found {len(cover_images)} cover images for {self.album_dir}')
-        return None
-
-    def get_album_data_rows(self, editable: bool = False):
-        rows = []
-        skip = {'tracks'}
-        always_ro = {'mp4'}
-        ele_binds = {}
-        for key, value in self.album_info.to_dict().items():
-            if key in skip:
-                continue
-            disabled = not editable or key in always_ro
-
-            key_ele, val_key = label_and_val_key('album', key)
-            if key == 'type':
-                types = [de.real_name for de in DiscoEntryType]
-                if value and value not in types:
-                    types.append(value)
-                val_ele = Combo(types, value, key=val_key, disabled=disabled)
-            else:
-                val_ele, bind = value_ele(value, val_key, disabled)
-                if bind:
-                    ele_binds[val_key] = bind
-
-            rows.append([key_ele, val_ele])
-
-        return resize_text_column(rows), ele_binds
+        try:
+            return self._get_cover_image_obj()
+        except MultipleCoversFound as e:
+            popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}')
+            return None
 
     def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image, PILImage, bytes]]:
         if new_album_info.cover_path:
@@ -200,13 +183,14 @@ class AlbumFormatter:
                 return src_img_ele, new_img_ele, new_pil_image, img_data
         return None
 
+    # endregion
+
     def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False, add_genre: bool = False):
         rows = []
-        skip = {'tracks'}
         ele_binds = {}
         new_info_dict = new_album_info.to_dict(title_case)
         for key, src_val in self._src_album_info.to_dict(title_case).items():
-            if key in skip:
+            if key == 'tracks':
                 continue
 
             new_val = new_info_dict[key]
@@ -235,6 +219,33 @@ class AlbumFormatter:
             return None
         dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
         return dest_base_dir.joinpath(expected_rel_dir)
+
+    def get_album_data_rows(self, editable: bool = False):
+        rows = []
+        ele_binds = {}
+        for key, value in self.album_info.to_dict().items():
+            if key == 'tracks':
+                continue
+            disabled = not editable or key == 'mp4'
+            key_ele, val_key = label_and_val_key('album', key)
+            if key == 'type':
+                types = [de.real_name for de in DiscoEntryType]
+                if value and value not in types:
+                    types.append(value)
+                val_ele = Combo(types, value, key=val_key, disabled=disabled)
+            else:
+                val_ele, bind = value_ele(value, val_key, disabled)
+                if bind:
+                    ele_binds[val_key] = bind
+
+            rows.append([key_ele, val_ele])
+
+        return resize_text_column(rows), ele_binds
+
+
+class MultipleCoversFound(Exception):
+    def __init__(self, n: int):
+        self.n = n
 
 
 def value_ele(
@@ -274,14 +285,6 @@ def value_ele(
     return val_ele, bind
 
 
-def make_thumbnail(pil_img: PILImage, size: tuple[int, int]) -> bytes:
-    image = pil_img.copy()
-    image.thumbnail(size)
-    bio = BytesIO()
-    image.save(bio, format='PNG')
-    return bio.getvalue()
-
-
 class TrackFormatter:
     def __init__(
         self,
@@ -310,40 +313,32 @@ class TrackFormatter:
     def info(self, value: TrackInfo):
         self._new_info = value
 
+    # region Track Image methods
+
+    @cached_property
+    def _cover_image_raw(self) -> tuple[bytes, str]:
+        return self.track.get_cover_data()
+
     @cached_property
     def cover_image_obj(self) -> Optional['PILImage']:
         try:
-            return self.track.get_cover_image()
+            data, ext = self._cover_image_raw
         except Exception:
             self.log.error(f'Unable to load cover image for {self.track}')
             return None
-
-    @cached_property
-    def _cover_image_full(self) -> Optional[bytes]:
-        if (image := self.cover_image_obj) is not None:
-            bio = BytesIO()
-            image.save(bio, format='PNG')
-            return bio.getvalue()
-        return None
-
-    @cached_property
-    def _cover_image_thumbnail(self) -> Optional[bytes]:
-        if (image := self.cover_image_obj) is not None:
-            return make_thumbnail(image, self.cover_size)
-        return None
+        else:
+            return ImageModule.open(BytesIO(data))
 
     @property
     def cover_image_thumbnail(self) -> Image:
-        # If self._cover_image_thumbnail is None, it will be a blank frame
-        return Image(
-            data=self._cover_image_thumbnail, size=self.cover_size, key=f'img::{self.path_str}::cover-thumb',
-            enable_events=True
+        return ExtendedImage(
+            image=self.cover_image_obj,
+            size=self.cover_size,
+            key=f'img::{self.path_str}::cover-thumb',
+            enable_events=True,
         )
 
-    @property
-    def cover_image(self) -> Image:
-        size = self.cover_image_obj.size if self.cover_image_obj is not None else (100, 100)
-        return Image(data=self._cover_image_full, size=size, key=f'img::{self.path_str}::cover-full')
+    # endregion
 
     @cached_property
     def path_str(self) -> str:

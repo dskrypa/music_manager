@@ -13,8 +13,8 @@ from typing import Any, Union, Optional, Collection
 
 from PySimpleGUI import Element, Text, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs
 
+from ...elements.inputs import DarkInput as Input
 from ..base import event_handler
-from ..utils import DarkInput as Input
 from .base import BasePopup
 from .utils import temp_hidden_window
 from .simple import popup_ok

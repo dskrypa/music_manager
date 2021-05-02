@@ -12,12 +12,13 @@ from PySimpleGUI import Text, Image, Column, HSep, Button
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
+from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
 from ..progress import Spinner
 from .base import event_handler, Event, EventData, RenderArgs
 from .formatting import AlbumFormatter
 from .main import MainView
-from .utils import get_a_to_b, DarkInput as Input
+from .utils import get_a_to_b
 from .popups.simple import popup_ok
 
 if TYPE_CHECKING:

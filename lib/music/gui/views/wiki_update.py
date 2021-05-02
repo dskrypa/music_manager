@@ -13,13 +13,13 @@ from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
+from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
 from .base import event_handler
 from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.text import popup_error
 from .thread_tasks import start_task
-from .utils import DarkInput as Input
 
 __all__ = ['WikiUpdateView']
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')

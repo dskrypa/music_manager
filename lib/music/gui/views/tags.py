@@ -11,6 +11,7 @@ from PySimpleGUI import Text, HorizontalSeparator, Column, Frame, Image, Checkbo
 
 from ...files.album import AlbumDir
 from ..constants import LoadingSpinner
+from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
 from ..progress import Spinner
 from .base import RenderArgs, event_handler, Event, EventData
@@ -18,7 +19,7 @@ from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok, popup
 from .popups.text import TextPopup
-from .utils import DarkInput as Input, split_key, update_color
+from .utils import split_key, update_color
 
 __all__ = ['AllTagsView']
 

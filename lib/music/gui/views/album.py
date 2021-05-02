@@ -17,13 +17,14 @@ from ...files.album import AlbumDir
 from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
+from ..elements.inputs import DarkInput as Input
 from ..progress import Spinner
 from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok
 from .popups.text import popup_error
-from .utils import split_key, DarkInput as Input, update_color
+from .utils import split_key, update_color
 
 __all__ = ['AlbumView']
 

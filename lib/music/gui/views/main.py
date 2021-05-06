@@ -17,7 +17,6 @@ from tz_aware_dt.tz_aware_dt import now
 from ds_tools.core.decorate import classproperty
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
-from ..state import GuiState
 from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
@@ -33,7 +32,6 @@ NEXT_BIND = '<Control-Right>'
 
 class MainView(BaseView, view_name='main'):
     back_tooltip = 'Go back to previous view'
-    state = GuiState()
 
     def __init__(self, *, last_view: 'MainView' = None, **kwargs):
         super().__init__(binds=kwargs.get('binds'))

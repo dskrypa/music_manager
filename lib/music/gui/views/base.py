@@ -31,6 +31,7 @@ from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
 
+from ..state import GuiState
 from .exceptions import NoEventHandlerRegistered
 from .utils import ViewLoggerAdapter
 
@@ -92,19 +93,21 @@ class _EventHandler:
 
 
 class GuiView(ABC):
-    _ele_event_match = re.compile(r'^(.*?):::([a-zA-Z_]+)$').match
-    _counter = count()
+    primary: bool
     active_view: Optional['GuiView'] = None
+    name: str = None
     window: Optional[Window] = None
     pending_prompts = Queue()
-    _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
-    _primary_kwargs = {}
-    _event_handlers = {}
-    event_handlers = {}
-    wildcard_handlers: dict[str, dict[Callable, Callable]] = {}
+    state = GuiState(auto_save=True)
     default_handler: Optional[Callable] = None
-    name: str = None
-    primary: bool
+    wildcard_handlers: dict[str, dict[Callable, Callable]] = {}
+    event_handlers = {}
+    _event_handlers = {}
+    _primary_kwargs = {}
+    _counter = count()
+    _ele_event_match = re.compile(r'^(.*?):::([a-zA-Z_]+)$').match
+    _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
+    _window_pos: tuple[Optional[int], Optional[int]] = (None, None)  # x, y
 
     # noinspection PyMethodOverriding
     def __init_subclass__(cls, view_name: str, primary: bool = True):
@@ -223,25 +226,27 @@ class GuiView(ABC):
     def _create_window(self, layout: Layout, kwargs: Kwargs) -> Window:
         # self.log.debug('Creating window')
         old_window = None if (last_view := GuiView.active_view) is None else last_view.window
+        popup_pos = None
 
         if self.primary:
             base_kwargs = deepcopy(self._primary_kwargs)
             if old_window is not None:
                 base_kwargs['size'] = old_window.size
                 base_kwargs['location'] = old_window.current_location()
+            elif pos := self.state.get('window_pos', type=tuple):
+                base_kwargs['location'] = pos
 
             # self.log.debug(f'Base kwargs={base_kwargs}')
             kwargs = base_kwargs | kwargs
         else:
             kwargs.setdefault('keep_on_top', True)
             kwargs.setdefault('modal', True)
+            if old_window is not None:  # At least initially place its top-left corner on the same window; center below
+                popup_pos = old_window.current_location() or self._window_pos
+                kwargs.setdefault('location', popup_pos)
 
         kwargs.setdefault('margins', (5, 5))
-        new_window = Window(
-            layout=layout,
-            finalize=True,
-            **kwargs
-        )
+        new_window = Window(layout=layout, finalize=True, **kwargs)
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
 
         if self.primary:
@@ -251,6 +256,11 @@ class GuiView(ABC):
 
             self.log.debug(f'Replacing GuiView.active_view={last_view.name if last_view else last_view}')
             GuiView.active_view = self
+        elif popup_pos:
+            popup_w, popup_h = new_window.size
+            main_w, main_h = old_window.size
+            x, y = popup_pos
+            new_window.move(x + (main_w - popup_w) // 2, y + (main_h - popup_h) // 2)
 
         return new_window
 
@@ -290,8 +300,12 @@ class GuiView(ABC):
         Known triggers: resize window, move window, window gains focus, scroll
         """
         loc = self.__class__ if self.primary else self
-        new_size = loc.window.size
+        if (new_pos := loc.window.current_location()) and new_pos != loc._window_pos:
+            loc._window_pos = new_pos
+            loc.state['window_pos'] = new_pos
+
         old_size = loc._window_size
+        new_size = loc.window.size
         if old_size != new_size:
             # self.log.debug(f'Window size changed: {old_size} -> {new_size}')
             loc._window_size = new_size
@@ -302,10 +316,7 @@ class GuiView(ABC):
 class BaseView(GuiView, view_name='base'):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.menu = [
-            ['File', ['Exit']],
-            ['Help', ['About']],
-        ]
+        self.menu = [['File', ['Exit']], ['Help', ['About']]]
 
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return [[Menu(self.menu)]], {}
@@ -329,10 +340,3 @@ class BaseView(GuiView, view_name='base'):
         from .popups.about import AboutView
 
         return AboutView()
-
-    # @event_handler
-    # def window_resized(self, event: Event, data: EventData):
-    #     self.log.debug(f'Window size changed from {data["old_size"]} to {data["new_size"]}')
-    #     if self.state.get('view') == 'tracks':
-    #         self.log.debug(f'Expanding columns on {self.window}')
-    #         expand_columns(self.window.Rows)

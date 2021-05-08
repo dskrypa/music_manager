@@ -44,6 +44,8 @@ Kwargs = dict[str, Any]
 EleBinds = dict[str, dict[str, Event]]
 RenderArgs = Union[Layout, tuple[Layout, Kwargs], tuple[Layout, Kwargs, EleBinds]]
 
+DEFAULT_SETTINGS = {'remember_pos': True}
+
 
 def event_handler(*args, **kwargs):
     """
@@ -99,7 +101,7 @@ class GuiView(ABC):
     name: str = None
     window: Optional[Window] = None
     pending_prompts = Queue()
-    state = GuiState(auto_save=True)
+    state = GuiState(auto_save=True, defaults=DEFAULT_SETTINGS)
     default_handler: Optional[Callable] = None
     wildcard_handlers: dict[str, dict[Callable, Callable]] = {}
     event_handlers = {}
@@ -237,7 +239,7 @@ class GuiView(ABC):
             if old_window is not None:
                 base_kwargs['size'] = old_window.size
                 base_kwargs['location'] = old_window.current_location()
-            elif pos := self.state.get('window_pos', type=tuple):
+            elif self.state['remember_pos'] and (pos := self.state.get('window_pos', type=tuple)):
                 base_kwargs['location'] = pos
 
             # self.log.debug(f'Base kwargs={base_kwargs}')
@@ -364,7 +366,7 @@ class GuiView(ABC):
             # self._log_position_and_dimensions('Moved', True)
             self._monitor = None
             loc._window_pos = new_pos
-            if self.primary:
+            if self.primary and self.state['remember_pos']:
                 loc.state['window_pos'] = new_pos
 
         old_size = loc._window_size
@@ -395,7 +397,7 @@ class GuiView(ABC):
 class BaseView(GuiView, view_name='base'):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.menu = [['File', ['Exit']], ['Help', ['About']]]
+        self.menu = [['File', ['Settings', 'Exit']], ['Help', ['About']]]
 
     def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
         return [[Menu(self.menu)]], {}
@@ -419,3 +421,9 @@ class BaseView(GuiView, view_name='base'):
         from .popups.about import AboutView
 
         return AboutView()
+
+    @event_handler
+    def settings(self, event: Event, data: EventData):
+        from .popups.settings import SettingsView
+
+        return SettingsView()

@@ -37,8 +37,8 @@ class MainView(BaseView, view_name='main'):
         super().__init__(binds=kwargs.get('binds'))
         self.last_view = last_view
         self.menu = [
-            ['&File', ['&Open', 'Ou&tput', 'E&xit']],
-            ['&Actions', ['&Clean', '&Edit', '&Wiki Update', '&Sync Ratings']],
+            ['&File', ['&Open', '&Settings', 'Ou&tput', 'E&xit']],
+            ['&Actions', ['&Clean', '&Edit', '&Wiki Update', 'Sync &Ratings']],
             ['&Help', ['&About']],
         ]
         self.binds[BACK_BIND] = 'ctrl_left'

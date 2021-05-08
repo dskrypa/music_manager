@@ -11,13 +11,14 @@ from functools import cached_property
 from pathlib import Path
 from typing import Optional, Any, Type, Union
 
-from PySimpleGUI import Button, Element, Column, Text, Image
+from PySimpleGUI import Button, Element, Column, Text, Image, Menu
 
 from tz_aware_dt.tz_aware_dt import now
 from ds_tools.core.decorate import classproperty
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
-from .base import event_handler, BaseView, Layout, Event, EventData, RenderArgs
+from .base import event_handler, GuiView, Layout, Event, EventData, RenderArgs
+from .exceptions import NoEventHandlerRegistered
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
 from .popups.text import popup_error
@@ -30,7 +31,7 @@ BACK_BIND = '<Control-Left>'
 NEXT_BIND = '<Control-Right>'
 
 
-class MainView(BaseView, view_name='main'):
+class MainView(GuiView, view_name='main'):
     back_tooltip = 'Go back to previous view'
 
     def __init__(self, *, last_view: 'MainView' = None, **kwargs):
@@ -45,6 +46,20 @@ class MainView(BaseView, view_name='main'):
         self.binds[NEXT_BIND] = 'ctrl_right'
         self._back_key = None
         self._next_key = None
+
+    def handle_event(self, event: Event, data: EventData):
+        try:
+            return super().handle_event(event, data)
+        except NoEventHandlerRegistered:
+            # self.log.debug(f'No handler found for case-sensitive {event=!r} - will try again with snake_case version')
+            pass
+        try:
+            return super().handle_event(event.lower().replace(' ', '_'), data)
+        except NoEventHandlerRegistered as e:
+            if e.view is self:
+                self.log.warning(e)
+            else:
+                raise
 
     @event_handler
     def ctrl_left(self, event: Event, data: EventData):
@@ -69,7 +84,7 @@ class MainView(BaseView, view_name='main'):
         return self.name.replace('_', ' ').title()
 
     def get_render_args(self) -> RenderArgs:
-        layout, kwargs = super().get_render_args()
+        layout = [[Menu(self.menu)]]
         if self.__class__ is MainView:
             select_button = Button(
                 'Select Album', key='select_album', bind_return_key=True, size=(30, 5), font=('Helvetica', 20)
@@ -85,7 +100,7 @@ class MainView(BaseView, view_name='main'):
             )
             layout.append([as_col])
 
-        kwargs.setdefault('title', f'Music Manager - {self.display_name}')
+        kwargs = {'title': f'Music Manager - {self.display_name}'}
         return layout, kwargs
 
     def render(self):
@@ -280,3 +295,15 @@ class MainView(BaseView, view_name='main'):
             return SyncRatingsView(last_view=self)
         except ValueError as e:
             popup_error(str(e))
+
+    @event_handler
+    def about(self, event: Event, data: EventData):
+        from .popups.about import AboutView
+
+        return AboutView()
+
+    @event_handler
+    def settings(self, event: Event, data: EventData):
+        from .popups.settings import SettingsView
+
+        return SettingsView()

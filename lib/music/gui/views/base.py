@@ -36,7 +36,7 @@ from ..state import GuiState
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .utils import ViewLoggerAdapter
 
-__all__ = ['GuiView', 'BaseView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
+__all__ = ['GuiView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
 Layout = list[list[Element]]
 Event = Union[str, tuple]
 EventData = dict[Union[str, int, tuple], Any]
@@ -392,38 +392,3 @@ class GuiView(ABC):
             win_corners = [(win_x, win_y), (win_x + win_w, win_y + win_h)]
             mon_corners = [(mon_x, mon_y), (mon_x + mon_w, mon_y + mon_h)]
             self.log.debug(f'Monitor corners={mon_corners}  Window corners={win_corners}')
-
-
-class BaseView(GuiView, view_name='base'):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.menu = [['File', ['Settings', 'Exit']], ['Help', ['About']]]
-
-    def get_render_args(self) -> tuple[Layout, dict[str, Any]]:
-        return [[Menu(self.menu)]], {}
-
-    def handle_event(self, event: Event, data: EventData):
-        try:
-            return super().handle_event(event, data)
-        except NoEventHandlerRegistered:
-            # self.log.debug(f'No handler found for case-sensitive {event=!r} - will try again with snake_case version')
-            pass
-        try:
-            return super().handle_event(event.lower().replace(' ', '_'), data)
-        except NoEventHandlerRegistered as e:
-            if e.view is self:
-                self.log.warning(e)
-            else:
-                raise
-
-    @event_handler
-    def about(self, event: Event, data: EventData):
-        from .popups.about import AboutView
-
-        return AboutView()
-
-    @event_handler
-    def settings(self, event: Event, data: EventData):
-        from .popups.settings import SettingsView
-
-        return SettingsView()

@@ -228,7 +228,7 @@ class GuiView(ABC):
         return NotImplemented
 
     def _create_window(self, layout: Layout, kwargs: Kwargs) -> Window:
-        # self.log.debug('Creating window')
+        # self.log.debug(f'Create window initial {kwargs=}')
         old_window = None if (last_view := GuiView.active_view) is None else last_view.window
         popup_pos = None
 
@@ -250,6 +250,7 @@ class GuiView(ABC):
                 kwargs.setdefault('location', popup_pos)
 
         kwargs.setdefault('margins', (5, 5))
+        # self.log.debug(f'Initializing window with {kwargs=}')
         new_window = Window(layout=layout, finalize=True, **kwargs)
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
 
@@ -262,8 +263,13 @@ class GuiView(ABC):
             GuiView.active_view = self
         elif popup_pos:
             new_window.move(*self._get_center(new_window.size))
+            # new_pos = new_window.current_location()
+            # self.log.debug(f'Popup position after moving: {new_pos=} geometry={new_window.TKroot.geometry()}')
 
         return new_window
+
+    def _log_event(self, event):
+        self.log.warning(f'Event: {event}.__dict__={event.__dict__}', extra={'color': 14})
 
     def _get_monitor(self, x: int, y: int) -> Optional[Monitor]:
         for m in self._monitors:
@@ -287,12 +293,15 @@ class GuiView(ABC):
 
     def _get_center(self, size: tuple[int, int]) -> tuple[int, int]:
         own_w, own_h = size
+        own_h += 30  # Title bar size on Windows 10
         if self.parent and (parent_window := self.parent.window):
             x, y = parent_window.current_location() or self._window_pos
+            # self.log.debug(f'Initial pos=({x}, {y}) {size=}')
             monitor = self._get_monitor(x, y)
             par_w, par_h = parent_window.size
             x += (par_w - own_w) // 2
             y += (par_h - own_h) // 2
+            # self.log.debug(f'Centered on parent pos=({x}, {y})')
         else:
             x, y = self.window.current_location() or self._window_pos
             monitor = self._get_monitor(x, y)
@@ -306,6 +315,7 @@ class GuiView(ABC):
                 x = x_min + (monitor.width - own_w) // 2
             if y < y_min or (y + own_h) > y_max:
                 y = y_min + (monitor.height - own_h) // 2
+            # self.log.debug(f'Centered on monitor pos=({x}, {y})')
 
         return 0 if x < 0 else x, 0 if y < 0 else y
 
@@ -336,7 +346,11 @@ class GuiView(ABC):
             ele = self.window[ele_key]
             for key, val in binds.items():
                 ele.bind(key, val)
-        self.log.debug(f'Rendered {self} @ loc={loc.window.current_location()}')
+
+        self._log_position_and_dimensions('Rendered', False)
+
+    def is_maximized(self):
+        return self.window.TKroot.state() == 'zoomed'
 
     @event_handler
     def config_changed(self, event: Event, data: EventData):
@@ -344,8 +358,10 @@ class GuiView(ABC):
         Event handler for window configuration changes.
         Known triggers: resize window, move window, window gains focus, scroll
         """
-        loc = self.__class__ if self.primary else self
+        # self.log.debug(f'Handling config_changed {event=}')
+        loc = GuiView if self.primary else self
         if (new_pos := loc.window.current_location()) and new_pos != loc._window_pos:
+            # self._log_position_and_dimensions('Moved', True)
             self._monitor = None
             loc._window_pos = new_pos
             if self.primary:
@@ -354,10 +370,26 @@ class GuiView(ABC):
         old_size = loc._window_size
         new_size = loc.window.size
         if old_size != new_size:
-            # self.log.debug(f'Window size changed: {old_size} -> {new_size}')
             loc._window_size = new_size
+            # self.log.debug(f'Window size changed: {old_size} -> {new_size}')
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty
+
+    def _log_position_and_dimensions(self, prefix: str = 'Dimensions:', corners: bool = False):
+        window = self.window
+        win_x, win_y = win_pos = window.current_location()
+        win_w, win_h = win_size = window.size
+        monitor = self.monitor
+        mon_x, mon_y = mon_pos = monitor.x, monitor.y
+        mon_w, mon_h = mon_size = monitor.width, monitor.height
+        self.log.debug(
+            f'{prefix} {self} @ pos={win_pos} size={win_size} geometry={window.TKroot.geometry()}'
+            f' on monitor @ pos={mon_pos} size={mon_size}'
+        )
+        if corners:
+            win_corners = [(win_x, win_y), (win_x + win_w, win_y + win_h)]
+            mon_corners = [(mon_x, mon_y), (mon_x + mon_w, mon_y + mon_h)]
+            self.log.debug(f'Monitor corners={mon_corners}  Window corners={win_corners}')
 
 
 class BaseView(GuiView, view_name='base'):

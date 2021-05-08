@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
-from tkinter import Frame, TclError
+from tkinter import Frame
 
 from ...common.utils import stars
 from ...files.album import AlbumDir

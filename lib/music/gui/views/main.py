@@ -26,19 +26,19 @@ from .utils import split_key
 
 __all__ = ['MainView']
 
-DEFAULT_OUTPUT_DIR = '~/Music/'
 BACK_BIND = '<Control-Left>'
 NEXT_BIND = '<Control-Right>'
+DEFAULT_SETTINGS = {'output_base_dir': '~/Music/'}
 
 
-class MainView(GuiView, view_name='main'):
+class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
     back_tooltip = 'Go back to previous view'
 
     def __init__(self, *, last_view: 'MainView' = None, **kwargs):
         super().__init__(binds=kwargs.get('binds'))
         self.last_view = last_view
         self.menu = [
-            ['&File', ['&Open', '&Settings', 'Ou&tput', 'E&xit']],
+            ['&File', ['&Open', '&Settings', 'E&xit']],
             ['&Actions', ['&Clean', '&Edit', '&Wiki Update', 'Sync &Ratings']],
             ['&Help', ['&About']],
         ]
@@ -73,7 +73,7 @@ class MainView(GuiView, view_name='main'):
 
     @classproperty
     def output_base_dir(cls) -> Path:
-        return Path(cls.state.get('output_base_dir', DEFAULT_OUTPUT_DIR)).expanduser()
+        return Path(cls.state['output_base_dir']).expanduser()
 
     @classproperty
     def output_sorted_dir(cls) -> Path:
@@ -187,18 +187,6 @@ class MainView(GuiView, view_name='main'):
 
             kwargs = {'album' if isinstance(album, AlbumDir) else 'path': album}
             return CleanView(last_view=self, **kwargs)
-
-    @event_handler
-    def output(self, event: Event, data: EventData):
-        current = self.output_base_dir.as_posix()
-        kwargs = dict(must_exist=False, no_window=False, default_path=current, initial_folder=current)
-        if path := get_directory('Select Output Directory', **kwargs):
-            if self.output_base_dir != path:
-                self.log.debug(f'Updating saved output base directory from {current} -> {path.as_posix()}')
-                self.state['output_base_dir'] = path.as_posix()
-                self.state.save()
-            else:
-                self.log.debug(f'Selected output base directory path={path.as_posix()} == current={current}')
 
     @event_handler
     def wiki_update(self, event: Event, data: EventData):

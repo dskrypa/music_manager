@@ -5,9 +5,10 @@ Gui option rendering and parsing
 """
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator, Mapping
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator, Mapping, Union
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox
+from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse
 
 from .elements.inputs import DarkInput as Input
 from .views.utils import resize_text_column, make_checkbox_grid
@@ -144,6 +145,23 @@ class GuiOptions:
         kwargs.update(size=size or (max(map(len, choices)) + 3, len(choices)), select_mode=select_mode, choices=choices)
         self._add_option('listbox', option, label, choices if default is _NotSet else default, **kwargs)
 
+    def _add_path(
+        self,
+        option: str,
+        label: str,
+        button_func: Callable,
+        default: Union[Path, str] = _NotSet,
+        *,
+        must_exist: bool = False,
+        **kwargs
+    ):
+        self._add_option('path', option, label, default, button_func=button_func, must_exist=must_exist, **kwargs)
+
+    def add_directory(
+        self, option: str, label: str, default: Union[Path, str] = _NotSet, *, must_exist: bool = False, **kwargs
+    ):
+        self._add_path(option, label, FolderBrowse, default, must_exist=must_exist, **kwargs)
+
     def _generate_layout(self, disable_all: bool) -> Iterator[tuple[Optional[int], int, Element]]:
         for name, opt in self.options.items():
             opt_type, col_num, row_num = opt['opt_type'], opt['col'], opt['row']
@@ -171,6 +189,11 @@ class GuiOptions:
                 yield col_num, row_num, Listbox(
                     choices, default_values=val or choices, no_scrollbar=True, select_mode=opt['select_mode'], **common
                 )
+            elif opt_type == 'path':
+                val = val.as_posix() if isinstance(val, Path) else None if val is _NotSet else val
+                yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
+                yield col_num, row_num, Input('' if val is None else val, **common)
+                yield col_num, row_num, opt['button_func'](initial_folder=val)
             else:
                 raise ValueError(f'Unsupported {opt_type=!r}')
 
@@ -235,29 +258,21 @@ class GuiOptions:
         parsed = {}
         defaults = []
         for name, opt in self.options.items():
+            val_key = f'opt::{name}'
             try:
-                val = data[f'opt::{name}']
+                val = data[val_key]
             except KeyError:
                 if opt['required']:
-                    errors.append(RequiredOptionMissing(opt))
+                    errors.append(RequiredOptionMissing(val_key, opt))
                 elif opt['default'] is _NotSet:
                     pass
                 else:
                     defaults.append(name)
             else:
-                if isinstance(val, str):
-                    val = val.strip()
-
-                opt_type = opt['opt_type']
-                if opt_type == 'input' and opt['type'] is not str:
-                    try:
-                        val = opt['type'](val)
-                    except Exception as e:
-                        errors.append(SingleParsingError(opt, f'Error parsing {val=!r} for option={name!r}: {e}', val))
-                    else:
-                        parsed[name] = val
-                else:
-                    parsed[name] = val
+                try:
+                    parsed[name] = self._validate(val_key, name, opt['opt_type'], val, opt)
+                except SingleParsingError as e:
+                    errors.append(e)
 
         for name, val in parsed.items():
             self.options[name]['value'] = parsed[name]  # Save the value even if an exception will be raised
@@ -270,6 +285,25 @@ class GuiOptions:
             parsed[name] = self.options[name]['default']
 
         return parsed
+
+    def _validate(self, key: str, name: str, opt_type: str, val: Any, opt: dict[str, Any]):
+        if isinstance(val, str):
+            val = val.strip()
+        if opt_type == 'input' and opt['type'] is not str:
+            try:
+                return opt['type'](val)
+            except Exception as e:
+                raise SingleParsingError(key, opt, f'Error parsing {val=!r} for option={name!r}: {e}', val)
+        elif opt_type == 'path':
+            path = Path(val)
+            if opt['button_func'] is FolderBrowse:
+                if (opt['must_exist'] and not path.is_dir()) or (path.exists() and not path.is_dir()):
+                    raise SingleParsingError(key, opt, f'Invalid {path=} for option={name!r} (not a directory)', path)
+            elif opt['must_exist'] and not path.is_file():
+                raise SingleParsingError(key, opt, f'Invalid {path=} for option={name!r} (not a file)', path)
+
+            return path.as_posix()
+        return val
 
     @contextmanager
     def column(self, col: Optional[int]):
@@ -310,7 +344,8 @@ class NoSuchOptionError(GuiOptionError):
 
 
 class SingleParsingError(GuiOptionError):
-    def __init__(self, option: dict[str, Any], message: str = None, value: Any = None):
+    def __init__(self, key: str, option: dict[str, Any], message: str = None, value: Any = None):
+        self.key = key
         self.option = option
         self.message = message
         self.value = value

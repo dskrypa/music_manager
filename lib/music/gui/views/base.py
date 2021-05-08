@@ -29,7 +29,7 @@ from itertools import count
 from queue import Queue
 from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
-from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
+from PySimpleGUI import Window, WIN_CLOSED, Element
 from screeninfo import get_monitors, Monitor
 
 from ..state import GuiState
@@ -114,7 +114,7 @@ class GuiView(ABC):
     _monitors = get_monitors()
 
     # noinspection PyMethodOverriding
-    def __init_subclass__(cls, view_name: str, primary: bool = True):
+    def __init_subclass__(cls, view_name: str, primary: bool = True, defaults: Mapping[str, Any] = None):
         cls.name = view_name
         cls.log = ViewLoggerAdapter(cls)
         cls.primary = primary
@@ -123,6 +123,8 @@ class GuiView(ABC):
         cls.default_handler = getattr(cls, '_default_handler', None)
         if cls.default_handler is not None:
             del cls._default_handler  # noqa
+        if defaults:
+            cls.state.defaults.update(defaults)
         # print(f'Initialized subclass={cls.__name__!r}')
 
     def __init__(self, binds: Mapping[str, str] = None):

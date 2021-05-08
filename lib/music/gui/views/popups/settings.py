@@ -4,12 +4,14 @@ View: Settings
 :author: Doug Skrypa
 """
 
-from typing import Any
+from functools import partial
+from typing import Any, Iterable
 
 from PySimpleGUI import Element, Submit
 
-from ...options import GuiOptions
+from ...options import GuiOptions, SingleParsingError, MultiParsingError
 from ..base import event_handler, Event, EventData
+from ..utils import update_color
 from .base import BasePopup
 
 __all__ = ['SettingsView']
@@ -18,8 +20,12 @@ __all__ = ['SettingsView']
 class SettingsView(BasePopup, view_name='settings', primary=False):
     def __init__(self):
         super().__init__(binds={'<Escape>': 'Exit'})
+        self._failed_validation = {}
         self.options = GuiOptions(self, submit='Save', title=None)
-        self.options.add_bool('remember_pos', 'Remember Last Window Position', self.state['remember_pos'])
+        with self.options.row(0) as options:
+            options.add_bool('remember_pos', 'Remember Last Window Position', self.state['remember_pos'])
+        with self.options.row(1) as options:
+            options.add_directory('output_base_dir', 'Output Directory', self.state['output_base_dir'])
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout = self.options.layout('save')
@@ -28,7 +34,13 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
 
     @event_handler('save')
     def apply(self, event: Event, data: EventData):
-        self.options.parse(data)
+        try:
+            self.options.parse(data)
+        except SingleParsingError as e:
+            return self._mark_invalid([e])
+        except MultiParsingError as e:
+            return self._mark_invalid(e.errors)
+
         auto_save = self.state.auto_save
         self.state.auto_save = False
         try:
@@ -44,3 +56,16 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
 
         if event == 'save':
             raise StopIteration
+
+    def _mark_invalid(self, errors: Iterable[SingleParsingError]):
+        for error in errors:
+            element = self.window[error.key]
+            update_color(element, '#FFFFFF', '#781F1F')
+            self._failed_validation[error.key] = element
+            element.TKEntry.bind('<Key>', partial(self._edited_field, error.key))
+
+    def _edited_field(self, key: str, event):
+        self.log.debug(f'_edited_field({key=}, {event=})')
+        if element := self._failed_validation.pop(key, None):
+            element.TKEntry.unbind('<Key>')
+            update_color(element, element.TextColor, element.BackgroundColor)

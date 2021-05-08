@@ -7,7 +7,7 @@ Music Manager GUI state
 import json
 import logging
 from pathlib import Path
-from typing import Any, Type, Mapping
+from typing import Any, Type, MutableMapping
 
 from ds_tools.fs.paths import get_user_cache_dir
 
@@ -17,11 +17,11 @@ _NotSet = object()
 
 
 class GuiState:
-    def __init__(self, auto_save: bool = False, defaults: Mapping[str, Any] = None):
+    def __init__(self, auto_save: bool = False, defaults: MutableMapping[str, Any] = None):
         self._path = Path(get_user_cache_dir('music_manager')).joinpath('gui_state.json')
         self._state = None
-        self._changed = None
-        self._defaults = defaults
+        self._changed = set()
+        self.defaults = defaults.copy() if defaults else {}
         self.auto_save = auto_save
 
     @property
@@ -33,37 +33,38 @@ class GuiState:
             else:
                 self._state = {}
 
-            self._changed = False
+            self._changed = set()
         return self._state
 
     def __getitem__(self, key: str):
         try:
             return self.state[key]
         except KeyError:
-            if not self._defaults:
+            if not self.defaults:
                 raise
-        return self._defaults[key]
+        return self.defaults[key]
 
     def get(self, key: str, default=_NotSet, type: Type = None):  # noqa
         try:
             value = self.state[key]
         except KeyError:
             if default is _NotSet:
-                return self._defaults.get(key) if self._defaults else None
+                return self.defaults.get(key) if self.defaults else None
             return default
         else:
             return type(value) if type is not None and not isinstance(value, type) else value
 
     def __setitem__(self, key: str, value: Any):
         self.state[key] = value
-        self._changed = True
+        self._changed.add(key)
         if self.auto_save:
             self.save()
 
     def save(self, force: bool = False):
         if self._state and (self._changed or force):
-            log.debug(f'Saving state to {self._path}')
+            suffix = ' for keys={}'.format(', '.join(sorted(self._changed))) if self._changed else ''
+            log.debug(f'Saving state to {self._path}{suffix}')
             with self._path.open('w', encoding='utf-8') as f:
                 json.dump(self._state, f, indent=4, sort_keys=True)
 
-            self._changed = False
+            self._changed = set()

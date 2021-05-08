@@ -476,9 +476,10 @@ class TrackFormatter:
 
     def get_basic_info_row(self):
         track = self.track
+        rcm = ({self.path_str: 'Open in File Manager'}, self.album_formatter.view.open_in_file_manager)
         return [
             Text('File:'),
-            Input(track.path.name, size=(50, 1), disabled=True),
+            Input(track.path.name, size=(50, 1), disabled=True, right_click_menu_callback=rcm),
             VerticalSeparator(),
             Text('Length:'),
             Input(track.length_str, size=(6, 1), disabled=True),

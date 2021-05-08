@@ -26,7 +26,7 @@ from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok
 from .popups.text import popup_error
-from .utils import split_key, update_color
+from .utils import split_key, update_color, open_in_file_manager
 
 __all__ = ['AlbumView']
 
@@ -106,10 +106,9 @@ class AlbumView(MainView, view_name='album'):
         full_layout, kwargs = super().get_render_args()
         ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
-            layout = [
-                [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
-                [HorizontalSeparator()],
-            ]
+            rcm = ({self.album.path.as_posix(): 'Open in File Manager'}, self.open_in_file_manager)
+            path_box = Input(self.album.path.as_posix(), disabled=True, size=(150, 1), right_click_menu_callback=rcm)
+            layout = [[Text('Album Path:'), path_box], [HorizontalSeparator()]]
             album_column, album_binds = self._prepare_album_column(spinner)
             track_column = self._prepare_track_column(spinner)
             data_col = Column([[album_column, track_column]], key='col::all_data', justification='center', pad=(0, 0))
@@ -380,6 +379,9 @@ class AlbumView(MainView, view_name='album'):
             return SyncRatingsView(last_view=self, **kwargs)
         except ValueError as e:
             popup_error(str(e))
+
+    def open_in_file_manager(self, key: str, selected: str = None):
+        open_in_file_manager(key)
 
 
 def can_toggle_editable(key, ele):

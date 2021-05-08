@@ -30,9 +30,10 @@ from queue import Queue
 from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, Menu
+from screeninfo import get_monitors, Monitor
 
 from ..state import GuiState
-from .exceptions import NoEventHandlerRegistered
+from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .utils import ViewLoggerAdapter
 
 __all__ = ['GuiView', 'BaseView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
@@ -108,6 +109,7 @@ class GuiView(ABC):
     _ele_event_match = re.compile(r'^(.*?):::([a-zA-Z_]+)$').match
     _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
     _window_pos: tuple[Optional[int], Optional[int]] = (None, None)  # x, y
+    _monitors = get_monitors()
 
     # noinspection PyMethodOverriding
     def __init_subclass__(cls, view_name: str, primary: bool = True):
@@ -122,6 +124,8 @@ class GuiView(ABC):
         # print(f'Initialized subclass={cls.__name__!r}')
 
     def __init__(self, binds: Mapping[str, str] = None):
+        self.parent: Optional[GuiView] = None if self.primary else GuiView.active_view
+        self._monitor = None
         self._view_num = next(self._counter)
         self.binds = binds or {}
         # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
@@ -257,12 +261,53 @@ class GuiView(ABC):
             self.log.debug(f'Replacing GuiView.active_view={last_view.name if last_view else last_view}')
             GuiView.active_view = self
         elif popup_pos:
-            popup_w, popup_h = new_window.size
-            main_w, main_h = old_window.size
-            x, y = popup_pos
-            new_window.move(x + (main_w - popup_w) // 2, y + (main_h - popup_h) // 2)
+            new_window.move(*self._get_center(new_window.size))
 
         return new_window
+
+    def _get_monitor(self, x: int, y: int) -> Optional[Monitor]:
+        for m in self._monitors:
+            if m.x <= x <= m.x + m.width and m.y <= y <= m.y + m.height:
+                return m
+        return None
+
+    @property
+    def monitor(self) -> Monitor:
+        if monitor := self._monitor:
+            return monitor
+        x, y = pos = self.window.current_location()
+        if monitor := self._get_monitor(x, y):
+            self._monitor = monitor
+            return monitor
+        self.__class__._monitors = get_monitors()  # Maybe a monitor was added/removed - refresh known monitors
+        if monitor := self._get_monitor(x, y):
+            self._monitor = monitor
+            return monitor
+        raise MonitorDetectionError(f'Unable to determine monitor for window {pos=} from monitors={self._monitors}')
+
+    def _get_center(self, size: tuple[int, int]) -> tuple[int, int]:
+        own_w, own_h = size
+        if self.parent and (parent_window := self.parent.window):
+            x, y = parent_window.current_location() or self._window_pos
+            monitor = self._get_monitor(x, y)
+            par_w, par_h = parent_window.size
+            x += (par_w - own_w) // 2
+            y += (par_h - own_h) // 2
+        else:
+            x, y = self.window.current_location() or self._window_pos
+            monitor = self._get_monitor(x, y)
+
+        if monitor:
+            x_min = monitor.x
+            x_max = x_min + monitor.width
+            y_min = monitor.y
+            y_max = y_min + monitor.height
+            if x < x_min or (x + own_w) > x_max:
+                x = x_min + (monitor.width - own_w) // 2
+            if y < y_min or (y + own_h) > y_max:
+                y = y_min + (monitor.height - own_h) // 2
+
+        return 0 if x < 0 else x, 0 if y < 0 else y
 
     def render(self):
         render_args = self.get_render_args()
@@ -301,8 +346,10 @@ class GuiView(ABC):
         """
         loc = self.__class__ if self.primary else self
         if (new_pos := loc.window.current_location()) and new_pos != loc._window_pos:
+            self._monitor = None
             loc._window_pos = new_pos
-            loc.state['window_pos'] = new_pos
+            if self.primary:
+                loc.state['window_pos'] = new_pos
 
         old_size = loc._window_size
         new_size = loc.window.size

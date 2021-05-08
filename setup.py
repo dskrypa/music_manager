@@ -33,6 +33,7 @@ optional_dependencies = {
         'filelock',
         'psutil',
         'pysimplegui',
+        'screeninfo',
     ],
 }
 optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))

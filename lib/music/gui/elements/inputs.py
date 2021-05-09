@@ -4,6 +4,7 @@ Input elements for PySimpleGUI
 :author: Doug Skrypa
 """
 
+from functools import partial
 from typing import Union, Optional
 
 from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
@@ -49,11 +50,29 @@ class DarkInput(Input):
         else:
             self.RightClickMenu = value
 
+    @property
+    def TKEntry(self):
+        return self._tk_entry
+
+    @TKEntry.setter
+    def TKEntry(self, entry: Entry):
+        self._tk_entry = entry
+        if entry is not None:
+            self._tk_entry = entry
+            entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
+
+    def get_selection(self):
+        entry = self.TKEntry
+        selection = entry.selection_get()
+        if not entry.selection_present():
+            raise NotSelectionOwner
+        return selection
+
     def _RightClickMenuCallback(self, event):
         if menu := self.right_click_menu:
             try:
-                kwargs = {'selected': self.TKEntry.selection_get()}
-            except TclError:
+                kwargs = {'selected': self.get_selection()}
+            except (TclError, NotSelectionOwner):
                 kwargs = {}
             if menu.show(event, self.TKEntry.master, **kwargs):
                 return
@@ -107,3 +126,11 @@ class DarkInput(Input):
                 self.update(background_color=self.TextColor, text_color=self.BackgroundColor)
             else:
                 self.update(background_color='#781F1F', text_color='#FFFFFF')
+
+
+class NotSelectionOwner(Exception):
+    pass
+
+
+def _clear_selection(entry, event):
+    entry.selection_clear()

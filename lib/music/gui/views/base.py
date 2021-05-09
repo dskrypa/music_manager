@@ -163,7 +163,7 @@ class GuiView(ABC):
         self.window.close()
 
     @classmethod
-    def start(cls, cls_kwargs=None, init_event: tuple[Event, EventData] = None, **kwargs):
+    def start(cls, cls_kwargs=None, init_event: tuple[Event, EventData] = None, interactive: bool = False, **kwargs):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
         cls._primary_kwargs.update(kwargs)
@@ -175,14 +175,20 @@ class GuiView(ABC):
         if init_event:
             obj.window.write_event_value(*init_event)  # Note: data[event] => the EventData value passed here
 
-        while True:
-            try:
-                event, data = next(cls.active_view)  # noqa
-                cls.active_view.handle_event(event, data)  # noqa
-            except StopIteration:
-                break
+        if not interactive:
+            while True:
+                try:
+                    event, data = next(cls.active_view)  # noqa
+                    cls.active_view.handle_event(event, data)  # noqa
+                except StopIteration:
+                    break
 
-        cls.window.close()
+            cls.window.close()
+
+    @classmethod
+    def _handle_next(cls):
+        event, data = next(cls.active_view)  # noqa
+        cls.active_view.handle_event(event, data)  # noqa
 
     def _find_handler(self, event: Event):
         try:

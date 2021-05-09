@@ -97,8 +97,10 @@ class _EventHandler:
 
 class GuiView(ABC):
     primary: bool
-    active_view: Optional['GuiView'] = None
     name: str = None
+    permissive_handler_names: bool = True
+    allow_no_handler: bool = True
+    active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
     pending_prompts = Queue()
     state = GuiState(auto_save=True, defaults=DEFAULT_SETTINGS)
@@ -114,7 +116,14 @@ class GuiView(ABC):
     _monitors = get_monitors()
 
     # noinspection PyMethodOverriding
-    def __init_subclass__(cls, view_name: str, primary: bool = True, defaults: Mapping[str, Any] = None):
+    def __init_subclass__(
+        cls,
+        view_name: str,
+        primary: bool = True,
+        defaults: Mapping[str, Any] = None,
+        permissive_handler_names: bool = None,
+        allow_no_handler: bool = None,
+    ):
         cls.name = view_name
         cls.log = ViewLoggerAdapter(cls)
         cls.primary = primary
@@ -125,6 +134,10 @@ class GuiView(ABC):
             del cls._default_handler  # noqa
         if defaults:
             cls.state.defaults.update(defaults)
+        if permissive_handler_names is not None:
+            cls.permissive_handler_names = permissive_handler_names
+        if allow_no_handler is not None:
+            cls.allow_no_handler = allow_no_handler
         # print(f'Initialized subclass={cls.__name__!r}')
 
     def __init__(self, binds: Mapping[str, str] = None):
@@ -232,7 +245,22 @@ class GuiView(ABC):
         # else:
         #     self.log.debug(f'{self}: {event=!r} returned {result=!r}')
 
-    handle_event = _handle_event  # make original more easily accessible to descendent classes
+    def handle_event(self, event: Event, data: EventData):
+        try:
+            return self._handle_event(event, data)
+        except NoEventHandlerRegistered as e:
+            if not self.permissive_handler_names:
+                if self.allow_no_handler:
+                    self.log.warning(e, extra={'color': 'red'})
+                    return
+                raise
+        try:
+            return self._handle_event(event.lower().replace(' ', '_'), data)
+        except NoEventHandlerRegistered as e:
+            if self.allow_no_handler:
+                self.log.warning(e, extra={'color': 'red'})
+            else:
+                raise
 
     @abstractmethod
     def get_render_args(self) -> RenderArgs:

@@ -18,7 +18,6 @@ from ds_tools.core.decorate import classproperty
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from .base import event_handler, GuiView, Layout, Event, EventData, RenderArgs
-from .exceptions import NoEventHandlerRegistered
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
 from .popups.text import popup_error
@@ -46,20 +45,6 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
         self.binds[NEXT_BIND] = 'ctrl_right'
         self._back_key = None
         self._next_key = None
-
-    def handle_event(self, event: Event, data: EventData):
-        try:
-            return super().handle_event(event, data)
-        except NoEventHandlerRegistered:
-            # self.log.debug(f'No handler found for case-sensitive {event=!r} - will try again with snake_case version')
-            pass
-        try:
-            return super().handle_event(event.lower().replace(' ', '_'), data)
-        except NoEventHandlerRegistered as e:
-            if e.view is self:
-                self.log.warning(e)
-            else:
-                raise
 
     @event_handler
     def ctrl_left(self, event: Event, data: EventData):

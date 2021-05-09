@@ -6,7 +6,6 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
-import webbrowser
 from functools import cached_property
 from pathlib import Path
 from typing import Optional, Any, Type, Union
@@ -21,7 +20,6 @@ from .base import event_handler, GuiView, Layout, Event, EventData, RenderArgs
 from .popups.path_prompt import get_directory
 from .popups.simple import popup_input_invalid
 from .popups.text import popup_error
-from .utils import split_key
 
 __all__ = ['MainView']
 
@@ -239,12 +237,6 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
             return cls(**kwargs)
 
         self.log.warning(f'The back button was clicked, but there was no last view to return to', extra={'color': 11})
-
-    @event_handler
-    def open_link(self, event: Event, data: EventData):
-        # self.log.debug(f'Open link request received for {event=!r}')
-        key = event.rsplit(':::', 1)[0]
-        webbrowser.open(data[key])
 
     @event_handler
     def sync_ratings(self, event: Event, data: EventData):

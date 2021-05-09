@@ -279,11 +279,7 @@ def value_ele(
                 expand_x=True,
             )
     else:
-        if value and str(value).startswith(('http://', 'https://')):
-            val_ele = Input(value, key=val_key, disabled=disabled, tooltip='Open with ctrl + click')
-            bind = {'<Control-Button-1>': ':::open_link'}
-        else:
-            val_ele = Input(value, key=val_key, disabled=disabled, **kwargs)
+        val_ele = Input(value, key=val_key, disabled=disabled, **kwargs)
 
     return val_ele, bind
 

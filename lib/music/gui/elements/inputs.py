@@ -4,6 +4,7 @@ Input elements for PySimpleGUI
 :author: Doug Skrypa
 """
 
+import webbrowser
 from functools import partial
 from typing import Union, Optional
 
@@ -20,7 +21,15 @@ MenuList = list[MenuListItem]
 class DarkInput(Input):
     TKEntry: Entry
 
-    def __init__(self, *args, right_click_menu: Union[ContextualMenu, MenuList] = None, **kwargs):
+    def __init__(
+        self,
+        value,
+        *args,
+        right_click_menu: Union[ContextualMenu, MenuList] = None,
+        link: bool = None,
+        tooltip: str = None,
+        **kwargs,
+    ):
         """
         :param args: Positional arguments to pass to :class:`PySimpleGUI.Input`
         :param right_click_menu: Either a vanilla right-click menu as a list of strings/lists supported by PySimpleGUI
@@ -33,8 +42,14 @@ class DarkInput(Input):
             kwargs.setdefault('text_color', theme_input_text_color())
             kwargs.setdefault('disabled_readonly_background_color', '#a2a2a2')
             kwargs.setdefault('disabled_readonly_text_color', '#000000')
-        super().__init__(*args, **kwargs)
+        if link or (link is None and str(value).startswith(('http://', 'https://'))):
+            if tooltip:
+                tooltip = f'{tooltip}; open link in browser with ctrl + click'
+            else:
+                tooltip = 'Open link in browser with ctrl + click'
+        super().__init__(value, *args, tooltip=tooltip, **kwargs)
         self._valid_value = True
+        self._link = link or link is None
         self.right_click_menu = right_click_menu
 
     @property
@@ -60,6 +75,12 @@ class DarkInput(Input):
         if entry is not None:
             self._tk_entry = entry
             entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
+            if self._link:
+                entry.bind('<Control-Button-1>', self._open_link)
+
+    @property
+    def value(self):
+        return self.get()
 
     def get_selection(self):
         entry = self.TKEntry
@@ -126,6 +147,10 @@ class DarkInput(Input):
                 self.update(background_color=self.TextColor, text_color=self.BackgroundColor)
             else:
                 self.update(background_color='#781F1F', text_color='#FFFFFF')
+
+    def _open_link(self, event):
+        if (value := self.value) and value.startswith(('http://', 'https://')):
+            webbrowser.open(value)
 
 
 class NotSelectionOwner(Exception):

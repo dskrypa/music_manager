@@ -4,31 +4,26 @@ Input elements for PySimpleGUI
 :author: Doug Skrypa
 """
 
-from functools import partial
-from typing import Callable
+from typing import Union, Optional
 
 from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
-from tkinter import TclError, Menu, Entry
+from tkinter import TclError, Entry
+
+from .menu import ContextualMenu
 
 __all__ = ['DarkInput']
-MenuDict = dict[str, str]
+MenuListItem = Union[str, list[Union[str, 'MenuListItem']]]
+MenuList = list[MenuListItem]
 
 
 class DarkInput(Input):
     TKEntry: Entry
 
-    def __init__(
-        self,
-        *args,
-        right_click_selection: tuple[MenuDict, Callable] = None,
-        right_click_menu_callback: tuple[MenuDict, Callable] = None,
-        **kwargs
-    ):
+    def __init__(self, *args, right_click_menu: Union[ContextualMenu, MenuList] = None, **kwargs):
         """
         :param args: Positional arguments to pass to :class:`PySimpleGUI.Input`
-        :param right_click_selection: Tuple of ({key: format string}, callback), where the format string values will be
-          used to create menu entries with the selected text, and the callback should accept 2 positional arguments:
-          key and selected text.
+        :param right_click_menu: Either a vanilla right-click menu as a list of strings/lists supported by PySimpleGUI
+          or a :class:`ContextualMenu`
         :param kwargs: Keyword arguments to pass to :class:`PySimpleGUI.Input`
         """
         self._dark = 'dark' in theme().lower()
@@ -39,54 +34,30 @@ class DarkInput(Input):
             kwargs.setdefault('disabled_readonly_text_color', '#000000')
         super().__init__(*args, **kwargs)
         self._valid_value = True
-        self.right_click_selection = right_click_selection
-        self.right_click_menu_callback = right_click_menu_callback
+        self.right_click_menu = right_click_menu
 
     @property
-    def right_click_selection(self):
-        return self._right_click_selection
+    def right_click_menu(self) -> Optional[ContextualMenu]:
+        return self._right_click_menu
 
-    @right_click_selection.setter
-    def right_click_selection(self, value: tuple[MenuDict, Callable]):
-        self._right_click_selection = value
-        if value and not self.RightClickMenu:
-            self.RightClickMenu = ['-', []]
-
-    @property
-    def right_click_menu_callback(self):
-        return self._right_click_menu_callback
-
-    @right_click_menu_callback.setter
-    def right_click_menu_callback(self, value: tuple[MenuDict, Callable]):
-        self._right_click_menu_callback = value
-        if value and not self.RightClickMenu:
-            self.RightClickMenu = ['-', []]
+    @right_click_menu.setter
+    def right_click_menu(self, value: Union[ContextualMenu, MenuList, None]):
+        if isinstance(value, ContextualMenu) or value is None:
+            self._right_click_menu = value
+            if value and not self.RightClickMenu:
+                self.RightClickMenu = ['-', []]
+        else:
+            self.RightClickMenu = value
 
     def _RightClickMenuCallback(self, event):
-        print(event)
-        if self.right_click_selection:
+        if menu := self.right_click_menu:
             try:
-                selected = self.TKEntry.selection_get()
+                kwargs = {'selected': self.TKEntry.selection_get()}
             except TclError:
-                if self.right_click_menu_callback:
-                    self._show_menu(event, *self.right_click_menu_callback)
-                else:
-                    super()._RightClickMenuCallback(event)
-            else:
-                self._show_menu(event, *self.right_click_selection, selected=selected)
-        elif self.right_click_menu_callback:
-            self._show_menu(event, *self.right_click_menu_callback)
-        else:
-            super()._RightClickMenuCallback(event)
-
-    def _show_menu(self, event, menu_dict, callback, selected: str = None):
-        menu = Menu(self.TKEntry.master, tearoff=0)
-        for key, fmt_str in menu_dict.items():
-            menu.add_command(label=fmt_str.format(selected), command=partial(callback, key, selected))
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
+                kwargs = {}
+            if menu.show(event, self.TKEntry.master, **kwargs):
+                return
+        super()._RightClickMenuCallback(event)
 
     @property
     def disabled_readonly_background_color(self):

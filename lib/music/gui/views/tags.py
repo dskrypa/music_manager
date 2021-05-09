@@ -25,6 +25,8 @@ __all__ = ['AllTagsView']
 
 
 class AllTagsView(MainView, view_name='all_tags'):
+    # TODO: Add full tag edit/diff
+
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, **kwargs):
         super().__init__(**kwargs)
         self.album = album

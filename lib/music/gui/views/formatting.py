@@ -26,7 +26,8 @@ from ...files.track.track import SongFile
 from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..elements.image import ExtendedImage
-from ..elements.inputs import DarkInput as Input, MenuDict
+from ..elements.inputs import DarkInput as Input
+from ..elements.menu import ContextualMenu
 from .base import Layout, EleBinds
 from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
 from .popups.simple import popup_ok
@@ -220,7 +221,7 @@ class AlbumFormatter:
         dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
         return dest_base_dir.joinpath(expected_rel_dir)
 
-    def get_album_data_rows(self, editable: bool = False, right_click_selection: tuple[MenuDict, Callable] = None):
+    def get_album_data_rows(self, editable: bool = False, right_click_menu: ContextualMenu = None):
         rows = []
         ele_binds = {}
         for key, value in self.album_info.to_dict().items():
@@ -236,8 +237,8 @@ class AlbumFormatter:
             else:
                 val_ele, bind = value_ele(value, val_key, disabled)
                 bind = bind or {}
-                if isinstance(val_ele, Input) and right_click_selection:
-                    val_ele.right_click_selection = right_click_selection
+                if isinstance(val_ele, Input) and right_click_menu:
+                    val_ele.right_click_menu = right_click_menu
                 if bind:
                     ele_binds[val_key] = bind
 
@@ -476,10 +477,12 @@ class TrackFormatter:
 
     def get_basic_info_row(self):
         track = self.track
-        rcm = ({self.path_str: 'Open in File Manager'}, self.album_formatter.view.open_in_file_manager)
+        open_menu = ContextualMenu(
+            self.album_formatter.view.open_in_file_manager, {self.path_str: 'Open in File Manager'}  # noqa
+        )
         return [
             Text('File:'),
-            Input(track.path.name, size=(50, 1), disabled=True, right_click_menu_callback=rcm),
+            Input(track.path.name, size=(50, 1), disabled=True, right_click_menu=open_menu),
             VerticalSeparator(),
             Text('Length:'),
             Input(track.length_str, size=(6, 1), disabled=True),

@@ -20,6 +20,7 @@ from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..constants import LoadingSpinner
 from ..elements.inputs import DarkInput as Input
+from ..elements.menu import ContextualMenu
 from ..progress import Spinner
 from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumFormatter
@@ -34,9 +35,9 @@ __all__ = ['AlbumView']
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
     search_menu_options = {
-        'google': 'Search Google for {!r}',
-        'kpop.fandom': 'Search kpop.fandom.com for {!r}',
-        'generasia': 'Search generasia for {!r}',
+        'google': 'Search Google for {selected!r}',
+        'kpop.fandom': 'Search kpop.fandom.com for {selected!r}',
+        'generasia': 'Search generasia for {selected!r}',
     }
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
@@ -84,8 +85,10 @@ class AlbumView(MainView, view_name='album'):
 
     def _prepare_album_column(self, spinner: Spinner):
         spinner.update()
-        right_click_selection = (self.search_menu_options, self.search_for_selection)
-        album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing, right_click_selection)
+        search_menu = ContextualMenu(
+            self.search_for_selection, kw_key_opt_cb_map={'selected': self.search_menu_options}
+        )
+        album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing, search_menu)
         spinner.update()
         album_data = [
             Column([[self.album_formatter.cover_image_thumbnail()]], key='col::album_cover'),
@@ -106,9 +109,12 @@ class AlbumView(MainView, view_name='album'):
         full_layout, kwargs = super().get_render_args()
         ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
-            rcm = ({self.album.path.as_posix(): 'Open in File Manager'}, self.open_in_file_manager)
-            path_box = Input(self.album.path.as_posix(), disabled=True, size=(150, 1), right_click_menu_callback=rcm)
-            layout = [[Text('Album Path:'), path_box], [HorizontalSeparator()]]
+            album_path = self.album.path.as_posix()
+            open_menu = ContextualMenu(self.open_in_file_manager, {album_path: 'Open in File Manager'})
+            layout = [
+                [Text('Album Path:'), Input(album_path, disabled=True, size=(150, 1), right_click_menu=open_menu)],
+                [HorizontalSeparator()]
+            ]
             album_column, album_binds = self._prepare_album_column(spinner)
             track_column = self._prepare_track_column(spinner)
             data_col = Column([[album_column, track_column]], key='col::all_data', justification='center', pad=(0, 0))

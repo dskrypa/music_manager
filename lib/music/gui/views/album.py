@@ -86,18 +86,17 @@ class AlbumView(MainView, view_name='album'):
     def _prepare_album_column(self, spinner: Spinner):
         spinner.update()
         search_menu = ContextualMenu(_search_for_selection, kw_key_opt_cb_map={'selected': self.search_menu_options})
-        album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing, search_menu)
         spinner.update()
         album_data = [
             Column([[self.album_formatter.cover_image_thumbnail]], key='col::album_cover'),
-            Column(album_data_rows, key='col::album_data'),
+            Column(self.album_formatter.get_album_data_rows(self.editing, search_menu), key='col::album_data'),
         ]
         spinner.update()
         alb_col_rows = [album_data, [HorizontalSeparator()], *self._prepare_button_rows()]
         album_column = Column(
             alb_col_rows, vertical_alignment='top', element_justification='center', key='col::album_container'
         )
-        return album_column, album_binds
+        return album_column
 
     def _prepare_track_column(self, spinner: Spinner):
         track_rows = list(chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_formatter)))
@@ -105,7 +104,6 @@ class AlbumView(MainView, view_name='album'):
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-        ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             album_path = self.album.path.as_posix()
             open_menu = ContextualMenu(open_in_file_manager, {album_path: 'Open in File Manager'}, include_kwargs=False)
@@ -113,11 +111,10 @@ class AlbumView(MainView, view_name='album'):
                 [Text('Album Path:'), Input(album_path, disabled=True, size=(150, 1), right_click_menu=open_menu)],
                 [HorizontalSeparator()]
             ]
-            album_column, album_binds = self._prepare_album_column(spinner)
+            album_column = self._prepare_album_column(spinner)
             track_column = self._prepare_track_column(spinner)
             data_col = Column([[album_column, track_column]], key='col::all_data', justification='center', pad=(0, 0))
             layout.append([data_col])
-            ele_binds.update(album_binds)
 
         workflow = self.as_workflow(
             layout,
@@ -128,7 +125,7 @@ class AlbumView(MainView, view_name='album'):
         )
         full_layout.append(workflow)
 
-        return full_layout, kwargs, ele_binds
+        return full_layout, kwargs
 
     def toggle_editing(self):
         self.editing = not self.editing

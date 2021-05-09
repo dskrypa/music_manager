@@ -97,11 +97,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
         title_case, add_genre = self.options['title_case'], self.options['add_genre']
-        common_rows, common_binds = self.album_formatter.get_album_diff_rows(self.album_info, title_case, add_genre)
-        if common_rows:
+        if common_rows := self.album_formatter.get_album_diff_rows(self.album_info, title_case, add_genre):
             layout.append([Column(common_rows, key='col::album::diff')])
             layout.append([Text()])
-            ele_binds.update(common_binds)
         else:
             layout.extend([[Text()], [Text('No common album tag changes.', justification='center')], [Text()]])
 

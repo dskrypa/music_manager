@@ -188,7 +188,6 @@ class AlbumFormatter:
 
     def get_album_diff_rows(self, new_album_info: AlbumInfo, title_case: bool = False, add_genre: bool = False):
         rows = []
-        ele_binds = {}
         new_info_dict = new_album_info.to_dict(title_case)
         for key, src_val in self._src_album_info.to_dict(title_case).items():
             if key == 'tracks':
@@ -203,15 +202,11 @@ class AlbumFormatter:
             if (src_val or new_val) and src_val != new_val:
                 self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
-                src_ele, src_bind = value_ele(src_val, src_key, True, 45)
-                new_ele, new_bind = value_ele(new_val, new_key, True, 45)
+                src_ele = value_ele(src_val, src_key, True, 45)
+                new_ele = value_ele(new_val, new_key, True, 45)
                 rows.append([label, sep_1, src_ele, sep_2, new_ele])
-                if src_bind:
-                    ele_binds[src_key] = src_bind
-                if new_bind:
-                    ele_binds[new_key] = new_bind
 
-        return resize_text_column(rows), ele_binds
+        return resize_text_column(rows)
 
     def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path = None) -> Optional[Path]:
         try:
@@ -223,7 +218,6 @@ class AlbumFormatter:
 
     def get_album_data_rows(self, editable: bool = False, right_click_menu: ContextualMenu = None):
         rows = []
-        ele_binds = {}
         for key, value in self.album_info.to_dict().items():
             if key == 'tracks':
                 continue
@@ -235,16 +229,13 @@ class AlbumFormatter:
                     types.append(value)
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
-                val_ele, bind = value_ele(value, val_key, disabled)
-                bind = bind or {}
+                val_ele = value_ele(value, val_key, disabled)
                 if isinstance(val_ele, Input) and right_click_menu:
                     val_ele.right_click_menu = right_click_menu
-                if bind:
-                    ele_binds[val_key] = bind
 
             rows.append([key_ele, val_ele])
 
-        return resize_text_column(rows), ele_binds
+        return resize_text_column(rows)
 
 
 class MultipleCoversFound(Exception):
@@ -254,8 +245,7 @@ class MultipleCoversFound(Exception):
 
 def value_ele(
     value: Any, val_key: str, disabled: bool, list_width: int = 30, no_add: bool = False, **kwargs
-) -> tuple[Element, Optional[dict[str, 'Event']]]:
-    bind = None
+) -> Element:
     if isinstance(value, bool):
         val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0), **kwargs)
     elif isinstance(value, list):
@@ -282,7 +272,7 @@ def value_ele(
     else:
         val_ele = Input(value, key=val_key, disabled=disabled, **kwargs)
 
-    return val_ele, bind
+    return val_ele
 
 
 class TrackFormatter:
@@ -378,7 +368,7 @@ class TrackFormatter:
                 try:
                     rating = stars_from_256(int(val), 10)
                 except (ValueError, TypeError):
-                    val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45, tooltip=tooltip)
+                    val_ele = value_ele(val, val_key, True, no_add=True, list_width=45, tooltip=tooltip)
                     rows.append([key_ele, sel_box, val_ele])
                 else:
                     row = [
@@ -389,11 +379,11 @@ class TrackFormatter:
                         Text(stars(rating), key=self.key_for('stars', tag_id), size=(15, 1)),
                     ]
                     rows.append(row)
-                ele_binds[val_key] = common_binds
+                ele_binds[val_key] = common_binds.copy()
             else:
-                val_ele, bind = value_ele(val, val_key, True, no_add=True, list_width=45, tooltip=tooltip)
+                val_ele = value_ele(val, val_key, True, no_add=True, list_width=45, tooltip=tooltip)
                 rows.append([key_ele, sel_box, val_ele])
-                ele_binds[val_key] = (bind or {}) | common_binds
+                ele_binds[val_key] = common_binds.copy()
 
         return resize_text_column(rows), ele_binds
 
@@ -418,7 +408,7 @@ class TrackFormatter:
                 rows.append(self._rating_row(key, value, editable))
             else:
                 key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
-                val_ele, bind = value_ele(value, self.key_for('val', key), not editable)
+                val_ele = value_ele(value, self.key_for('val', key), not editable)
                 rows.append([key_ele, val_ele])
 
         return resize_text_column(rows)
@@ -465,8 +455,8 @@ class TrackFormatter:
                     new_row = self._rating_row(key, new_val, suffix='new')[1:]
                     rows.append([label, sep_1, *src_row, sep_2, *new_row])
                 else:
-                    src_ele, src_bind = value_ele(src_val, src_key, True)
-                    new_ele, new_bind = value_ele(new_val, new_key, True)
+                    src_ele = value_ele(src_val, src_key, True)
+                    new_ele = value_ele(new_val, new_key, True)
                     rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows)

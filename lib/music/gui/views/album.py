@@ -127,6 +127,10 @@ class AlbumView(MainView, view_name='album'):
 
         return full_layout, kwargs
 
+    def post_render(self):
+        if self.editing:
+            self._configure_tk_binds()
+
     def toggle_editing(self):
         self.editing = not self.editing
         for key, ele in self.window.key_dict.items():
@@ -145,18 +149,14 @@ class AlbumView(MainView, view_name='album'):
         next_button.update(visible=self.editing or self._album_index < len(self._albums) - 1)
         next_button.set_tooltip('Review & Save Changes' if self.editing else 'View next album')
 
-        self._toggle_rating_handlers()
-        if self.editing:
-            self.window.TKroot.bind('<Button-1>', self._handle_click)
-        else:
-            self.window.TKroot.unbind('<Button-1>')
+        self._configure_tk_binds()
 
     def _handle_click(self, event):
         widget = event.widget
         if isinstance(widget, Frame):
             widget.focus_set()
 
-    def _toggle_rating_handlers(self):
+    def _configure_tk_binds(self):
         for track_formatter in self.album_formatter:
             val_key = track_formatter.key_for('val', 'rating')
             star_key = track_formatter.key_for('stars', 'rating')
@@ -178,6 +178,11 @@ class AlbumView(MainView, view_name='album'):
                     star_ele.Widget.unbind('<Button-1>')
                     star_ele.Widget.unbind('<B1-Motion>')
 
+        if self.editing:
+            self.window.TKroot.bind('<Button-1>', self._handle_click)
+        else:
+            self.window.TKroot.unbind('<Button-1>')
+
     def _handle_star_clicked(self, val_key: str, star_key: str, event):
         # noinspection PyTypeChecker
         rating_ele = self.window[val_key]  # type: Input
@@ -196,7 +201,7 @@ class AlbumView(MainView, view_name='album'):
                 value = int(value)
                 stars_to_256(value, 10)
             except (ValueError, TypeError) as e:
-                rating_ele.validated(False)
+                self._register_validation_failed(val_key, rating_ele)
                 popup_error(f'Invalid rating for track={split_key(val_key)[1]}:\n{e}', multiline=True, auto_size=True)
                 value = 0
             else:
@@ -204,7 +209,36 @@ class AlbumView(MainView, view_name='album'):
         else:
             rating_ele.validated(True)
             value = 0
-        star_ele.update(stars(value))
+        star_ele.update(stars(value), text_color='#f2d250' if value else '#000000')
+
+    def _register_validation_failed(self, key: str, element=None):
+        element = element or self.window[key]
+        widget = element.Widget
+        orig_bg = widget.cget('bg')
+        orig_fg = widget.cget('fg')
+        if isinstance(element, Input):
+            element.validated(False)
+        else:
+            update_color(element, '#FFFFFF', '#781F1F')
+
+        self._failed_validation[key] = (element, orig_fg, orig_bg)
+        element.TKEntry.bind('<Key>', partial(self._edited_field, key))
+
+    def _edited_field(self, key: str, event):
+        self.log.debug(f'_edited_field({key=}, {event=})')
+        if failed := self._failed_validation.pop(key, None):
+            element, orig_fg, orig_bg = failed
+            element.TKEntry.unbind('<Key>')
+            update_color(element, orig_fg, orig_bg)
+
+    @event_handler('Add Image')
+    def replace_image(self, event: Event, data: EventData):
+        if not self.editing:
+            self.toggle_editing()
+
+        if path := self.album_formatter.get_wiki_cover_choice():
+            self.window['val::album::cover_path'].update(path.as_posix())
+            # TODO: Update image data
 
     @event_handler('add::*')
     def add_field_value(self, event: Event, data: EventData):
@@ -238,16 +272,16 @@ class AlbumView(MainView, view_name='album'):
             setattr(info_obj, field, new_value)
             self.render()
 
-    @event_handler
-    def all_tags(self, event: Event, data: EventData):
-        from .tags import AllTagsView
-
-        return AllTagsView(self.album, self.album_formatter, last_view=self)
-
     @event_handler('Edit')
     def edit(self, event: Event, data: EventData):
         if not self.editing:
             self.toggle_editing()
+
+    @event_handler
+    def cancel(self, event: Event, data: EventData):
+        self.editing = False
+        self.album_formatter.reset_changes()
+        self.render()
 
     @event_handler
     def ctrl_left(self, event: Event, data: EventData):
@@ -259,23 +293,19 @@ class AlbumView(MainView, view_name='album'):
         if not isinstance(self.window.find_element_with_focus(), Input):
             super().ctrl_right(event, data)
 
+    # region Switch View Handlers
+
     @event_handler('btn::back')
     def go_back(self, event: Event, data: EventData):
         if self.editing:
-            self.handle_event('cancel', data)
+            return self.cancel('cancel', data)
         else:
             return AlbumView(AlbumDir(self._albums[self._album_index - 1]), last_view=self)
-
-    @event_handler
-    def cancel(self, event: Event, data: EventData):
-        self.editing = False
-        self.album_formatter.reset_changes()
-        self.render()
 
     @event_handler('btn::next')
     def go_next(self, event: Event, data: EventData):
         if self.editing:
-            self.handle_event('save', data)
+            return self.save('save', data)
         else:
             return AlbumView(AlbumDir(self._albums[self._album_index + 1]), last_view=self)
 
@@ -326,26 +356,11 @@ class AlbumView(MainView, view_name='album'):
         album_info = AlbumInfo.from_dict(info_dict)
         return AlbumDiffView(self.album, album_info, self.album_formatter, last_view=self)
 
-    def _register_validation_failed(self, key: str):
-        element = self.window[key]
-        update_color(element, '#FFFFFF', '#781F1F')
-        self._failed_validation[key] = element
-        element.TKEntry.bind('<Key>', partial(self._edited_field, key))
+    @event_handler
+    def all_tags(self, event: Event, data: EventData):
+        from .tags import AllTagsView
 
-    def _edited_field(self, key: str, event):
-        self.log.debug(f'_edited_field({key=}, {event=})')
-        if element := self._failed_validation.pop(key, None):
-            element.TKEntry.unbind('<Key>')
-            update_color(element, element.TextColor, element.BackgroundColor)
-
-    @event_handler('Add Image')
-    def replace_image(self, event: Event, data: EventData):
-        if not self.editing:
-            self.toggle_editing()
-
-        if path := self.album_formatter.get_wiki_cover_choice():
-            self.window['val::album::cover_path'].update(path.as_posix())
-            # TODO: Update image data
+        return AllTagsView(self.album, self.album_formatter, last_view=self)
 
     @event_handler('sync_ratings::*')
     def sync_ratings(self, event: Event, data: EventData):
@@ -359,6 +374,8 @@ class AlbumView(MainView, view_name='album'):
             return SyncRatingsView(last_view=self, **kwargs)
         except ValueError as e:
             popup_error(str(e))
+
+    # endregion
 
 
 def can_toggle_editable(key, ele):

@@ -387,6 +387,10 @@ class GuiView(ABC):
                 ele.bind(key, val)
 
         self._log_position_and_dimensions('Rendered', False)
+        self.post_render()
+
+    def post_render(self):
+        pass
 
     def is_maximized(self):
         return self.window.TKroot.state() == 'zoomed'

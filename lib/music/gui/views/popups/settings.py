@@ -52,7 +52,8 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
                         self.log.info(f'Changing theme from {self.state[key]!r} to {val!r}')
                         theme(val)
                         self.window.close()
-                        self.render()
+                        if event != 'save':
+                            self.render()
                         if parent := self.parent:
                             parent.render()
 

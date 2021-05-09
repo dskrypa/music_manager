@@ -19,7 +19,6 @@ from .base import event_handler, Event, EventData, RenderArgs
 from .formatting import AlbumFormatter
 from .main import MainView
 from .utils import get_a_to_b
-from .popups.simple import popup_ok
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage

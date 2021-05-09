@@ -10,7 +10,7 @@ from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection, Callable
+from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection
 
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage

@@ -29,7 +29,7 @@ from itertools import count
 from queue import Queue
 from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
-from PySimpleGUI import Window, WIN_CLOSED, Element
+from PySimpleGUI import Window, WIN_CLOSED, Element, theme
 from screeninfo import get_monitors, Monitor
 
 from ..state import GuiState
@@ -44,7 +44,7 @@ Kwargs = dict[str, Any]
 EleBinds = dict[str, dict[str, Event]]
 RenderArgs = Union[Layout, tuple[Layout, Kwargs], tuple[Layout, Kwargs, EleBinds]]
 
-DEFAULT_SETTINGS = {'remember_pos': True}
+DEFAULT_SETTINGS = {'remember_pos': True, 'theme': 'DarkGrey10'}
 
 
 def event_handler(*args, **kwargs):
@@ -166,6 +166,7 @@ class GuiView(ABC):
     def start(cls, cls_kwargs=None, init_event: tuple[Event, EventData] = None, interactive: bool = False, **kwargs):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
+        theme(cls.state['theme'])
         cls._primary_kwargs.update(kwargs)
         if size := kwargs.get('size'):
             cls._window_size = size

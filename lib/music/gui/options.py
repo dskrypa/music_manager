@@ -41,6 +41,7 @@ class GuiOptions:
         self.align_checkboxes = align_checkboxes
         self.title = title
         self._rows_per_column = {}
+        self._max_row = -1
         self._default_row = 0
         self._default_col = 0
 
@@ -120,6 +121,7 @@ class GuiOptions:
         }
         col_rows = self._rows_per_column.get(col, 0)
         self._rows_per_column[col] = max(col_rows, row + 1)
+        self._max_row = max(self._max_row, row)
 
     def add_bool(self, option: str, label: str, default: bool = False, **kwargs):
         self._add_option('checkbox', option, label, default, **kwargs)
@@ -318,6 +320,15 @@ class GuiOptions:
     def row(self, row: int):
         old = self._default_row
         self._default_row = row
+        try:
+            yield self
+        finally:
+            self._default_row = old
+
+    @contextmanager
+    def next_row(self):
+        old = self._default_row
+        self._default_row = self._max_row + 1
         try:
             yield self
         finally:

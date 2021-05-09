@@ -7,7 +7,7 @@ View: Settings
 from functools import partial
 from typing import Any, Iterable
 
-from PySimpleGUI import Element, Submit
+from PySimpleGUI import Element, Submit, theme_list, theme
 
 from ...options import GuiOptions, SingleParsingError, MultiParsingError
 from ..base import event_handler, Event, EventData
@@ -22,9 +22,11 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
         super().__init__(binds={'<Escape>': 'Exit'})
         self._failed_validation = {}
         self.options = GuiOptions(self, submit='Save', title=None)
-        with self.options.row(0) as options:
+        with self.options.next_row() as options:
             options.add_bool('remember_pos', 'Remember Last Window Position', self.state['remember_pos'])
-        with self.options.row(1) as options:
+        with self.options.next_row() as options:
+            options.add_dropdown('theme', 'Theme', theme_list(), self.state['theme'])
+        with self.options.next_row() as options:
             options.add_directory('output_base_dir', 'Output Directory', self.state['output_base_dir'])
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
@@ -46,6 +48,14 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
         try:
             for key, val in self.options.items():
                 if val != self.state.get(key):
+                    if key == 'theme':
+                        self.log.info(f'Changing theme from {self.state[key]!r} to {val!r}')
+                        theme(val)
+                        self.window.close()
+                        self.render()
+                        if parent := self.parent:
+                            parent.render()
+
                     self.state[key] = val
         except Exception:
             raise

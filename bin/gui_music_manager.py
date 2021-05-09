@@ -58,8 +58,6 @@ def launch_gui(args):
             log.debug('Exiting non-primary clean process')
             return
 
-    from PySimpleGUI import theme
-
     from music.common.prompts import set_ui_mode, UIMode
     from music.files.patches import apply_mutagen_patches
     from music.gui.patches import patch_all
@@ -72,8 +70,6 @@ def launch_gui(args):
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
     set_ui_mode(UIMode.GUI)
-    # theme('SystemDefaultForReal')
-    theme('DarkGrey10')
 
     start_kwargs = dict(title='Music Manager', resizable=True, size=(1700, 750), element_justification='center')
     if args.action == 'open':

@@ -11,7 +11,7 @@ from itertools import chain
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from PySimpleGUI import Text, HorizontalSeparator, Column, Button, popup_get_text
+from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 from tkinter import Frame
 
 from ...common.utils import stars
@@ -26,7 +26,7 @@ from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok
-from .popups.text import popup_error
+from .popups.text import popup_error, popup_get_text
 from .utils import split_key, update_color, open_in_file_manager
 
 __all__ = ['AlbumView']
@@ -85,9 +85,7 @@ class AlbumView(MainView, view_name='album'):
 
     def _prepare_album_column(self, spinner: Spinner):
         spinner.update()
-        search_menu = ContextualMenu(
-            self.search_for_selection, kw_key_opt_cb_map={'selected': self.search_menu_options}
-        )
+        search_menu = ContextualMenu(_search_for_selection, kw_key_opt_cb_map={'selected': self.search_menu_options})
         album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing, search_menu)
         spinner.update()
         album_data = [
@@ -211,35 +209,11 @@ class AlbumView(MainView, view_name='album'):
             value = 0
         star_ele.update(stars(value))
 
-    def handle_event(self, event: Event, data: EventData):
-        if event.startswith('add::'):
-            data['listbox_key'] = event.replace('add::', 'val::', 1)
-            key_type, obj, field = split_key(event)
-            data.update(object=obj, field=field)
-            event = 'add_field_value'
-
-        return super().handle_event(event, data)
-
-    def search_for_selection(self, key: str, selected: str):
-        quoted = quote_plus(selected)
-        if key == 'kpop.fandom':
-            webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quoted}')
-        elif key == 'google':
-            webbrowser.open(f'https://www.google.com/search?q={quoted}')
-        elif key == 'generasia':
-            url = f'https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={quoted}'
-            webbrowser.open(url)
-
-    @event_handler
+    @event_handler('add::*')
     def add_field_value(self, event: Event, data: EventData):
-        obj = data['object']  # album or a track path
-        field = data['field']
-
+        key_type, obj, field = split_key(event)  # obj => album or a track path
         obj_str = 'the album' if obj == 'album' else Path(obj).name
-        new_value = popup_get_text(f'Enter a new {field} value to add to {obj_str}', title=f'Add {field}')
-        if new_value is not None:
-            new_value = new_value.strip()
-        if not new_value:
+        if not (new_value := popup_get_text(f'Enter a new {field} value to add to {obj_str}', title=f'Add {field}')):
             return
 
         if (album_info := self.album_formatter._new_album_info) is None:  # can't update listbox size without re-draw
@@ -251,7 +225,10 @@ class AlbumView(MainView, view_name='album'):
         if field == 'genre':
             self.log.debug(f'Adding genre={new_value!r} to {info_obj}')
             info_obj.add_genre(new_value)
-            self.render()
+            ele = self.window.key_dict[f'val::{event[5:]}']  # type: Listbox  # noqa
+            values = ele.Values or []
+            values.append(new_value)
+            ele.update(values)
         else:
             info_fields = {f.name: f for f in fields(info_obj.__class__)}
             try:
@@ -386,10 +363,22 @@ class AlbumView(MainView, view_name='album'):
         except ValueError as e:
             popup_error(str(e))
 
-    def open_in_file_manager(self, key: str, selected: str = None):
+    @staticmethod
+    def open_in_file_manager(key: str, selected: str = None):
         open_in_file_manager(key)
 
 
 def can_toggle_editable(key, ele):
     if isinstance(key, str) and key.startswith(('val::', 'add::')) and key != 'val::album::mp4':
         return not isinstance(ele, Text)
+
+
+def _search_for_selection(key: str, selected: str):
+    quoted = quote_plus(selected)
+    if key == 'kpop.fandom':
+        webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quoted}')
+    elif key == 'google':
+        webbrowser.open(f'https://www.google.com/search?q={quoted}')
+    elif key == 'generasia':
+        url = f'https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={quoted}'
+        webbrowser.open(url)

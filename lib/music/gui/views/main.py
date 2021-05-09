@@ -246,20 +246,6 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
         key = event.rsplit(':::', 1)[0]
         webbrowser.open(data[key])
 
-    @event_handler('img::*')
-    def image_clicked(self, event: Event, data: EventData):
-        from .popups.image import ImageView
-
-        if album_formatter := getattr(self, 'album_formatter', None):
-            img_src = split_key(event)[1]
-            if img_src == 'album':
-                return ImageView(
-                    album_formatter.cover_image_full_obj, f'Album Cover: {album_formatter.album_info.name}'
-                )
-            else:
-                track_formatter = album_formatter.track_formatters[img_src]
-                return ImageView(track_formatter.cover_image_obj, f'Track Album Cover: {track_formatter.file_name}')
-
     @event_handler
     def sync_ratings(self, event: Event, data: EventData):
         from .rating_sync import SyncRatingsView

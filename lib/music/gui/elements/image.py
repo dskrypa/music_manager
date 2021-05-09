@@ -20,11 +20,20 @@ log = logging.getLogger(__name__)
 
 class ExtendedImage(Image):
     def __init__(
-        self, *args, data: bytes = None, image: PILImage = None, border_width: int = 1, background_color=None, **kwargs
+        self,
+        *args,
+        data: bytes = None,
+        image: PILImage = None,
+        border_width: int = 1,
+        background_color=None,
+        popup_title: str = None,
+        **kwargs,
     ):
         if image and data:
             raise ValueError('Only one of image / data are accepted')
+        self.__in_popup = kwargs.pop('_in_popup', False)
         super().__init__(*args, **kwargs)
+        self._popup_title = popup_title
         self._image = image if image else ImageModule.open(BytesIO(data)) if data else None
         self._border_width = border_width
         self._background_color = background_color
@@ -43,6 +52,8 @@ class ExtendedImage(Image):
         self._widget = tktext_label
         if self._image:
             self.resize(*self.Size)
+            if not self.__in_popup:
+                self._widget.bind('<Button-1>', self.handle_click)
 
     def _get_size(self, width: int, height: int):
         image = self._image
@@ -66,6 +77,11 @@ class ExtendedImage(Image):
                 self._widget.configure(image=image, width=width, height=height)
                 self._widget.image = image
                 self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+
+    def handle_click(self, event):
+        from ..views.popups.image import ImageView
+
+        ImageView(self._image, self._popup_title).get_result()
 
 
 def calculate_resize(src_w, src_h, new_size):

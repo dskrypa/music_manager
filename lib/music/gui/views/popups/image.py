@@ -28,7 +28,7 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         self.pil_img = image
         self.orig_size = image.size
         self._last_size = init_size = self._init_size()
-        self.gui_img = ExtendedImage(image=image, size=init_size, key=self.img_key, pad=(2, 2))
+        self.gui_img = ExtendedImage(image=image, size=init_size, key=self.img_key, pad=(2, 2), _in_popup=True)
         self._last_resize = 0
 
     def _init_size(self):

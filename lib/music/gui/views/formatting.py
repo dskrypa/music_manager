@@ -29,7 +29,7 @@ from ..elements.image import ExtendedImage
 from ..elements.inputs import DarkInput as Input
 from ..elements.menu import ContextualMenu
 from .base import Layout, EleBinds
-from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b
+from .utils import resize_text_column, label_and_val_key, label_and_diff_keys, get_a_to_b, open_in_file_manager
 from .popups.simple import popup_ok
 from .thread_tasks import start_task
 
@@ -157,9 +157,8 @@ class AlbumFormatter:
         return self._make_thumbnail_image(image, key, can_replace)
 
     def _make_thumbnail_image(self, image: Optional[PILImage], key, can_replace: bool = False):
-        kwargs = dict(size=self.cover_size, key=key)
+        kwargs = dict(size=self.cover_size, key=key, popup_title=f'Album Cover: {self.album_info.name}')
         if image is not None:
-            kwargs['enable_events'] = True
             if can_replace and self.wiki_image_urls:
                 kwargs['right_click_menu'] = ['Image', ['Replace Image']]
         elif can_replace and self.wiki_image_urls:
@@ -339,7 +338,7 @@ class TrackFormatter:
             image=self.cover_image_obj,
             size=self.cover_size,
             key=f'img::{self.path_str}::cover-thumb',
-            enable_events=True,
+            popup_title=f'Track Album Cover: {self.file_name}'
         )
 
     # endregion
@@ -477,9 +476,7 @@ class TrackFormatter:
 
     def get_basic_info_row(self):
         track = self.track
-        open_menu = ContextualMenu(
-            self.album_formatter.view.open_in_file_manager, {self.path_str: 'Open in File Manager'}  # noqa
-        )
+        open_menu = ContextualMenu(open_in_file_manager, {self.path_str: 'Open in File Manager'}, include_kwargs=False)
         return [
             Text('File:'),
             Input(track.path.name, size=(50, 1), disabled=True, right_click_menu=open_menu),

@@ -21,6 +21,7 @@ class ContextualMenu:
         kw_key_opt_cb_map: Mapping[str, Union[tuple[MenuDict, Callable], MenuDict]] = None,
         always_show_default: bool = True,
         format_default: bool = True,
+        include_kwargs: bool = True,
     ):
         """
         A right-click menu that can provide different options based on values passed at run time.
@@ -32,11 +33,13 @@ class ContextualMenu:
           {keyword: {callback arg: option formatting string}} for keywords
         :param always_show_default: Always show default options, even when kwargs are passed to :meth:`.show`
         :param format_default: Treat default options as formatting strings to format kwargs like the kwarg-based options
+        :param include_kwargs: Include kwargs when calling the callback
         """
         self.always_show_default = always_show_default
         self.format_default = format_default
         self.default_key_opt_map = default_key_opt_map
         self.default_cb = default_cb
+        self.include_kwargs = include_kwargs
         self.kw_key_option_maps = {}
         self.kw_cb_map = {}
         if kw_key_opt_cb_map:
@@ -49,7 +52,8 @@ class ContextualMenu:
     def _add_options(self, menu: Menu, key_option_map: MenuDict, cb: Callable, do_fmt: bool, kwargs) -> bool:
         added = 0
         for key, option in key_option_map.items():
-            menu.add_command(label=option.format(**kwargs) if do_fmt else option, command=partial(cb, key, **kwargs))
+            command = partial(cb, key, **kwargs) if self.include_kwargs else partial(cb, key)
+            menu.add_command(label=option.format(**kwargs) if do_fmt else option, command=command)
             added += 1
         return bool(added)
 

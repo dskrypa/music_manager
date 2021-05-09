@@ -108,7 +108,7 @@ class AlbumView(MainView, view_name='album'):
         ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             album_path = self.album.path.as_posix()
-            open_menu = ContextualMenu(self.open_in_file_manager, {album_path: 'Open in File Manager'})
+            open_menu = ContextualMenu(open_in_file_manager, {album_path: 'Open in File Manager'}, include_kwargs=False)
             layout = [
                 [Text('Album Path:'), Input(album_path, disabled=True, size=(150, 1), right_click_menu=open_menu)],
                 [HorizontalSeparator()]
@@ -362,10 +362,6 @@ class AlbumView(MainView, view_name='album'):
             return SyncRatingsView(last_view=self, **kwargs)
         except ValueError as e:
             popup_error(str(e))
-
-    @staticmethod
-    def open_in_file_manager(key: str, selected: str = None):
-        open_in_file_manager(key)
 
 
 def can_toggle_editable(key, ele):

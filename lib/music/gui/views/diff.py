@@ -141,21 +141,6 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             self.window['opt::rename_in_place'].update(disabled=False)
             self.window['opt::no_album_move'].update(disabled=False)
 
-    @event_handler('img::*')
-    def image_clicked(self, event: Event, data: EventData):
-        from .popups.image import ImageView
-
-        if event == 'img::album::cover-src':
-            title_prefix = 'Original'
-            pil_image = self.album_formatter.cover_image_full_obj
-        elif event == 'img::album::cover-new':
-            title_prefix = 'New'
-            pil_image = self.cover_images[2]
-        else:
-            popup_ok(f'Unknown image: {event}')
-            return
-        return ImageView(pil_image, f'{title_prefix} Album Cover: {self.album_formatter.album_info.name}')
-
     @event_handler('btn::next')
     def apply_changes(self, event: Event, data: EventData):
         from .album import AlbumView

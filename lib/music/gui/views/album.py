@@ -89,7 +89,7 @@ class AlbumView(MainView, view_name='album'):
         album_data_rows, album_binds = self.album_formatter.get_album_data_rows(self.editing, search_menu)
         spinner.update()
         album_data = [
-            Column([[self.album_formatter.cover_image_thumbnail()]], key='col::album_cover'),
+            Column([[self.album_formatter.cover_image_thumbnail]], key='col::album_cover'),
             Column(album_data_rows, key='col::album_data'),
         ]
         spinner.update()

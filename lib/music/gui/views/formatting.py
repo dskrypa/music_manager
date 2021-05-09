@@ -145,7 +145,8 @@ class AlbumFormatter:
             raise MultipleCoversFound(image_count)
         return None
 
-    def cover_image_thumbnail(self, key: str = 'img::album::cover-thumb', can_replace: bool = True) -> Image:
+    @property
+    def cover_image_thumbnail(self) -> ExtendedImage:
         try:
             image = self._get_cover_image_obj()
         except MultipleCoversFound as e:
@@ -154,10 +155,13 @@ class AlbumFormatter:
                 _multiple_covers_warned.add(self.album_dir.path)
                 popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}', keep_on_top=True)
 
-        return self._make_thumbnail_image(image, key, can_replace)
+        return self._make_thumbnail(image, 'img::album::cover-thumb', True)
 
-    def _make_thumbnail_image(self, image: Optional[PILImage], key, can_replace: bool = False):
-        kwargs = dict(size=self.cover_size, key=key, popup_title=f'Album Cover: {self.album_info.name}')
+    def _make_thumbnail(
+        self, image: Optional[PILImage], key, can_replace: bool = False, title_prefix: str = None
+    ) -> ExtendedImage:
+        prefix = f'{title_prefix} ' if title_prefix else ''
+        kwargs = dict(size=self.cover_size, key=key, popup_title=f'{prefix}Album Cover: {self.album_info.name}')
         if image is not None:
             if can_replace and self.wiki_image_urls:
                 kwargs['right_click_menu'] = ['Image', ['Replace Image']]
@@ -165,21 +169,18 @@ class AlbumFormatter:
             kwargs['right_click_menu'] = ['Image', ['Add Image']]
         return ExtendedImage(image=image, **kwargs)
 
-    @property
-    def cover_image_full_obj(self) -> Optional['PILImage']:
-        try:
-            return self._get_cover_image_obj()
-        except MultipleCoversFound as e:
-            popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}')
-            return None
-
     def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image, PILImage, bytes]]:
         if new_album_info.cover_path:
-            src_pil_image = self.cover_image_full_obj
+            try:
+                src_pil_image = self._get_cover_image_obj()
+            except MultipleCoversFound as e:
+                popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}')
+                src_pil_image = None
+
             new_pil_image, img_data = new_album_info.get_new_cover(self.album_dir, src_pil_image, force=True)
             if new_pil_image is not None:
-                src_img_ele = self.cover_image_thumbnail('img::album::cover-src', False)
-                new_img_ele = self._make_thumbnail_image(new_pil_image, 'img::album::cover-new')
+                src_img_ele = self._make_thumbnail(src_pil_image, 'img::album::cover-src', title_prefix='Original')
+                new_img_ele = self._make_thumbnail(new_pil_image, 'img::album::cover-new', title_prefix='New')
                 return src_img_ele, new_img_ele, new_pil_image, img_data
         return None
 

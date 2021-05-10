@@ -32,7 +32,7 @@ from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 from PySimpleGUI import Window, WIN_CLOSED, Element, theme
 from screeninfo import get_monitors, Monitor
 
-from ..state import GuiState
+from .state import GuiState
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .utils import ViewLoggerAdapter
 

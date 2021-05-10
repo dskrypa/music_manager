@@ -16,12 +16,12 @@ from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 from ...common.utils import can_add_bpm
 from ...files.album import AlbumDir, iter_albums_or_files
 from ...manager.file_update import _add_bpm
+from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..options import GuiOptions, GuiOptionError, SingleParsingError
 from ..progress import ProgressTracker
-from .base import event_handler, Event, EventData, RenderArgs
+from ..utils import output_log_handler
 from .main import MainView
 from .popups.simple import popup_ok, popup_input_invalid
-from .utils import output_log_handler
 
 __all__ = ['CleanView']
 

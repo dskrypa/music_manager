@@ -13,9 +13,9 @@ from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
+from ..base_view import event_handler
 from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
-from .base import event_handler
 from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.text import popup_error

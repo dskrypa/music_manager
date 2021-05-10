@@ -9,7 +9,7 @@ from typing import Callable, Sequence, Any, Union, Collection
 from PySimpleGUI import Element, Text, Button, Radio, Column
 
 from ds_tools.input.prompts import _prepare_source
-from ..base import event_handler
+from ...base_view import event_handler
 from .base import BasePopup
 
 __all__ = ['ChooseItemPopup', 'choose_item']

@@ -8,9 +8,9 @@ from queue import Empty
 from threading import Thread
 from typing import Callable
 
+from ..base_view import GuiView
 from ..constants import LoadingSpinner
 from ..progress import Spinner
-from .base import GuiView
 
 
 def start_task(func: Callable, args=(), kwargs=None, spinner_img=LoadingSpinner.blue_dots, **spin_kwargs):

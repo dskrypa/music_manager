@@ -12,7 +12,7 @@ import PIL
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Element, Button, Radio, Column, Image
 
-from ..base import event_handler, Event, EventData
+from ...base_view import event_handler, Event, EventData
 from .base import BasePopup
 from .image import ImageView
 

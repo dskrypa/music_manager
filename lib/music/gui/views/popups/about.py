@@ -12,7 +12,7 @@ from typing import Any
 
 from PySimpleGUI import Element, Text, OK
 
-from ..base import event_handler
+from ...base_view import event_handler
 from .base import BasePopup
 
 __all__ = ['AboutView']

@@ -14,7 +14,7 @@ from .elements.inputs import DarkInput as Input
 from .views.utils import resize_text_column, make_checkbox_grid
 
 if TYPE_CHECKING:
-    from .views.base import GuiView
+    from .base_view import GuiView
 
 __all__ = ['GuiOptions', 'GuiOptionError', 'SingleParsingError', 'RequiredOptionMissing', 'MultiParsingError']
 _NotSet = object()

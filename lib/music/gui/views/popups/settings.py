@@ -9,9 +9,9 @@ from typing import Any, Iterable
 
 from PySimpleGUI import Element, Submit, theme_list, theme
 
+from ...base_view import event_handler, Event, EventData
 from ...options import GuiOptions, SingleParsingError, MultiParsingError
-from ..base import event_handler, Event, EventData
-from ..utils import update_color
+from ...utils import update_color
 from .base import BasePopup
 
 __all__ = ['SettingsView']

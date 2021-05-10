@@ -10,16 +10,17 @@ from collections import defaultdict
 from PySimpleGUI import Text, HorizontalSeparator, Column, Frame, Image, Checkbox
 
 from ...files.album import AlbumDir
+from ..base_view import RenderArgs, event_handler, Event, EventData
 from ..constants import LoadingSpinner
 from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
 from ..progress import Spinner
-from .base import RenderArgs, event_handler, Event, EventData
+from ..utils import update_color
 from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_ok, popup
 from .popups.text import TextPopup
-from .utils import split_key, update_color
+from .utils import split_key
 
 __all__ = ['AllTagsView']
 

@@ -12,10 +12,10 @@ from PySimpleGUI import Text, HorizontalSeparator, Column
 
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
+from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
 from ..elements.inputs import DarkInput as Input
 from ..progress import Spinner
-from .base import event_handler, RenderArgs, Event, EventData
 from .formatting import AlbumFormatter
 from .main import MainView
 from .popups.simple import popup_input_invalid

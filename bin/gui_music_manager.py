@@ -61,7 +61,7 @@ def launch_gui(args):
     from music.common.prompts import set_ui_mode, UIMode
     from music.files.patches import apply_mutagen_patches
     from music.gui.patches import patch_all
-    from music.gui.views.main import MainView
+    from music.gui.music_manager_views.main import MainView
 
     apply_mutagen_patches()
     patch_all()

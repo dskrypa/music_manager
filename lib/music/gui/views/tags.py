@@ -14,12 +14,12 @@ from ..base_view import RenderArgs, event_handler, Event, EventData
 from ..constants import LoadingSpinner
 from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
+from ..popups.simple import popup_ok, popup
+from ..popups.text import TextPopup
 from ..progress import Spinner
 from ..utils import update_color
 from .formatting import AlbumFormatter
 from .main import MainView
-from .popups.simple import popup_ok, popup
-from .popups.text import TextPopup
 from .utils import split_key
 
 __all__ = ['AllTagsView']

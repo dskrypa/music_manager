@@ -8,7 +8,7 @@ from typing import Any
 
 from PySimpleGUI import Element, Text, Button, Multiline, Input
 
-from ...base_view import event_handler
+from ..base_view import event_handler
 from .base import BasePopup
 
 __all__ = ['TextPopup', 'popup_ok', 'popup_error', 'TextInputPopup', 'popup_get_text']

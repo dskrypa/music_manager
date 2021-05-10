@@ -10,7 +10,7 @@ from threading import current_thread
 
 from PySimpleGUI import Window
 
-from ...base_view import event_handler, GuiView, Event, EventData
+from ..base_view import event_handler, GuiView, Event, EventData
 
 __all__ = ['BasePopup']
 

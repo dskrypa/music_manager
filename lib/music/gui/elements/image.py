@@ -79,7 +79,7 @@ class ExtendedImage(Image):
                 self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
 
     def handle_click(self, event):
-        from ..views.popups.image import ImageView
+        from ..popups.image import ImageView
 
         ImageView(self._image, self._popup_title).get_result()
 

@@ -15,12 +15,12 @@ from ...files.exceptions import InvalidAlbumDir
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
 from ..elements.inputs import DarkInput as Input
+from ..popups.simple import popup_input_invalid
+from ..popups.path_prompt import get_directory
+from ..popups.text import popup_ok
 from ..progress import Spinner
 from .formatting import AlbumFormatter
 from .main import MainView
-from .popups.simple import popup_input_invalid
-from .popups.path_prompt import get_directory
-from .popups.text import popup_ok
 
 __all__ = ['SyncRatingsView']
 

@@ -16,9 +16,9 @@ from ...manager.wiki_update import WikiUpdater
 from ..base_view import event_handler
 from ..elements.inputs import DarkInput as Input
 from ..options import GuiOptions
+from ..popups.text import popup_error
 from .formatting import AlbumFormatter
 from .main import MainView
-from .popups.text import popup_error
 from .thread_tasks import start_task
 
 __all__ = ['WikiUpdateView']

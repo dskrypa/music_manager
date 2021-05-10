@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Union, Callable, Collection, Any, Optional
 
 from ds_tools.input.prompts import choose_item as cli_choose_item, Color
-from ..gui.views.popups.choose_item import choose_item as gui_choose_item
+from ..gui.popups.choose_item import choose_item as gui_choose_item
 
 __all__ = ['choose_item', 'UIMode', 'set_ui_mode']
 

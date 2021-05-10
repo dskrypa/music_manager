@@ -17,9 +17,9 @@ from ds_tools.core.decorate import classproperty
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..base_view import event_handler, GuiView, Layout, Event, EventData, RenderArgs
-from .popups.path_prompt import get_directory
-from .popups.simple import popup_input_invalid
-from .popups.text import popup_error
+from ..popups.path_prompt import get_directory
+from ..popups.simple import popup_input_invalid
+from ..popups.text import popup_error
 
 __all__ = ['MainView']
 

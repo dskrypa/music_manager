@@ -195,6 +195,7 @@ class AlbumFormatter:
 
             new_val = new_info_dict[key]
             if key == 'genre' and add_genre:
+                # TODO: Genre box alignment is 1-2 px to the left of other boxes
                 new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
                 new_vals.update(src_val)
                 new_val = sorted(new_vals)

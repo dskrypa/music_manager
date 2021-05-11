@@ -28,7 +28,7 @@ from functools import partial, update_wrapper
 from itertools import count
 from queue import Queue, Empty
 from threading import Thread
-from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
+from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, theme
 from screeninfo import get_monitors, Monitor
@@ -38,6 +38,9 @@ from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .progress import Spinner
 from .settings import GuiSettings
 from .utils import ViewLoggerAdapter
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = ['GuiView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
 Layout = list[list[Element]]
@@ -126,6 +129,7 @@ class GuiView(ABC):
         defaults: Mapping[str, Any] = None,
         permissive_handler_names: bool = None,
         allow_no_handler: bool = None,
+        settings_path: Union[str, 'Path'] = None,
     ):
         cls.name = view_name
         cls.log = ViewLoggerAdapter(cls)
@@ -135,6 +139,8 @@ class GuiView(ABC):
         cls.default_handler = getattr(cls, '_default_handler', None)
         if cls.default_handler is not None:
             del cls._default_handler  # noqa
+        if settings_path:  # The latest class to set this wins - does not support multiple paths within the same run
+            cls.settings.path = settings_path
         if defaults:
             cls.settings.defaults.update(defaults)
         if permissive_handler_names is not None:

@@ -17,14 +17,24 @@ DEFAULT_PATH = '~/.config/music_manager/gui_settings.json'
 
 class GuiSettings:
     def __init__(self, path: Union[str, Path] = DEFAULT_PATH, auto_save: bool = False, defaults: dict[str, Any] = None):
-        path = Path(path).expanduser()
-        if not path.parent.exists():
-            path.parent.mkdir(parents=True)
-        self._path = path
+        self.path = path
         self._data = None
         self._changed = set()
         self.defaults = defaults.copy() if defaults else {}
         self.auto_save = auto_save
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    @path.setter
+    def path(self, path: Union[str, Path]):
+        path = Path(path).expanduser()
+        if path.parent.as_posix() == '.':  # If only a file name was provided
+            path = Path(DEFAULT_PATH).expanduser().parent.joinpath(path)
+        if not path.parent.exists():
+            path.parent.mkdir(parents=True)
+        self._path = path
 
     @property
     def data(self) -> dict[str, Any]:

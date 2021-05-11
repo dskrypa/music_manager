@@ -7,7 +7,7 @@ Music Manager GUI state
 import json
 import logging
 from pathlib import Path
-from typing import Any, Type, MutableMapping
+from typing import Any, Type
 
 from ds_tools.fs.paths import get_user_cache_dir
 
@@ -17,7 +17,7 @@ _NotSet = object()
 
 
 class GuiState:
-    def __init__(self, auto_save: bool = False, defaults: MutableMapping[str, Any] = None):
+    def __init__(self, auto_save: bool = False, defaults: dict[str, Any] = None):
         self._path = Path(get_user_cache_dir('music_manager')).joinpath('gui_state.json')
         self._state = None
         self._changed = set()

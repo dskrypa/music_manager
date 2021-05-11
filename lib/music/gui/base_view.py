@@ -26,14 +26,17 @@ from copy import deepcopy
 from fnmatch import _compile_pattern
 from functools import partial, update_wrapper
 from itertools import count
-from queue import Queue
+from queue import Queue, Empty
+from threading import Thread
 from typing import Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, theme
 from screeninfo import get_monitors, Monitor
 
-from .state import GuiState
+from .constants import LoadingSpinner
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
+from .progress import Spinner
+from .state import GuiState
 from .utils import ViewLoggerAdapter
 
 __all__ = ['GuiView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
@@ -433,3 +436,25 @@ class GuiView(ABC):
             win_corners = [(win_x, win_y), (win_x + win_w, win_y + win_h)]
             mon_corners = [(mon_x, mon_y), (mon_x + mon_w, mon_y + mon_h)]
             self.log.debug(f'Monitor corners={mon_corners}  Window corners={win_corners}')
+
+    @classmethod
+    def start_task(cls, func: Callable, args=(), kwargs=None, spinner_img=LoadingSpinner.blue_dots, **spin_kwargs):
+        with Spinner(spinner_img, **spin_kwargs) as spinner:
+            t = Thread(target=func, args=args, kwargs=kwargs)
+            t.start()
+            t.join(0.05)
+            while t.is_alive():
+                try:
+                    future, func, args, kwargs = cls.pending_prompts.get(timeout=0.05)
+                except Empty:
+                    pass
+                else:
+                    if future.set_running_or_notify_cancel():
+                        try:
+                            result = func(*args, **kwargs)
+                        except Exception as e:
+                            future.set_exception(e)
+                        else:
+                            future.set_result(result)
+
+                spinner.update()

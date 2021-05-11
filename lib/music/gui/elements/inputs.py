@@ -23,7 +23,7 @@ class DarkInput(Input):
 
     def __init__(
         self,
-        value,
+        value='',
         *args,
         right_click_menu: Union[ContextualMenu, MenuList] = None,
         link: bool = None,

@@ -4,6 +4,7 @@ View: Text Popup
 :author: Doug Skrypa
 """
 
+from abc import ABCMeta
 from concurrent.futures import Future
 from contextlib import contextmanager
 from threading import current_thread
@@ -15,7 +16,7 @@ from ..base_view import event_handler, GuiView, Event, EventData
 __all__ = ['BasePopup']
 
 
-class BasePopup(GuiView, view_name='_base_popup', primary=False):
+class BasePopup(GuiView, view_name='_base_popup', primary=False, metaclass=ABCMeta):
     def __init__(self, title: str = '', **kwargs):
         super().__init__(**kwargs)
         self.title = title

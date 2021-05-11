@@ -32,7 +32,6 @@ from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
 from ..utils import open_in_file_manager, resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
-from .thread_tasks import start_task
 
 __all__ = ['TrackFormatter', 'AlbumFormatter']
 _multiple_covers_warned = set()
@@ -111,11 +110,11 @@ class AlbumFormatter:
 
     def get_wiki_cover_images(self):
         if self._images is None:
-            start_task(self._get_wiki_cover_images, message='Downloading images...')
+            GuiView.start_task(self._get_wiki_cover_images, message='Downloading images...')
         return self._images
 
     def get_wiki_cover_choice(self) -> Optional[Path]:
-        from .popups.choose_image import choose_image
+        from ..popups.choose_image import choose_image
 
         images = self.get_wiki_cover_images()
         if title := choose_image(images):

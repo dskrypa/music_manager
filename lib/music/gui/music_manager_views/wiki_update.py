@@ -19,7 +19,6 @@ from ..options import GuiOptions
 from ..popups.text import popup_error
 from .formatting import AlbumFormatter
 from .main import MainView
-from .thread_tasks import start_task
 
 __all__ = ['WikiUpdateView']
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
@@ -113,7 +112,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 error = traceback.format_exc()
                 self.log.error(str(e), exc_info=True)
 
-        start_task(get_album_info)
+        self.start_task(get_album_info)
 
         if album_info is not None:
             if parsed['update_cover']:

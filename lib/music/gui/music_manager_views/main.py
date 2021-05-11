@@ -249,12 +249,12 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
 
     @event_handler
     def about(self, event: Event, data: EventData):
-        from .popups.about import AboutView
+        from ..popups.about import AboutView
 
         return AboutView()
 
     @event_handler
     def settings(self, event: Event, data: EventData):
-        from .popups.settings import SettingsView
+        from ..popups.settings import SettingsView
 
         return SettingsView()

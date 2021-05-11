@@ -5,7 +5,7 @@ View: Diff between original and modified tag values.  Used for both manual and W
 """
 
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional, Any, Mapping
+from typing import TYPE_CHECKING, Optional, Any, Mapping, Union
 
 from PySimpleGUI import Text, Image, Column, HSep, Button
 
@@ -33,7 +33,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         album: AlbumDir,
         album_info: AlbumInfo,
         album_formatter: AlbumFormatter = None,
-        options: Mapping[str, Any] = None,
+        options: Union[GuiOptions, Mapping[str, Any]] = None,
         **kwargs
     ):
         super().__init__(**kwargs)

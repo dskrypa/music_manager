@@ -24,7 +24,7 @@ import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from fnmatch import _compile_pattern
-from functools import partial, update_wrapper
+from functools import partial, update_wrapper, cached_property
 from itertools import count
 from queue import Queue, Empty
 from threading import Thread
@@ -464,3 +464,19 @@ class GuiView(ABC):
                             future.set_result(result)
 
                 spinner.update()
+
+    @cached_property
+    def display_name(self) -> str:
+        return self.name.replace('_', ' ').title()
+
+    @event_handler
+    def about(self, event: Event, data: EventData):
+        from .popups.about import AboutView
+
+        return AboutView()
+
+    @event_handler
+    def settings(self, event: Event, data: EventData):
+        from .popups.settings import SettingsView
+
+        return SettingsView()

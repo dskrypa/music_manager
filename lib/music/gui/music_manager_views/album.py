@@ -129,6 +129,7 @@ class AlbumView(MainView, view_name='album'):
         return full_layout, kwargs
 
     def post_render(self):
+        super().post_render()
         if self.editing:
             self._configure_tk_binds()
 

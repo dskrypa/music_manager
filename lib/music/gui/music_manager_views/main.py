@@ -6,7 +6,6 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
-from functools import cached_property
 from pathlib import Path
 from typing import Optional, Any, Type, Union
 
@@ -25,10 +24,10 @@ __all__ = ['MainView']
 
 BACK_BIND = '<Control-Left>'
 NEXT_BIND = '<Control-Right>'
-DEFAULT_SETTINGS = {'output_base_dir': '~/Music/'}
+DEFAULT_CONFIG = {'output_base_dir': '~/Music/'}
 
 
-class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
+class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
     back_tooltip = 'Go back to previous view'
 
     def __init__(self, *, last_view: 'MainView' = None, **kwargs):
@@ -62,10 +61,6 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
     def output_sorted_dir(cls) -> Path:
         return cls.output_base_dir.joinpath('sorted_{}'.format(now('%Y-%m-%d')))
 
-    @cached_property
-    def display_name(self) -> str:
-        return self.name.replace('_', ' ').title()
-
     def get_render_args(self) -> RenderArgs:
         layout = [[Menu(self.menu)]]
         if self.__class__ is MainView:
@@ -86,12 +81,10 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
         kwargs = {'title': f'Music Manager - {self.display_name}'}
         return layout, kwargs
 
-    def render(self):
-        super().render()
+    def post_render(self):
         for key, element in self.window.key_dict.items():
-            if isinstance(key, str):
-                if key.startswith('spacer::'):
-                    element.expand(True, True, True)
+            if isinstance(key, str) and key.startswith('spacer::'):
+                element.expand(True, True, True)
 
     @classmethod
     def _get_last_dir(cls, type: str = None) -> Optional[Path]:
@@ -246,15 +239,3 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
             return SyncRatingsView(last_view=self)
         except ValueError as e:
             popup_error(str(e))
-
-    @event_handler
-    def about(self, event: Event, data: EventData):
-        from ..popups.about import AboutView
-
-        return AboutView()
-
-    @event_handler
-    def settings(self, event: Event, data: EventData):
-        from ..popups.settings import SettingsView
-
-        return SettingsView()

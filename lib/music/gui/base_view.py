@@ -33,10 +33,10 @@ from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collec
 from PySimpleGUI import Window, WIN_CLOSED, Element, theme
 from screeninfo import get_monitors, Monitor
 
+from .config import GuiConfig
 from .constants import LoadingSpinner
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .progress import Spinner
-from .settings import GuiSettings
 from .utils import ViewLoggerAdapter
 
 if TYPE_CHECKING:
@@ -109,7 +109,7 @@ class GuiView(ABC):
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
     pending_prompts = Queue()
-    settings = GuiSettings(auto_save=True, defaults=DEFAULT_SETTINGS)
+    config = GuiConfig(auto_save=True, defaults=DEFAULT_SETTINGS)
     default_handler: Optional[Callable] = None
     wildcard_handlers: dict[str, dict[Callable, Callable]] = {}
     event_handlers = {}
@@ -129,7 +129,7 @@ class GuiView(ABC):
         defaults: Mapping[str, Any] = None,
         permissive_handler_names: bool = None,
         allow_no_handler: bool = None,
-        settings_path: Union[str, 'Path'] = None,
+        config_path: Union[str, 'Path'] = None,
     ):
         cls.name = view_name
         cls.log = ViewLoggerAdapter(cls)
@@ -139,10 +139,10 @@ class GuiView(ABC):
         cls.default_handler = getattr(cls, '_default_handler', None)
         if cls.default_handler is not None:
             del cls._default_handler  # noqa
-        if settings_path:  # The latest class to set this wins - does not support multiple paths within the same run
-            cls.settings.path = settings_path
+        if config_path:  # The latest class to set this wins - does not support multiple paths within the same run
+            cls.config.path = config_path
         if defaults:
-            cls.settings.defaults.update(defaults)
+            cls.config.defaults.update(defaults)
         if permissive_handler_names is not None:
             cls.permissive_handler_names = permissive_handler_names
         if allow_no_handler is not None:
@@ -188,7 +188,7 @@ class GuiView(ABC):
     def start(cls, cls_kwargs=None, init_event: tuple[Event, EventData] = None, interactive: bool = False, **kwargs):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
-        theme(cls.settings['theme'])
+        theme(cls.config['theme'])
         cls._primary_kwargs.update(kwargs)
         if size := kwargs.get('size'):
             cls._window_size = size
@@ -285,7 +285,7 @@ class GuiView(ABC):
             if old_window is not None:
                 base_kwargs['size'] = old_window.size
                 base_kwargs['location'] = old_window.current_location()
-            elif self.settings['remember_pos'] and (pos := self.settings.get('window_pos', type=tuple)):
+            elif self.config['remember_pos'] and (pos := self.config.get('window_pos', type=tuple)):
                 base_kwargs['location'] = pos
 
             # self.log.debug(f'Base kwargs={base_kwargs}')
@@ -416,8 +416,8 @@ class GuiView(ABC):
             # self._log_position_and_dimensions('Moved', True)
             self._monitor = None
             loc._window_pos = new_pos
-            if self.primary and self.settings['remember_pos']:
-                loc.settings['window_pos'] = new_pos
+            if self.primary and self.config['remember_pos']:
+                loc.config['window_pos'] = new_pos
 
         old_size = loc._window_size
         new_size = loc.window.size

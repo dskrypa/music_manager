@@ -56,7 +56,7 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
 
     @classproperty
     def output_base_dir(cls) -> Path:
-        return Path(cls.settings['output_base_dir']).expanduser()
+        return Path(cls.config['output_base_dir']).expanduser()
 
     @classproperty
     def output_sorted_dir(cls) -> Path:
@@ -95,7 +95,7 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
 
     @classmethod
     def _get_last_dir(cls, type: str = None) -> Optional[Path]:
-        if last_dir := cls.settings.get(f'last_dir:{type}' if type else 'last_dir'):
+        if last_dir := cls.config.get(f'last_dir:{type}' if type else 'last_dir'):
             last_dir = Path(last_dir)
             if not last_dir.exists():
                 if last_dir.parent.exists():
@@ -115,8 +115,8 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
         if path := get_directory('Select Album', no_window=True, initial_folder=last_dir):
             self.window.force_focus()  # Can't seem to avoid it losing it perceptibly, but this brings it back faster
             if path != last_dir:
-                self.settings['last_dir'] = path.as_posix()
-                self.settings.save()
+                self.config['last_dir'] = path.as_posix()
+                self.config.save()
             self.log.debug(f'Selected album {path=}')
             if require_album:
                 try:
@@ -253,8 +253,8 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_SETTINGS):
 
         return AboutView()
 
-    @event_handler('settings')
-    def _settings(self, event: Event, data: EventData):
+    @event_handler
+    def settings(self, event: Event, data: EventData):
         from ..popups.settings import SettingsView
 
         return SettingsView()

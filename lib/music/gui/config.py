@@ -9,13 +9,13 @@ import logging
 from pathlib import Path
 from typing import Any, Type, Union
 
-__all__ = ['GuiSettings']
+__all__ = ['GuiConfig']
 log = logging.getLogger(__name__)
 _NotSet = object()
-DEFAULT_PATH = '~/.config/music_manager/gui_settings.json'
+DEFAULT_PATH = '~/.config/music_manager/gui_config.json'
 
 
-class GuiSettings:
+class GuiConfig:
     def __init__(self, path: Union[str, Path] = DEFAULT_PATH, auto_save: bool = False, defaults: dict[str, Any] = None):
         self.path = path
         self._data = None

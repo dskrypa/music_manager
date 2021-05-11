@@ -23,11 +23,11 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
         self._failed_validation = {}
         self.options = GuiOptions(self, submit='Save', title=None)
         with self.options.next_row() as options:
-            options.add_bool('remember_pos', 'Remember Last Window Position', self.settings['remember_pos'])
+            options.add_bool('remember_pos', 'Remember Last Window Position', self.config['remember_pos'])
         with self.options.next_row() as options:
-            options.add_dropdown('theme', 'Theme', theme_list(), self.settings['theme'])
+            options.add_dropdown('theme', 'Theme', theme_list(), self.config['theme'])
         with self.options.next_row() as options:
-            options.add_directory('output_base_dir', 'Output Directory', self.settings['output_base_dir'])
+            options.add_directory('output_base_dir', 'Output Directory', self.config['output_base_dir'])
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout = self.options.layout('save')
@@ -43,13 +43,13 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
         except MultiParsingError as e:
             return self._mark_invalid(e.errors)
 
-        auto_save = self.settings.auto_save
-        self.settings.auto_save = False
+        auto_save = self.config.auto_save
+        self.config.auto_save = False
         try:
             for key, val in self.options.items():
-                if val != self.settings.get(key):
+                if val != self.config.get(key):
                     if key == 'theme':
-                        self.log.info(f'Changing theme from {self.settings[key]!r} to {val!r}')
+                        self.log.info(f'Changing theme from {self.config[key]!r} to {val!r}')
                         theme(val)
                         self.window.close()
                         if event != 'save':
@@ -57,13 +57,13 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
                         if parent := self.parent:
                             parent.render()
 
-                    self.settings[key] = val
+                    self.config[key] = val
         except Exception:
             raise
         else:
-            self.settings.save()
+            self.config.save()
         finally:
-            self.settings.auto_save = auto_save
+            self.config.auto_save = auto_save
 
         if event == 'save':
             raise StopIteration

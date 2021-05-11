@@ -59,8 +59,8 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
                 popup_input_invalid(str(e), logger=cls.log)  # noqa
             else:
                 if path != last_dir:
-                    self.state[f'last_dir:{dir_type}'] = path.as_posix()
-                    self.state.save()
+                    self.settings[f'last_dir:{dir_type}'] = path.as_posix()
+                    self.settings.save()
                 setattr(self, 'dst_album' if self.src_album else 'src_album', album_dir)
                 return True
         return False

@@ -36,7 +36,7 @@ from screeninfo import get_monitors, Monitor
 from .constants import LoadingSpinner
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .progress import Spinner
-from .state import GuiState
+from .settings import GuiSettings
 from .utils import ViewLoggerAdapter
 
 __all__ = ['GuiView', 'event_handler', 'Event', 'EventData', 'EleBinds', 'RenderArgs']
@@ -106,7 +106,7 @@ class GuiView(ABC):
     active_view: Optional['GuiView'] = None
     window: Optional[Window] = None
     pending_prompts = Queue()
-    state = GuiState(auto_save=True, defaults=DEFAULT_SETTINGS)
+    settings = GuiSettings(auto_save=True, defaults=DEFAULT_SETTINGS)
     default_handler: Optional[Callable] = None
     wildcard_handlers: dict[str, dict[Callable, Callable]] = {}
     event_handlers = {}
@@ -136,7 +136,7 @@ class GuiView(ABC):
         if cls.default_handler is not None:
             del cls._default_handler  # noqa
         if defaults:
-            cls.state.defaults.update(defaults)
+            cls.settings.defaults.update(defaults)
         if permissive_handler_names is not None:
             cls.permissive_handler_names = permissive_handler_names
         if allow_no_handler is not None:
@@ -182,7 +182,7 @@ class GuiView(ABC):
     def start(cls, cls_kwargs=None, init_event: tuple[Event, EventData] = None, interactive: bool = False, **kwargs):
         if cls.active_view is not None:
             raise RuntimeError(f'{cls.active_view!r} is already active - only one view may be active at a time')
-        theme(cls.state['theme'])
+        theme(cls.settings['theme'])
         cls._primary_kwargs.update(kwargs)
         if size := kwargs.get('size'):
             cls._window_size = size
@@ -279,7 +279,7 @@ class GuiView(ABC):
             if old_window is not None:
                 base_kwargs['size'] = old_window.size
                 base_kwargs['location'] = old_window.current_location()
-            elif self.state['remember_pos'] and (pos := self.state.get('window_pos', type=tuple)):
+            elif self.settings['remember_pos'] and (pos := self.settings.get('window_pos', type=tuple)):
                 base_kwargs['location'] = pos
 
             # self.log.debug(f'Base kwargs={base_kwargs}')
@@ -410,8 +410,8 @@ class GuiView(ABC):
             # self._log_position_and_dimensions('Moved', True)
             self._monitor = None
             loc._window_pos = new_pos
-            if self.primary and self.state['remember_pos']:
-                loc.state['window_pos'] = new_pos
+            if self.primary and self.settings['remember_pos']:
+                loc.settings['window_pos'] = new_pos
 
         old_size = loc._window_size
         new_size = loc.window.size

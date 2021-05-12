@@ -7,7 +7,7 @@ Defines the top menu and some common configuration properties.
 """
 
 from pathlib import Path
-from typing import Optional, Any, Type, Union
+from typing import Optional, Any, Type, Union, Iterable
 
 from PySimpleGUI import Button, Element, Column, Text, Image, Menu
 
@@ -30,7 +30,7 @@ DEFAULT_CONFIG = {'output_base_dir': '~/Music/'}
 class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
     back_tooltip = 'Go back to previous view'
 
-    def __init__(self, *, last_view: 'MainView' = None, **kwargs):
+    def __init__(self, *, last_view: 'MainView' = None, expand_on_resize: Iterable[str] = None, **kwargs):
         super().__init__(binds=kwargs.get('binds'))
         self.last_view = last_view
         self.menu = [
@@ -42,6 +42,9 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
         self.binds[NEXT_BIND] = 'ctrl_right'
         self._back_key = None
         self._next_key = None
+        self.expand_on_resize = ['col::__inner_content__']
+        if expand_on_resize is not None:
+            self.expand_on_resize.extend(expand_on_resize)
 
     @event_handler
     def ctrl_left(self, event: Event, data: EventData):
@@ -208,6 +211,15 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
         content_column = Column(content, key='col::__inner_content__', pad=(0, 0), **content_args)
 
         return [back_col, content_column, next_col]
+
+    @event_handler
+    def window_resized(self, event: Event, data: EventData):
+        # data = {'old_size': old_size, 'new_size': new_size}
+        key_dict = self.window.key_dict
+        for key in self.expand_on_resize:
+            if column := key_dict.get(key):
+                # self.log.debug(f'Expanding {column=}')
+                column.expand(True, True)
 
     def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
         return {}

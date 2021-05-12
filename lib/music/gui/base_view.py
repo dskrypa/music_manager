@@ -191,7 +191,7 @@ class GuiView(ABC):
         theme(cls.config['theme'])
         cls._primary_kwargs.update(kwargs)
         if size := kwargs.get('size'):
-            cls._window_size = size
+            GuiView._window_size = size
 
         obj = cls(**cls_kwargs) if cls_kwargs else cls()
         obj.render()
@@ -311,13 +311,17 @@ class GuiView(ABC):
             GuiView.active_view = self
         elif popup_pos:
             new_window.move(*self._get_center(new_window.size))
-            # new_pos = new_window.current_location()
-            # self.log.debug(f'Popup position after moving: {new_pos=} geometry={new_window.TKroot.geometry()}')
 
         return new_window
 
     def _log_event(self, event):
-        self.log.warning(f'Event: {event}.__dict__={event.__dict__}', extra={'color': 14})
+        try:
+            widget = event.widget
+        except AttributeError:
+            element = None
+        else:
+            element = next((ele for ele in self.window.key_dict.values() if ele.Widget is widget), None)
+        self.log.warning(f'Tkinter {event=}\n    {element=}\n    event.__dict__={event.__dict__}', extra={'color': 14})
 
     def _get_monitor(self, x: int, y: int) -> Optional[Monitor]:
         for m in self._monitors:
@@ -386,17 +390,20 @@ class GuiView(ABC):
             raise TypeError(f'Invalid render_args returned by view={self.name!r}: {render_args}')
 
         loc = GuiView if self.primary else self
-        loc.window = self._create_window(layout, kwargs)
-        loc._window_size = self.window.size
+        loc.window = window = self._create_window(layout, kwargs)
+        loc._window_size = window.size
         for key, val in self.binds.items():
-            self.window.bind(key, val)
-        for ele_key, binds in ele_binds.items():
-            ele = self.window[ele_key]
-            for key, val in binds.items():
-                ele.bind(key, val)
+            window.bind(key, val)
+        if ele_binds:
+            key_ele_map = window.key_dict
+            for ele_key, binds in ele_binds.items():
+                ele = key_ele_map[ele_key]
+                for key, val in binds.items():
+                    ele.bind(key, val)
 
         self._log_position_and_dimensions('Rendered', False)
         self.post_render()
+        # self.window.TKroot.bind('<Button-1>', self._log_event)
 
     def post_render(self):
         pass
@@ -423,7 +430,7 @@ class GuiView(ABC):
         new_size = loc.window.size
         if old_size != new_size:
             loc._window_size = new_size
-            # self.log.debug(f'Window size changed: {old_size} -> {new_size}')
+            # self.log.debug(f'Window for {loc=} size changed: {old_size} -> {new_size}')
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty
 

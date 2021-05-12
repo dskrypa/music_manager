@@ -42,7 +42,7 @@ class AlbumView(MainView, view_name='album'):
     }
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(expand_on_resize=['col::all_data', 'col::album_container', 'col::track_data'], **kwargs)
         self.album = album
         self._albums = sorted(self.album.path.parent.iterdir())
         self._album_index = self._albums.index(self.album.path)
@@ -101,7 +101,9 @@ class AlbumView(MainView, view_name='album'):
 
     def _prepare_track_column(self, spinner: Spinner):
         track_rows = list(chain.from_iterable(tb.as_info_rows(self.editing) for tb in spinner(self.album_formatter)))
-        return Column(track_rows, key='col::track_data', size=(685, 690), scrollable=True, vertical_scroll_only=True)
+        win_w, win_h = self._window_size
+        size = (max(685, win_w - 1010), win_h - 60)
+        return Column(track_rows, key='col::track_data', size=size, scrollable=True, vertical_scroll_only=True)
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()

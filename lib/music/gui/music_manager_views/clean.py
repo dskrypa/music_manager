@@ -32,7 +32,7 @@ class CleanView(MainView, view_name='clean'):
             raise ValueError('CleanView requires at least 1 of album or path')
         elif album and path:
             raise ValueError('CleanView supports either album or path, not both')
-        super().__init__(**kwargs)
+        super().__init__(expand_on_resize=['output'], **kwargs)
         self.album = album
         self.paths = path or album.path
 
@@ -67,6 +67,7 @@ class CleanView(MainView, view_name='clean'):
         bar_w = (win_w - 159) // 11
         track_text = Text('', size=(bar_w - 12, 1))
         self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(bar_w, 30))
+        # TODO: On window resize, output needs to be resized... currently can cause next button to disappear
         self.output = Multiline(size=((win_w - 180) // 7, (win_h - 214) // 16), key='output', autoscroll=True)
         layout = [
             [self.options.as_frame('run_clean'), file_col],

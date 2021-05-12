@@ -8,11 +8,11 @@ import logging
 from pathlib import Path
 from typing import Union, Optional
 
-from PySimpleGUI import Text, Element, Column
+from PySimpleGUI import Text, Element
 
 from ..elements.inputs import DarkInput
 
-__all__ = ['label_and_val_key', 'label_and_diff_keys', 'expand_columns', 'get_a_to_b', 'split_key']
+__all__ = ['label_and_val_key', 'label_and_diff_keys', 'get_a_to_b', 'split_key']
 log = logging.getLogger(__name__)
 
 
@@ -37,20 +37,6 @@ def get_a_to_b(label: str, src_val: Union[str, Path], new_val: Union[str, Path],
     new_kwargs = {'size': (len(new_val), 1)} if len(new_val) > 50 else {}
     new_ele = DarkInput(new_val, disabled=True, key=f'new::{src}::{tag}', **new_kwargs)
     return [Text(label), src_ele, Text('\u2794', font=('Helvetica', 15)), new_ele]
-
-
-def expand_columns(rows: list[list[Element]]):
-    for row in rows:
-        for ele in row:
-            if isinstance(ele, Column):
-                ele.expand(True, True)
-            try:
-                ele_rows = ele.Rows
-            except AttributeError:
-                pass
-            else:
-                log.debug(f'Expanding columns on {ele}')
-                expand_columns(ele_rows)
 
 
 def split_key(key: str) -> Optional[tuple[str, str, str]]:

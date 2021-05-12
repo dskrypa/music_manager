@@ -32,7 +32,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         self.album = album
         self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
         self.album_formatter.view = self
-
+        # TODO: Add way to purge page cache for a given site / page
         if options is not None and options.view.name == self.name:
             self.options = options
         else:

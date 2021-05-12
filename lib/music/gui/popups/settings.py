@@ -18,12 +18,14 @@ __all__ = ['SettingsView']
 
 
 class SettingsView(BasePopup, view_name='settings', primary=False):
+    # TODO: Move or genericize for use with plex as well
     def __init__(self):
         super().__init__(binds={'<Escape>': 'Exit'})
         self._failed_validation = {}
         self.options = GuiOptions(self, submit='Save', title=None)
         with self.options.next_row() as options:
             options.add_bool('remember_pos', 'Remember Last Window Position', self.config['remember_pos'])
+            options.add_bool('remember_size', 'Remember Last Window Size', self.config['remember_size'])
         with self.options.next_row() as options:
             options.add_dropdown('theme', 'Theme', theme_list(), self.config['theme'])
         with self.options.next_row() as options:

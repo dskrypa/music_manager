@@ -50,7 +50,7 @@ Kwargs = dict[str, Any]
 EleBinds = dict[str, dict[str, Event]]
 RenderArgs = Union[Layout, tuple[Layout, Kwargs], tuple[Layout, Kwargs, EleBinds]]
 
-DEFAULT_SETTINGS = {'remember_pos': True, 'theme': 'DarkGrey10'}
+DEFAULT_SETTINGS = {'remember_pos': True, 'remember_size': False, 'theme': 'DarkGrey10'}
 
 
 def event_handler(*args, **kwargs):
@@ -285,8 +285,11 @@ class GuiView(ABC):
             if old_window is not None:
                 base_kwargs['size'] = old_window.size
                 base_kwargs['location'] = old_window.current_location()
-            elif self.config['remember_pos'] and (pos := self.config.get('window_pos', type=tuple)):
-                base_kwargs['location'] = pos
+            else:
+                if self.config['remember_pos'] and (pos := self.config.get('window_pos', type=tuple)):
+                    base_kwargs['location'] = pos
+                if self.config['remember_size'] and (size := self.config.get('window_size', type=tuple)):
+                    base_kwargs['size'] = size
 
             # self.log.debug(f'Base kwargs={base_kwargs}')
             kwargs = base_kwargs | kwargs
@@ -430,6 +433,8 @@ class GuiView(ABC):
         new_size = loc.window.size
         if old_size != new_size:
             loc._window_size = new_size
+            if self.primary and self.config['remember_size']:
+                loc.config['window_size'] = new_size
             # self.log.debug(f'Window for {loc=} size changed: {old_size} -> {new_size}')
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty

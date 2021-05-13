@@ -32,7 +32,7 @@ class CleanView(MainView, view_name='clean'):
             raise ValueError('CleanView requires at least 1 of album or path')
         elif album and path:
             raise ValueError('CleanView supports either album or path, not both')
-        super().__init__(expand_on_resize=['output'], **kwargs)
+        super().__init__(**kwargs)
         self.album = album
         self.paths = path or album.path
 
@@ -51,24 +51,24 @@ class CleanView(MainView, view_name='clean'):
         self.options = GuiOptions(self, disable_on_parsed=True)
         self.options.add_bool('bpm', 'Add BPM', bpm_ok, disabled=not bpm_ok, tooltip='requires Aubio')
         self.options.add_bool('dry_run', 'Dry Run')
-        self.options.add_input('threads', 'BPM Threads', 4, row=1, type=int)
+        self.options.add_input('threads', 'BPM Threads', 4, row=1, type=int, size=(5, 1))
         self.prog_tracker: Optional[ProgressTracker] = None
         self.output: Optional[Multiline] = None
+        self.file_list: Optional[Multiline] = None
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
 
-        file_list_str = '\n'.join(sorted((f.path.as_posix() for f in self.files)))
-        file_list = Multiline(file_list_str, key='file_list', size=(120, 5), disabled=True)
-        file_col = Column([[Text(f'Files ({len(self.files)}):')], [file_list]], key='col::file_list')
-
-        total_steps = len(self.files) * (3 if self.options['bpm'] else 2)
         win_w, win_h = self._window_size
+        file_list_str = '\n'.join(sorted((f.path.as_posix() for f in self.files)))
+        self.file_list = Multiline(file_list_str, key='file_list', size=((win_w - 395) // 7, 5), disabled=True)
+        file_col = Column([[Text(f'Files ({len(self.files)}):')], [self.file_list]], key='col::file_list')
+        total_steps = len(self.files) * (3 if self.options['bpm'] else 2)
         bar_w = (win_w - 159) // 11
         track_text = Text('', size=(bar_w - 12, 1))
-        self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(bar_w, 30))
-        # TODO: On window resize, output needs to be resized... currently can cause next button to disappear
-        self.output = Multiline(size=((win_w - 180) // 7, (win_h - 214) // 16), key='output', autoscroll=True)
+        self.prog_tracker = ProgressTracker(total_steps, text=track_text, size=(bar_w, 30), key='progress_bar')
+        self.output = Multiline(size=self._output_size(), key='output', autoscroll=True)
+
         layout = [
             [self.options.as_frame('run_clean'), file_col],
             [self.prog_tracker.bar],
@@ -77,6 +77,11 @@ class CleanView(MainView, view_name='clean'):
         ]
         full_layout.append([self.as_workflow(layout, back_tooltip='Go back to view album')])
         return full_layout, kwargs
+
+    def _output_size(self):
+        win_w, win_h = self._window_size
+        width, height = ((win_w - 180) // 7, (win_h - 214) // 16)
+        return width, height
 
     @cached_property
     def result_logger(self):
@@ -119,3 +124,12 @@ class CleanView(MainView, view_name='clean'):
                         self.result_logger.info(result)
 
         popup_ok('Finished processing tracks')
+
+    @event_handler
+    def window_resized(self, event: Event, data: EventData):
+        super().window_resized(event, data)
+        width, height = self._output_size()
+        self.output.Widget.configure(width=width, height=height)
+        self.prog_tracker.bar.Widget.configure(length=(width * 7) + 21)
+        # 395: outer=180, options=190, opt_left_border=5, between=20
+        self.file_list.Widget.configure(width=(self._window_size[0] - 395) // 7)

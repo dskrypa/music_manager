@@ -73,7 +73,6 @@ class DarkInput(Input):
     def TKEntry(self, entry: Entry):
         self._tk_entry = entry
         if entry is not None:
-            self._tk_entry = entry
             entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
             if self._link:
                 entry.bind('<Control-Button-1>', self._open_link)

@@ -167,7 +167,7 @@ class GuiView(ABC):
     def __iter__(self):
         return self
 
-    def __next__(self) -> tuple[str, dict[str, Any]]:
+    def __next__(self) -> tuple[Event, EventData]:
         # self.log.debug(f'[View#{self._view_num}] Calling self.window.read...', extra={'color': 11})
         event, data = self.window.read()
         # self.log.debug(f'[View#{self._view_num}] Read {event=}', extra={'color': 10})

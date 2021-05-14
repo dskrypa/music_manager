@@ -247,6 +247,7 @@ def value_ele(
     if isinstance(value, bool):
         val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0), **kwargs)
     elif isinstance(value, list):
+        kwargs.setdefault('tooltip', 'Unselected items will not be saved')
         val_ele = Listbox(
             value,
             default_values=value,
@@ -255,7 +256,7 @@ def value_ele(
             size=(list_width, len(value)),
             no_scrollbar=True,
             select_mode='extended',  # extended, browse, single, multiple
-            ** kwargs
+            **kwargs,
         )
         if not no_add and val_key.startswith('val::'):
             val_ele = Column(

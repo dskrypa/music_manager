@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
-from tkinter import Frame
+from tkinter import Frame, Listbox
 
 from ...common.utils import stars
 from ...files.album import AlbumDir
@@ -266,6 +266,10 @@ class AlbumView(MainView, view_name='album'):
             values.append(new_value)
             indexes.append(len(values) - 1)
             ele.update(values, set_to_index=indexes)
+            list_box = ele.TKListbox  # type: Listbox
+            height = list_box.cget('height')
+            if (val_count := len(values)) and val_count != height:
+                list_box.configure(height=val_count)
         else:
             info_fields = {f.name: f for f in fields(info_obj.__class__)}
             try:

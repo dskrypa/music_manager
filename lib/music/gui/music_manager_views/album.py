@@ -261,9 +261,11 @@ class AlbumView(MainView, view_name='album'):
             self.log.debug(f'Adding genre={new_value!r} to {info_obj}')
             info_obj.add_genre(new_value)
             ele = self.window.key_dict[f'val::{event[5:]}']  # type: Listbox  # noqa
+            indexes = list(ele.get_indexes())
             values = ele.Values or []
             values.append(new_value)
-            ele.update(values)
+            indexes.append(len(values) - 1)
+            ele.update(values, set_to_index=indexes)
         else:
             info_fields = {f.name: f for f in fields(info_obj.__class__)}
             try:

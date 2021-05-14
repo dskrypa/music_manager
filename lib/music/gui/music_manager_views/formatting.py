@@ -192,7 +192,6 @@ class AlbumFormatter:
 
             new_val = new_info_dict[key]
             if key == 'genre' and add_genre:
-                # TODO: Genre box alignment is 1-2 px to the left of other boxes
                 new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
                 new_vals.update(src_val)
                 new_val = sorted(new_vals)
@@ -248,6 +247,9 @@ def value_ele(
         val_ele = Checkbox('', default=value, key=val_key, disabled=disabled, pad=(0, 0), **kwargs)
     elif isinstance(value, list):
         kwargs.setdefault('tooltip', 'Unselected items will not be saved')
+        add_button = not no_add and val_key.startswith('val::')
+        if not add_button:
+            kwargs.setdefault('pad', (6, 0))
         val_ele = Listbox(
             value,
             default_values=value,
@@ -258,7 +260,7 @@ def value_ele(
             select_mode='extended',  # extended, browse, single, multiple
             **kwargs,
         )
-        if not no_add and val_key.startswith('val::'):
+        if add_button:
             val_ele = Column(
                 [[val_ele, Button('Add...', key=val_key.replace('val::', 'add::', 1), disabled=disabled, pad=(0, 0))]],
                 key=f'col::{val_key}',
@@ -454,8 +456,8 @@ class TrackFormatter:
                     new_row = self._rating_row(key, new_val, suffix='new')[1:]
                     rows.append([label, sep_1, *src_row, sep_2, *new_row])
                 else:
-                    src_ele = value_ele(src_val, src_key, True)
-                    new_ele = value_ele(new_val, new_key, True)
+                    src_ele = value_ele(src_val, src_key, True, 45)
+                    new_ele = value_ele(new_val, new_key, True, 45)
                     rows.append([label, sep_1, src_ele, sep_2, new_ele])
 
         return resize_text_column(rows)

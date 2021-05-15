@@ -4,12 +4,23 @@ Right-Click Menu that supports more advanced callback options than those support
 :author: Doug Skrypa
 """
 
+from dataclasses import dataclass
+from enum import Enum
 from functools import partial
 from tkinter import Tk, Menu, Event
 from typing import Callable, Mapping, Union, Hashable
 
-__all__ = ['ContextualMenu']
-MenuDict = Mapping[Hashable, str]
+__all__ = ['ContextualMenu', 'ShowMode']
+CallbackArg = Hashable
+MenuDict = Mapping[CallbackArg, str]
+
+
+class ShowMode(Enum):
+    NEVER = 0
+    ALWAYS = 1
+    ON_KEYWORD = 3
+    ON_KWARG_TRUTHY = 4
+    ON_NO_KWARGS = 5
 
 
 class ContextualMenu:
@@ -34,50 +45,82 @@ class ContextualMenu:
         :param format_default: Treat default options as formatting strings to format kwargs like the kwarg-based options
         :param include_kwargs: Include kwargs when calling the callback
         """
-        self.always_show_default = always_show_default
-        self.format_default = format_default
-        self.default_key_opt_map = default_key_opt_map
         self.default_cb = default_cb
-        self.include_kwargs = include_kwargs
-        self.kw_key_option_maps = {}
-        self.kw_cb_map = {}
+        self._options: list[MenuOption] = []
+        if default_key_opt_map:
+            show = ShowMode.ALWAYS if always_show_default else ShowMode.ON_NO_KWARGS
+            for cb_arg, option in default_key_opt_map.items():
+                self.add_option(option, cb_arg, show=show, format=format_default, call_with_kwargs=include_kwargs)
         if kw_key_opt_cb_map:
             for kw, value in kw_key_opt_cb_map.items():
-                menu, cb = value if isinstance(value, tuple) else (value, None)
-                self.kw_key_option_maps[kw] = menu
-                if cb is not None:
-                    self.kw_cb_map[kw] = cb
+                key_opt_map, cb = value if isinstance(value, tuple) else (value, None)
+                for cb_arg, option in key_opt_map.items():
+                    self.add_option(option, cb_arg, cb, kw, ShowMode.ON_KEYWORD, call_with_kwargs=include_kwargs)
 
-    def _add_options(self, menu: Menu, key_option_map: MenuDict, cb: Callable, do_fmt: bool, kwargs) -> bool:
-        added = 0
-        for key, option in key_option_map.items():
-            command = partial(cb, key, **kwargs) if self.include_kwargs else partial(cb, key)
-            menu.add_command(label=option.format(**kwargs) if do_fmt else option, command=command)
-            added += 1
-        return bool(added)
+    def add_option(
+        self,
+        text: str,
+        cb_arg: CallbackArg,
+        cb: Callable = None,
+        keyword: str = None,
+        show: Union[ShowMode, str] = None,
+        format: bool = True,  # noqa
+        call_with_kwargs: bool = True,
+    ):
+        if (cb := cb or self.default_cb) is None:
+            raise TypeError(f'A callback is required for option {text=}')
+        show = (ShowMode.ON_KEYWORD if keyword else ShowMode.ALWAYS) if show is None else ShowMode(show)
+        self._options.append(MenuOption(text, cb_arg, show, format, keyword, cb, call_with_kwargs))
 
     def show(self, event: Event, parent: Tk = None, **kwargs) -> bool:
         menu = Menu(parent, tearoff=0)
         added_any = False
-        if (self.always_show_default or not kwargs) and self.default_key_opt_map:
-            added_defaults = True
-            added_any |= self._add_options(menu, self.default_key_opt_map, self.default_cb, self.format_default, kwargs)
-        else:
-            added_defaults = False
-
-        added_kw_options = False
-        for kw_key in kwargs:
-            if key_option_map := self.kw_key_option_maps.get(kw_key):
-                cb = self.kw_cb_map.get(kw_key, self.default_cb)
-                added_kw_options |= self._add_options(menu, key_option_map, cb, True, kwargs)
-
-        added_any |= added_kw_options
-        if not added_kw_options and not added_defaults and self.default_key_opt_map:
-            added_any |= self._add_options(menu, self.default_key_opt_map, self.default_cb, self.format_default, kwargs)
+        for option in self._options:
+            added_any |= option.maybe_add(menu, kwargs)
 
         if added_any:
             try:
                 menu.tk_popup(event.x_root, event.y_root)  # noqa
             finally:
                 menu.grab_release()
-        return bool(added_any)
+        return added_any
+
+
+@dataclass
+class MenuOption:
+    text: str
+    cb_arg: CallbackArg
+    show: ShowMode
+    format: bool = True
+    keyword: str = None
+    callback: Callable = None
+    call_with_kwargs: bool = True
+
+    def maybe_add(self, menu: Menu, kwargs: dict) -> bool:
+        if not self.should_show(kwargs):
+            return False
+        menu.add_command(label=self.format_text(kwargs), command=self.prepare_cb(kwargs))
+        return True
+
+    def should_show(self, kwargs: dict) -> bool:
+        show = self.show
+        if show == ShowMode.NEVER:
+            return False
+        elif show == ShowMode.ALWAYS:
+            return True
+        elif show == ShowMode.ON_KEYWORD:
+            return self.keyword in kwargs
+        elif show == ShowMode.ON_KWARG_TRUTHY:
+            return bool(kwargs.get(self.keyword))
+        elif show == ShowMode.ON_NO_KWARGS:
+            return not kwargs
+        else:
+            return False
+
+    def format_text(self, kwargs: dict):
+        return self.text.format(**kwargs) if self.format else self.text
+
+    def prepare_cb(self, kwargs: dict):
+        if self.call_with_kwargs:
+            return partial(self.callback, self.cb_arg, **kwargs)
+        return partial(self.callback, self.cb_arg)

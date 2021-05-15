@@ -31,7 +31,7 @@ class ExtendedImage(Image):
         self._current_size = self._get_size(*self.Size)
 
     @property
-    def Widget(self):
+    def Widget(self) -> Optional[Label]:
         return self._widget
 
     @Widget.setter

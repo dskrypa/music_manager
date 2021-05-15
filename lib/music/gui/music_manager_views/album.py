@@ -25,7 +25,7 @@ from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
 from ..popups.text import popup_error, popup_get_text
 from ..progress import Spinner
-from ..utils import update_color, open_in_file_manager
+from ..utils import update_color
 from .formatting import AlbumFormatter
 from .main import MainView
 from .utils import split_key
@@ -109,9 +109,8 @@ class AlbumView(MainView, view_name='album'):
         full_layout, kwargs = super().get_render_args()
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             album_path = self.album.path.as_posix()
-            open_menu = ContextualMenu(open_in_file_manager, {album_path: 'Open in File Manager'}, include_kwargs=False)
             layout = [
-                [Text('Album Path:'), ExtInput(album_path, disabled=True, size=(150, 1), right_click_menu=open_menu)],
+                [Text('Album Path:'), ExtInput(album_path, disabled=True, size=(150, 1), path=album_path)],
                 [HorizontalSeparator()]
             ]
             album_column = self._prepare_album_column(spinner)

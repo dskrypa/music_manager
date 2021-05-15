@@ -6,11 +6,13 @@ Input elements for PySimpleGUI
 
 import webbrowser
 from functools import partial
+from pathlib import Path
 from tkinter import TclError, Entry
 from typing import Union, Optional
 
 from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
 
+from ..utils import open_in_file_manager
 from .menu import ContextualMenu
 
 __all__ = ['ExtInput']
@@ -28,12 +30,20 @@ class ExtInput(Input):
         right_click_menu: Union[ContextualMenu, MenuList] = None,
         link: bool = None,
         tooltip: str = None,
+        path: Union[bool, str, Path] = None,
         **kwargs,
     ):
         """
+        :param value: The initial value to display
         :param args: Positional arguments to pass to :class:`PySimpleGUI.Input`
         :param right_click_menu: Either a vanilla right-click menu as a list of strings/lists supported by PySimpleGUI
           or a :class:`ContextualMenu`
+        :param link: Whether the displayed text should be hyperlinked to open a browser with the text as the URL
+          (default: link if the text starts with ``http://`` or ``https://``)
+        :param tooltip: A tooltip to be displayed when hovering over this element.  If link / a link is detected, then
+          additional information will be appended to this value.
+        :param path: To allow right-click to open a path in file manager, set to True to use the displayed text, or
+          specify a specific path to open
         :param kwargs: Keyword arguments to pass to :class:`PySimpleGUI.Input`
         """
         self._dark = 'dark' in theme().lower()
@@ -50,6 +60,7 @@ class ExtInput(Input):
         super().__init__(value, *args, tooltip=tooltip, **kwargs)
         self._valid_value = True
         self._link = link or link is None
+        self._path = path
         self.right_click_menu = right_click_menu
 
     @property
@@ -59,6 +70,17 @@ class ExtInput(Input):
     @right_click_menu.setter
     def right_click_menu(self, value: Union[ContextualMenu, MenuList, None]):
         if isinstance(value, ContextualMenu) or value is None:
+            if self._path:
+                value = ContextualMenu() if value is None else value
+                value.add_option(
+                    'Open in File Manager',
+                    self.DefaultText if self._path is True else self._path,
+                    open_in_file_manager,
+                    show='cb_arg',
+                    format=False,
+                    call_with_kwargs=False,
+                )
+
             self._right_click_menu = value
             if value and not self.RightClickMenu:
                 self.RightClickMenu = ['-', []]

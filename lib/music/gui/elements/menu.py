@@ -16,17 +16,18 @@ MenuDict = Mapping[CallbackArg, str]
 
 
 class ShowMode(Enum):
-    NEVER = 0
-    ALWAYS = 1
-    ON_KEYWORD = 3
-    ON_KWARG_TRUTHY = 4
-    ON_NO_KWARGS = 5
+    NEVER = 'never'
+    ALWAYS = 'always'
+    ON_KEYWORD = 'keyword'
+    ON_KW_VALUE_TRUTHY = 'kw_value_truthy'
+    ON_NO_KWARGS = 'no_kwargs'
+    ON_CB_ARG_TRUTHY = 'cb_arg'
 
 
 class ContextualMenu:
     def __init__(
         self,
-        default_cb: Callable,
+        default_cb: Callable = None,
         default_key_opt_map: MenuDict = None,
         kw_key_opt_cb_map: Mapping[str, Union[tuple[MenuDict, Callable], MenuDict]] = None,
         always_show_default: bool = True,
@@ -110,10 +111,12 @@ class MenuOption:
             return True
         elif show == ShowMode.ON_KEYWORD:
             return self.keyword in kwargs
-        elif show == ShowMode.ON_KWARG_TRUTHY:
+        elif show == ShowMode.ON_KW_VALUE_TRUTHY:
             return bool(kwargs.get(self.keyword))
         elif show == ShowMode.ON_NO_KWARGS:
             return not kwargs
+        elif show == ShowMode.ON_CB_ARG_TRUTHY:
+            return bool(self.cb_arg)
         else:
             return False
 

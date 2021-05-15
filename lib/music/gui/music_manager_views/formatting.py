@@ -30,7 +30,7 @@ from ..elements.image import ExtendedImage, ImageType
 from ..elements.inputs import ExtInput
 from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
-from ..utils import open_in_file_manager, resize_text_column
+from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
 
 __all__ = ['TrackFormatter', 'AlbumFormatter']
@@ -463,10 +463,9 @@ class TrackFormatter:
 
     def get_basic_info_row(self):
         track = self.track
-        open_menu = ContextualMenu(open_in_file_manager, {self.path_str: 'Open in File Manager'}, include_kwargs=False)
         return [
             Text('File:'),
-            ExtInput(track.path.name, size=(50, 1), disabled=True, right_click_menu=open_menu),
+            ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str),
             VerticalSeparator(),
             Text('Length:'),
             ExtInput(track.length_str, size=(6, 1), disabled=True),

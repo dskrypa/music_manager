@@ -6,10 +6,10 @@ Input elements for PySimpleGUI
 
 import webbrowser
 from functools import partial
+from tkinter import TclError, Entry
 from typing import Union, Optional
 
 from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
-from tkinter import TclError, Entry
 
 from .menu import ContextualMenu
 

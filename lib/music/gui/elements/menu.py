@@ -5,9 +5,8 @@ Right-Click Menu that supports more advanced callback options than those support
 """
 
 from functools import partial
-from typing import Callable, Mapping, Union, Hashable
-
 from tkinter import Tk, Menu, Event
+from typing import Callable, Mapping, Union, Hashable
 
 __all__ = ['ContextualMenu']
 MenuDict = Mapping[Hashable, str]

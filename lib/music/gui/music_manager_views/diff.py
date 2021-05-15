@@ -5,9 +5,9 @@ View: Diff between original and modified tag values.  Used for both manual and W
 """
 
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional, Any, Mapping, Union
+from typing import TYPE_CHECKING, Any, Mapping, Union
 
-from PySimpleGUI import Text, Image, Column, HSep, Button
+from PySimpleGUI import Text, Column, HSep, Button
 
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
@@ -21,7 +21,6 @@ from .main import MainView
 from .utils import get_a_to_b
 
 if TYPE_CHECKING:
-    from PIL.Image import Image as PILImage
     from ...files.track.track import SongFile
 
 __all__ = ['AlbumDiffView']
@@ -143,13 +142,14 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         with Spinner(LoadingSpinner.blue_dots, message='Applying Changes...') as spinner:
             file_tag_map = {file: info.tags() for file, info in self.file_info_map.items()}
-            new_image_obj, new_img_data = self.album_info.get_new_cover(self.album, force=True)
+            if new_image_obj := self.album_info.get_new_cover(self.album, force=True):
+                image, data, mime_type = self.album._prepare_cover_image(new_image_obj)
+
             for file, info in spinner(self.file_info_map.items()):  # type: SongFile, TrackInfo
                 file.update_tags(file_tag_map[file], dry_run, add_genre=self.options['add_genre'])
                 if new_image_obj is not None:
                     spinner.update()
-
-                    file.set_cover_data(new_image_obj, dry_run, new_img_data)
+                    file._set_cover_data(image, data, mime_type, dry_run)
 
                 spinner.update()
                 info.maybe_rename(file, dry_run)

@@ -4,14 +4,13 @@ View: Show Image
 :author: Doug Skrypa
 """
 
-from io import BytesIO
 from time import monotonic
 from typing import Any, Union
 
 from PIL import Image
 from PySimpleGUI import Element, Image as GuiImage
 
-from ..elements.image import ExtendedImage
+from ..elements.image import ExtendedImage, ImageType, as_image
 from ..base_view import event_handler
 from .base import BasePopup
 
@@ -19,16 +18,15 @@ __all__ = ['ImageView']
 
 
 class ImageView(BasePopup, view_name='show_image', primary=False):
-    def __init__(self, image: Union[GuiImage, Image.Image], title: str = None, img_key: str = None):
+    def __init__(self, image: Union[GuiImage, ImageType], title: str = None, img_key: str = None):
         super().__init__(binds={'<Escape>': 'Exit'})
         self._title = title or 'Image'
         self.img_key = img_key or f'img::{id(image)}'
-        if isinstance(image, GuiImage):
-            image = Image.open(BytesIO(image.Data))
-        self.pil_img = image
+        self.pil_img = image = as_image(image.Data if isinstance(image, GuiImage) else image)
+        self.log.debug(f'Displaying {image=} with {image.format=} mime={Image.MIME.get(image.format)!r}')
         self.orig_size = image.size
         self._last_size = init_size = self._init_size()
-        self.gui_img = ExtendedImage(image=image, size=init_size, key=self.img_key, pad=(2, 2), _in_popup=True)
+        self.gui_img = ExtendedImage(image, size=init_size, key=self.img_key, pad=(2, 2), _in_popup=True)
         self._last_resize = 0
 
     def _init_size(self):

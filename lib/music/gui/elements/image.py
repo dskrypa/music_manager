@@ -48,15 +48,7 @@ class ExtendedImage(Image):
 
     @image.setter
     def image(self, data: ImageType):
-        if data is None or isinstance(data, PILImage):
-            self._image = data
-        elif isinstance(data, bytes):
-            self._image = ImageModule.open(BytesIO(data))
-        elif isinstance(data, (Path, str)):
-            self._image = ImageModule.open(data.as_posix() if isinstance(data, Path) else data)
-        else:
-            raise TypeError(f'Image must be bytes, None, or a PIL.Image.Image - found {type(data)}')
-
+        self._image = as_image(data)
         if self._widget is not None:
             self.resize(*self._current_size)
 
@@ -102,3 +94,14 @@ def calculate_resize(src_w, src_h, new_w, new_h):
 
 def round_aspect(number, key):
     return max(min(math.floor(number), math.ceil(number), key=key), 1)
+
+
+def as_image(image: ImageType) -> PILImage:
+    if image is None or isinstance(image, PILImage):
+        return image
+    elif isinstance(image, bytes):
+        return ImageModule.open(BytesIO(image))
+    elif isinstance(image, (Path, str)):
+        return ImageModule.open(image)
+    else:
+        raise TypeError(f'Image must be bytes, None, Path, str, or a PIL.Image.Image - found {type(image)}')

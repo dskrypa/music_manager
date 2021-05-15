@@ -11,7 +11,7 @@ from datetime import date
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Iterator, List, Union, Optional, Set, Dict, Callable, Iterable
+from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable
 
 from mutagen.id3 import TDRC
 
@@ -22,9 +22,13 @@ from tz_aware_dt import format_duration
 from ..common.disco_entry import DiscoEntryType
 from ..text.name import Name
 from .changes import get_common_changes
+from .cover import prepare_cover_image
 from .exceptions import InvalidAlbumDir
 from .parsing import AlbumName
 from .track.track import SongFile, iter_music_files
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
@@ -99,7 +103,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         self.clear_cached_properties()
 
     @cached_property
-    def songs(self) -> List[SongFile]:
+    def songs(self) -> list[SongFile]:
         songs = list(iter_music_files(self.path))
         for song in songs:
             song._in_album_dir = True
@@ -123,7 +127,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return title
 
     @cached_property
-    def all_artists(self) -> Set[Name]:
+    def all_artists(self) -> set[Name]:
         return set(chain.from_iterable(music_file.all_artists for music_file in self.songs))
 
     @cached_property
@@ -145,15 +149,15 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return None
 
     @cached_property
-    def album_artists(self) -> Set[Name]:
+    def album_artists(self) -> set[Name]:
         return set(chain.from_iterable(music_file.album_artists for music_file in self.songs))
 
     @cached_property
-    def artists(self) -> Set[Name]:
+    def artists(self) -> set[Name]:
         return set(chain.from_iterable(music_file.artists for music_file in self.songs))
 
     @cached_property
-    def _groups(self) -> Dict[str, Set[Name]]:
+    def _groups(self) -> dict[str, set[Name]]:
         groups = defaultdict(set)
         for artist in self.all_artists:
             if (extra := artist.extra) and (group := extra.get('group')):
@@ -179,7 +183,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         return None
 
     @cached_property
-    def names(self) -> Set[AlbumName]:
+    def names(self) -> set[AlbumName]:
         return {music_file.album for music_file in self.songs}
 
     @cached_property
@@ -242,7 +246,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 log.debug('Multiple dates found in {}: {}'.format(self, ', '.join(sorted(map(str, dates)))))
         return None
 
-    def fix_song_tags(self, dry_run=False, add_bpm=False, callback: Optional[Callable] = None):
+    def fix_song_tags(self, dry_run: bool = False, add_bpm: bool = False, callback: Callable = None):
         self._fix_song_tags(self.songs, dry_run=dry_run, add_bpm=add_bpm, callback=callback)
 
     @classmethod
@@ -286,7 +290,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
                 future.result()
 
-    def remove_bad_tags(self, dry_run=False, callback: Optional[Callable] = None):
+    def remove_bad_tags(self, dry_run: bool = False, callback: Callable = None):
         keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
         i = 0
         for n, music_file in enumerate(self.songs, 1):
@@ -311,7 +315,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             log.debug(f'None of the songs in {self} had any tags that needed to be removed')
 
     @classmethod
-    def _remove_bad_tags(cls, tracks: Iterable[SongFile], dry_run: bool = False, callback: Optional[Callable] = None):
+    def _remove_bad_tags(cls, tracks: Iterable[SongFile], dry_run: bool = False, callback: Callable = None):
         keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
         i = 0
         for n, music_file in enumerate(tracks, 1):
@@ -343,6 +347,14 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 file.update_tags(values, dry_run, no_log=common_changes, none_level=20)
         else:
             log.info(f'No changes to make for {self}')
+
+    def _prepare_cover_image(self, image: 'Image.Image', max_width: int = 1200) -> tuple['Image.Image', bytes, str]:
+        return prepare_cover_image(image, {f.tag_type for f in self.songs}, max_width)
+
+    def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, max_width: int = 1200):
+        image, data, mime_type = self._prepare_cover_image(image, max_width)
+        for song_file in self.songs:
+            song_file._set_cover_data(image, data, mime_type, dry_run)
 
 
 def _rm_tag_matcher(tag_type: str):

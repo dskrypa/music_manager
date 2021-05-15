@@ -28,6 +28,7 @@ from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
 from ...constants import MP3_TAG_DISPLAY_NAME_MAP, TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
 from ...text.name import Name
+from ..cover import prepare_cover_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
@@ -42,6 +43,7 @@ __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
 ON_WINDOWS = system().lower() == 'windows'
 MP4_STR_ENCODINGS = {AtomDataType.UTF8: 'utf-8', AtomDataType.UTF16: 'utf-16be'}  # noqa
+MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover.FORMAT_PNG}
 MutagenFile = Union[MP3, MP4, FLAC, FileType]
 ImageTag = Union[APIC, MP4Cover, Picture]
 
@@ -906,29 +908,31 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         log.info(f'{set_prefix} cover image to {self}: [{readable_bytes(size)}] {cover!r}')
         return not dry_run
 
-    def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, data: Optional[bytes] = None):
-        from PIL import Image  # this is not imported earlier - the earlier import is during type checking
-        if data is None:
-            bio = BytesIO()
-            image.save(bio, 'jpeg')
-            data = bio.getvalue()
+    def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, max_width: int = 1200):
+        image, data, mime_type = prepare_cover_image(image, self.tag_type, max_width)
+        self._set_cover_data(image, data, mime_type, dry_run)
 
+    def _set_cover_data(self, image: 'Image.Image', data: bytes, mime_type: str, dry_run: bool = False):
         if self.tag_type == 'mp3':
             current = self._f.tags.getall('APIC')
-            cover = APIC(mime='image/jpeg', type=PictureType.COVER_FRONT, data=data)  # noqa
+            cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
             if self._log_cover_changes(current, cover, dry_run):
                 self._f.tags.delall('APIC')
                 self._f.tags[cover.HashKey] = cover
         elif self.tag_type == 'mp4':
             current = self._f.tags['covr']
-            cover = MP4Cover(data, MP4Cover.FORMAT_JPEG)
+            try:
+                cover_fmt = MP4_MIME_FORMAT_MAP[mime_type]
+            except KeyError as e:
+                raise ValueError(f'Invalid {mime_type=} for {self!r} - must be JPEG or PNG for MP4 cover images') from e
+            cover = MP4Cover(data, cover_fmt)
             if self._log_cover_changes(current, cover, dry_run):
                 self._f.tags['covr'] = [cover]
         elif self.tag_type == 'flac':
             current = self._f.pictures
             cover = Picture()
             cover.type = PictureType.COVER_FRONT  # noqa
-            cover.mime = 'image/jpeg'
+            cover.mime = mime_type
             cover.width, cover.height = image.size
             cover.depth = 1 if image.mode == '1' else 32 if image.mode in ('I', 'F') else 8 * len(image.getbands())
             cover.data = data

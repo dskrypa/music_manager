@@ -9,10 +9,10 @@ from dataclasses import fields
 from functools import partial
 from itertools import chain
 from pathlib import Path
+from tkinter import Frame, Listbox
 from urllib.parse import quote_plus
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
-from tkinter import Frame, Listbox
 
 from ...common.utils import stars
 from ...files.album import AlbumDir
@@ -20,7 +20,6 @@ from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
-from ..elements.image import ExtendedImage
 from ..elements.inputs import ExtInput
 from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
@@ -243,8 +242,7 @@ class AlbumView(MainView, view_name='album'):
 
         if path := self.album_formatter.get_wiki_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
-            # TODO: Update image data
-            # img_ele = self.window['img::album::cover-thumb']  # type: # ExtendedImage
+            self.window['img::album::cover-thumb'].image = path
 
     @event_handler('add::*')
     def add_field_value(self, event: Event, data: EventData):

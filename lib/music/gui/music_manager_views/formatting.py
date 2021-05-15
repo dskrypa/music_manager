@@ -26,7 +26,7 @@ from ...files.track.track import SongFile
 from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
-from ..elements.image import ExtendedImage
+from ..elements.image import ExtendedImage, ImageType
 from ..elements.inputs import ExtInput
 from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
@@ -144,41 +144,40 @@ class AlbumFormatter:
 
     @property
     def cover_image_thumbnail(self) -> ExtendedImage:
-        try:
-            image = self._get_cover_image_obj()
-        except MultipleCoversFound as e:
-            image = None
-            if self.album_dir.path not in _multiple_covers_warned:
-                _multiple_covers_warned.add(self.album_dir.path)
-                popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}', keep_on_top=True)
+        if (album_info := self._new_album_info) and album_info.cover_path:
+            image = album_info.cover_path
+        else:
+            try:
+                image = self._get_cover_image_obj()
+            except MultipleCoversFound as e:
+                image = None
+                if self.album_dir.path not in _multiple_covers_warned:
+                    _multiple_covers_warned.add(self.album_dir.path)
+                    popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}', keep_on_top=True)
 
         return self._make_thumbnail(image, 'img::album::cover-thumb', True)
 
-    def _make_thumbnail(
-        self, image: Optional[PILImage], key, can_replace: bool = False, title_prefix: str = None
-    ) -> ExtendedImage:
-        prefix = f'{title_prefix} ' if title_prefix else ''
+    def _make_thumbnail(self, image: ImageType, key, can_replace: bool = False, prefix: str = None) -> ExtendedImage:
+        prefix = f'{prefix} ' if prefix else ''
         kwargs = dict(size=self.cover_size, key=key, popup_title=f'{prefix}Album Cover: {self.album_info.name}')
         if image is not None:
             if can_replace and self.wiki_image_urls:
                 kwargs['right_click_menu'] = ['Image', ['Replace Image']]
         elif can_replace and self.wiki_image_urls:
             kwargs['right_click_menu'] = ['Image', ['Add Image']]
-        return ExtendedImage(image=image, **kwargs)
+        return ExtendedImage(image, **kwargs)
 
-    def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image, PILImage, bytes]]:
+    def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image]]:
         if new_album_info.cover_path:
             try:
                 src_pil_image = self._get_cover_image_obj()
             except MultipleCoversFound as e:
-                popup_ok(f'Warning: found {e.n} cover images for {self.album_dir}')
+                popup_ok(f'Warning: found {e.n} different cover images for {self.album_dir}')
                 src_pil_image = None
 
-            new_pil_image, img_data = new_album_info.get_new_cover(self.album_dir, src_pil_image, force=True)
-            if new_pil_image is not None:
-                src_img_ele = self._make_thumbnail(src_pil_image, 'img::album::cover-src', title_prefix='Original')
-                new_img_ele = self._make_thumbnail(new_pil_image, 'img::album::cover-new', title_prefix='New')
-                return src_img_ele, new_img_ele, new_pil_image, img_data
+            src_img_ele = self._make_thumbnail(src_pil_image, 'img::album::cover-src', prefix='Original')
+            new_img_ele = self._make_thumbnail(new_album_info.cover_path, 'img::album::cover-new', prefix='New')
+            return src_img_ele, new_img_ele
         return None
 
     # endregion

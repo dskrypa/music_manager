@@ -55,10 +55,6 @@ class AlbumDiffView(MainView, view_name='album_diff'):
     def file_info_map(self):
         return self.album_info.get_file_info_map(self.album)
 
-    @property
-    def cover_images(self) -> Optional[tuple[Image, Image, 'PILImage', bytes]]:
-        return self.album_formatter.get_cover_image_diff(self.album_info)
-
     def get_dest_album_path(self):
         if self.options['no_album_move']:
             return None
@@ -85,8 +81,8 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         layout = [first_row, [Text()], [HSep(), Text('Common Album Changes'), HSep()], [Text()]]
 
-        if diff_imgs := self.cover_images:
-            src_img_ele, new_img_ele = diff_imgs[:2]
+        if diff_imgs := self.album_formatter.get_cover_image_diff(self.album_info):
+            src_img_ele, new_img_ele = diff_imgs
             img_row = [src_img_ele, Text('\u2794', key='txt::cover::arrow', font=('Helvetica', 20)), new_img_ele]
             img_diff_col = Column([img_row], key='col::img_diff', justification='center')
             layout.extend([[img_diff_col], [HSep()]])
@@ -147,11 +143,12 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         with Spinner(LoadingSpinner.blue_dots, message='Applying Changes...') as spinner:
             file_tag_map = {file: info.tags() for file, info in self.file_info_map.items()}
-            new_image_obj, new_img_data = self.cover_images[-2:] if self.cover_images else (None, None)
+            new_image_obj, new_img_data = self.album_info.get_new_cover(self.album, force=True)
             for file, info in spinner(self.file_info_map.items()):  # type: SongFile, TrackInfo
                 file.update_tags(file_tag_map[file], dry_run, add_genre=self.options['add_genre'])
                 if new_image_obj is not None:
                     spinner.update()
+
                     file.set_cover_data(new_image_obj, dry_run, new_img_data)
 
                 spinner.update()

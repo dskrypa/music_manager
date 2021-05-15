@@ -39,7 +39,7 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
     @property
     def title(self):
         try:
-            img_w, img_h = self.gui_img._real_size
+            img_w, img_h = self.gui_img.current_size
         except TypeError:
             return self._title
         else:

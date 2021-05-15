@@ -196,7 +196,7 @@ class AlbumFormatter:
                 new_val = sorted(new_vals)
 
             if (src_val or new_val) and src_val != new_val:
-                self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
+                # self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
                 src_ele = value_ele(src_val, src_key, True, 45)
                 new_ele = value_ele(new_val, new_key, True, 45)
@@ -422,8 +422,8 @@ class TrackFormatter:
         return resize_text_column(rows)
 
     def get_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):
-        album_src_genres = set(self.album_formatter._src_album_info.norm_genres())
-        album_new_genres = set(new_track_info.album.norm_genres())
+        album_src_genres = set(self.album_formatter._src_album_info.genre_list(title_case))
+        album_new_genres = set(new_track_info.album.genre_list(title_case))
         if add_genre:
             album_new_genres.update(album_src_genres)
 
@@ -433,7 +433,6 @@ class TrackFormatter:
             new_val = new_info_dict[key]
             skip = False
             if key == 'genre':
-                # TODO: OST/Ost shows up here
                 if new_val:
                     new_vals = {new_val} if isinstance(new_val, str) else set(new_val)
                     new_vals.update(album_new_genres)

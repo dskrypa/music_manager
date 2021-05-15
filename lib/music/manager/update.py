@@ -59,9 +59,8 @@ class GenreMixin:
         else:
             return set()
 
-    @property
-    def genre_list(self) -> list[str]:
-        return sorted(self.genre_set)
+    def genre_list(self, title_case: bool = False) -> list[str]:
+        return self.norm_genres() if title_case else sorted(self.genre_set)
 
     def norm_genres(self) -> list[str]:
         return list(map(normalize_case, self.genre_set))
@@ -112,7 +111,7 @@ class TrackInfo(GenreMixin):
                 'artist': self.artist,
                 'num': self.num,
                 'name': self.name,
-                'genre': self.genre_list,
+                'genre': self.genre_list(),
                 'rating': self.rating,
             }
 
@@ -220,7 +219,7 @@ class AlbumInfo(GenreMixin):
             'date': self.date.strftime('%Y-%m-%d') if self.date else None,
             'tracks': {path: track.to_dict(title_case) for path, track in self.tracks.items()},
             'type': self.type.real_name if self.type else None,
-            'genre': self.norm_genres() if title_case else self.genre_list,
+            'genre': self.genre_list(title_case),
         }
         data = {
             name: normalized[name] if name in normalized else self.__dict__[name]
@@ -422,6 +421,7 @@ def _album_format(date, num, solo_ost, disks=1, ost=False):
 
 
 def normalize_case(text: str) -> str:
-    if UPPER_CHAIN_SEARCH(text) or text.lower() == text:
+    lc_text = text.lower()
+    if (UPPER_CHAIN_SEARCH(text) or lc_text == text) and lc_text != 'ost':
         text = text.title().replace("I'M ", "I'm ")
     return text

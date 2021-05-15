@@ -9,7 +9,7 @@ from ds_tools.test_common import main, TestCaseBase
 
 sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.common.disco_entry import DiscoEntryType
-from music.manager.update import AlbumInfo, TrackInfo
+from music.manager.update import AlbumInfo, TrackInfo, normalize_case
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +51,9 @@ class AlbumInfoTest(TestCaseBase):
         info.date = date(2021, 1, 2)
         info_dict = info.to_dict()
         self.assertEqual(info_dict['date'], '2021-01-02')
+
+    def test_normalize_case(self):
+        self.assertEqual('OST', normalize_case('OST'))
 
 
 if __name__ == '__main__':

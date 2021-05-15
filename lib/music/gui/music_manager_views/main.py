@@ -251,3 +251,9 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
             return SyncRatingsView(last_view=self)
         except ValueError as e:
             popup_error(str(e))
+
+    def _settings(self):
+        options = super()._settings()
+        with options.next_row() as options:
+            options.add_directory('output_base_dir', 'Output Directory', self.config['output_base_dir'])
+        return options

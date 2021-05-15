@@ -95,6 +95,7 @@ class LocalPlexServer:
         except NoSectionError:
             self._config.add_section(section)
             self._config.set(section, key, value)
+        log.debug(f'Saving Plex config to {self._config_path.as_posix()}')
         with self._config_path.open('w', encoding='utf-8') as f:
             self._config.write(f)
 

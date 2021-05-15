@@ -5,9 +5,9 @@ View: Settings
 """
 
 from functools import partial
-from typing import Any, Iterable
+from typing import Any, Iterable, Collection
 
-from PySimpleGUI import Element, Submit, theme_list, theme
+from PySimpleGUI import Element, Submit, theme
 
 from ..base_view import event_handler, Event, EventData
 from ..options import GuiOptions, SingleParsingError, MultiParsingError
@@ -18,18 +18,12 @@ __all__ = ['SettingsView']
 
 
 class SettingsView(BasePopup, view_name='settings', primary=False):
-    # TODO: Move or genericize for use with plex as well
-    def __init__(self):
-        super().__init__(binds={'<Escape>': 'Exit'})
+    def __init__(self, options: GuiOptions, private: Collection[str] = None, **kwargs):
+        super().__init__(binds={'<Escape>': 'Exit'}, **kwargs)
         self._failed_validation = {}
-        self.options = GuiOptions(self, submit='Save', title=None)
-        with self.options.next_row() as options:
-            options.add_bool('remember_pos', 'Remember Last Window Position', self.config['remember_pos'])
-            options.add_bool('remember_size', 'Remember Last Window Size', self.config['remember_size'])
-        with self.options.next_row() as options:
-            options.add_dropdown('theme', 'Theme', theme_list(), self.config['theme'])
-        with self.options.next_row() as options:
-            options.add_directory('output_base_dir', 'Output Directory', self.config['output_base_dir'])
+        self.options = options
+        self.private = set(private) if private else set()
+        self.result = {}
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         layout = self.options.layout('save')
@@ -49,7 +43,9 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
         self.config.auto_save = False
         try:
             for key, val in self.options.items():
-                if val != self.config.get(key):
+                if key in self.private:
+                    self.result[key] = val
+                elif val != self.config.get(key):
                     if key == 'theme':
                         self.log.info(f'Changing theme from {self.config[key]!r} to {val!r}')
                         theme(val)

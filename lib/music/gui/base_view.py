@@ -30,12 +30,13 @@ from queue import Queue, Empty
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collection, Union
 
-from PySimpleGUI import Window, WIN_CLOSED, Element, theme
+from PySimpleGUI import Window, WIN_CLOSED, Element, theme, theme_list
 from screeninfo import get_monitors, Monitor
 
 from .config import GuiConfig
 from .constants import LoadingSpinner
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
+from .options import GuiOptions
 from .progress import Spinner
 from .utils import ViewLoggerAdapter
 
@@ -487,8 +488,17 @@ class GuiView(ABC):
 
         return AboutView()
 
+    def _settings(self) -> GuiOptions:
+        options = GuiOptions(self, submit='Save', title=None)
+        with options.next_row() as options:
+            options.add_bool('remember_pos', 'Remember Last Window Position', self.config['remember_pos'])
+            options.add_bool('remember_size', 'Remember Last Window Size', self.config['remember_size'])
+        with options.next_row() as options:
+            options.add_dropdown('theme', 'Theme', theme_list(), self.config['theme'])
+        return options
+
     @event_handler
     def settings(self, event: Event, data: EventData):
         from .popups.settings import SettingsView
 
-        return SettingsView()
+        return SettingsView(self._settings())

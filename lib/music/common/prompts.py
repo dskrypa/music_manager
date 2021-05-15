@@ -5,12 +5,16 @@ Unification of CLI and GUI prompts
 """
 
 from enum import Enum
+from getpass import getpass as cli_getpass
 from typing import Union, Callable, Collection, Any, Optional
 
-from ds_tools.input.prompts import choose_item as cli_choose_item, Color
+from ds_tools.input.prompts import choose_item as cli_choose_item, Color, get_input as cli_get_input, _NotSet
+from ds_tools.input.parsers import parse_yes_no
 from ..gui.popups.choose_item import choose_item as gui_choose_item
+from ..gui.popups.simple import popup_yes_no
+from ..gui.popups.text import popup_get_text
 
-__all__ = ['choose_item', 'UIMode', 'set_ui_mode']
+__all__ = ['choose_item', 'UIMode', 'set_ui_mode', 'get_input', 'getpass']
 
 
 class UIMode(Enum):
@@ -52,3 +56,31 @@ def choose_item(
         )
     else:
         return gui_choose_item(items, name, source, before=before, repr_func=repr_func)
+
+
+def get_input(
+    prompt: str,
+    skip: bool = False,
+    retry: int = 0,
+    parser: Callable = parse_yes_no,
+    *,
+    default=_NotSet,
+    input_func: Callable = input,
+    **kwargs,
+):
+    if UI_MODE == UIMode.CLI:
+        return cli_get_input(prompt, skip, retry, parser, default=default, input_func=input_func)
+    elif skip and default is _NotSet:
+        raise ValueError(f'Unable to skip user prompt without a default value: {prompt!r}')
+    elif parser is parse_yes_no:
+        return popup_yes_no(prompt, **kwargs)
+    else:
+        result = popup_get_text(prompt, **kwargs)
+        return parser(result)
+
+
+def getpass(prompt: str):
+    if UI_MODE == UIMode.CLI:
+        return cli_getpass(prompt)
+    else:
+        return popup_get_text(prompt, password_char='*')

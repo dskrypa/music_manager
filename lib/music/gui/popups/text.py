@@ -22,8 +22,8 @@ def popup_error(*args, **kwargs):
     return TextPopup(*args, button='OK', title='Error', **kwargs).get_result()
 
 
-def popup_get_text(prompt: str, title: str = '', strip: bool = True, **kwargs):
-    return TextInputPopup(prompt, title=title, strip=strip, **kwargs).get_result()
+def popup_get_text(prompt: str, title: str = '', strip: bool = True, password_char: str = '', **kwargs):
+    return TextInputPopup(prompt, title=title, strip=strip, password_char=password_char, **kwargs).get_result()
 
 
 class TextPopup(BasePopup, view_name='text_popup', primary=False):
@@ -72,6 +72,7 @@ class TextInputPopup(BasePopup, view_name='text_input_popup', primary=False):
         submit: str = 'Submit',
         font: tuple[str, int] = None,
         strip: bool = True,
+        password_char: str = '',
         **kwargs
     ):
         super().__init__(binds={'<Escape>': 'Exit'}, title=title)
@@ -79,13 +80,14 @@ class TextInputPopup(BasePopup, view_name='text_input_popup', primary=False):
         self.submit = submit
         self.font = font
         self.strip = strip
+        self.password_char = password_char
         self.kwargs = kwargs
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         size = self.kwargs.pop('size', (None, None))
         layout = [
             [Text(self.prompt, key='prompt', size=size, font=self.font)],
-            [Input('', key='value', size=size, font=self.font)],
+            [Input('', key='value', size=size, font=self.font, password_char=self.password_char)],
             [Button(self.submit, key='submit', bind_return_key=True)],
         ]
         return layout, {'title': self.title, **self.kwargs}

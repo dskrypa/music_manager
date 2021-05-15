@@ -9,13 +9,23 @@ from typing import Union, Iterable
 
 from PySimpleGUI import Window, Button, Text
 
-__all__ = ['popup', 'popup_ok', 'popup_input_invalid']
+__all__ = ['popup', 'popup_ok', 'popup_input_invalid', 'popup_yes_no', 'popup_no_yes']
 log = logging.getLogger(__name__)
 
 
 def popup_ok(message: str = None, title: str = '', **kwargs):
     """The popup_ok that PySimpleGUI comes with does not provide a way to allow any key to close it"""
     popup(message, title=title, any_key_closes=True, return_event=False, **kwargs)
+
+
+def popup_yes_no(message: str = None, title: str = '', **kwargs) -> bool:
+    result = popup(message, title=title, button_text=('Yes', 'No'), binds={'<Escape>': 'Exit'}, **kwargs)
+    return result == 'Yes'
+
+
+def popup_no_yes(message: str = None, title: str = '', **kwargs) -> bool:
+    result = popup(message, title=title, button_text=('No', 'Yes'), binds={'<Escape>': 'Exit'}, **kwargs)
+    return result == 'Yes'
 
 
 def popup_input_invalid(message: str = None, title='Invalid Input', logger=None, **kwargs):
@@ -37,6 +47,7 @@ def popup(
     any_key_closes: bool = False,
     modal: bool = True,
     return_event: bool = True,
+    binds: dict[str, str] = None,
     **kwargs
 ):
     """
@@ -54,6 +65,9 @@ def popup(
         title, layout, auto_size_text=True, background_color=background_color, button_color=button_color,
         keep_on_top=keep_on_top, return_keyboard_events=any_key_closes, modal=modal, finalize=True, **kwargs
     )
+    if binds:
+        for key, val in binds.items():
+            window.bind(key, val)
     for button, event in zip(button_row, button_text):  # bind_return_key only works for one
         button.bind('<Return>', '')
     if non_blocking:

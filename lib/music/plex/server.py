@@ -7,7 +7,6 @@ Local Plex server client implementation.
 import logging
 from configparser import NoSectionError
 from functools import cached_property
-from getpass import getpass
 from pathlib import Path
 from typing import Optional, Iterable
 
@@ -21,8 +20,8 @@ from plexapi.utils import SEARCHTYPES
 from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
-from ds_tools.input import get_input
 from ds_tools.output import bullet_list
+from ..common.prompts import get_input, getpass
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
 from .query import QueryResults
@@ -73,16 +72,16 @@ class LocalPlexServer:
             self._set_config('auth', 'server_token', token)
         return token
 
-    def _get_config(self, section, key, name=None, new_value=None, save=False, required=False):
+    def _get_config(self, section, key, name=None, new_value=None, required=False):
         name = name or key
         cfg_value = self._config.get(f'{section}.{key}')
         if cfg_value and new_value:
             msg = f'Found {name}={cfg_value!r} in {self._config_path} - overwrite with {name}={new_value!r}?'
-            if get_input(msg, skip=save):
+            if get_input(msg):
                 self._set_config(section, key, new_value)
         elif required and not cfg_value and not new_value:
             try:
-                new_value = input(f'Please enter your Plex {name}: ').strip()
+                new_value = get_input(f'Please enter your Plex {name}: ', parser=lambda s: s.strip() if s else s)
             except EOFError as e:
                 raise RuntimeError('Unable to read stdin (this is often caused by piped input)') from e
             if not new_value:

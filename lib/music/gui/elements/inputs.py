@@ -68,24 +68,18 @@ class ExtInput(Input):
         return self._right_click_menu
 
     @right_click_menu.setter
-    def right_click_menu(self, value: Union[ContextualMenu, MenuList, None]):
-        if isinstance(value, ContextualMenu) or value is None:
+    def right_click_menu(self, menu: Union[ContextualMenu, MenuList, None]):
+        if isinstance(menu, ContextualMenu) or menu is None:
             if self._path:
-                value = ContextualMenu() if value is None else value
-                value.add_option(
-                    'Open in File Manager',
-                    self.DefaultText if self._path is True else self._path,
-                    open_in_file_manager,
-                    show='cb_arg',
-                    format=False,
-                    call_with_kwargs=False,
-                )
+                menu = ContextualMenu() if menu is None else menu
+                path = self.DefaultText if self._path is True else self._path
+                menu.add_option('Open in File Manager', path, open_in_file_manager, None, 'cb_arg', False, False)
 
-            self._right_click_menu = value
-            if value and not self.RightClickMenu:
+            self._right_click_menu = menu
+            if menu and not self.RightClickMenu:
                 self.RightClickMenu = ['-', []]
         else:
-            self.RightClickMenu = value
+            self.RightClickMenu = menu
 
     @property
     def TKEntry(self):

@@ -20,7 +20,8 @@ from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
-from ..elements.inputs import DarkInput as Input
+from ..elements.image import ExtendedImage
+from ..elements.inputs import ExtInput
 from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
 from ..popups.text import popup_error, popup_get_text
@@ -111,7 +112,7 @@ class AlbumView(MainView, view_name='album'):
             album_path = self.album.path.as_posix()
             open_menu = ContextualMenu(open_in_file_manager, {album_path: 'Open in File Manager'}, include_kwargs=False)
             layout = [
-                [Text('Album Path:'), Input(album_path, disabled=True, size=(150, 1), right_click_menu=open_menu)],
+                [Text('Album Path:'), ExtInput(album_path, disabled=True, size=(150, 1), right_click_menu=open_menu)],
                 [HorizontalSeparator()]
             ]
             album_column = self._prepare_album_column(spinner)
@@ -189,7 +190,7 @@ class AlbumView(MainView, view_name='album'):
 
     def _handle_star_clicked(self, val_key: str, star_key: str, event):
         # noinspection PyTypeChecker
-        rating_ele = self.window[val_key]  # type: Input
+        rating_ele = self.window[val_key]  # type: ExtInput
         star_ele = self.window[star_key]
         rating = round(int(100 * event.x / star_ele.Widget.winfo_width()) / 10)
         rating_ele.update(10 if rating > 10 else 0 if rating < 0 else rating)
@@ -197,7 +198,7 @@ class AlbumView(MainView, view_name='album'):
 
     def _handle_rating_edit(self, val_key: str, star_key: str, tk_var_name: str, index, operation: str):
         # noinspection PyTypeChecker
-        rating_ele = self.window[val_key]  # type: Input
+        rating_ele = self.window[val_key]  # type: ExtInput
         star_ele = self.window[star_key]  # type: Text
 
         if value := rating_ele.TKStringVar.get():
@@ -220,7 +221,7 @@ class AlbumView(MainView, view_name='album'):
         widget = element.Widget
         orig_bg = widget.cget('bg')
         orig_fg = widget.cget('fg')
-        if isinstance(element, Input):
+        if isinstance(element, ExtInput):
             element.validated(False)
         else:
             update_color(element, '#FFFFFF', '#781F1F')
@@ -243,6 +244,7 @@ class AlbumView(MainView, view_name='album'):
         if path := self.album_formatter.get_wiki_cover_choice():
             self.window['val::album::cover_path'].update(path.as_posix())
             # TODO: Update image data
+            # img_ele = self.window['img::album::cover-thumb']  # type: # ExtendedImage
 
     @event_handler('add::*')
     def add_field_value(self, event: Event, data: EventData):
@@ -295,12 +297,12 @@ class AlbumView(MainView, view_name='album'):
 
     @event_handler
     def ctrl_left(self, event: Event, data: EventData):
-        if not isinstance(self.window.find_element_with_focus(), Input):
+        if not isinstance(self.window.find_element_with_focus(), ExtInput):
             super().ctrl_left(event, data)
 
     @event_handler
     def ctrl_right(self, event: Event, data: EventData):
-        if not isinstance(self.window.find_element_with_focus(), Input):
+        if not isinstance(self.window.find_element_with_focus(), ExtInput):
             super().ctrl_right(event, data)
 
     # region Switch View Handlers

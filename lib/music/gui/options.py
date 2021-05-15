@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator,
 
 from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse
 
-from .elements.inputs import DarkInput as Input
+from .elements.inputs import ExtInput
 from .utils import resize_text_column, make_checkbox_grid
 
 if TYPE_CHECKING:
@@ -181,7 +181,7 @@ class GuiOptions:
                 yield col_num, row_num, Checkbox(opt['label'], default=val, **common)
             elif opt_type == 'input':
                 yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
-                yield col_num, row_num, Input('' if val is _NotSet else val, **common)
+                yield col_num, row_num, ExtInput('' if val is _NotSet else val, **common)
             elif opt_type == 'dropdown':
                 yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
                 yield col_num, row_num, Combo(opt['choices'], default_value=val, **common)
@@ -194,7 +194,7 @@ class GuiOptions:
             elif opt_type == 'path':
                 val = val.as_posix() if isinstance(val, Path) else None if val is _NotSet else val
                 yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')
-                yield col_num, row_num, Input('' if val is None else val, **common)
+                yield col_num, row_num, ExtInput('' if val is None else val, **common)
                 yield col_num, row_num, opt['button_func'](initial_folder=val)
             else:
                 raise ValueError(f'Unsupported {opt_type=!r}')

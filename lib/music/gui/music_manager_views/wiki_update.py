@@ -14,7 +14,7 @@ from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
 from ..base_view import event_handler
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..popups.text import popup_error
 from .formatting import AlbumFormatter
@@ -64,7 +64,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         layout = [
             [HSep(), Text('Wiki Match Options'), HSep()],
             [Text()],
-            [Text('Selected Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
+            [Text('Selected Album Path:'), ExtInput(self.album.path.as_posix(), disabled=True, size=(150, 1))],
             [Text()],
             [self.options.as_frame('find_match')],
             [Text()],

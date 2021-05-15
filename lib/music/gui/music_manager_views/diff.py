@@ -13,7 +13,7 @@ from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..constants import LoadingSpinner
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..progress import Spinner
 from .formatting import AlbumFormatter
@@ -94,7 +94,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         if dest_album_path := self.get_dest_album_path():
             layout.append(get_a_to_b('Album Rename:', self.album.path, dest_album_path, 'album', 'path'))
         else:
-            layout.append([Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))])
+            layout.append([Text('Album Path:'), ExtInput(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 
         title_case, add_genre = self.options['title_case'], self.options['add_genre']
         if common_rows := self.album_formatter.get_album_diff_rows(self.album_info, title_case, add_genre):

@@ -13,12 +13,12 @@ from tkinter import TclError, Entry
 
 from .menu import ContextualMenu
 
-__all__ = ['DarkInput']
+__all__ = ['ExtInput']
 MenuListItem = Union[str, list[Union[str, 'MenuListItem']]]
 MenuList = list[MenuListItem]
 
 
-class DarkInput(Input):
+class ExtInput(Input):
     TKEntry: Entry
 
     def __init__(

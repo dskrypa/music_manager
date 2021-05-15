@@ -27,7 +27,7 @@ from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
 from ..elements.image import ExtendedImage
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import ExtInput
 from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
 from ..utils import open_in_file_manager, resize_text_column
@@ -227,7 +227,7 @@ class AlbumFormatter:
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
                 val_ele = value_ele(value, val_key, disabled)
-                if isinstance(val_ele, Input) and right_click_menu:
+                if isinstance(val_ele, ExtInput) and right_click_menu:
                     val_ele.right_click_menu = right_click_menu
 
             rows.append([key_ele, val_ele])
@@ -271,7 +271,7 @@ def value_ele(
                 expand_x=True,
             )
     else:
-        val_ele = Input(value, key=val_key, disabled=disabled, **kwargs)
+        val_ele = ExtInput(value, key=val_key, disabled=disabled, **kwargs)
 
     return val_ele
 
@@ -375,7 +375,7 @@ class TrackFormatter:
                     row = [
                         key_ele,
                         sel_box,
-                        Input(val, key=val_key, disabled=True, tooltip=tooltip, size=(15, 1)),
+                        ExtInput(val, key=val_key, disabled=True, tooltip=tooltip, size=(15, 1)),
                         Text(f'({rating} / 10)', key=self.key_for('out_of', tag_id), size=(15, 1)),
                         Text(stars(rating), key=self.key_for('stars', tag_id), size=(15, 1)),
                     ]
@@ -393,7 +393,7 @@ class TrackFormatter:
         color = '#f2d250' if value else '#000000'
         row = [
             key_ele,
-            Input(value, key=self.key_for('val', key, suffix), disabled=not editable, size=(15, 1)),
+            ExtInput(value, key=self.key_for('val', key, suffix), disabled=not editable, size=(15, 1)),
             Text(f'(out of 10)', key=self.key_for('out_of', key, suffix), size=(12, 1)),
             Text(stars(value or 0), key=self.key_for('stars', key, suffix), size=(8, 1), text_color=color),
         ]
@@ -417,9 +417,9 @@ class TrackFormatter:
     def get_sync_rows(self):
         row = [
             Text('Num', key=self.key_for('tag', 'num')),
-            Input(self.info.num, key=self.key_for('val', 'num'), disabled=True, size=(5, 1)),
+            ExtInput(self.info.num, key=self.key_for('val', 'num'), disabled=True, size=(5, 1)),
             Text('Title', key=self.key_for('tag', 'title')),
-            Input(self.info.title, key=self.key_for('val', 'title'), disabled=True),
+            ExtInput(self.info.title, key=self.key_for('val', 'title'), disabled=True),
         ]
         rows = [row, self._rating_row('rating', self.info.rating, False)]
         return resize_text_column(rows)
@@ -467,13 +467,13 @@ class TrackFormatter:
         open_menu = ContextualMenu(open_in_file_manager, {self.path_str: 'Open in File Manager'}, include_kwargs=False)
         return [
             Text('File:'),
-            Input(track.path.name, size=(50, 1), disabled=True, right_click_menu=open_menu),
+            ExtInput(track.path.name, size=(50, 1), disabled=True, right_click_menu=open_menu),
             VerticalSeparator(),
             Text('Length:'),
-            Input(track.length_str, size=(6, 1), disabled=True),
+            ExtInput(track.length_str, size=(6, 1), disabled=True),
             VerticalSeparator(),
             Text('Type:'),
-            Input(track.tag_version, size=(10, 1), disabled=True),
+            ExtInput(track.tag_version, size=(10, 1), disabled=True),
         ]
 
     def as_info_rows(self, editable: bool = True, keys: Collection[str] = None):
@@ -496,7 +496,7 @@ class TrackFormatter:
         else:
             yield [
                 Text('File:'),
-                Input(self.track.path.name, disabled=True, key=f'src::{self.path_str}::file_name'),
+                ExtInput(self.track.path.name, disabled=True, key=f'src::{self.path_str}::file_name'),
                 Text('(no change)'),
             ]
 

@@ -14,7 +14,7 @@ from typing import Any, Union, Optional, Collection
 from PySimpleGUI import Element, Text, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs
 
 from ..base_view import event_handler
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import ExtInput
 from .base import BasePopup
 from .utils import temp_hidden_window
 from .simple import popup_ok
@@ -86,7 +86,7 @@ class PathPromptView(BasePopup, view_name='path_prompt', primary=False):
 
         layout = [
             [Text(self.prompt, auto_size_text=True)],
-            [Input(default_text=self.init_path, key='_INPUT_'), browse],
+            [ExtInput(default_text=self.init_path, key='_INPUT_'), browse],
             [Button('OK', size=(6, 1), bind_return_key=True), Button('Cancel', size=(6, 1))]
         ]
         return layout, {'title': self.title or self.prompt, 'auto_size_text': True}

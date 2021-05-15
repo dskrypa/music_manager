@@ -14,7 +14,7 @@ from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import ExtInput
 from ..popups.simple import popup_input_invalid
 from ..popups.path_prompt import get_directory
 from ..popups.text import popup_ok
@@ -76,7 +76,7 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
             albums, formatters = (self.src_album, self.dst_album), (self.src_formatter, self.dst_formatter)
             for loc, album, formatter in zip(('src', 'dst'), albums, formatters):
                 path_key = f'path::{loc}'
-                path = Input(
+                path = ExtInput(
                     album.path.as_posix(), key=path_key, disabled=True, size=(150, 1), tooltip='Click to change album'
                 )
                 ele_binds[path_key] = {'<Button-1>': ':::album_clicked'}

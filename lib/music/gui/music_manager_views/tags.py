@@ -12,7 +12,7 @@ from PySimpleGUI import Text, HorizontalSeparator, Column, Frame, Image, Checkbo
 from ...files.album import AlbumDir
 from ..base_view import RenderArgs, event_handler, Event, EventData
 from ..constants import LoadingSpinner
-from ..elements.inputs import DarkInput as Input
+from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..popups.simple import popup_ok, popup
 from ..popups.text import TextPopup
@@ -42,7 +42,7 @@ class AllTagsView(MainView, view_name='all_tags'):
         ele_binds = {}
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             layout = [
-                [Text('Album Path:'), Input(self.album.path.as_posix(), disabled=True, size=(150, 1))],
+                [Text('Album Path:'), ExtInput(self.album.path.as_posix(), disabled=True, size=(150, 1))],
                 [HorizontalSeparator()],
             ]
 

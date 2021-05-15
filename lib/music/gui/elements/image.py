@@ -53,9 +53,7 @@ class ExtendedImage(Image):
         elif isinstance(data, bytes):
             self._image = ImageModule.open(BytesIO(data))
         elif isinstance(data, (Path, str)):
-            with open(data, 'rb') as f:
-                data = BytesIO(f.read())  # Using the file directly results in closed file seek errors on resize
-            self._image = ImageModule.open(data)
+            self._image = ImageModule.open(data.as_posix() if isinstance(data, Path) else data)
         else:
             raise TypeError(f'Image must be bytes, None, or a PIL.Image.Image - found {type(data)}')
 

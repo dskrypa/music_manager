@@ -345,6 +345,11 @@ class GuiOptions:
             self._default_col = old_col
             self._default_row = old_row
 
+    def as_popup(self, **kwargs):
+        from .popups.options import OptionsView
+
+        return OptionsView(self, **kwargs).get_result()
+
 
 class GuiOptionError(Exception):
     """Base exception for parsing exceptions"""

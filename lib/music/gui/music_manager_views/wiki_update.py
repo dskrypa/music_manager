@@ -5,15 +5,17 @@ View for choosing Wiki update options
 """
 
 import traceback
-from typing import Any, Optional
+from pathlib import Path
+from typing import Optional
 
-from PySimpleGUI import Text, Element, HSep
+from PySimpleGUI import Text, HSep
 
+from db_cache.utils import get_user_cache_dir
 from ds_tools.output.printer import Printer
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo
 from ...manager.wiki_update import WikiUpdater
-from ..base_view import event_handler
+from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..popups.text import popup_error
@@ -29,10 +31,10 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, options: GuiOptions = None, **kwargs):
         super().__init__(**kwargs)
+        self.menu.insert(-1, ['Wiki &Options', ['Reset Page Cache']])
         self.album = album
         self.album_formatter = album_formatter or AlbumFormatter(self, self.album)
         self.album_formatter.view = self
-        # TODO: Add way to purge page cache for a given site / page
         if options is not None and options.view.name == self.name:
             self.options = options
         else:
@@ -59,7 +61,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
 
             self.options.update(options)
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
         layout = [
             [HSep(), Text('Wiki Match Options'), HSep()],
@@ -75,13 +77,13 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         return full_layout, kwargs
 
     @event_handler('btn::back')
-    def back_to_album(self, event: str, data: dict[str, Any]):
+    def back_to_album(self, event: Event, data: EventData):
         from .album import AlbumView
 
         return AlbumView(self.album, self.album_formatter, last_view=self)
 
     @event_handler('btn::next')
-    def find_match(self, event: str, data: dict[str, Any]):
+    def find_match(self, event: Event, data: EventData):
         from .diff import AlbumDiffView
 
         parsed = self.options.parse(data)
@@ -123,3 +125,21 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         else:
             error_str = f'Error finding a wiki match for {self.album}:\n{error}'
             popup_error(error_str, multiline=True, auto_size=True)
+
+    @event_handler
+    def reset_page_cache(self, event: Event, data: EventData):
+        from wiki_nodes.http import MediaWikiClient
+
+        options = GuiOptions(self)
+        wiki_cache_dir = Path(get_user_cache_dir('wiki'))
+        for site_dir in wiki_cache_dir.iterdir():
+            if site_dir.is_dir():
+                with options.next_row():
+                    options.add_bool(site_dir.name, f'Reset cache: {site_dir.name}')
+
+        if results := options.as_popup():
+            for site, clear in results.items():
+                if clear:
+                    client = MediaWikiClient(site)
+                    self.log.info(f'Resetting cache for {site}')
+                    client.reset_caches(hard=True)

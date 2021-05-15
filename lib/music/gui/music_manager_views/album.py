@@ -4,13 +4,11 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
-import webbrowser
 from dataclasses import fields
 from functools import partial
 from itertools import chain
 from pathlib import Path
 from tkinter import Frame, Listbox
-from urllib.parse import quote_plus
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
@@ -21,7 +19,6 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
 from ..elements.inputs import ExtInput
-from ..elements.menu import ContextualMenu
 from ..popups.simple import popup_ok
 from ..popups.text import popup_error, popup_get_text
 from ..progress import Spinner
@@ -35,11 +32,6 @@ __all__ = ['AlbumView']
 
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
-    search_menu_options = {
-        'google': 'Search Google for {selected!r}',
-        'kpop.fandom': 'Search kpop.fandom.com for {selected!r}',
-        'generasia': 'Search generasia for {selected!r}',
-    }
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(expand_on_resize=['col::all_data', 'col::album_container', 'col::track_data'], **kwargs)
@@ -86,11 +78,9 @@ class AlbumView(MainView, view_name='album'):
 
     def _prepare_album_column(self, spinner: Spinner):
         spinner.update()
-        search_menu = ContextualMenu(_search_for_selection, kw_key_opt_cb_map={'selected': self.search_menu_options})
-        spinner.update()
         album_data = [
             Column([[self.album_formatter.cover_image_thumbnail]], key='col::album_cover'),
-            Column(self.album_formatter.get_album_data_rows(self.editing, search_menu), key='col::album_data'),
+            Column(self.album_formatter.get_album_data_rows(self.editing), key='col::album_data'),
         ]
         spinner.update()
         alb_col_rows = [album_data, [HorizontalSeparator()], *self._prepare_button_rows()]
@@ -390,14 +380,3 @@ class AlbumView(MainView, view_name='album'):
 def can_toggle_editable(key, ele):
     if isinstance(key, str) and key.startswith(('val::', 'add::')) and key != 'val::album::mp4':
         return not isinstance(ele, Text)
-
-
-def _search_for_selection(key: str, selected: str):
-    quoted = quote_plus(selected)
-    if key == 'kpop.fandom':
-        webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quoted}')
-    elif key == 'google':
-        webbrowser.open(f'https://www.google.com/search?q={quoted}')
-    elif key == 'generasia':
-        url = f'https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={quoted}'
-        webbrowser.open(url)

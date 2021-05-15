@@ -4,13 +4,15 @@ Right-Click Menu that supports more advanced callback options than those support
 :author: Doug Skrypa
 """
 
+import webbrowser
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from tkinter import Tk, Menu, Event
 from typing import Callable, Mapping, Union, Hashable
+from urllib.parse import quote_plus
 
-__all__ = ['ContextualMenu', 'ShowMode']
+__all__ = ['ContextualMenu', 'ShowMode', 'SearchMenu']
 CallbackArg = Hashable
 MenuDict = Mapping[CallbackArg, str]
 
@@ -127,3 +129,27 @@ class MenuOption:
         if self.call_with_kwargs:
             return partial(self.callback, self.cb_arg, **kwargs)
         return partial(self.callback, self.cb_arg)
+
+
+class SearchMenu(ContextualMenu):
+    search_menu_options = {
+        'google': 'Search Google for {selected!r}',
+        'kpop.fandom': 'Search kpop.fandom.com for {selected!r}',
+        'generasia': 'Search generasia for {selected!r}',
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for cb_arg, option in self.search_menu_options.items():
+            self.add_option(option, cb_arg, self._search_for_selection, 'selected', 'kw_value_truthy')
+
+    @staticmethod
+    def _search_for_selection(key: str, selected: str):
+        quoted = quote_plus(selected)
+        if key == 'kpop.fandom':
+            webbrowser.open(f'https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={quoted}')
+        elif key == 'google':
+            webbrowser.open(f'https://www.google.com/search?q={quoted}')
+        elif key == 'generasia':
+            url = f'https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={quoted}'
+            webbrowser.open(url)

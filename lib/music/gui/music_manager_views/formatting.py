@@ -28,7 +28,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
 from ..elements.image import ExtendedImage, ImageType
 from ..elements.inputs import ExtInput
-from ..elements.menu import ContextualMenu
+from ..elements.menu import SearchMenu
 from ..popups.simple import popup_ok
 from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
@@ -212,7 +212,7 @@ class AlbumFormatter:
         dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
         return dest_base_dir.joinpath(expected_rel_dir)
 
-    def get_album_data_rows(self, editable: bool = False, right_click_menu: ContextualMenu = None):
+    def get_album_data_rows(self, editable: bool = False):
         rows = []
         for key, value in self.album_info.to_dict().items():
             if key == 'tracks':
@@ -226,8 +226,6 @@ class AlbumFormatter:
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
                 val_ele = value_ele(value, val_key, disabled)
-                if isinstance(val_ele, ExtInput) and right_click_menu:
-                    val_ele.right_click_menu = right_click_menu
 
             rows.append([key_ele, val_ele])
 
@@ -270,7 +268,7 @@ def value_ele(
                 expand_x=True,
             )
     else:
-        val_ele = ExtInput(value, key=val_key, disabled=disabled, **kwargs)
+        val_ele = ExtInput(value, key=val_key, disabled=disabled, right_click_menu=SearchMenu(), **kwargs)
 
     return val_ele
 

@@ -12,9 +12,8 @@ from tkinter import Frame, Listbox
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
-from ...common.utils import stars
+from ...common.ratings import stars, stars_to_256
 from ...files.album import AlbumDir
-from ...files.track.utils import stars_to_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner

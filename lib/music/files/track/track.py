@@ -26,6 +26,7 @@ from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
+from ...common.ratings import stars_to_256, stars_from_256
 from ...constants import MP3_TAG_DISPLAY_NAME_MAP, TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
 from ...text.name import Name
 from ..cover import prepare_cover_image
@@ -34,7 +35,7 @@ from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import EXTRACT_PART_MATCH, LYRIC_URL_MATCH, compiled_fnmatch_patterns, cleanup_album_name
-from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type, stars_to_256, stars_from_256
+from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
 if TYPE_CHECKING:
     from PIL import Image

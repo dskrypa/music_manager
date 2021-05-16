@@ -23,11 +23,11 @@ from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
 from ..common.disco_entry import DiscoEntryType
+from ..common.ratings import stars_to_256
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.changes import get_common_changes
 from ..files.paths import SafePath
 from ..files.track.track import SongFile
-from ..files.track.utils import stars_to_256
 
 __all__ = ['TrackInfo', 'AlbumInfo']
 log = logging.getLogger(__name__)

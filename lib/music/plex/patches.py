@@ -8,7 +8,8 @@ from plexapi.audio import Track, Album, Artist
 from plexapi.base import PlexObject
 from plexapi.playlist import Playlist
 
-from ..common.utils import stars, deinit_colorama as _deinit_colorama
+from ..common.ratings import stars
+from ..common.utils import deinit_colorama as _deinit_colorama
 
 __all__ = ['apply_plex_patches', 'track_repr']
 log = logging.getLogger(__name__)

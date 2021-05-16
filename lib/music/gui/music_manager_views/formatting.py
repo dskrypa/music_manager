@@ -20,10 +20,9 @@ from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
-from ...common.utils import stars
+from ...common.ratings import stars, stars_from_256
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
-from ...files.track.utils import stars_from_256
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
 from ..elements.image import ExtendedImage, ImageType

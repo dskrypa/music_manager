@@ -151,7 +151,8 @@ def main():
         else:
             log.warning('No results.')
     elif args.action == 'rate':
-        from music.common.utils import stars
+        from music.common.ratings import stars
+
         if args.rating < 0 or args.rating > 10:
             raise ValueError('Ratings must be between 0 and 10')
         obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
@@ -164,13 +165,13 @@ def main():
             prefix = '[DRY RUN] Would update' if args.dry_run else 'Updating'
             for obj in objects:
                 if obj.userRating == args.rating:
-                    log.info('No changes necessary for {}'.format(obj))
+                    log.info(f'No changes necessary for {obj}')
                 else:
-                    log.info('{} {}\'s rating => {}'.format(prefix, obj, stars(args.rating)))
+                    log.info(f'{prefix} {obj}\'s rating => {stars(args.rating)}')
                     if not args.dry_run:
                         obj.edit(**{'userRating.value': args.rating})
     else:
-        log.error('Unconfigured action')
+        log.error(f'Invalid action={args.action!r}')
 
 
 def parse_filters(obj_type, title, filters, escape, allow_inst) -> Tuple['PlexObjTypes', Dict[str, str]]:

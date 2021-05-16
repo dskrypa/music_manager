@@ -20,14 +20,12 @@ from PySimpleGUI import HorizontalSeparator, VerticalSeparator
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
-from ...common.ratings import stars, stars_from_256
+from ...common.ratings import stars_from_256
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
-from ..elements.image import ExtendedImage, ImageType
-from ..elements.inputs import ExtInput
-from ..elements.menu import SearchMenu
+from ..elements import ExtendedImage, ImageType, ExtInput, SearchMenu, Rating
 from ..popups.simple import popup_ok
 from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
@@ -371,9 +369,7 @@ class TrackFormatter:
                     row = [
                         key_ele,
                         sel_box,
-                        ExtInput(val, key=val_key, disabled=True, tooltip=tooltip, size=(15, 1)),
-                        Text(f'({rating} / 10)', key=self.key_for('out_of', tag_id), size=(15, 1)),
-                        Text(stars(rating), key=self.key_for('stars', tag_id), size=(15, 1)),
+                        Rating(rating, key=val_key, show_value=True, disabled=True, tooltip=tooltip, pad=(0, 0)),
                     ]
                     rows.append(row)
                 ele_binds[val_key] = common_binds.copy()
@@ -386,12 +382,9 @@ class TrackFormatter:
 
     def _rating_row(self, key: str, value, editable: bool = False, suffix: str = None):
         key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, suffix))
-        color = '#f2d250' if value else '#000000'
         row = [
             key_ele,
-            ExtInput(value, key=self.key_for('val', key, suffix), disabled=not editable, size=(15, 1)),
-            Text(f'(out of 10)', key=self.key_for('out_of', key, suffix), size=(12, 1)),
-            Text(stars(value or 0), key=self.key_for('stars', key, suffix), size=(8, 1), text_color=color),
+            Rating(value, key=self.key_for('val', key, suffix), show_value=True, pad=(0, 0), disabled=not editable),
         ]
         return row
 

@@ -42,7 +42,10 @@ def get_a_to_b(label: str, src_val: Union[str, Path], new_val: Union[str, Path],
 def split_key(key: str) -> Optional[tuple[str, str, str]]:
     try:
         key_type, obj_key = key.split('::', 1)
-        obj, item = obj_key.rsplit('::', 1)
+        if key_type == '_val':
+            obj, item, sub_key = obj_key.rsplit('::', 2)
+        else:
+            obj, item = obj_key.rsplit('::', 1)
     except Exception:
         return None
     else:

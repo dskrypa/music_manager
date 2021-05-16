@@ -12,7 +12,7 @@ from typing import Optional, Literal, Iterator
 
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
-from PySimpleGUI import Column, Text, Element
+from PySimpleGUI import Column, Text, Element, ELEM_TYPE_GRAPH
 
 from ds_tools.core.decorate import cached_classproperty
 from ...common.ratings import star_fill_counts, stars_to_256
@@ -37,17 +37,20 @@ class Rating(Column):
         star_size: tuple[int, int] = None,
         show_value: bool = False,
         disabled: bool = False,
+        tooltip: str = None,
         **kwargs
     ):
-        self.rating = rating or 0
         if color not in ('mix', 'black', 'gold'):
             raise ValueError(f'Invalid {color=} - only mix, black, and gold are supported')
+        self.rating = rating or 0
+        self._valid_value = 0 <= self.rating <= 10
         self._color = color
         self._key = key or f'rating::{next(self._count)}'
         width, height = self._star_size = star_size or (12, 12)
         self._star_full_size = (width * 5 + 4, height)
         self._show_value = show_value
-        self._disabled = None if not disabled else disabled
+        self._disabled = disabled
+        self._tooltip = tooltip
         self._val_change_cb = None
         super().__init__(self.prepare_layout(), key=self._key, **kwargs)
 
@@ -73,21 +76,26 @@ class Rating(Column):
         else:
             return [[self.star_element]]
 
+    def _make_key(self, *args):
+        return '::'.join((f'_{self._key}', *args))
+
     @cached_property
     def rating_input(self) -> Optional[ExtInput]:
         if self._show_value:
-            return ExtInput(self.rating, key=f'{self._key}::input', disabled=self._disabled, size=(5, 1))
+            return ExtInput(
+                self.rating, key=self._make_key('input'), disabled=self._disabled, size=(5, 1), tooltip=self._tooltip
+            )
         return None
 
     @cached_property
     def star_element(self) -> ExtendedImage:
         return ExtendedImage(
             self._combined_stars(),
-            key=f'{self._key}::stars',
+            key=self._make_key('stars'),
             size=self._star_full_size,
             pad=(0, 0),
             bind_click=False,
-            init_callback=lambda i: self.enable(),
+            init_callback=lambda i: self._finish_init(),
         )
 
     def _combined_stars(self) -> PILImage:
@@ -98,8 +106,9 @@ class Rating(Column):
         return combined
 
     def _iter_star_images(self) -> Iterator[PILImage]:
-        images = self._star_images[self._color if self._color != 'mix' else 'gold' if self.rating else 'black']
-        for key, num in zip(('full', 'half', 'empty'), star_fill_counts(self.rating, half=True)):
+        rating = self.rating if self._valid_value else 0
+        images = self._star_images[self._color if self._color != 'mix' else 'gold' if rating else 'black']
+        for key, num in zip(('full', 'half', 'empty'), star_fill_counts(rating, half=True)):
             if num:
                 image = images[key]  # noqa
                 for _ in range(num):
@@ -123,20 +132,33 @@ class Rating(Column):
             except (ValueError, TypeError) as e:
                 from ..popups.text import popup_error
 
-                rating_input.validated(False)
+                self.validated(False)
                 popup_error(f'Invalid rating:\n{e}', auto_size=True)
-                value = 0
             else:
-                rating_input.validated(True)
+                self.validated(True)
         else:
-            rating_input.validated(True)
+            self.validated(True)
             value = 0
 
         self.rating = value
         self.star_element.image = self._combined_stars()
 
+    def validated(self, valid: bool):
+        if self._valid_value != valid:
+            self._valid_value = valid
+        if rating_input := self.rating_input:
+            rating_input.validated(valid)
+
+    def _finish_init(self):
+        self.Type = ELEM_TYPE_GRAPH  # Used to trick PySimpleGUI into returning a value for this element (1/2)
+        if not self._disabled:
+            self._disabled = True  # will be set back to False by .enable()
+            self.enable()
+        if (rating_input := self.rating_input) and not self._valid_value:
+            rating_input.validated(False)
+
     def enable(self):
-        if self._disabled is False:  # None is used in init to signal that it can be enabled the first time
+        if not self._disabled:
             return
         widget = self.star_element.Widget
         widget.bind('<Button-1>', self._handle_star_clicked)
@@ -158,6 +180,23 @@ class Rating(Column):
             rating_input.update(disabled=True)
         self._disabled = True
 
+    def update(self, disabled: bool = None, **kwargs):
+        if disabled:
+            self.disable()
+        elif disabled is False:
+            self.enable()
+        super().update(**kwargs)
+
+    @property
+    def ClickPosition(self):  # Used to trick PySimpleGUI into returning a value for this element (2/2)
+        return self.rating
+
+    def bind(self, bind_string, key_modifier):
+        if rating_input := self.rating_input:
+            rating_input.bind(bind_string, key_modifier)
+        else:
+            super().bind(bind_string, key_modifier)
+
 
 if __name__ == '__main__':
     from ..popups.base import BasePopup
@@ -166,5 +205,5 @@ if __name__ == '__main__':
     init_logging(10, names=None, millis=True, set_levels={'PIL': 30})
 
     # BasePopup.test_popup([[Rating(i), Text(f'Rating: {i:>2d} {stars(i)}')] for i in range(11)])
-    BasePopup.test_popup([[Rating(i, show_value=True)] for i in range(11)])
+    BasePopup.test_popup([[Rating(i, show_value=True, disabled=True)] for i in range(11)])
     # BasePopup.test_popup([[Rating(i)] for i in range(11)])

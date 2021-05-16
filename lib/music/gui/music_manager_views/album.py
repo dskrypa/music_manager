@@ -5,14 +5,14 @@ View: Album + track tag values.  Allows editing, after which the view transition
 """
 
 from dataclasses import fields
-from functools import partial
+# from functools import partial
 from itertools import chain
 from pathlib import Path
 from tkinter import Frame, Listbox
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
-from ...common.ratings import stars, stars_to_256
+from ...common.ratings import stars_to_256
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, RenderArgs, Event, EventData
@@ -21,7 +21,7 @@ from ..elements.inputs import ExtInput
 from ..popups.simple import popup_ok
 from ..popups.text import popup_error, popup_get_text
 from ..progress import Spinner
-from ..utils import update_color
+# from ..utils import update_color
 from .formatting import AlbumFormatter
 from .main import MainView
 from .utils import split_key
@@ -143,85 +143,28 @@ class AlbumView(MainView, view_name='album'):
 
         self._configure_tk_binds()
 
-    def _handle_click(self, event):
-        widget = event.widget
-        if isinstance(widget, Frame):
-            widget.focus_set()
-
     def _configure_tk_binds(self):
-        for track_formatter in self.album_formatter:
-            val_key = track_formatter.key_for('val', 'rating')
-            star_key = track_formatter.key_for('stars', 'rating')
-            rating_ele = self.window[val_key]
-            star_ele = self.window[star_key]
-            if self.editing:
-                star_ele.Widget.bind('<Button-1>', partial(self._handle_star_clicked, val_key, star_key))
-                star_ele.Widget.bind('<B1-Motion>', partial(self._handle_star_clicked, val_key, star_key))
-                self._rating_callback_names[val_key] = rating_ele.TKStringVar.trace_add(
-                    'write', partial(self._handle_rating_edit, val_key, star_key)
-                )
-            else:
-                try:
-                    cb_name = self._rating_callback_names.pop(val_key)
-                except KeyError:
-                    pass
-                else:
-                    rating_ele.TKStringVar.trace_remove('write', cb_name)
-                    star_ele.Widget.unbind('<Button-1>')
-                    star_ele.Widget.unbind('<B1-Motion>')
-
         if self.editing:
-            self.window.TKroot.bind('<Button-1>', self._handle_click)
+            self.window.TKroot.bind('<Button-1>', _handle_click)
         else:
             self.window.TKroot.unbind('<Button-1>')
 
-    def _handle_star_clicked(self, val_key: str, star_key: str, event):
-        # noinspection PyTypeChecker
-        rating_ele = self.window[val_key]  # type: ExtInput
-        star_ele = self.window[star_key]
-        rating = round(int(100 * event.x / star_ele.Widget.winfo_width()) / 10)
-        rating_ele.update(10 if rating > 10 else 0 if rating < 0 else rating)
-        rating_ele.validated(True)
-
-    def _handle_rating_edit(self, val_key: str, star_key: str, tk_var_name: str, index, operation: str):
-        # noinspection PyTypeChecker
-        rating_ele = self.window[val_key]  # type: ExtInput
-        star_ele = self.window[star_key]  # type: Text
-
-        if value := rating_ele.TKStringVar.get():
-            try:
-                value = int(value)
-                stars_to_256(value, 10)
-            except (ValueError, TypeError) as e:
-                self._register_validation_failed(val_key, rating_ele)
-                popup_error(f'Invalid rating for track={split_key(val_key)[1]}:\n{e}', multiline=True, auto_size=True)
-                value = 0
-            else:
-                rating_ele.validated(True)
-        else:
-            rating_ele.validated(True)
-            value = 0
-        star_ele.update(stars(value), text_color='#f2d250' if value else '#000000')
-
-    def _register_validation_failed(self, key: str, element=None):
-        element = element or self.window[key]
-        widget = element.Widget
-        orig_bg = widget.cget('bg')
-        orig_fg = widget.cget('fg')
-        if isinstance(element, ExtInput):
-            element.validated(False)
-        else:
-            update_color(element, '#FFFFFF', '#781F1F')
-
-        self._failed_validation[key] = (element, orig_fg, orig_bg)
-        element.TKEntry.bind('<Key>', partial(self._edited_field, key))
-
-    def _edited_field(self, key: str, event):
-        self.log.debug(f'_edited_field({key=}, {event=})')
-        if failed := self._failed_validation.pop(key, None):
-            element, orig_fg, orig_bg = failed
-            element.TKEntry.unbind('<Key>')
-            update_color(element, orig_fg, orig_bg)
+    # def _register_validation_failed(self, key: str, element=None):
+    #     element = element or self.window[key]
+    #     self._failed_validation[key] = (element, element.Widget.cget('fg'), element.Widget.cget('bg'))
+    #     if isinstance(element, ExtInput):
+    #         element.validated(False)
+    #     else:
+    #         update_color(element, '#FFFFFF', '#781F1F')
+    #
+    #     element.TKEntry.bind('<Key>', partial(self._edited_field, key))
+    #
+    # def _edited_field(self, key: str, event):
+    #     self.log.debug(f'_edited_field({key=}, {event=})')
+    #     if failed := self._failed_validation.pop(key, None):
+    #         element, orig_fg, orig_bg = failed
+    #         element.TKEntry.unbind('<Key>')
+    #         update_color(element, orig_fg, orig_bg)
 
     @event_handler('Add Image')
     def replace_image(self, event: Event, data: EventData):
@@ -318,7 +261,7 @@ class AlbumView(MainView, view_name='album'):
 
         failed = []
         for data_key, value in data.items():
-            # self.log.debug(f'Processing {data_key=!r}')
+            # self.log.debug(f'Processing {data_key=} {value=}')
             if key_parts := split_key(data_key):
                 key_type, obj, field = key_parts
                 if key_type == 'val':
@@ -344,7 +287,8 @@ class AlbumView(MainView, view_name='album'):
         if failed:
             self.toggle_editing()
             for key, message in failed:
-                self._register_validation_failed(key)
+                self.window[key].validated(False)  # noqa  # only Rating elements are validated right now
+                # self._register_validation_failed(key)
                 popup_error(message, multiline=True, auto_size=True)
             return
 
@@ -379,3 +323,9 @@ class AlbumView(MainView, view_name='album'):
 def can_toggle_editable(key, ele):
     if isinstance(key, str) and key.startswith(('val::', 'add::')) and key != 'val::album::mp4':
         return not isinstance(ele, Text)
+
+
+def _handle_click(event):
+    widget = event.widget
+    if isinstance(widget, Frame):
+        widget.focus_set()

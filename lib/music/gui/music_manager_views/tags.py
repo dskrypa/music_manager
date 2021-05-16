@@ -99,16 +99,22 @@ class AllTagsView(MainView, view_name='all_tags'):
     def _get_check_box(self, key: str, inverse: bool = False) -> tuple[Checkbox, bool]:
         if key.startswith('val::'):
             key = f'del{key[3:]}'
+        elif key.startswith('_val::'):
+            key = f'del{key[4:-7]}'
 
         box = self.window.key_dict[key]  # type: Checkbox  # noqa
         to_be_deleted = bool(box.TKIntVar.get())
         return box, (not to_be_deleted) if inverse else to_be_deleted
 
-    def _update_color(self, key: str):
-        to_be_deleted = self._get_check_box(key)[1]
+    def _update_color(self, key: str, to_be_deleted: bool = None):
+        if to_be_deleted is None:
+            to_be_deleted = self._get_check_box(key)[1]
         if key.startswith('del::'):
             key = f'val{key[3:]}'
-        input_ele = self.window[key]
+        key_dict = self.window.key_dict
+        input_ele = key_dict[key]
+        if isinstance(input_ele, Column):
+            input_ele = key_dict[f'_{key}::input']
         if to_be_deleted:
             bg, fg = '#781F1F', '#FFFFFF'
         else:
@@ -121,15 +127,20 @@ class AllTagsView(MainView, view_name='all_tags'):
     def tag_clicked(self, event: Event, data: EventData):
         key, event = event.rsplit(':::', 1)
         tag = split_key(key)[2]
-
         row_box, to_be_deleted = self._get_check_box(key, True)
+        key_dict = self.window.key_dict
         for tb in self.album_formatter:
-            track_key = f'val::{tb.path_str}::{tag}'
-            if track_key in self.window.key_dict:
-                track_box, track_tbd = self._get_check_box(track_key)
-                if track_tbd != to_be_deleted:
-                    track_box.update(to_be_deleted)
-                    self._update_color(track_key)
+            for track_key in (f'val::{tb.path_str}::{tag}', f'_val::{tb.path_str}::{tag}::input'):
+                try:
+                    track_ele = key_dict[track_key]
+                except KeyError:
+                    pass
+                else:
+                    if not isinstance(track_ele, Column):
+                        track_box, track_tbd = self._get_check_box(track_key)
+                        if track_tbd != to_be_deleted:
+                            track_box.update(to_be_deleted)
+                            self._update_color(track_key, to_be_deleted)
 
     @event_handler('btn::next')
     def delete_tags(self, event: Event, data: EventData):

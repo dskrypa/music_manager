@@ -4,6 +4,7 @@ Input elements for PySimpleGUI
 :author: Doug Skrypa
 """
 
+import logging
 import webbrowser
 from functools import partial
 from pathlib import Path
@@ -16,6 +17,7 @@ from ..utils import open_in_file_manager
 from .menu import ContextualMenu
 
 __all__ = ['ExtInput']
+log = logging.getLogger(__name__)
 MenuListItem = Union[str, list[Union[str, 'MenuListItem']]]
 MenuList = list[MenuListItem]
 
@@ -47,9 +49,9 @@ class ExtInput(Input):
         :param kwargs: Keyword arguments to pass to :class:`PySimpleGUI.Input`
         """
         self._dark = 'dark' in theme().lower()
+        kwargs.setdefault('background_color', theme_input_background_color())
+        kwargs.setdefault('text_color', theme_input_text_color())
         if self._dark:
-            kwargs.setdefault('background_color', theme_input_background_color())
-            kwargs.setdefault('text_color', theme_input_text_color())
             kwargs.setdefault('disabled_readonly_background_color', '#a2a2a2')
             kwargs.setdefault('disabled_readonly_text_color', '#000000')
         if link or (link is None and str(value).startswith(('http://', 'https://'))):
@@ -136,18 +138,19 @@ class ExtInput(Input):
     def disabled_readonly_text_color(self, value):
         self._disabled_readonly_text_color = value
 
+    def _refresh_colors(self, valid: bool):
+        fg, bg = (self.TextColor, self.BackgroundColor) if valid else ('#FFFFFF', '#781F1F')
+        self.TKEntry.configure(fg=fg, bg=bg)
+
     def update(self, *args, disabled=None, **kwargs):
         was_enabled = self.TKEntry['state'] == 'normal'
         super().update(*args, disabled=disabled, **kwargs)
         if disabled is not None:
             self.Disabled = disabled
-        if self._dark and not was_enabled:
+        if not was_enabled:
             if disabled is False:
-                # bg = getattr(input_ele, 'disabled_readonly_background_color', input_ele.BackgroundColor)
-                # fg = getattr(input_ele, 'disabled_readonly_text_color', input_ele.TextColor)
-                self.TKEntry.configure(background=self.BackgroundColor, fg=self.TextColor)
-                # self.TKEntry.configure(readonlybackground=self.BackgroundColor, disabledforeground=self.TextColor)
-            else:
+                self._refresh_colors(self._valid_value)
+            elif self._dark:
                 if background_color := kwargs.get('background_color'):
                     # log.info(f'Setting {background_color=!r} for {self!r}')
                     self.TKEntry.configure(readonlybackground=background_color)
@@ -158,10 +161,7 @@ class ExtInput(Input):
     def validated(self, valid: bool):
         if self._valid_value != valid:
             self._valid_value = valid
-            if valid:
-                self.update(background_color=self.BackgroundColor, text_color=self.TextColor)
-            else:
-                self.update(background_color='#781F1F', text_color='#FFFFFF')
+            self._refresh_colors(valid)
 
     def _open_link(self, event):
         if (value := self.value) and value.startswith(('http://', 'https://')):

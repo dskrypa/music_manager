@@ -12,12 +12,10 @@ from typing import Optional, Literal, Iterator
 
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
-from PySimpleGUI import Column, Text
+from PySimpleGUI import Column, Text, Element
 
 from ds_tools.core.decorate import cached_classproperty
 from ...common.ratings import star_fill_counts, stars_to_256
-from ..base_view import Layout
-from ..popups.text import popup_error
 from .image import ExtendedImage
 from .inputs import ExtInput
 
@@ -69,7 +67,7 @@ class Rating(Column):
         }
         return resized_images
 
-    def prepare_layout(self) -> Layout:
+    def prepare_layout(self) -> list[list[Element]]:
         if rating_input := self.rating_input:
             return [[rating_input, Text('(out of 10)', size=(8, 1)), self.star_element]]
         else:
@@ -113,6 +111,8 @@ class Rating(Column):
         if rating_input := self.rating_input:
             rating_input.update(rating)
             rating_input.validated(True)
+        else:
+            self.star_element.image = self._combined_stars()
 
     def _handle_value_changed(self, tk_var_name: str, index, operation: str):
         rating_input = self.rating_input
@@ -121,6 +121,8 @@ class Rating(Column):
                 value = int(value)
                 stars_to_256(value, 10)
             except (ValueError, TypeError) as e:
+                from ..popups.text import popup_error
+
                 rating_input.validated(False)
                 popup_error(f'Invalid rating:\n{e}', auto_size=True)
                 value = 0
@@ -159,11 +161,10 @@ class Rating(Column):
 
 if __name__ == '__main__':
     from ..popups.base import BasePopup
-    from ...common.ratings import stars
     from ds_tools.logging import init_logging
 
     init_logging(10, names=None, millis=True, set_levels={'PIL': 30})
 
     # BasePopup.test_popup([[Rating(i), Text(f'Rating: {i:>2d} {stars(i)}')] for i in range(11)])
-    # BasePopup.test_popup([[Rating(i, show_value=True)] for i in range(11)])
     BasePopup.test_popup([[Rating(i, show_value=True)] for i in range(11)])
+    # BasePopup.test_popup([[Rating(i)] for i in range(11)])

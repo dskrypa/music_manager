@@ -6,20 +6,18 @@ Extended image elements for PySimpleGUI
 
 import logging
 import math
-from io import BytesIO
 from itertools import count
-from pathlib import Path
 from tkinter import Label
-from typing import Union, Optional, Callable
+from typing import Optional, Callable
 
-from PIL import Image as ImageModule
 from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Image
 
-__all__ = ['ExtendedImage', 'ImageType', 'Spacer']
+from ...common.images import ImageType, as_image
+
+__all__ = ['ExtendedImage', 'Spacer']
 log = logging.getLogger(__name__)
-ImageType = Union[PILImage, bytes, Path, str, None]
 
 
 class ExtendedImage(Image):
@@ -106,17 +104,6 @@ def calculate_resize(src_w, src_h, new_w, new_h):
 
 def round_aspect(number, key):
     return max(min(math.floor(number), math.ceil(number), key=key), 1)
-
-
-def as_image(image: ImageType) -> PILImage:
-    if image is None or isinstance(image, PILImage):
-        return image
-    elif isinstance(image, bytes):
-        return ImageModule.open(BytesIO(image))
-    elif isinstance(image, (Path, str)):
-        return ImageModule.open(image)
-    else:
-        raise TypeError(f'Image must be bytes, None, Path, str, or a PIL.Image.Image - found {type(image)}')
 
 
 class Spacer(Image):

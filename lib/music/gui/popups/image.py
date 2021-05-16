@@ -10,7 +10,8 @@ from typing import Any, Union
 from PIL import Image
 from PySimpleGUI import Element, Image as GuiImage
 
-from ..elements.image import ExtendedImage, ImageType, as_image
+from ...common.images import ImageType, as_image
+from ..elements.image import ExtendedImage
 from ..base_view import event_handler
 from .base import BasePopup
 

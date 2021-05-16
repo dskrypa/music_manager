@@ -21,11 +21,12 @@ from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
 from ...common.ratings import stars_from_256
+from ...common.images import ImageType
 from ...files.album import AlbumDir
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
-from ..elements import ExtendedImage, ImageType, ExtInput, SearchMenu, Rating
+from ..elements import ExtendedImage, ExtInput, SearchMenu, Rating
 from ..popups.simple import popup_ok
 from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b

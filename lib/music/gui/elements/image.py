@@ -7,6 +7,7 @@ Extended image elements for PySimpleGUI
 import logging
 import math
 from io import BytesIO
+from itertools import count
 from pathlib import Path
 from tkinter import Label
 from typing import Union, Optional
@@ -16,7 +17,7 @@ from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Image
 
-__all__ = ['ExtendedImage', 'ImageType']
+__all__ = ['ExtendedImage', 'ImageType', 'Spacer']
 log = logging.getLogger(__name__)
 ImageType = Union[PILImage, bytes, Path, str, None]
 
@@ -105,3 +106,12 @@ def as_image(image: ImageType) -> PILImage:
         return ImageModule.open(image)
     else:
         raise TypeError(f'Image must be bytes, None, Path, str, or a PIL.Image.Image - found {type(image)}')
+
+
+class Spacer(Image):
+    _count = count()
+
+    def __init__(self, *args, key=None, **kwargs):
+        key = key or f'spacer::{next(self._count)}'
+        kwargs.setdefault('pad', (0, 0))
+        super().__init__(*args, key=key, **kwargs)

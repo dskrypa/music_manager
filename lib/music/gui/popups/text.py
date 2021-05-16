@@ -4,14 +4,18 @@ View: Text Popup
 :author: Doug Skrypa
 """
 
+from functools import cached_property
+from pathlib import Path
 from typing import Any
 
-from PySimpleGUI import Element, Text, Button, Multiline, Input
+from PySimpleGUI import Element, Text, Button, Multiline, Input, Window, Column
 
 from ..base_view import event_handler
+from ..elements.image import ExtendedImage, ImageType
 from .base import BasePopup
 
-__all__ = ['TextPopup', 'popup_ok', 'popup_error', 'TextInputPopup', 'popup_get_text']
+__all__ = ['TextPopup', 'popup_ok', 'popup_error', 'TextInputPopup', 'popup_get_text', 'popup_warning']
+ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 def popup_ok(*args, **kwargs):
@@ -20,6 +24,12 @@ def popup_ok(*args, **kwargs):
 
 def popup_error(*args, **kwargs):
     return TextPopup(*args, button='OK', title='Error', **kwargs).get_result()
+
+
+def popup_warning(*args, **kwargs):
+    img_path = ICONS_DIR.joinpath('exclamation-triangle-yellow.png')
+    kwargs.setdefault('font', ('Helvetica', 20))
+    return TextPopup(*args, button='OK', title='Warning', image=img_path, **kwargs).get_result()
 
 
 def popup_get_text(prompt: str, title: str = '', strip: bool = True, password_char: str = '', **kwargs):
@@ -31,10 +41,13 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
         self,
         text: str,
         title: str = '',
+        *,
         button: str = None,
         multiline: bool = False,
         auto_size: bool = False,
         font: tuple[str, int] = None,
+        image: ImageType = None,
+        image_size: tuple[int, int] = None,
         **kwargs
     ):
         super().__init__(binds={'<Escape>': 'Exit'}, title=title)
@@ -44,23 +57,43 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
         self.auto_size = auto_size
         self.font = font
         self.kwargs = kwargs
+        self.image = image
+        self.image_size = image_size if image_size else (100, 100) if image else None
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    @cached_property
+    def lines(self):
+        return self.text.splitlines()
+
+    @cached_property
+    def longest_line(self):
+        return max(map(len, self.lines))
+
+    @cached_property
+    def line_height(self):
+        return int((10 if self.font is None else self.font[1]) * 1.8)  # Close enough approximation
+
+    @cached_property
+    def text_size(self):
         size = self.kwargs.pop('size', (None, None))
         if self.auto_size or size == (None, None):
-            lines = self.text.splitlines()
-            width = max(map(len, lines))
-            line_height = int((10 if self.font is None else self.font[1]) * 1.8)  # Close enough approximation
-            lines_shown = max(1, min(self.window.get_screen_size()[1] // line_height, len(lines)) + 1)
-            self.log.debug(f'Showing {lines_shown} lines')
-            size = (width, lines_shown)
+            if self.multiline or len(self.lines) > 1:
+                lines_shown = max(1, min(Window.get_screen_size()[1] // self.line_height, len(self.lines)) + 1)
+            else:
+                lines_shown = 1
+            self.log.debug(f'Showing {lines_shown} lines, char width={self.longest_line}')
+            size = (self.longest_line, lines_shown)
+        return size
 
-        if self.multiline:
-            layout = [[Multiline(self.text, key='txt::popup', size=size, disabled=True, font=self.font)]]  # noqa
+    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+        kwargs = dict(key='txt::popup', size=self.text_size, font=self.font)
+        text = Multiline(self.text, disabled=True, **kwargs) if self.multiline else Text(self.text, **kwargs)
+        if self.image:
+            layout = [[ExtendedImage(self.image, size=self.image_size, _in_popup=True), text]]
         else:
-            layout = [[Text(self.text, key='txt::popup', size=size, font=self.font)]]
+            layout = [[text]]
         if self.button:
-            layout.append([Button(self.button, key='btn::popup')])
+            button_col = Column([[Button(self.button, key='btn::popup', bind_return_key=True)]], justification='right')
+            layout.append([button_col])
         return layout, {'title': self.title, **self.kwargs}
 
 

@@ -150,7 +150,7 @@ class GuiView(ABC):
             cls.allow_no_handler = allow_no_handler
         # print(f'Initialized subclass={cls.__name__!r}')
 
-    def __init__(self, binds: Mapping[str, str] = None):
+    def __init__(self, binds: Mapping[str, str] = None, **kwargs):
         self.parent: Optional[GuiView] = None if self.primary else GuiView.active_view
         self._monitor = None
         self._view_num = next(self._counter)

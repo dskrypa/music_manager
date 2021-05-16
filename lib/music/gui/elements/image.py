@@ -5,7 +5,6 @@ Extended image elements for PySimpleGUI
 """
 
 import logging
-import math
 from itertools import count
 from tkinter import Label
 from typing import Optional, Callable
@@ -14,7 +13,7 @@ from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Image
 
-from ...common.images import ImageType, as_image
+from ...common.images import ImageType, as_image, calculate_resize
 
 __all__ = ['ExtendedImage', 'Spacer']
 log = logging.getLogger(__name__)
@@ -89,21 +88,6 @@ class ExtendedImage(Image):
         from ..popups.image import ImageView
 
         ImageView(self._image, self._popup_title).get_result()
-
-
-def calculate_resize(src_w, src_h, new_w, new_h):
-    """Copied logic from :meth:`PIL.Image.Image.thumbnail`"""
-    x, y = map(math.floor, (new_w, new_h))
-    aspect = src_w / src_h
-    if x / y >= aspect:
-        x = round_aspect(y * aspect, key=lambda n: abs(aspect - n / y))
-    else:
-        y = round_aspect(x / aspect, key=lambda n: 0 if n == 0 else abs(aspect - x / n))
-    return x, y
-
-
-def round_aspect(number, key):
-    return max(min(math.floor(number), math.ceil(number), key=key), 1)
 
 
 class Spacer(Image):

@@ -10,7 +10,7 @@ from typing import Any
 
 from PySimpleGUI import Element, Text, Button, Multiline, Input, Window, Column
 
-from ..base_view import event_handler
+from ..base_view import event_handler, RenderArgs
 from ..elements.image import ExtendedImage, ImageType
 from .base import BasePopup
 
@@ -50,13 +50,12 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
         image_size: tuple[int, int] = None,
         **kwargs
     ):
-        super().__init__(binds={'<Escape>': 'Exit'}, title=title)
+        super().__init__(binds={'<Escape>': 'Exit'}, title=title, **kwargs)
         self.text = text
         self.button = button
         self.multiline = multiline
         self.auto_size = auto_size
         self.font = font
-        self.kwargs = kwargs
         self.image = image
         self.image_size = image_size if image_size else (100, 100) if image else None
 
@@ -84,7 +83,7 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
             size = (self.longest_line, lines_shown)
         return size
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         kwargs = dict(key='txt::popup', size=self.text_size, font=self.font)
         text = Multiline(self.text, disabled=True, **kwargs) if self.multiline else Text(self.text, **kwargs)
         if self.image:

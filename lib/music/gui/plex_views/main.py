@@ -31,7 +31,7 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
             # ['&Actions', []],
             ['&Help', ['&About']],
         ]
-        self.plex = plex or LocalPlexServer(config_path=self.config['config_path'])
+        self.plex: LocalPlexServer = plex or LocalPlexServer(config_path=self.config['config_path'])
 
     @cached_property
     def lib_sections(self) -> dict[str, LibrarySection]:

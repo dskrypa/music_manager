@@ -224,7 +224,7 @@ class GuiOptions:
 
         return layout
 
-    def layout(self, submit_key: str, disable_all: bool = None, submit_row: int = None) -> list[list[Element]]:
+    def layout(self, submit_key: str = None, disable_all: bool = None, submit_row: int = None) -> list[list[Element]]:
         if disable_all is None:
             disable_all = self.disable_on_parsed and self.parsed
         self.log.debug(f'Building option layout with {self.parsed=!r} {submit_key=!r} {disable_all=!r}')
@@ -241,7 +241,7 @@ class GuiOptions:
         layout = self._pack(layout, columns)
 
         if self.submit_text:
-            submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key)
+            submit_ele = Submit(self.submit_text, disabled=disable_all, key=submit_key or self.submit_text)
             if submit_row is None:
                 layout.append([submit_ele])
             else:
@@ -251,7 +251,7 @@ class GuiOptions:
 
         return layout
 
-    def as_frame(self, submit_key: str, disable_all: bool = None, submit_row: int = None, **kwargs) -> Column:
+    def as_frame(self, submit_key: str = None, disable_all: bool = None, submit_row: int = None, **kwargs) -> Column:
         frame = Frame(self.title, self.layout(submit_key, disable_all, submit_row), key='frame::options')
         return Column([[frame]], key='col::frame_options', justification='center', **kwargs)
 

@@ -77,6 +77,7 @@ def main():
     apply_mutagen_patches()
 
     from music.plex import LocalPlexServer
+    from music.plex.utils import parse_filters
     plex = LocalPlexServer(
         args.server_url, args.username, args.server_path_root, args.config_path, args.music_library, args.dry_run
     )
@@ -172,40 +173,6 @@ def main():
                         obj.edit(**{'userRating.value': args.rating})
     else:
         log.error(f'Invalid action={args.action!r}')
-
-
-def parse_filters(obj_type, title, filters, escape, allow_inst) -> Tuple['PlexObjTypes', Dict[str, str]]:
-    """
-    :param str obj_type: Type of Plex object to find (tracks, albums, artists, etc)
-    :param list title: Parts of the name of the object(s) to find, if searching by title__like2
-    :param dict filters: Additional filters to apply during the search
-    :param escape: Characters that should be escaped instead of treated as special regex characters
-    :param bool allow_inst: Allow search results that include instrumental versions of songs
-    :return tuple: (str(normalized object type), dict(filters))
-    """
-    obj_type = obj_type[:-1] if obj_type.endswith('s') else obj_type
-    escape_tbl = str.maketrans({c: '\\' + c for c in '()[]{}^$+*.?|\\' if c in escape})
-    regexcape = lambda text: text.translate(escape_tbl)
-    title = regexcape(' '.join(title)) if title else None
-
-    for key, val in filters.items():
-        try:
-            op = key.rsplit('__', 1)[1]
-        except Exception:
-            pass
-        else:
-            if op in ('regex', 'iregex', 'like', 'like_exact', 'not_like'):
-                filters[key] = regexcape(val)
-
-    if title:
-        filters.setdefault('title__like', title)
-
-    if not allow_inst:
-        filters.setdefault('title__not_like', 'inst(?:\.?|rumental)')
-
-    log.debug('obj_type={}, title={!r} => query={}'.format(obj_type, title, filters))
-    # noinspection PyTypeChecker
-    return obj_type, filters
 
 
 if __name__ == '__main__':

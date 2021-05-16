@@ -21,7 +21,7 @@ from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ds_tools.output import bullet_list
-from ..common.prompts import get_input, getpass
+from ..common.prompts import get_input, getpass, UIMode
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
 from .query import QueryResults
@@ -67,7 +67,19 @@ class LocalPlexServer:
     def _token(self):
         token = self._get_config('auth', 'server_token')
         if not token:
-            account = MyPlexAccount(self.user, getpass('Plex password:'))
+            if UIMode.current() == UIMode.GUI:
+                prompt = (
+                    f'Please enter the Plex password for account={self.user}\n'
+                    f'Note: your password will not be stored - it will only be used to obtain a server token.\n'
+                    f'That token will be stored in {self._config_path.as_posix()}'
+                )
+            else:
+                prompt = 'Plex password:'
+            if password := getpass(prompt, title='Plex Manager - Authentication Required'):
+                account = MyPlexAccount(self.user, password)
+                del password
+            else:
+                raise RuntimeError('Password was not provided')
             token = account._token
             self._set_config('auth', 'server_token', token)
         return token

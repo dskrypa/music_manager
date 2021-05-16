@@ -6,35 +6,77 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
+from functools import cached_property
 from pathlib import Path
 
-from PySimpleGUI import Menu
+from plexapi.library import LibrarySection
+from PySimpleGUI import Menu, Button, Column, Image
 
+from ...common.images import image_to_bytes
 from ...plex.server import LocalPlexServer
 from ..base_view import event_handler, GuiView, Event, EventData, RenderArgs
 from ..popups.simple import popup_input_invalid
+from ..popups.text import popup_warning
 
 __all__ = ['PlexView']
 DEFAULT_CONFIG = {'config_path': '~/.config/plexapi/config.ini'}
+ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', defaults=DEFAULT_CONFIG):
-    def __init__(self, *, last_view: 'PlexView' = None, **kwargs):
-        super().__init__(binds=kwargs.get('binds'))
-        self.last_view = last_view
+    def __init__(self, *, plex: LocalPlexServer = None, **kwargs):
+        super().__init__(**kwargs)
         self.menu = [
             ['&File', ['&Settings', 'E&xit']],
             # ['&Actions', []],
             ['&Help', ['&About']],
         ]
-        # TODO: if config path doesn't exist, prompt for server_baseurl, username, server_path_root
-        # TODO: if server_token isn't in the config, prompt for password
-        self.plex = LocalPlexServer(config_path=self.config['config_path'])
+        self.plex = plex or LocalPlexServer(config_path=self.config['config_path'])
+
+    @cached_property
+    def lib_sections(self) -> dict[str, LibrarySection]:
+        return {lib.title: lib for lib in self.plex._library.sections()}
+
+    @property
+    def last_section(self) -> LibrarySection:
+        lib_sections = self.lib_sections
+        if last_section := self.config.get('lib_section'):
+            try:
+                return lib_sections[last_section]
+            except KeyError:
+                self.log.warning(f'Last lib section={last_section!r} does not seem to exist')
+        try:
+            return lib_sections[self.plex.music_library]
+        except KeyError:
+            self.log.warning(f'Configured music lib section={self.plex.music_library!r} does not seem to exist')
+
+        for title, lib in lib_sections.items():
+            if lib.type == 'artist':
+                return lib
+
+        if lib_sections:
+            return next(iter(lib_sections.values()))
+
+        popup_warning('No library sections are available!')
+        raise RuntimeError('No library sections are available!')
 
     def get_render_args(self) -> RenderArgs:
         layout = [[Menu(self.menu)]]
         if self.__class__ is PlexView:
-            pass
+            image = image_to_bytes(ICONS_DIR.joinpath('search.png'), size=(200, 200))
+            button = Button(
+                'Search', image_data=image, image_size=(210, 210), font=('Helvetica', 18), bind_return_key=True
+            )
+            inner_layout = [[Image(key='spacer::2', pad=(0, 0))], [button], [Image(key='spacer::1', pad=(0, 0))]]
+            content = Column(
+                inner_layout,
+                vertical_alignment='center',
+                justification='center',
+                element_justification='center',
+                expand_y=True,
+                expand_x=True,
+            )
+            layout.append([content])
 
         kwargs = {'title': f'Plex Manager - {self.display_name}'}
         return layout, kwargs
@@ -72,3 +114,9 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         if (music_lib_name := results.get('music_lib_name')) and music_lib_name != self.plex.music_library:
             self.plex._set_config('custom', 'music_lib_name', music_lib_name)
             self.plex.music_library = music_lib_name
+
+    @event_handler
+    def search(self, event: Event, data: EventData):
+        from .search import PlexSearchView
+
+        return PlexSearchView(plex=self.plex)

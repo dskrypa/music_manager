@@ -87,7 +87,7 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
         kwargs = dict(key='txt::popup', size=self.text_size, font=self.font)
         text = Multiline(self.text, disabled=True, **kwargs) if self.multiline else Text(self.text, **kwargs)
         if self.image:
-            layout = [[ExtendedImage(self.image, size=self.image_size, _in_popup=True), text]]
+            layout = [[ExtendedImage(self.image, size=self.image_size, bind_click=False), text]]
         else:
             layout = [[text]]
         if self.button:
@@ -107,13 +107,12 @@ class TextInputPopup(BasePopup, view_name='text_input_popup', primary=False):
         password_char: str = '',
         **kwargs
     ):
-        super().__init__(binds={'<Escape>': 'Exit'}, title=title)
+        super().__init__(binds={'<Escape>': 'Exit'}, title=title, **kwargs)
         self.prompt = prompt
         self.submit = submit
         self.font = font
         self.strip = strip
         self.password_char = password_char
-        self.kwargs = kwargs
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         size = self.kwargs.pop('size', (None, None))

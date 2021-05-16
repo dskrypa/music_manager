@@ -10,7 +10,7 @@ from io import BytesIO
 from itertools import count
 from pathlib import Path
 from tkinter import Label
-from typing import Union, Optional
+from typing import Union, Optional, Callable
 
 from PIL import Image as ImageModule
 from PIL.ImageTk import PhotoImage
@@ -23,13 +23,21 @@ ImageType = Union[PILImage, bytes, Path, str, None]
 
 
 class ExtendedImage(Image):
-    def __init__(self, image: ImageType = None, popup_title: str = None, **kwargs):
-        self.__in_popup = kwargs.pop('_in_popup', False)
+    def __init__(
+        self,
+        image: ImageType = None,
+        popup_title: str = None,
+        init_callback: Callable = None,
+        bind_click: bool = True,
+        **kwargs
+    ):
+        self._bind_click = bind_click
         self._image = None
         super().__init__(**kwargs)
         self.image = image
         self._popup_title = popup_title
         self._current_size = self._get_size(*self.Size)
+        self._init_callback = init_callback
 
     @property
     def Widget(self) -> Optional[Label]:
@@ -38,10 +46,13 @@ class ExtendedImage(Image):
     @Widget.setter
     def Widget(self, tktext_label: Label):
         self._widget = tktext_label
-        if self._image and tktext_label is not None:
-            self.resize(*self.Size)
-            if not self.__in_popup:
-                self._widget.bind('<Button-1>', self.handle_click)
+        if tktext_label is not None:
+            if self._image:
+                self.resize(*self.Size)
+                if self._bind_click:
+                    self._widget.bind('<Button-1>', self.handle_click)
+            if callback := self._init_callback:
+                callback(self)
 
     @property
     def image(self) -> Optional[PILImage]:

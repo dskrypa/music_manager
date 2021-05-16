@@ -159,7 +159,7 @@ class ExtInput(Input):
         if self._valid_value != valid:
             self._valid_value = valid
             if valid:
-                self.update(background_color=self.TextColor, text_color=self.BackgroundColor)
+                self.update(background_color=self.BackgroundColor, text_color=self.TextColor)
             else:
                 self.update(background_color='#781F1F', text_color='#FFFFFF')
 

@@ -114,6 +114,8 @@ class TextInputPopup(BasePopup, view_name='text_input_popup', primary=False):
         self.font = font
         self.strip = strip
         self.password_char = password_char
+        self.kwargs.setdefault('resizable', True)
+        self.kwargs.setdefault('element_justification', 'center')
 
     def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
         size = self.kwargs.pop('size', (None, None))

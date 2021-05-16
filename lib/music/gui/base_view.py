@@ -314,6 +314,7 @@ class GuiView(ABC):
             self.log.debug(f'Replacing GuiView.active_view={last_view.name if last_view else last_view}')
             GuiView.active_view = self
         elif popup_pos:
+            new_window.read(1)
             new_window.move(*self._get_center(new_window.size))
 
         return new_window

@@ -21,6 +21,10 @@ class UIMode(Enum):
     CLI = 'cli'
     GUI = 'gui'
 
+    @classmethod
+    def current(cls):
+        return UI_MODE
+
 
 UI_MODE = UIMode.CLI
 
@@ -79,8 +83,8 @@ def get_input(
         return parser(result)
 
 
-def getpass(prompt: str):
+def getpass(prompt: str, **kwargs):
     if UI_MODE == UIMode.CLI:
         return cli_getpass(prompt)
     else:
-        return popup_get_text(prompt, password_char='*')
+        return popup_get_text(prompt, password_char='*', **kwargs)

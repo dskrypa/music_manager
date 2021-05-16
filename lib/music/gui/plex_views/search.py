@@ -18,11 +18,11 @@ from .main import PlexView
 
 __all__ = ['PlexSearchView']
 
-LIB_TYPE_CONTENT_MAP = {
-    'movie': ('movie',),
-    'show': ('show', 'season', 'episode'),
-    'artist': ('artist', 'album', 'track'),
-    'photo': ('album', 'photo'),
+LIB_TYPE_ENTITY_MAP = {
+    'movie': ('Movie',),
+    'show': ('Show', 'Season', 'Episode'),
+    'artist': ('Artist', 'Album', 'Track'),
+    'photo': ('Album', 'Photo'),
 }
 
 
@@ -34,11 +34,11 @@ class PlexSearchView(PlexView, view_name='search'):
         full_layout, kwargs = super().get_render_args()
 
         last_section = self.last_section
-        contents = LIB_TYPE_CONTENT_MAP[last_section.type]
+        entity_types = LIB_TYPE_ENTITY_MAP[last_section.type]
         search_row = [
             Text('Section:'),
             Combo(list(self.lib_sections), last_section.title, enable_events=True, key='section'),
-            Combo(contents, contents[0], enable_events=True, key='section_grouping'),
+            Combo(entity_types, entity_types[0], enable_events=True, key='entity_types'),
             ExtInput('', size=(100, 1), key='query'),
             Button('Search'),
         ]
@@ -51,7 +51,15 @@ class PlexSearchView(PlexView, view_name='search'):
 
     @event_handler
     def section(self, event: Event, data: EventData):
-        pass  # TODO: update section_grouping options based on new section value
+        window_ele_dict = self.window.key_dict
+        section_title = window_ele_dict['section'].get()  # noqa
+        last_section = self.last_section
+        if section_title != last_section.title:
+            self.config['lib_section'] = section_title
+            section = self.lib_sections[section_title]
+            if section.type != last_section.type:
+                entity_types = LIB_TYPE_ENTITY_MAP[section.type]
+                window_ele_dict['entity_types'].update(entity_types[0], entity_types)  # noqa
 
     @event_handler
     def search(self, event: Event, data: EventData):

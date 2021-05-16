@@ -10,7 +10,7 @@ from itertools import count
 from pathlib import Path
 from typing import Optional, Literal, Iterator
 
-from PIL import Image as ImageModule
+from PIL import Image
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Column, Text, Element, ELEM_TYPE_GRAPH
 
@@ -59,7 +59,7 @@ class Rating(Column):
         star_images = {'black': {}, 'gold': {}}
         for path in ICONS_DIR.glob('star-*.png'):
             fill, color = path.stem.split('-')[1:]
-            star_images[color][fill] = ImageModule.open(path)
+            star_images[color][fill] = Image.open(path)
         return star_images  # noqa
 
     @cached_property
@@ -100,7 +100,7 @@ class Rating(Column):
 
     def _combined_stars(self) -> PILImage:
         width, height = self._star_size
-        combined = ImageModule.new('RGBA', self._star_full_size)
+        combined = Image.new('RGBA', self._star_full_size)
         for i, image in enumerate(self._iter_star_images()):
             combined.paste(image, (width * i + i, 0))
         return combined

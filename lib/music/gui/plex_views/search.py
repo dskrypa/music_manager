@@ -80,11 +80,14 @@ class PlexSearchView(PlexView, view_name='search'):
         window_ele_dict = self.window.key_dict
         obj_type = window_ele_dict['entity_types'].get().lower()  # noqa
         title = window_ele_dict['title'].value  # noqa
+        # TODO: add support for typing filters as key_op\s*=\s*value, similar to SPL
         filters = window_ele_dict['filters'].value  # noqa
         obj_type, kwargs = parse_filters(obj_type, title, filters, self.options['escape'], self.options['allow_inst'])
         objects = self.plex.find_objects(obj_type, **kwargs)
         if not objects:
             return popup_ok('No results.')
+
+        # pre-create ~100 rows and replace contents + reveal after getting results / switching pages?
 
         output = window_ele_dict['output']  # type: Multiline  # noqa
         for i, obj in enumerate(objects):

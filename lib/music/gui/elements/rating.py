@@ -182,11 +182,18 @@ class Rating(Column):
             rating_input.update(disabled=True)
         self._disabled = True
 
-    def update(self, disabled: bool = None, **kwargs):
+    def update(self, rating: int = None, disabled: bool = None, **kwargs):
         if disabled:
             self.disable()
         elif disabled is False:
             self.enable()
+
+        if rating is not None:
+            if not (0 <= rating <= 10):
+                raise ValueError(f'Invalid {rating=} - value must be between 0 and 10, inclusive')
+            self.rating = rating
+            self.star_element.image = self._combined_stars()
+
         super().update(**kwargs)
 
     @property
@@ -207,5 +214,5 @@ if __name__ == '__main__':
     init_logging(10, names=None, millis=True, set_levels={'PIL': 30})
 
     # BasePopup.test_popup([[Rating(i), Text(f'Rating: {i:>2d} {stars(i)}')] for i in range(11)])
-    BasePopup.test_popup([[Rating(i, show_value=True, disabled=True)] for i in range(11)])
+    BasePopup.test_popup([[Rating(i, show_value=True)] for i in range(11)])
     # BasePopup.test_popup([[Rating(i)] for i in range(11)])

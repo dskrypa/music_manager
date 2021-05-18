@@ -56,6 +56,8 @@ class Rating(Column):
 
     @cached_classproperty
     def __star_images(cls) -> dict[Color, dict[FillAmount, PILImage]]:  # noqa
+        # TODO: Change color with PIL instead
+        # TODO: See about using SVG without PIL?
         star_images = {'black': {}, 'gold': {}}
         for path in ICONS_DIR.glob('star-*.png'):
             fill, color = path.stem.split('-')[1:]

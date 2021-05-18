@@ -23,6 +23,7 @@ from ...common.disco_entry import DiscoEntryType
 from ...common.ratings import stars_from_256
 from ...common.images import ImageType
 from ...files.album import AlbumDir
+from ...files.exceptions import TagNotFound
 from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
@@ -33,6 +34,7 @@ from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
 
 __all__ = ['TrackFormatter', 'AlbumFormatter']
 _multiple_covers_warned = set()
+ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 class AlbumFormatter:
@@ -131,7 +133,7 @@ class AlbumFormatter:
 
     @cached_property
     def _cover_image_count(self):
-        return len(set(filter(None, (tb._cover_image_raw[0] for tb in self))))
+        return len(set(filter(None, (tb._cover_image_raw for tb in self))))
 
     def _get_cover_image_obj(self) -> Optional[PILImage]:
         if (image_count := self._cover_image_count) == 1:
@@ -163,7 +165,7 @@ class AlbumFormatter:
                 kwargs['right_click_menu'] = ['Image', ['Replace Image']]
         elif can_replace and self.wiki_image_urls:
             kwargs['right_click_menu'] = ['Image', ['Add Image']]
-        return ExtendedImage(image, **kwargs)
+        return ExtendedImage(image or ICONS_DIR.joinpath('x.png'), bind_click=image is not None, **kwargs)
 
     def get_cover_image_diff(self, new_album_info: AlbumInfo) -> Optional[tuple[Image, Image]]:
         if new_album_info.cover_path:
@@ -302,18 +304,21 @@ class TrackFormatter:
     # region Track Image methods
 
     @cached_property
-    def _cover_image_raw(self) -> tuple[bytes, str]:
-        return self.track.get_cover_data()
+    def _cover_image_raw(self) -> Optional[bytes]:
+        try:
+            return self.track.get_cover_data()[0]
+        except TagNotFound as e:
+            self.log.warning(e)
+            return None
+        except Exception:
+            self.log.error(f'Unable to load cover image for {self.track}', exc_info=True)
+            return None
 
     @cached_property
     def cover_image_obj(self) -> Optional['PILImage']:
-        try:
-            data, ext = self._cover_image_raw
-        except Exception:
-            self.log.error(f'Unable to load cover image for {self.track}')
-            return None
-        else:
+        if (data := self._cover_image_raw) is not None:
             return ImageModule.open(BytesIO(data))
+        return None
 
     @property
     def cover_image_thumbnail(self) -> Image:

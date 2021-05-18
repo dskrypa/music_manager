@@ -869,6 +869,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return self.get_tag('cover')
 
     def get_cover_data(self) -> tuple[bytes, str]:
+        """Returns a tuple containing the raw cover data bytes, and the image type as a file extension"""
         if (cover := self.get_cover_tag()) is None:
             raise TagNotFound(f'{self} has no album cover')
         if self.tag_type in ('mp3', 'flac'):

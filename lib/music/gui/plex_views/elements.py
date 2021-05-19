@@ -5,6 +5,7 @@ High level PySimpleGUI elements that represent Plex objects
 """
 
 import logging
+from datetime import datetime
 from itertools import count
 from pathlib import Path
 from typing import Iterable, Hashable
@@ -27,7 +28,7 @@ class TrackRow:
 
     def __init__(self):
         self._num = num = next(self.__counter)
-        self.cover = ExtendedImage(size=(40, 40), key=f'track:{num}:cover')
+        self.cover = ExtendedImage(size=(40, 40), key=f'track:{num}:cover')  # TODO: Make clickable?
         self.year = Text(size=(4, 1), key=f'track:{num}:year')
         self.artist = Text(size=(20, 1), key=f'track:{num}:artist')
         self.album = Text(size=(20, 1), key=f'track:{num}:album')
@@ -42,6 +43,8 @@ class TrackRow:
         self.column.update(visible=False)
 
     def clear(self, hide: bool = True):
+        if hide:
+            self.hide()
         self.year.update('')
         self.artist.update('')
         self.album.update('')
@@ -50,15 +53,15 @@ class TrackRow:
         self.views.update('')
         self.cover.image = None
         self.rating.update(0)
-        if hide:
-            self.hide()
 
     def update(self, track: Track):
         self.year.update(track.year)
         self.artist.update(track.grandparentTitle)
         self.album.update(track.parentTitle)
         self.title.update(track.title)
-        self.duration.update(track.duration)
+        duration = int(track.duration / 1000)
+        duration_dt = datetime.fromtimestamp(duration)
+        self.duration.update(duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S'))
         self.views.update(track.viewCount)
         self.rating.update(track.userRating)
         server = track._server
@@ -70,3 +73,4 @@ class TrackRow:
             self.cover.image = ICONS_DIR.joinpath('x.png')
         else:
             self.cover.image = resp.content
+        self.column.update(visible=True)

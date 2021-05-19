@@ -4,7 +4,7 @@ View: Search results
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Text, Button, Combo, Multiline
+from PySimpleGUI import Text, Button, Combo, Multiline, Column
 
 from ...plex.utils import parse_filters
 from ..base_view import event_handler, RenderArgs, Event, EventData
@@ -13,6 +13,7 @@ from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..popups.simple import popup_ok
 from ..progress import Spinner
+from .elements import TrackRow
 from .main import PlexView
 
 __all__ = ['PlexSearchView']
@@ -33,6 +34,16 @@ class PlexSearchView(PlexView, view_name='search'):
             options.add_bool('allow_inst', 'Allow results that include instrumental versions of songs')
         with self.options.next_row() as options:
             options.add_input('escape', 'Escape regex special characters:', default='()')
+        self.track_rows = [TrackRow() for _ in range(100)]
+        self.results = Column(
+            [[tr.column] for tr in self.track_rows],
+            scrollable=True,
+            vertical_scroll_only=True,
+            key='results',
+            expand_x=True,
+            expand_y=True,
+            size=(800, 400),
+        )
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -51,7 +62,8 @@ class PlexSearchView(PlexView, view_name='search'):
         layout = [
             [self.options.as_frame()],
             [search_row],
-            [Multiline(size=self._output_size(), key='output', autoscroll=True)],
+            # [Multiline(size=self._output_size(), key='output', autoscroll=True)],
+            [self.results],
         ]
 
         full_layout.extend(layout)
@@ -87,8 +99,17 @@ class PlexSearchView(PlexView, view_name='search'):
         if not objects:
             return popup_ok('No results.')
 
+        # TODO: Pagination
+        for row, obj in zip(self.track_rows, objects):
+            row.update(obj)
+
+        # TODO: Table instead?  Need column headers.
+        self.results.expand(expand_y=True)  # including expand_x=True in this call results in no vertical scroll
+        self.results.expand(expand_x=True)  # results in shorter y, but scroll works...  probably need to calculate proper height for init
+        self.results.contents_changed()
+
         # pre-create ~100 rows and replace contents + reveal after getting results / switching pages?
 
-        output = window_ele_dict['output']  # type: Multiline  # noqa
-        for i, obj in enumerate(objects):
-            output.update(repr(obj) + '\n', append=i)  # noqa
+        # output = window_ele_dict['output']  # type: Multiline  # noqa
+        # for i, obj in enumerate(objects):
+        #     output.update(repr(obj) + '\n', append=i)  # noqa

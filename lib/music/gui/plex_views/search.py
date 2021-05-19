@@ -35,6 +35,7 @@ class PlexSearchView(PlexView, view_name='search'):
         with self.options.next_row() as options:
             options.add_input('escape', 'Escape regex special characters:', default='()')
         self.track_rows = [TrackRow() for _ in range(100)]
+        win_w, win_h = self._window_size
         self.results = Column(
             [[tr.column] for tr in self.track_rows],
             scrollable=True,
@@ -42,7 +43,8 @@ class PlexSearchView(PlexView, view_name='search'):
             key='results',
             expand_x=True,
             expand_y=True,
-            size=(800, 400),
+            size=(800, win_h - 160),
+            element_justification='center',
         )
 
     def get_render_args(self) -> RenderArgs:
@@ -95,21 +97,30 @@ class PlexSearchView(PlexView, view_name='search'):
         # TODO: add support for typing filters as key_op\s*=\s*value, similar to SPL
         filters = window_ele_dict['filters'].value  # noqa
         obj_type, kwargs = parse_filters(obj_type, title, filters, self.options['escape'], self.options['allow_inst'])
-        objects = self.plex.find_objects(obj_type, **kwargs)
-        if not objects:
-            return popup_ok('No results.')
 
-        # TODO: Pagination
-        for row, obj in zip(self.track_rows, objects):
-            row.update(obj)
+        with Spinner(LoadingSpinner.blue_dots) as spinner:
+            spinner.update()
+            objects = self.plex.find_objects(obj_type, **kwargs)
+            spinner.update()
+            if not objects:
+                return popup_ok('No results.')
+
+            # TODO: Pagination
+            # TODO: Sorting
+            for row, obj in spinner(zip(self.track_rows, objects)):
+                row.update(obj)
 
         # TODO: Table instead?  Need column headers.
         self.results.expand(expand_y=True)  # including expand_x=True in this call results in no vertical scroll
         self.results.expand(expand_x=True)  # results in shorter y, but scroll works...  probably need to calculate proper height for init
         self.results.contents_changed()
 
-        # pre-create ~100 rows and replace contents + reveal after getting results / switching pages?
-
         # output = window_ele_dict['output']  # type: Multiline  # noqa
         # for i, obj in enumerate(objects):
         #     output.update(repr(obj) + '\n', append=i)  # noqa
+
+    @event_handler
+    def window_resized(self, event: Event, data: EventData):
+        # data = {'old_size': old_size, 'new_size': new_size}
+        key_dict = self.window.key_dict
+        self.results.expand(True, True)

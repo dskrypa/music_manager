@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from itertools import count
 from pathlib import Path
+from tempfile import gettempdir
 from typing import Iterable, Hashable
 
 from plexapi.audio import Audio, Album, Artist, Track
@@ -21,6 +22,7 @@ from ..elements import ExtendedImage, Rating
 __all__ = ['TrackRow']
 log = logging.getLogger(__name__)
 ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
+TMP_DIR = Path(gettempdir()).joinpath('plex', 'images')
 
 
 class TrackRow:
@@ -37,7 +39,14 @@ class TrackRow:
         self.views = Text(size=(5, 1), key=f'track:{num}:views')
         self.rating = Rating(key=f'track:{num}:rating')
         row = [self.cover, self.year, self.artist, self.album, self.title, self.duration, self.views, self.rating]
-        self.column = Column([row], key=f'track:{num}:column', visible=False)
+        self.column = Column(
+            [row],
+            key=f'track:{num}:column',
+            visible=False,
+            justification='center',
+            element_justification='center',
+            expand_x=True,
+        )
 
     def hide(self):
         self.column.update(visible=False)
@@ -65,12 +74,21 @@ class TrackRow:
         self.views.update(track.viewCount)
         self.rating.update(track.userRating)
         server = track._server
-        try:
-            # TODO: Cache the resized thumbnails
-            resp = server._session.get(server.url(track.thumb), headers=server._headers())
-        except RequestException as e:
-            log.debug(f'Error retrieving cover for {track}: {e}')
-            self.cover.image = ICONS_DIR.joinpath('x.png')
+
+        path = TMP_DIR.joinpath(track.thumb[1:])
+        if path.exists():
+            self.cover.image = path
         else:
-            self.cover.image = resp.content
+            try:
+                resp = server._session.get(server.url(track.thumb), headers=server._headers())
+            except RequestException as e:
+                log.debug(f'Error retrieving cover for {track}: {e}')
+                self.cover.image = ICONS_DIR.joinpath('x.png')
+            else:
+                if not path.parent.exists():
+                    path.parent.mkdir(parents=True)
+                log.debug(f'Saving cover image for {track} to {path.as_posix()}')
+                with path.open('wb') as f:
+                    f.write(resp.content)
+                self.cover.image = resp.content
         self.column.update(visible=True)

@@ -31,7 +31,7 @@ class TrackRow:
     def __init__(self, cover_size: tuple[int, int] = None):
         self.cover_size = cover_size or (40, 40)
         self._num = num = next(self.__counter)
-        self.cover = ExtendedImage(size=self.cover_size, key=f'track:{num}:cover')  # TODO: Make click open full-size
+        self.cover = ExtendedImage(size=self.cover_size, key=f'track:{num}:cover')
         self.year = Text(size=(4, 1), key=f'track:{num}:year')
         self.artist = Text(size=(20, 1), key=f'track:{num}:artist')
         self.album = Text(size=(20, 1), key=f'track:{num}:album')
@@ -74,16 +74,16 @@ class TrackRow:
         self.duration.update(duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S'))
         self.views.update(track.viewCount)
         self.rating.update(track.userRating)
-        self.cover.image = self._get_thumbnail(track)
+        self.cover.image = self._get_images(track)
         self.column.update(visible=True)
 
-    def _get_thumbnail(self, track: Track):
+    def _get_images(self, track: Track):
         full_size_path = TMP_DIR.joinpath(track.thumb[1:])
         thumb_path = full_size_path.with_name('{}__{}x{}'.format(full_size_path.name, *self.cover_size))
         if thumb_path.exists():
-            return thumb_path
+            return thumb_path, full_size_path
         elif full_size_path.exists():
-            return self._convert_and_save_thumbnail(full_size_path, thumb_path)
+            return self._convert_and_save_thumbnail(full_size_path, thumb_path), full_size_path
 
         server = track._server
         try:
@@ -98,7 +98,7 @@ class TrackRow:
             image_bytes = resp.content
             with full_size_path.open('wb') as f:
                 f.write(image_bytes)
-            return self._convert_and_save_thumbnail(image_bytes, thumb_path)
+            return self._convert_and_save_thumbnail(image_bytes, thumb_path), full_size_path
 
     def _convert_and_save_thumbnail(self, image: ImageType, thumb_path: Path):
         thumbnail = scale_image(as_image(image), *self.cover_size)

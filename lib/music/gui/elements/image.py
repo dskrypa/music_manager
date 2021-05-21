@@ -7,7 +7,7 @@ Extended image elements for PySimpleGUI
 import logging
 from itertools import count
 from tkinter import Label
-from typing import Optional, Callable
+from typing import Optional, Callable, Union
 
 from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage
@@ -26,9 +26,11 @@ class ExtendedImage(Image):
         popup_title: str = None,
         init_callback: Callable = None,
         bind_click: bool = True,
+        click_image: ImageType = None,
         **kwargs
     ):
         self._bind_click = bind_click
+        self.click_image = click_image
         self._image = None
         super().__init__(**kwargs)
         self.image = image
@@ -54,7 +56,9 @@ class ExtendedImage(Image):
         return self._image
 
     @image.setter
-    def image(self, data: ImageType):
+    def image(self, data: Union[ImageType, tuple[ImageType, ImageType]]):
+        if isinstance(data, tuple):
+            data, self.click_image = data
         self._image = as_image(data)
         if self._widget is not None:
             self.resize(*self._current_size)
@@ -87,7 +91,7 @@ class ExtendedImage(Image):
     def handle_click(self, event):
         from ..popups.image import ImageView
 
-        ImageView(self._image, self._popup_title).get_result()
+        ImageView(self.click_image or self._image, self._popup_title).get_result()
 
 
 class Spacer(Image):

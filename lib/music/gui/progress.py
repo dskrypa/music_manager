@@ -35,7 +35,7 @@ class Spinner:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        popup_animated(None)
+        self.close()
 
     def __call__(self, iterable: Iterable[T]) -> Iterator[T]:
         for item in iterable:
@@ -44,6 +44,9 @@ class Spinner:
 
     def update(self):
         popup_animated(self.image_source, *self.args, **self.kwargs)
+
+    def close(self):  # noqa
+        popup_animated(None)
 
 
 class ProgressTracker:

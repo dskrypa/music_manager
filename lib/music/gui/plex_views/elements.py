@@ -9,14 +9,14 @@ from datetime import datetime
 from itertools import count
 from pathlib import Path
 from tempfile import gettempdir
-from typing import Iterable, Hashable
 
-from plexapi.audio import Audio, Album, Artist, Track
-from plexapi.playlist import Playlist
-from plexapi.video import Video, Movie, Show, Season, Episode
+from plexapi.audio import Track  #, Audio, Album, Artist
+# from plexapi.playlist import Playlist
+# from plexapi.video import Video, Movie, Show, Season, Episode
 from PySimpleGUI import Column, Text
 from requests import RequestException
 
+from ...common.images import as_image, scale_image, ImageType
 from ..elements import ExtendedImage, Rating
 
 __all__ = ['TrackRow']
@@ -28,9 +28,10 @@ TMP_DIR = Path(gettempdir()).joinpath('plex', 'images')
 class TrackRow:
     __counter = count()
 
-    def __init__(self):
+    def __init__(self, cover_size: tuple[int, int] = None):
+        self.cover_size = cover_size or (40, 40)
         self._num = num = next(self.__counter)
-        self.cover = ExtendedImage(size=(40, 40), key=f'track:{num}:cover')  # TODO: Make clickable?
+        self.cover = ExtendedImage(size=self.cover_size, key=f'track:{num}:cover')  # TODO: Make click open full-size
         self.year = Text(size=(4, 1), key=f'track:{num}:year')
         self.artist = Text(size=(20, 1), key=f'track:{num}:artist')
         self.album = Text(size=(20, 1), key=f'track:{num}:album')
@@ -64,7 +65,7 @@ class TrackRow:
         self.rating.update(0)
 
     def update(self, track: Track):
-        self.year.update(track.year)
+        self.year.update(track._data.attrib.get('parentYear'))
         self.artist.update(track.grandparentTitle)
         self.album.update(track.parentTitle)
         self.title.update(track.title)
@@ -73,22 +74,37 @@ class TrackRow:
         self.duration.update(duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S'))
         self.views.update(track.viewCount)
         self.rating.update(track.userRating)
-        server = track._server
-
-        path = TMP_DIR.joinpath(track.thumb[1:])
-        if path.exists():
-            self.cover.image = path
-        else:
-            try:
-                resp = server._session.get(server.url(track.thumb), headers=server._headers())
-            except RequestException as e:
-                log.debug(f'Error retrieving cover for {track}: {e}')
-                self.cover.image = ICONS_DIR.joinpath('x.png')
-            else:
-                if not path.parent.exists():
-                    path.parent.mkdir(parents=True)
-                log.debug(f'Saving cover image for {track} to {path.as_posix()}')
-                with path.open('wb') as f:
-                    f.write(resp.content)
-                self.cover.image = resp.content
+        self.cover.image = self._get_thumbnail(track)
         self.column.update(visible=True)
+
+    def _get_thumbnail(self, track: Track):
+        full_size_path = TMP_DIR.joinpath(track.thumb[1:])
+        thumb_path = full_size_path.with_name('{}__{}x{}'.format(full_size_path.name, *self.cover_size))
+        if thumb_path.exists():
+            return thumb_path
+        elif full_size_path.exists():
+            return self._convert_and_save_thumbnail(full_size_path, thumb_path)
+
+        server = track._server
+        try:
+            resp = server._session.get(server.url(track.thumb), headers=server._headers())
+        except RequestException as e:
+            log.debug(f'Error retrieving cover for {track}: {e}')
+            return ICONS_DIR.joinpath('x.png')
+        else:
+            if not full_size_path.parent.exists():
+                full_size_path.parent.mkdir(parents=True)
+            log.debug(f'Saving cover image for {track} to {full_size_path.as_posix()}')
+            image_bytes = resp.content
+            with full_size_path.open('wb') as f:
+                f.write(image_bytes)
+            return self._convert_and_save_thumbnail(image_bytes, thumb_path)
+
+    def _convert_and_save_thumbnail(self, image: ImageType, thumb_path: Path):
+        thumbnail = scale_image(as_image(image), *self.cover_size)
+        if not thumb_path.parent.exists():
+            thumb_path.parent.mkdir(parents=True)
+        log.debug(f'Saving cover image thumbnail for to {thumb_path.as_posix()}')
+        with thumb_path.open('wb') as f:
+            thumbnail.save(f, 'png' if thumbnail.mode == 'RGBA' else 'jpeg')
+        return thumbnail

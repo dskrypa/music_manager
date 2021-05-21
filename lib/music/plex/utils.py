@@ -56,8 +56,11 @@ def parse_filters(
             if op in ('regex', 'iregex', 'like', 'like_exact', 'not_like'):
                 filters[key] = regexcape(val)
 
-    if title:
-        filters.setdefault('title__like', title)
+    if title and title != '.*':
+        if not any(c in title for c in '()[]{}^$+*.?' if c not in escape):
+            filters.setdefault('title__icontains', title)
+        else:
+            filters.setdefault('title__like', title)
 
     if not allow_inst:
         filters.setdefault('title__not_like', 'inst(?:\.?|rumental)')

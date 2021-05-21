@@ -10,6 +10,9 @@ from operator import eq
 from typing import TYPE_CHECKING, Collection, Optional, Any, Union, Iterator
 from xml.etree.ElementTree import Element
 
+from plexapi.exceptions import UnknownType
+from plexapi.utils import PLEXOBJECTS
+
 from ds_tools.output import short_repr
 from ..files.track.track import SongFile
 from ..text.name import Name
@@ -175,11 +178,19 @@ class QueryResults:
         return self._new(results)
 
     def results(self) -> set[PlexObj]:
-        build_item = self.server.music._buildItemOrNone
         library_section_id = self._library_section_id
-        results = set(filter(None, (build_item(elem, None, None) for elem in self._data)))
-        for obj in results:
-            obj.librarySectionID = library_section_id
+        initpath = self.server.music._initpath
+        server = self.server.music._server
+        get_ecls = PLEXOBJECTS.get
+        results = set()
+        add_result = results.add
+        for elem in self._data:
+            get_attr = elem.attrib.get
+            etype = get_attr('streamType', get_attr('tagType', get_attr('type')))
+            if ecls := get_ecls(f'{elem.tag}.{etype}' if etype else elem.tag, get_ecls(elem.tag)):
+                obj = ecls(server, elem, initpath)
+                obj.librarySectionID = library_section_id
+                add_result(obj)
         return results
 
     def result(self) -> Optional[PlexObj]:

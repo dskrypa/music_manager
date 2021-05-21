@@ -342,7 +342,7 @@ def _split_str_list(text: str) -> Iterator[str]:
     try:
         delim_finditer = _split_str_list._delim_finditer
     except AttributeError:
-        delim_finditer = _split_str_list._delim_finditer = re.compile('(?:[;,&]| [x×] (?!\())', re.IGNORECASE).finditer
+        delim_finditer = _split_str_list._delim_finditer = re.compile(r'(?:[;,&]| [x×] (?!\())', re.IGNORECASE).finditer
 
     last = 0
     after = None

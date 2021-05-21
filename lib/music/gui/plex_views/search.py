@@ -4,6 +4,8 @@ View: Search results
 :author: Doug Skrypa
 """
 
+from math import ceil
+
 from PySimpleGUI import Text, Button, Combo, Multiline, Column
 
 from ...plex.utils import parse_filters
@@ -56,7 +58,7 @@ class PlexSearchView(PlexView, view_name='search'):
             Text('Section:'),
             Combo(list(self.lib_sections), last_section.title, enable_events=True, key='section'),
             Combo(entity_types, entity_types[0], enable_events=True, key='entity_types'),
-            ExtInput('', size=(50, 1), key='title'),
+            ExtInput('.*', size=(50, 1), key='title'),
             Text('Filter:'),
             ExtInput('', size=(100, 1), key='filters'),
             Button('Search', bind_return_key=True),
@@ -103,14 +105,26 @@ class PlexSearchView(PlexView, view_name='search'):
             objects = self.plex.find_objects(obj_type, **kwargs)
             spinner.update()
             if not objects:
+                spinner.close()
                 return popup_ok('No results.')
 
+            obj_count = len(objects)
+            self.log.info(f'Found {obj_count} {obj_type}s for {title=} {filters=}')
+            # pages = ceil(obj_count / 100)
             # TODO: Pagination
             # TODO: Sorting
             for row, obj in spinner(zip(self.track_rows, objects)):
                 row.update(obj)
 
+            if obj_count < 100:
+                for i in range(obj_count, 100):
+                    self.track_rows[i].clear()
+
         # TODO: Table instead?  Need column headers.
+        try:
+            self.results.TKColFrame.canvas.yview_moveto(0)  # noqa
+        except Exception:
+            pass
         self.results.expand(expand_y=True)  # including expand_x=True in this call results in no vertical scroll
         self.results.expand(expand_x=True)  # results in shorter y, but scroll works...  probably need to calculate proper height for init
         self.results.contents_changed()

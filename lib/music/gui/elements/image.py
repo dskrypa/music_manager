@@ -46,8 +46,6 @@ class ExtendedImage(Image):
         if tktext_label is not None:
             if self._image:
                 self.resize(*self.Size)
-                if self._bind_click:
-                    self._widget.bind('<Button-1>', self.handle_click)
             if callback := self._init_callback:
                 callback(self)
 
@@ -78,6 +76,8 @@ class ExtendedImage(Image):
                 self._widget.configure(image=image, width=new_w, height=new_h)
                 self._widget.image = image
                 self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+                if self._bind_click:
+                    self._widget.bind('<Button-1>', self.handle_click)
 
     def _get_size(self, width: int, height: int):
         if (image := self._image) is not None:

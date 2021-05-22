@@ -63,7 +63,7 @@ def parse_filters(
             filters.setdefault('title__like', title)
 
     if not allow_inst:
-        filters.setdefault('title__not_like', 'inst(?:\.?|rumental)')
+        filters.setdefault('title__not_like', r'inst(?:\.?|rumental)')
 
     log.debug('obj_type={}, title={!r} => query={}'.format(obj_type, title, filters))
     return obj_type, filters  # noqa

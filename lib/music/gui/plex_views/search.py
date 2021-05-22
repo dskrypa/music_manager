@@ -8,12 +8,13 @@ from math import ceil
 
 from PySimpleGUI import Text, Button, Combo, Multiline, Column
 
-from ...plex.utils import parse_filters
+from ...plex.query_parsing import PlexQuery, QueryParseError
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..constants import LoadingSpinner
 from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..popups.simple import popup_ok
+from ..popups.text import popup_error
 from ..progress import Spinner
 from .elements import TrackRow
 from .main import PlexView
@@ -58,9 +59,8 @@ class PlexSearchView(PlexView, view_name='search'):
             Text('Section:'),
             Combo(list(self.lib_sections), last_section.title, enable_events=True, key='section'),
             Combo(entity_types, entity_types[0], enable_events=True, key='entity_types'),
-            ExtInput('.*', size=(50, 1), key='title'),
-            Text('Filter:'),
-            ExtInput('', size=(100, 1), key='filters'),
+            Text('Query:'),
+            ExtInput('title~.*', size=(150, 1), key='query'),
             Button('Search', bind_return_key=True),
         ]
         layout = [
@@ -95,10 +95,13 @@ class PlexSearchView(PlexView, view_name='search'):
         self.options.parse(data)
         window_ele_dict = self.window.key_dict
         obj_type = window_ele_dict['entity_types'].get().lower()  # noqa
-        title = window_ele_dict['title'].value  # noqa
-        # TODO: add support for typing filters as key_op\s*=\s*value, similar to SPL
-        filters = window_ele_dict['filters'].value  # noqa
-        obj_type, kwargs = parse_filters(obj_type, title, filters, self.options['escape'], self.options['allow_inst'])
+        query = window_ele_dict['query'].value  # noqa
+        try:
+            kwargs = PlexQuery.parse(query, self.options['escape'], self.options['allow_inst'])
+        except QueryParseError as e:
+            return popup_error(str(e))
+        else:
+            self.log.debug(f'Parsed query={kwargs}')
 
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             spinner.update()
@@ -109,7 +112,7 @@ class PlexSearchView(PlexView, view_name='search'):
                 return popup_ok('No results.')
 
             obj_count = len(objects)
-            self.log.info(f'Found {obj_count} {obj_type}s for {title=} {filters=}')
+            self.log.info(f'Found {obj_count} {obj_type}s for {query=}')
             # pages = ceil(obj_count / 100)
             # TODO: Pagination
             # TODO: Sorting

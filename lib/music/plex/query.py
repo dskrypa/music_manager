@@ -10,7 +10,6 @@ from operator import eq
 from typing import TYPE_CHECKING, Collection, Optional, Any, Union, Iterator
 from xml.etree.ElementTree import Element
 
-from plexapi.exceptions import UnknownType
 from plexapi.utils import PLEXOBJECTS
 
 from ds_tools.output import short_repr

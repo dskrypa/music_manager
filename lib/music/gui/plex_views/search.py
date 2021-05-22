@@ -6,7 +6,7 @@ View: Search results
 
 from math import ceil
 
-from PySimpleGUI import Text, Button, Combo, Multiline, Column, Table, Image
+from PySimpleGUI import Text, Button, Combo, Column, Image
 
 from ...plex.query_parsing import PlexQuery, QueryParseError
 from ..base_view import event_handler, RenderArgs, Event, EventData
@@ -40,7 +40,8 @@ class PlexSearchView(PlexView, view_name='search'):
         self.track_rows = [TrackRow() for _ in range(100)]
         win_w, win_h = self._window_size
         headers = ('Cover', 'Year', 'Artist', 'Album', 'Title', 'Duration', 'Plays', 'Rating')
-        sizes = [(4, 1), (4, 1), (20, 1), (20, 1), (20, 1), (6, 1), (5, 1), (5, 1)]
+        sizes = [(4, 1), (4, 1), (30, 1), (30, 1), (30, 1), (6, 1), (5, 1), (5, 1)]
+        # TODO: Make column widths dynamic
         self.header_row = [Text(header, size=size, key=f'header:{header}') for header, size in zip(headers, sizes)]
         self.header_row[1].Pad = ((10, 5), 3)
         self.header_column = Column([self.header_row], key='headers', justification='left')
@@ -49,10 +50,9 @@ class PlexSearchView(PlexView, view_name='search'):
             scrollable=True,
             vertical_scroll_only=True,
             key='results',
-            expand_x=True,
-            expand_y=True,
-            size=(800, win_h - 160),
+            size=(900, win_h - 160),
             element_justification='center',
+            justification='center',
         )
 
     def get_render_args(self) -> RenderArgs:
@@ -71,8 +71,7 @@ class PlexSearchView(PlexView, view_name='search'):
         layout = [
             [self.options.as_frame()],
             [search_row],
-            # [Multiline(size=self._output_size(), key='output', autoscroll=True)],
-            [self.results],
+            [Image(key='spacer::1'), self.results, Image(key='spacer::2')],
         ]
 
         full_layout.extend(layout)
@@ -126,6 +125,7 @@ class PlexSearchView(PlexView, view_name='search'):
             # pages = ceil(obj_count / 100)
             # TODO: Pagination
             # TODO: Sorting
+            # TODO: Make changing the rating actually change the rating
             for row, obj in spinner(zip(self.track_rows, objects)):
                 row.update(obj)
 

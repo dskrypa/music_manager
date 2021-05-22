@@ -28,29 +28,37 @@ TMP_DIR = Path(gettempdir()).joinpath('plex', 'images')
 class TrackRow:
     __counter = count()
 
-    def __init__(self, cover_size: tuple[int, int] = None):
+    def __init__(self, cover_size: tuple[int, int] = None, with_column: bool = True):
         self.cover_size = cover_size or (40, 40)
         self._num = num = next(self.__counter)
-        self.cover = ExtendedImage(size=self.cover_size, key=f'track:{num}:cover')
-        self.year = Text(size=(4, 1), key=f'track:{num}:year')
-        self.artist = Text(size=(20, 1), key=f'track:{num}:artist')
-        self.album = Text(size=(20, 1), key=f'track:{num}:album')
-        self.title = Text(size=(20, 1), key=f'track:{num}:title')
-        self.duration = Text(size=(5, 1), key=f'track:{num}:duration')
-        self.views = Text(size=(5, 1), key=f'track:{num}:views')
-        self.rating = Rating(key=f'track:{num}:rating')
-        row = [self.cover, self.year, self.artist, self.album, self.title, self.duration, self.views, self.rating]
-        self.column = Column(
-            [row],
-            key=f'track:{num}:column',
-            visible=False,
-            justification='center',
-            element_justification='center',
-            expand_x=True,
-        )
+        kwargs = dict(visible=with_column)
+        self.cover = ExtendedImage(size=self.cover_size, key=f'track:{num}:cover', **kwargs)
+        self.year = Text(size=(4, 1), key=f'track:{num}:year', **kwargs)
+        self.artist = Text(size=(20, 1), key=f'track:{num}:artist', **kwargs)
+        self.album = Text(size=(20, 1), key=f'track:{num}:album', **kwargs)
+        self.title = Text(size=(20, 1), key=f'track:{num}:title', **kwargs)
+        self.duration = Text(size=(5, 1), key=f'track:{num}:duration', **kwargs)
+        self.plays = Text(size=(5, 1), key=f'track:{num}:views', justification='right', **kwargs)
+        self.rating = Rating(key=f'track:{num}:rating', **kwargs)
+        self.row = [self.cover, self.year, self.artist, self.album, self.title, self.duration, self.plays, self.rating]
+        if with_column:
+            self.column = Column(
+                [self.row],
+                key=f'track:{num}:column',
+                visible=False,
+                justification='center',
+                element_justification='center',
+                expand_x=True,
+            )
+        else:
+            self.column = None
 
     def hide(self):
-        self.column.update(visible=False)
+        if self.column is None:
+            self.cover.update(visible=False)
+            self.rating.update(visible=False)
+        else:
+            self.column.update(visible=False)
 
     def clear(self, hide: bool = True):
         if hide:
@@ -60,22 +68,24 @@ class TrackRow:
         self.album.update('')
         self.title.update('')
         self.duration.update('')
-        self.views.update('')
+        self.plays.update('')
         self.cover.image = None
         self.rating.update(0)
 
     def update(self, track: Track):
-        self.year.update(track._data.attrib.get('parentYear'))
-        self.artist.update(track.grandparentTitle)
-        self.album.update(track.parentTitle)
-        self.title.update(track.title)
+        visible = None if self.column else True
+        self.year.update(track._data.attrib.get('parentYear'), visible=visible)
+        self.artist.update(track.grandparentTitle, visible=visible)
+        self.album.update(track.parentTitle, visible=visible)
+        self.title.update(track.title, visible=visible)
         duration = int(track.duration / 1000)
         duration_dt = datetime.fromtimestamp(duration)
-        self.duration.update(duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S'))
-        self.views.update(track.viewCount)
-        self.rating.update(track.userRating)
+        self.duration.update(duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S'), visible=visible)
+        self.plays.update(track.viewCount, visible=visible)
+        self.rating.update(track.userRating, visible=visible)
         self.cover.image = self._get_images(track)
-        self.column.update(visible=True)
+        if self.column is not None:
+            self.column.update(visible=True)
 
     def _get_images(self, track: Track):
         full_size_path = TMP_DIR.joinpath(track.thumb[1:])

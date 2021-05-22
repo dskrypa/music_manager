@@ -6,7 +6,7 @@ View: Search results
 
 from math import ceil
 
-from PySimpleGUI import Text, Button, Combo, Multiline, Column
+from PySimpleGUI import Text, Button, Combo, Multiline, Column, Table, Image
 
 from ...plex.query_parsing import PlexQuery, QueryParseError
 from ..base_view import event_handler, RenderArgs, Event, EventData
@@ -39,8 +39,13 @@ class PlexSearchView(PlexView, view_name='search'):
             options.add_input('escape', 'Escape regex special characters:', default='()')
         self.track_rows = [TrackRow() for _ in range(100)]
         win_w, win_h = self._window_size
+        headers = ('Cover', 'Year', 'Artist', 'Album', 'Title', 'Duration', 'Plays', 'Rating')
+        sizes = [(4, 1), (4, 1), (20, 1), (20, 1), (20, 1), (6, 1), (5, 1), (5, 1)]
+        self.header_row = [Text(header, size=size, key=f'header:{header}') for header, size in zip(headers, sizes)]
+        self.header_row[1].Pad = ((10, 5), 3)
+        self.header_column = Column([self.header_row], key='headers', justification='left')
         self.results = Column(
-            [[tr.column] for tr in self.track_rows],
+            [[self.header_column], *([tr.column] for tr in self.track_rows)],
             scrollable=True,
             vertical_scroll_only=True,
             key='results',
@@ -60,7 +65,7 @@ class PlexSearchView(PlexView, view_name='search'):
             Combo(list(self.lib_sections), last_section.title, enable_events=True, key='section'),
             Combo(entity_types, entity_types[0], enable_events=True, key='entity_types'),
             Text('Query:'),
-            ExtInput('title~.*', size=(150, 1), key='query'),
+            ExtInput('title~.*', size=(150, 1), key='query', focus=True),
             Button('Search', bind_return_key=True),
         ]
         layout = [
@@ -72,6 +77,11 @@ class PlexSearchView(PlexView, view_name='search'):
 
         full_layout.extend(layout)
         return full_layout, kwargs
+
+    def post_render(self):
+        super().post_render()
+        query = self.window.key_dict['query']
+        query.Widget.icursor(len(query.DefaultText))  # noqa
 
     def _output_size(self):
         win_w, win_h = self._window_size
@@ -123,21 +133,16 @@ class PlexSearchView(PlexView, view_name='search'):
                 for i in range(obj_count, 100):
                     self.track_rows[i].clear()
 
-        # TODO: Table instead?  Need column headers.
         try:
             self.results.TKColFrame.canvas.yview_moveto(0)  # noqa
         except Exception:
             pass
         self.results.expand(expand_y=True)  # including expand_x=True in this call results in no vertical scroll
-        self.results.expand(expand_x=True)  # results in shorter y, but scroll works...  probably need to calculate proper height for init
+        self.results.expand(expand_x=True)  # results in shorter y, but scroll works...
         self.results.contents_changed()
-
-        # output = window_ele_dict['output']  # type: Multiline  # noqa
-        # for i, obj in enumerate(objects):
-        #     output.update(repr(obj) + '\n', append=i)  # noqa
 
     @event_handler
     def window_resized(self, event: Event, data: EventData):
         # data = {'old_size': old_size, 'new_size': new_size}
-        key_dict = self.window.key_dict
+        # key_dict = self.window.key_dict
         self.results.expand(True, True)

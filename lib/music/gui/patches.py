@@ -18,10 +18,16 @@ def patch_element_repr():
     def element_repr(self):
         try:
             key = self.Key
-            size = self.get_size() if self.Widget is not None else self.Size
+            if (widget := self.Widget) is not None:
+                size = self.get_size()
+                pos = widget.winfo_x(), widget.winfo_y()
+                # pos = widget.winfo_rootx(), widget.winfo_rooty()
+            else:
+                size = self.Size
+                pos = ('?', '?')
         except Exception:
             return f'<{self.__class__.__qualname__}#{id(self)}>'
         else:
-            return f'<{self.__class__.__qualname__}#{id(self)}[{key=}, {size=}]>'
+            return f'<{self.__class__.__qualname__}#{id(self)}[{key=}, {size=} {pos=}]>'
 
     Element.__repr__ = element_repr

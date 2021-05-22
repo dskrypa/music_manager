@@ -324,9 +324,17 @@ class GuiView(ABC):
             widget = event.widget
         except AttributeError:
             element = None
+            widget = None
         else:
             element = next((ele for ele in self.window.key_dict.values() if ele.Widget is widget), None)
-        self.log.warning(f'Tkinter {event=}\n    {element=}\n    event.__dict__={event.__dict__}', extra={'color': 14})
+
+        self.log.warning(
+            f'Tkinter {event=}\n'
+            f'    {element=} {widget=}\n'
+            # f'    grid_location={widget.grid_location(event.x, event.y) if widget else "???"}\n'
+            f'    event.__dict__={event.__dict__}',
+            extra={'color': 14}
+        )
 
     def _get_monitor(self, x: int, y: int) -> Optional[Monitor]:
         for m in self._monitors:

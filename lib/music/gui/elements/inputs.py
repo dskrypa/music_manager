@@ -94,6 +94,10 @@ class ExtInput(Input):
             entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
             if self._link:
                 entry.bind('<Control-Button-1>', self._open_link)
+                if (value := self.value) and value.startswith(('http://', 'https://')):
+                    entry.configure(cursor='hand2')
+            if self._dark:
+                entry.configure(insertbackground='#FFFFFF')
 
     @property
     def value(self):

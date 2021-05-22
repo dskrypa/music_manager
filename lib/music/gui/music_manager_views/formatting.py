@@ -15,7 +15,7 @@ from typing import Optional, Any, Iterator, Collection
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
-from PySimpleGUI import HorizontalSeparator, VerticalSeparator
+from PySimpleGUI import HorizontalSeparator, VerticalSeparator, WRITE_ONLY_KEY
 
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
@@ -260,7 +260,7 @@ def value_ele(
         if add_button:
             val_ele = Column(
                 [[val_ele, Button('Add...', key=val_key.replace('val::', 'add::', 1), disabled=disabled, pad=(0, 0))]],
-                key=f'col::{val_key}',
+                key=f'col::{val_key}{WRITE_ONLY_KEY}',
                 pad=(0, 0),
                 vertical_alignment='center',
                 justification='center',
@@ -356,7 +356,7 @@ class TrackFormatter:
             if n := next(nums[tag_id]):
                 tag_id = f'{tag_id}--{n}'
 
-            key_ele = Text(disp_name, key=self.key_for('tag', tag_id))
+            key_ele = Text(disp_name, key=self.key_for('tag', tag_id, WRITE_ONLY_KEY))
             sel_box = Checkbox('', key=self.key_for('del', tag_id), visible=editable, enable_events=True)
             tooltip = f'Toggle all {tag_id} tags with Shift+Click'
             val_key = self.key_for('val', tag_id)
@@ -387,7 +387,7 @@ class TrackFormatter:
         return resize_text_column(rows), ele_binds
 
     def _rating_row(self, key: str, value, editable: bool = False, suffix: str = None):
-        key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, suffix))
+        key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, suffix) + WRITE_ONLY_KEY)
         row = [
             key_ele,
             Rating(value, key=self.key_for('val', key, suffix), show_value=True, pad=(0, 0), disabled=not editable),
@@ -403,7 +403,7 @@ class TrackFormatter:
             if key == 'rating':
                 rows.append(self._rating_row(key, value, editable))
             else:
-                key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key))
+                key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, WRITE_ONLY_KEY))
                 val_ele = value_ele(value, self.key_for('val', key), not editable)
                 rows.append([key_ele, val_ele])
 
@@ -411,9 +411,9 @@ class TrackFormatter:
 
     def get_sync_rows(self):
         row = [
-            Text('Num', key=self.key_for('tag', 'num')),
+            Text('Num', key=self.key_for('tag', 'num', WRITE_ONLY_KEY)),
             ExtInput(self.info.num, key=self.key_for('val', 'num'), disabled=True, size=(5, 1)),
-            Text('Title', key=self.key_for('tag', 'title')),
+            Text('Title', key=self.key_for('tag', 'title', WRITE_ONLY_KEY)),
             ExtInput(self.info.title, key=self.key_for('val', 'title'), disabled=True),
         ]
         rows = [row, self._rating_row('rating', self.info.rating, False)]

@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Union, Optional
 
-from PySimpleGUI import Text, Element
+from PySimpleGUI import Text, Element, WRITE_ONLY_KEY
 
 from ..elements.inputs import ExtInput
 
@@ -17,12 +17,12 @@ log = logging.getLogger(__name__)
 
 
 def label_and_val_key(src: str, tag: str, title: bool = True) -> tuple[Text, str]:
-    label = Text(tag.replace('_', ' ').title() if title else tag, key=f'tag::{src}::{tag}')
+    label = Text(tag.replace('_', ' ').title() if title else tag, key=f'tag::{src}::{tag}{WRITE_ONLY_KEY}')
     return label, f'val::{src}::{tag}'
 
 
 def label_and_diff_keys(src: str, tag: str) -> tuple[Text, Text, Text, str, str]:
-    label = Text(tag.replace('_', ' ').title(), key=f'tag::{src}::{tag}')
+    label = Text(tag.replace('_', ' ').title(), key=f'tag::{src}::{tag}{WRITE_ONLY_KEY}')
     sep_1 = Text('from', key=f'from::{src}::{tag}')
     sep_2 = Text('to', key=f'to::{src}::{tag}')
     return label, sep_1, sep_2, f'src::{src}::{tag}', f'new::{src}::{tag}'

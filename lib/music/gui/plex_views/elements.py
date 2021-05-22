@@ -9,6 +9,7 @@ from datetime import datetime
 from itertools import count
 from pathlib import Path
 from tempfile import gettempdir
+from urllib.parse import quote
 
 from plexapi.audio import Track  #, Audio, Album, Artist
 # from plexapi.playlist import Playlist
@@ -17,7 +18,7 @@ from PySimpleGUI import Column, Text
 from requests import RequestException
 
 from ...common.images import as_image, scale_image, ImageType
-from ..elements import ExtendedImage, Rating
+from ..elements import ExtendedImage, Rating, ExtText
 
 __all__ = ['TrackRow']
 log = logging.getLogger(__name__)
@@ -34,8 +35,8 @@ class TrackRow:
         kwargs = dict(visible=with_column)
         self.cover = ExtendedImage(size=self.cover_size, key=f'track:{num}:cover', **kwargs)
         self.year = Text(size=(4, 1), key=f'track:{num}:year', **kwargs)
-        self.artist = Text(size=(20, 1), key=f'track:{num}:artist', **kwargs)
-        self.album = Text(size=(20, 1), key=f'track:{num}:album', **kwargs)
+        self.artist = ExtText(size=(20, 1), key=f'track:{num}:artist', **kwargs)
+        self.album = ExtText(size=(20, 1), key=f'track:{num}:album', **kwargs)
         self.title = Text(size=(20, 1), key=f'track:{num}:title', **kwargs)
         self.duration = Text(size=(5, 1), key=f'track:{num}:duration', **kwargs)
         self.plays = Text(size=(5, 1), key=f'track:{num}:views', justification='right', **kwargs)
@@ -75,8 +76,10 @@ class TrackRow:
     def update(self, track: Track):
         visible = None if self.column else True
         self.year.update(track._data.attrib.get('parentYear'), visible=visible)
-        self.artist.update(track.grandparentTitle, visible=visible)
-        self.album.update(track.parentTitle, visible=visible)
+        srv = track._server
+        base = f'{srv._baseurl}/web/index.html#!/server/{srv.machineIdentifier}/details?library%3Acontent.library'
+        self.artist.update(track.grandparentTitle, visible=visible, link=f'{base}&key={quote(track.grandparentKey)}')
+        self.album.update(track.parentTitle, visible=visible, link=f'{base}&key={quote(track.parentKey)}')
         self.title.update(track.title, visible=visible)
         duration = int(track.duration / 1000)
         duration_dt = datetime.fromtimestamp(duration)

@@ -20,7 +20,9 @@ event handler loop control is transferred to that view until it is closed, and t
 :author: Doug Skrypa
 """
 
+import logging
 import re
+import signal
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from fnmatch import _compile_pattern
@@ -105,6 +107,7 @@ class _EventHandler:
 class GuiView(ABC):
     primary: bool
     name: str = None
+    log = logging.getLogger(__name__)
     permissive_handler_names: bool = True
     allow_no_handler: bool = True
     active_view: Optional['GuiView'] = None
@@ -200,6 +203,7 @@ class GuiView(ABC):
             obj.window.write_event_value(*init_event)  # Note: data[event] => the EventData value passed here
 
         if not interactive:
+            signal.signal(signal.SIGINT, GuiView._handle_sigint)
             while True:
                 try:
                     event, data = next(cls.active_view)  # noqa
@@ -208,6 +212,18 @@ class GuiView(ABC):
                     break
 
             cls.window.close()
+
+    @classmethod
+    def _handle_sigint(cls, *args):
+        """
+        With just the _sigint_fix loop, the tkinter stdlib python code ignores SIGINT - this is required to actually
+        handle it immediately.
+        """
+        cls.window.write_event_value(None, None)
+
+    def _sigint_fix(self):
+        """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
+        self.window.TKroot.after(250, self._sigint_fix)
 
     @classmethod
     def _handle_next(cls):
@@ -305,6 +321,7 @@ class GuiView(ABC):
         # self.log.debug(f'Initializing window with {kwargs=}')
         new_window = Window(layout=layout, finalize=True, **kwargs)
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
+        new_window.TKroot.after(250, self._sigint_fix)
 
         if self.primary:
             if old_window is not None:

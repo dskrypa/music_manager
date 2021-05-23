@@ -30,6 +30,7 @@ from functools import partial, update_wrapper, cached_property
 from itertools import count
 from queue import Queue, Empty
 from threading import Thread
+from time import monotonic
 from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, theme, theme_list
@@ -124,6 +125,7 @@ class GuiView(ABC):
     _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
     _window_pos: tuple[Optional[int], Optional[int]] = (None, None)  # x, y
     _monitors = get_monitors()
+    _log_clicks: bool = False
 
     # noinspection PyMethodOverriding
     def __init_subclass__(
@@ -319,7 +321,10 @@ class GuiView(ABC):
 
         kwargs.setdefault('margins', (5, 5))
         # self.log.debug(f'Initializing window with {kwargs=}')
+        start = monotonic()
         new_window = Window(layout=layout, finalize=True, **kwargs)
+        duration = monotonic() - start
+        self.log.debug(f'Window finalization finished after {duration:.6f} seconds')
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
         new_window.TKroot.after(250, self._sigint_fix)
 
@@ -340,16 +345,19 @@ class GuiView(ABC):
         try:
             widget = event.widget
         except AttributeError:
-            element = None
-            widget = None
+            element, widget, geometry, pack_info = None, None, '???', '???'
         else:
             element = next((ele for ele in self.window.key_dict.values() if ele.Widget is widget), None)
+            geometry = widget.winfo_geometry()
+            pack_info = widget.pack_info()
 
         self.log.warning(
             f'Tkinter {event=}\n'
-            f'    {element=} {widget=}\n'
+            f'    {element=}\n'
+            f'    {widget=}\n'
+            f'    {geometry=}  {pack_info=}\n',
             # f'    grid_location={widget.grid_location(event.x, event.y) if widget else "???"}\n'
-            f'    event.__dict__={event.__dict__}',
+            # f'    event.__dict__={event.__dict__}',
             extra={'color': 14}
         )
 
@@ -433,7 +441,8 @@ class GuiView(ABC):
 
         self._log_position_and_dimensions('Rendered', False)
         self.post_render()
-        # self.window.TKroot.bind('<Button-1>', self._log_event)
+        if self._log_clicks:
+            self.window.TKroot.bind('<Button-1>', self._log_event)
 
     def post_render(self):
         pass

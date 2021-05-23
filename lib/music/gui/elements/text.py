@@ -6,10 +6,11 @@ Text elements for PySimpleGUI
 
 import logging
 import webbrowser
-from tkinter import Label
+from functools import cached_property
+from tkinter import Label, X, Y, BOTH
 from typing import Union
 
-from PySimpleGUI import Text, COLOR_SYSTEM_DEFAULT
+from PySimpleGUI import Text, COLOR_SYSTEM_DEFAULT, pin
 
 __all__ = ['ExtText']
 log = logging.getLogger(__name__)
@@ -71,6 +72,10 @@ class ExtText(Text):
         self._tk_label = label
         self._enable_link()
 
+    @cached_property
+    def pin(self):
+        return pin(self)
+
     def style(self, background_color=None, text_color=None, font=None):
         kwargs = {}
         if background_color not in (None, COLOR_SYSTEM_DEFAULT):
@@ -106,20 +111,37 @@ class ExtText(Text):
 
     def update_visibility(self, visible: bool):
         if visible:
-            self.make_visible()
+            self.show()
         else:
             self.hide()
 
     def hide(self, force: bool = False):
         if force or self._visible:
-            self._tk_label.pack_forget()
             self._visible = False
+            # if pinned := self.__dict__.get('pin'):
+            #     # log.debug(f'Hiding pinned column for {self}')
+            #     if col_frame := pinned.TKColFrame:
+            #         col_frame.pack_forget()
+            #         if parent := pinned.ParentPanedWindow:
+            #             parent.remove(col_frame)
+            # else:
+                # log.debug(f'Hiding label for {self}')
+            self._tk_label.pack_forget()
 
-    def make_visible(self, force: bool = False):
+    def show(self, force: bool = False):
         if force or not self._visible:
-            x, y = self.pad_used
-            self._tk_label.pack(padx=x, pady=y)
             self._visible = True
+            # if pinned := self.__dict__.get('pin'):
+            #     # log.debug(f'Showing pinned column for {self}')
+            #     if col_frame := pinned.TKColFrame:
+            #         x, y, ex_x, ex_y = *pinned.pad_used, pinned.ExpandX, pinned.ExpandY  # noqa
+            #         col_frame.pack(padx=x, pady=y, fill=BOTH if ex_x and ex_y else X if ex_x else Y if ex_y else None)
+            #         if parent := pinned.ParentPanedWindow:
+            #             parent.add(col_frame)
+            # else:
+            x, y = self.pad_used
+            #     # log.debug(f'Showing label for {self} with {x=} {y=}')
+            self._tk_label.pack(padx=x, pady=y)
 
     @property
     def value(self):

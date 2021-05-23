@@ -37,7 +37,8 @@ class PlexSearchView(PlexView, view_name='search'):
             LIB_TYPE_ENTITY_MAP[section.type], result_type.title(), enable_events=True, key='entity_types'
         )
         self.query = ExtInput('title~.*', size=(150, 1), key='query', focus=True)
-        self.results = ResultTable(result_type.lower(), size=(900, self._window_size[1] - 160))
+        win_w, win_h = self._window_size
+        self.results = ResultTable(size=(win_w - 40, win_h - 160))  # TODO: render time goes from 0.375 to > 2.5s going from 10 to 100 rows
 
     @property
     def result_type(self):
@@ -70,6 +71,7 @@ class PlexSearchView(PlexView, view_name='search'):
     def post_render(self):
         super().post_render()
         self.query.Widget.icursor(len(self.query.DefaultText))
+        self.result_type = self.get_result_type()
 
     # def _output_size(self):
     #     win_w, win_h = self._window_size
@@ -84,7 +86,7 @@ class PlexSearchView(PlexView, view_name='search'):
             self.lib_section = section = self.lib_sections[section_title]
             if section.type != last_section.type:
                 self.result_type = result_type = self.get_result_type(section)
-                self.type_picker.update(result_type, LIB_TYPE_ENTITY_MAP[section.type])
+                self.type_picker.update(result_type.title(), LIB_TYPE_ENTITY_MAP[section.type])
 
     @event_handler
     def entity_types(self, event: Event, data: EventData):
@@ -107,7 +109,7 @@ class PlexSearchView(PlexView, view_name='search'):
 
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             spinner.update()
-            objects = self.plex.find_objects(result_type, **kwargs)
+            objects = self.plex.find_objects(result_type, section=self.lib_section, **kwargs)
             spinner.update()
             if not objects:
                 spinner.close()
@@ -117,6 +119,4 @@ class PlexSearchView(PlexView, view_name='search'):
 
     @event_handler
     def window_resized(self, event: Event, data: EventData):
-        # data = {'old_size': old_size, 'new_size': new_size}
-        # key_dict = self.window.key_dict
         self.results.expand(True, True)

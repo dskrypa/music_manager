@@ -15,9 +15,8 @@ from typing import Union, Collection, Optional
 from urllib.parse import quote
 
 from plexapi.audio import Track, Album, Artist
-# from plexapi.playlist import Playlist
 from plexapi.video import Movie, Show, Season, Episode
-from PySimpleGUI import Column, HorizontalSeparator
+from PySimpleGUI import Column, HorizontalSeparator, Image
 from requests import RequestException
 
 from ...common.images import as_image, scale_image, ImageType
@@ -48,7 +47,7 @@ TYPE_FIELDS_MAP = {
     'artist': {'image', 'title'},
     'movie': {'image', 'year', 'title', 'duration', 'plays', 'rating'},
     'show': {'image', 'year', 'title', 'duration', 'plays', 'rating'},
-    'season': {'image', 'year', 'show', 'title', 'plays'},
+    'season': {'image', 'show', 'title', 'plays'},
     'episode': {'image', 'year', 'show', 'season', 'title', 'duration', 'plays', 'rating'},
 }
 
@@ -56,26 +55,22 @@ TYPE_FIELDS_MAP = {
 class ResultRow:
     __counter = count()
 
-    def __init__(self, result_type: str, img_size: tuple[int, int] = None, show_fields: Collection = None):
+    def __init__(self, img_size: tuple[int, int] = None):
         self.img_size = img_size or (40, 40)
         self._num = next(self.__counter)
         kp = f'result:{self._num}'
-        self.image = ExtendedImage(size=self.img_size, key=f'{kp}:cover')
-        self.result_type = result_type
-        show_fields = show_fields or TYPE_FIELDS_MAP[result_type]
+        self.image = ExtendedImage(size=self.img_size, key=f'{kp}:cover', pad=((20, 5), 3))
+        self.result_type = None
         self.fields: dict[str, ExtText] = {
             field: ExtText(
-                size=size,
-                key=f'{kp}:{field}',
-                justification='right' if field == 'plays' else None,
-                visible=field in show_fields,
+                size=size, key=f'{kp}:{field}', justification='right' if field in ('duration', 'plays') else None
             )
             for field, size in FIELD_SIZES.items()
         }
         self.rating = Rating(key=f'{kp}:rating')
-        self.row = [self.image, *self.fields.values(), self.rating]
+        row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating]
         self.column = Column(
-            [self.row], key=kp, visible=False, justification='center', element_justification='center', expand_x=True
+            [row], key=kp, visible=False, justification='center', element_justification='center', expand_x=True
         )
 
     def hide(self):
@@ -84,60 +79,50 @@ class ResultRow:
     def clear(self, hide: bool = True):
         if hide:
             self.hide()
-        # visible = False if hide else None
         for text_ele in self.fields.values():
             text_ele.value = ''
-            # text_ele.update('')
-            # text_ele.update('', visible=visible)
         self.image.image = None
         self.rating.update(0)
-        # self.rating.update(0, visible=visible)
 
     def set_result_type(self, result_type: str, show_fields: Collection = None, hide: bool = False):
         if result_type != self.result_type:
             self.result_type = result_type
             show_fields = show_fields or TYPE_FIELDS_MAP[result_type]
-            for text_ele in self.fields.values():
-                text_ele.hide()
             for field, text_ele in self.fields.items():
-                if field in show_fields:
-                    text_ele.make_visible()
-                # text_ele.update_visibility(field in show_fields)
+                text_ele.update_visibility(field in show_fields)
             if hide:
                 self.hide()
-            else:
-                self.column.expand(expand_x=True, expand_row=True)
 
     def update(self, result: Result):
         field_link_map = plex_links(result)
         field_value_map = field_values(result)
-        # self.fields['title'].update(result.title, link=field_link_map.get('title'), visible=True)
         self.fields['title'].update(result.title, link=field_link_map.get('title'))
         for field, value in field_value_map.items():
-            # self.fields[field].update(value, link=field_link_map.get(field), visible=True)
             self.fields[field].update(value, link=field_link_map.get(field))
         if not isinstance(result, Season):
             self.rating.update(result.userRating)
         self.image.image = get_images(result, self.img_size)
         self.column.update(visible=True)
+        self.column.expand(True, True, True)
 
 
 class ResultTable(Column):
     __counter = count()
 
-    def __init__(
-        self, result_type: str, rows: int = 100, img_size: tuple[int, int] = None, sort_by: str = None, **kwargs
-    ):
-        show_fields = TYPE_FIELDS_MAP[result_type]
-        self.rows = [ResultRow(result_type, img_size, show_fields) for _ in range(rows)]
+    def __init__(self, rows: int = 100, img_size: tuple[int, int] = None, sort_by: str = None, **kwargs):
+        self.rows = [ResultRow(img_size) for _ in range(rows)]
         header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1)}
         self.headers: dict[str, ExtText] = {
-            header: ExtText(header.title(), size=size, key=f'header:{header}', visible=header in show_fields)
+            header: ExtText(
+                header.title(),
+                size=size,
+                key=f'header:{header}',
+                justification='right' if header in ('duration', 'plays') else None,
+            )
             for header, size in header_sizes.items()
         }
-        self.headers['year'].Pad = ((10, 5), 3)
-        self.header_column = Column([list(self.headers.values())], key='headers', justification='left')
-        self.result_type = result_type
+        self.header_column = Column([[h.pin for h in self.headers.values()]], key='headers', pad=(0, 0))
+        self.result_type = None
         self.results: Optional[list[Result]] = None
         self.result_count = 0
         self.last_page_count = 0
@@ -148,24 +133,24 @@ class ResultTable(Column):
         kwargs.setdefault('vertical_scroll_only', True)
         kwargs.setdefault('element_justification', 'center')
         kwargs.setdefault('justification', 'center')
-        layout = [[self.header_column], [HorizontalSeparator()], *([tr.column] for tr in self.rows)]
+        layout = [
+            [self.header_column],
+            [HorizontalSeparator()],
+            *([tr.column] for tr in self.rows),
+            [Image(size=(kwargs['size'][0], 1), pad=(0, 0))]
+        ]
         super().__init__(layout, **kwargs)
 
     def set_result_type(self, result_type: str):
         if result_type != self.result_type:
             self.result_type = result_type
             show_fields = TYPE_FIELDS_MAP[result_type]
-            for header_ele in self.headers.values():
-                header_ele.hide()
             for field, header_ele in self.headers.items():
-                if field in show_fields:
-                    header_ele.make_visible()
-                # header_ele.update_visibility(field in show_fields)
+                header_ele.update_visibility(field in show_fields)
             for row in self.rows:
                 if hide := row.column._visible:
                     row.clear(False)
                 row.set_result_type(result_type, show_fields, hide)
-            self.header_column.expand(expand_x=True, expand_row=True)
             self.expand(expand_x=True, expand_row=True)
             self.contents_changed()
 
@@ -265,7 +250,7 @@ def field_values(result: Result) -> dict[str, str]:
     field_value_map = {'plays': result.viewCount}
     if not isinstance(result, (Season, Album)):
         field_value_map['duration'] = format_duration(result.duration)
-    if not isinstance(result, Track):
+    if not isinstance(result, (Track, Season)):
         field_value_map['year'] = result.year
 
     if isinstance(result, Track):

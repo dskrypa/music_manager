@@ -25,6 +25,8 @@ ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', defaults=DEFAULT_CONFIG):
+    # _log_clicks = True
+
     def __init__(self, *, plex: LocalPlexServer = None, **kwargs):
         super().__init__(**kwargs)
         self.menu = [
@@ -61,7 +63,8 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         popup_warning('No library sections are available!')
         raise RuntimeError('No library sections are available!')
 
-    def get_result_type(self, lib_section: LibrarySection):
+    def get_result_type(self, lib_section: LibrarySection = None):
+        lib_section = lib_section or self.last_section
         section_type = lib_section.type
         if last_type := self.config.get(f'last_type:{section_type}'):
             return last_type

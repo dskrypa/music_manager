@@ -8,7 +8,7 @@ import logging
 from functools import cached_property
 from itertools import count
 from pathlib import Path
-from typing import Optional, Literal, Iterator
+from typing import Optional, Literal, Iterator, Callable
 
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -38,6 +38,7 @@ class Rating(Column):
         show_value: bool = False,
         disabled: bool = False,
         tooltip: str = None,
+        change_cb: Callable = None,
         **kwargs
     ):
         if color not in ('mix', 'black', 'gold'):
@@ -52,7 +53,13 @@ class Rating(Column):
         self._disabled = disabled
         self._tooltip = tooltip
         self._val_change_cb = None
+        self._last_cb_rating = self.rating
+        self._button_down = False
+        self._change_cb = change_cb
         super().__init__(self.prepare_layout(), key=self._key, **kwargs)
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}({self.rating}, key={self._key!r}, {self._show_value=}, {self._disabled=})>'
 
     @cached_classproperty
     def __star_images(cls) -> dict[Color, dict[FillAmount, PILImage]]:  # noqa
@@ -117,6 +124,7 @@ class Rating(Column):
                     yield image
 
     def _handle_star_clicked(self, event):
+        self._button_down = True
         rating = round(int(100 * event.x / self.star_element.Widget.winfo_width()) / 10)
         self.rating = rating = 10 if rating > 10 else 0 if rating < 0 else rating
         if rating_input := self.rating_input:
@@ -144,6 +152,7 @@ class Rating(Column):
 
         self.rating = value
         self.star_element.image = self._combined_stars()
+        self._maybe_callback()
 
     def validated(self, valid: bool):
         if self._valid_value != valid:
@@ -159,11 +168,22 @@ class Rating(Column):
         if (rating_input := self.rating_input) and not self._valid_value:
             rating_input.validated(False)
 
+    def _handle_button_released(self, event):
+        self._button_down = False
+        self._maybe_callback()
+
+    def _maybe_callback(self):
+        if self._change_cb is not None and not self._button_down:
+            if self._last_cb_rating != self.rating and self._valid_value:
+                self._last_cb_rating = self.rating
+                self._change_cb(self)
+
     def enable(self):
         if not self._disabled:
             return
         widget = self.star_element.Widget
         widget.bind('<Button-1>', self._handle_star_clicked)
+        widget.bind('<ButtonRelease-1>', self._handle_button_released)
         widget.bind('<B1-Motion>', self._handle_star_clicked)
         if rating_input := self.rating_input:
             rating_input.update(disabled=False)
@@ -214,5 +234,5 @@ if __name__ == '__main__':
     init_logging(10, names=None, millis=True, set_levels={'PIL': 30})
 
     # BasePopup.test_popup([[Rating(i), Text(f'Rating: {i:>2d} {stars(i)}')] for i in range(11)])
-    BasePopup.test_popup([[Rating(i, show_value=True)] for i in range(11)])
+    BasePopup.test_popup([[Rating(i, show_value=True, change_cb=print)] for i in range(11)])
     # BasePopup.test_popup([[Rating(i)] for i in range(11)])

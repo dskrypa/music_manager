@@ -14,11 +14,13 @@ from tempfile import gettempdir
 from typing import Union, Collection, Optional
 from urllib.parse import quote
 
+from plexapi.base import PlexPartialObject
 from plexapi.audio import Track, Album, Artist
 from plexapi.video import Movie, Show, Season, Episode
 from PySimpleGUI import Column, HorizontalSeparator, Image
 from requests import RequestException
 
+from ...common.ratings import stars
 from ...common.images import as_image, scale_image, ImageType
 from ..constants import LoadingSpinner
 from ..elements import ExtendedImage, Rating, ExtText
@@ -67,11 +69,12 @@ class ResultRow:
             )
             for field, size in FIELD_SIZES.items()
         }
-        self.rating = Rating(key=f'{kp}:rating')
+        self.rating = Rating(key=f'{kp}:rating', change_cb=self.rating_changed)
         row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating]
         self.column = Column(
             [row], key=kp, visible=False, justification='center', element_justification='center', expand_x=True
         )
+        self.plex_obj: Optional[PlexPartialObject] = None
 
     def hide(self):
         self.column.update(visible=False)
@@ -94,6 +97,7 @@ class ResultRow:
                 self.hide()
 
     def update(self, result: Result):
+        self.plex_obj = result
         field_link_map = plex_links(result)
         field_value_map = field_values(result)
         self.fields['title'].update(result.title, link=field_link_map.get('title'))
@@ -104,6 +108,10 @@ class ResultRow:
         self.image.image = get_images(result, self.img_size)
         self.column.update(visible=True)
         self.column.expand(True, True, True)
+
+    def rating_changed(self, rating: Rating):
+        log.info(f'Updating rating for {self.plex_obj} to {stars(rating.rating)}')
+        self.plex_obj.edit(**{'userRating.value': rating.rating})
 
 
 class ResultTable(Column):

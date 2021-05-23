@@ -9,7 +9,7 @@ import webbrowser
 from tkinter import Label
 from typing import Union
 
-from PySimpleGUI import Text
+from PySimpleGUI import Text, COLOR_SYSTEM_DEFAULT
 
 __all__ = ['ExtText']
 log = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ class ExtText(Text):
     @property
     def url(self):
         if link := self._link:
-            url = link if isinstance(link, str) else self.value
+            url = link if isinstance(link, str) else self.DisplayText
             return url if url.startswith(('http://', 'https://')) else None
         return None
 
@@ -71,21 +71,65 @@ class ExtText(Text):
         self._tk_label = label
         self._enable_link()
 
-    def update(self, *args, link: Union[bool, str] = None, **kwargs):
-        super().update(*args, **kwargs)
+    def style(self, background_color=None, text_color=None, font=None):
+        kwargs = {}
+        if background_color not in (None, COLOR_SYSTEM_DEFAULT):
+            kwargs['background'] = background_color
+        if text_color not in (None, COLOR_SYSTEM_DEFAULT):
+            kwargs['fg'] = text_color
+        if font is not None:
+            kwargs['font'] = font
+        if kwargs:
+            self._tk_label.configure(**kwargs)
+
+    def update_link(self, link: Union[bool, str]):
+        old_link = self._link
+        self._link = link
+        self.set_tooltip(self._tooltip())
+        if link and not old_link:
+            self._enable_link()
+        elif old_link and not link:
+            self._tk_label.unbind('<Control-Button-1>')
+            self._tk_label.configure(cursor='')
+
+    def update(
+        self, value=None, link: Union[bool, str] = None, background_color=None, text_color=None, font=None, visible=None
+    ):
+        if value is not None:
+            self.value = value
+        if background_color or text_color or font:
+            self.style(background_color, text_color, font)
         if link is not None:
-            old_link = self._link
-            self._link = link
-            self.set_tooltip(self._tooltip())
-            if link and not old_link:
-                self._enable_link()
-            elif old_link and not link:
-                self._tk_label.unbind('<Control-Button-1>')
-                self._tk_label.configure(cursor='')
+            self.update_link(link)
+        if visible is not None:
+            self.update_visibility(visible)
+
+    def update_visibility(self, visible: bool):
+        if visible:
+            self.make_visible()
+        else:
+            self.hide()
+
+    def hide(self, force: bool = False):
+        if force or self._visible:
+            self._tk_label.pack_forget()
+            self._visible = False
+
+    def make_visible(self, force: bool = False):
+        if force or not self._visible:
+            x, y = self.pad_used
+            self._tk_label.pack(padx=x, pady=y)
+            self._visible = True
 
     @property
     def value(self):
-        return self.get()
+        return self.DisplayText
+
+    @value.setter
+    def value(self, value):
+        value = str(value)
+        self.DisplayText = value
+        self.TKStringVar.set(value)
 
     def _open_link(self, event):
         if (url := self.url) is not None:

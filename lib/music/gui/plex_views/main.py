@@ -17,6 +17,7 @@ from ...plex.server import LocalPlexServer
 from ..base_view import event_handler, GuiView, Event, EventData, RenderArgs
 from ..popups.simple import popup_input_invalid
 from ..popups.text import popup_warning
+from .constants import LIB_TYPE_ENTITY_MAP
 
 __all__ = ['PlexView']
 DEFAULT_CONFIG = {'config_path': '~/.config/plexapi/config.ini'}
@@ -59,6 +60,13 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
 
         popup_warning('No library sections are available!')
         raise RuntimeError('No library sections are available!')
+
+    def get_result_type(self, lib_section: LibrarySection):
+        section_type = lib_section.type
+        if last_type := self.config.get(f'last_type:{section_type}'):
+            return last_type
+        entity_types = LIB_TYPE_ENTITY_MAP[section_type]
+        return entity_types[0]
 
     def get_render_args(self) -> RenderArgs:
         layout = [[Menu(self.menu)]]

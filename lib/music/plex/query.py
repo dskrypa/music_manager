@@ -84,7 +84,8 @@ class QueryResults:
         return self
 
     def _query(self, obj_type: PlexObjTypes, **kwargs):
-        return self.server.query(obj_type, **kwargs)
+        log.debug(f'Submitting query for {obj_type=} {kwargs=}')
+        return self.server.query(obj_type, section=self._library_section_id, **kwargs)
 
     def __serializable__(self):
         return self.results()
@@ -143,6 +144,15 @@ class QueryResults:
         else:
             raise InvalidQueryFilter(f'from_artist() is only permitted for track and album results')
 
+    def of_show(self, **kwargs):
+        show_keys = self._query('show', **kwargs).keys(-9)
+        if self._type == 'season':
+            return self._new(self._filter(self._data, parentKey__in=show_keys))
+        elif self._type == 'episode':
+            return self._new(self._filter(self._data, grandparentKey__in=show_keys))
+        else:
+            raise InvalidQueryFilter(f'of_show() is only permitted for season and episode results')
+
     def _apply_custom_filters(self, kwargs) -> 'QueryResults':
         result = self
         if in_playlist := kwargs.pop('in_playlist', None):
@@ -154,6 +164,10 @@ class QueryResults:
         if result._type == 'track':
             if album_keys := _prefixed_filters('album', kwargs):
                 result = result.from_album(**_extract_kwargs(kwargs, album_keys))
+            if year_keys := _prefixed_filters('year', kwargs):
+                kwargs.update({f'parentYear{key[4:]}': kwargs.pop(key) for key in year_keys})
+        if show_keys := _prefixed_filters('show', kwargs):
+            result = result.of_show(**_extract_kwargs(kwargs, show_keys))
         return result
 
     def _filter(self, data: RawResultData, msg: Optional[str] = None, **kwargs):

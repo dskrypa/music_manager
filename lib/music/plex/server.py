@@ -8,11 +8,11 @@ import logging
 from configparser import NoSectionError
 from functools import cached_property
 from pathlib import Path
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Union
 
 from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
 from plexapi.audio import Track, Artist, Album
-from plexapi.library import MusicSection, Library
+from plexapi.library import MusicSection, Library, LibrarySection
 from plexapi.myplex import MyPlexAccount
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
@@ -29,6 +29,7 @@ from .typing import PlexObjTypes, PlexObj
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
+LibSection = Union[str, int, LibrarySection]
 
 
 class LocalPlexServer:
@@ -121,12 +122,26 @@ class LocalPlexServer:
     def _library(self) -> Library:
         return self._session.library
 
+    def _section(self, section: LibSection) -> LibrarySection:
+        if isinstance(section, LibrarySection):
+            return section
+        elif isinstance(section, str):
+            return self._library.section(section)
+        elif isinstance(section, int):
+            for lib_section in self._library.sections():
+                if lib_section.key == section:
+                    return lib_section
+            raise ValueError(f'No lib section found for id={section}')
+        else:
+            raise TypeError(f'Unexpected lib section type={type(section)}')
+
     @cached_property
     def music(self) -> MusicSection:
         return self._library.section(self.music_library)
 
-    def _ekey(self, search_type: PlexObjTypes) -> str:
-        ekey = f'/library/sections/1/all?type={SEARCHTYPES[search_type]}'
+    def _ekey(self, search_type: PlexObjTypes, section: LibSection = None) -> str:
+        section = self._section(section) if section is not None else self.music
+        ekey = f'/library/sections/{section.key}/all?type={SEARCHTYPES[search_type]}'
         # log.debug(f'Resolved {search_type=!r} => {ekey=!r}')
         return ekey
 
@@ -137,8 +152,8 @@ class LocalPlexServer:
         """
         return self.get_tracks(userRating__gte=rating, **kwargs)
 
-    def find_song_by_path(self, path: str) -> Optional[Track]:
-        return self.get_track(media__part__file=path)
+    def find_song_by_path(self, path: str, section: LibSection = None) -> Optional[Track]:
+        return self.get_track(media__part__file=path, section=section)
 
     def get_artists(self, name, mode='contains', **kwargs) -> set[Artist]:
         kwargs.setdefault('title__{}'.format(mode), name)
@@ -148,8 +163,8 @@ class LocalPlexServer:
         kwargs.setdefault('title__{}'.format(mode), name)
         return self.find_objects('album', **kwargs)
 
-    def find_object(self, obj_type: PlexObjTypes, **kwargs) -> Optional[PlexObj]:
-        return self.query(obj_type).filter(**kwargs).result()
+    def find_object(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> Optional[PlexObj]:
+        return self.query(obj_type, section=section).filter(**kwargs).result()
 
     def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> set[PlexObj]:
         return self.query(obj_type, **kwargs).results()
@@ -160,9 +175,10 @@ class LocalPlexServer:
     def get_tracks(self, **kwargs) -> set[Track]:
         return self.find_objects('track', **kwargs)
 
-    def query(self, obj_type: PlexObjTypes, **kwargs) -> QueryResults:
-        data = self.music._server.query(self._ekey(obj_type))
-        return QueryResults(self, obj_type, data).filter(**kwargs)
+    def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
+        section = self._section(section) if section is not None else self.music
+        data = section._server.query(self._ekey(obj_type, section))
+        return QueryResults(self, obj_type, data, section.key).filter(**kwargs)
 
     @property
     def playlists(self) -> dict[str, Playlist]:

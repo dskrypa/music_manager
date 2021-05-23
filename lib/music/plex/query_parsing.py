@@ -22,16 +22,16 @@ PLEX_QUERY_GRAMMAR = r"""
 ?start: query
 query: key_val_expr (_WS key_val_expr)*
 key_val_expr: KEY operation value
-operation.2: _WS NOT (_US | _WS) OP _WS | _WS EXC? OP _WS | _WS? EXC? (EQ | LIKE) _WS? | _WS? DEQ _WS?
+operation.2: _WS NOT (_US | _WS) TEXT_OP _WS | _WS EXC? TEXT_OP _WS | _WS? EXC? (EQ | LIKE) _WS? | _WS? MATH_OP _WS?
 value: ESCAPED_STRING | VALUE (_WS VALUE)*
 
 KEY: /[a-zA-Z]+/
 VALUE: /[^!=~\s]+/
-OP: /(like(_exact)?|i?(contains|endswith|eq|exact|regex|startswith)|is(_odd|_even)?|[gl]te?|ne|in|lc|exists|n?sregex|notset)/i
+TEXT_OP: /(like(_exact)?|i?(contains|endswith|eq|exact|regex|startswith)|is(_odd|_even)?|[gl]te?|ne|in|lc|exists|n?sregex|notset)/i
+MATH_OP: "<=" | "<" | ">=" | ">" | "=="
 NOT: "NOT"i
 EXC: "!"
 EQ: "="
-DEQ: "=="
 LIKE: "~"
 _US: "_"
 
@@ -98,6 +98,8 @@ class PlexQuery:
 
 
 class QueryTransformer(Transformer):
+    math_op_value_map = {'>=': 'gte', '>': 'gt', '<=': 'lte', '<': 'lt', '==': 'exact'}
+
     @v_args()
     def operation(self, parts: Iterable[str]) -> str:
         return ''.join(parts)
@@ -128,9 +130,11 @@ class QueryTransformer(Transformer):
     def LIKE(self, tok: Token) -> str:  # noqa
         return 'like'
 
+    def MATH_OP(self, tok: Token) -> str:  # noqa
+        return self.math_op_value_map[tok.value]
+
     VALUE = KEY
     EXC = NOT
-    DEQ = EQ
 
 
 class BaseQueryParseError(Exception):

@@ -1,7 +1,14 @@
 Music Manager
 =============
 
-WIP - In the process of rewriting portions of this, and moving it from a catch-all repository.
+This project has 2 major components:
+
+- Music Manager: Tag editor that includes automatic tag cleanup and wiki match capabilities to fill in missing info
+  automatically
+- Plex Manager: Utility for syncing playlists in Plex based on custom rules, for syncing Plex ratings to/from files,
+  and for rating tracks in a way that supports specifying 1/2 stars (due to lack of web UI support)
+
+Both components now include a GUI, mostly built using `PySimpleGUI <http://www.PySimpleGUI.org>`_.
 
 
 Installation
@@ -12,14 +19,14 @@ If installing on Linux, you should run the following first::
     $ sudo apt-get install python3-dev
 
 
-Regardless of OS, setuptools is required::
+Regardless of OS, setuptools is required (it should already be present in most cases)::
 
-    $ pip3 install setuptools
+    $ pip install setuptools
 
 
 All of the other requirements are handled in setup.py, which will be run when you install like this::
 
-    $ pip3 install git+git://github.com/dskrypa/music_manager
+    $ pip install git+git://github.com/dskrypa/music_manager
 
 
 Examples - Old

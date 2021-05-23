@@ -117,7 +117,8 @@ class ResultRow:
 class ResultTable(Column):
     __counter = count()
 
-    def __init__(self, rows: int = 100, img_size: tuple[int, int] = None, sort_by: str = None, **kwargs):
+    def __init__(self, rows: int = 50, img_size: tuple[int, int] = None, sort_by: str = None, **kwargs):
+        self.img_size = img_size
         self.rows = [ResultRow(img_size) for _ in range(rows)]
         header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1)}
         self.headers: dict[str, ExtText] = {
@@ -142,10 +143,10 @@ class ResultTable(Column):
         kwargs.setdefault('element_justification', 'center')
         kwargs.setdefault('justification', 'center')
         layout = [
+            [Image(size=(kwargs['size'][0], 1), pad=(0, 0))],
             [self.header_column],
             [HorizontalSeparator()],
             *([tr.column] for tr in self.rows),
-            [Image(size=(kwargs['size'][0], 1), pad=(0, 0))]
         ]
         super().__init__(layout, **kwargs)
 
@@ -195,6 +196,8 @@ class ResultTable(Column):
         self.contents_changed()
 
     def sort_results(self, sort_by: str):
+        # TODO: Add handling for clicking a column header to sort ascending/descending by that column
+        #  + remember last field+asc/desc per obj type
         self.sort_by = sort_by
         with Spinner(LoadingSpinner.blue_dots) as spinner:
             self.results = sorted(self.results, key=attrgetter(self.sort_by))

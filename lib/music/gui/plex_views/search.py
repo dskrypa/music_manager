@@ -4,7 +4,7 @@ View: Search results
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Text, Button, Combo, Image
+from PySimpleGUI import Text, Button, Combo
 
 from ...plex.query_parsing import PlexQuery, QueryParseError
 from ..base_view import event_handler, RenderArgs, Event, EventData
@@ -33,12 +33,10 @@ class PlexSearchView(PlexView, view_name='search'):
         self.lib_section = section = self.last_section
         result_type = self.get_result_type(section)
         self.section_picker = Combo(list(self.lib_sections), section.title, enable_events=True, key='section')
-        self.type_picker = Combo(
-            LIB_TYPE_ENTITY_MAP[section.type], result_type.title(), enable_events=True, key='entity_types'
-        )
+        self.type_picker = Combo(LIB_TYPE_ENTITY_MAP[section.type], result_type.title(), enable_events=True, key='type')
         self.query = ExtInput('title~.*', size=(150, 1), key='query', focus=True)
         win_w, win_h = self._window_size
-        self.results = ResultTable(size=(win_w - 40, win_h - 160))  # TODO: render time goes from 0.375 to > 2.5s going from 10 to 100 rows
+        self.results = ResultTable(size=(win_w - 40, win_h - 160))
 
     @property
     def result_type(self):
@@ -50,19 +48,12 @@ class PlexSearchView(PlexView, view_name='search'):
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-
-        search_row = [
-            Text('Section:'),
-            self.section_picker,
-            self.type_picker,
-            Text('Query:'),
-            self.query,
-            Button('Search', bind_return_key=True),
-        ]
+        search = Button('Search', bind_return_key=True)
         layout = [
             [self.options.as_frame()],
-            [search_row],
-            [Image(key='spacer::1'), self.results, Image(key='spacer::2')],
+            [Text('Section:'), self.section_picker, self.type_picker, Text('Query:'), self.query, search],
+            # [],  # TODO: Page chooser / back/next
+            [self.results],
         ]
 
         full_layout.extend(layout)
@@ -72,11 +63,6 @@ class PlexSearchView(PlexView, view_name='search'):
         super().post_render()
         self.query.Widget.icursor(len(self.query.DefaultText))
         self.result_type = self.get_result_type()
-
-    # def _output_size(self):
-    #     win_w, win_h = self._window_size
-    #     width, height = ((win_w - 180) // 7, (win_h - 214) // 16)
-    #     return width, height
 
     @event_handler
     def section(self, event: Event, data: EventData):
@@ -89,7 +75,7 @@ class PlexSearchView(PlexView, view_name='search'):
                 self.type_picker.update(result_type.title(), LIB_TYPE_ENTITY_MAP[section.type])
 
     @event_handler
-    def entity_types(self, event: Event, data: EventData):
+    def type(self, event: Event, data: EventData):
         if (result_type := self.type_picker.get().lower()) != self.result_type:
             self.config[f'last_type:{self.lib_section.type}'] = self.result_type = result_type
 

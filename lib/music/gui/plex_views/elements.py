@@ -80,6 +80,7 @@ class ResultRow:
         self.column.update(visible=False)
 
     def clear(self, hide: bool = True):
+        # TODO: Subsequent queries sometimes still show old values, specifically year, at least
         if hide:
             self.hide()
         for text_ele in self.fields.values():

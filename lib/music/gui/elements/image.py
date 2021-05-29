@@ -107,8 +107,8 @@ class ExtendedImage(ImageElement):
                 if self._bind_click:
                     self._widget.bind('<Button-1>', self.handle_click)
                 if image.format == 'GIF':
-                    last_n = self._animation.frame_num if self._animation else 0
-                    self._animation = Animation(self._widget, image, self._current_size, last_n)
+                    n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
+                    self._animation = Animation(self._widget, image, self._current_size, n, paused)
 
     def _get_size(self, width: int, height: int):
         if (image := self._image) is not None:
@@ -130,14 +130,16 @@ class ExtendedImage(ImageElement):
 
 
 class Animation:
-    def __init__(self, widget: Label, image: PILImage, size: tuple[int, int], last_frame_num: int = 0):
+    def __init__(
+        self, widget: Label, image: PILImage, size: tuple[int, int], last_frame_num: int = 0, paused: bool = False
+    ):
         self._widget = widget
         self._size = size
         self._frames = AnimatedGif(image).resize(size, 1).cycle(PhotoImage)
         self._frames.n = last_frame_num
         log.debug(f'Prepared {len(self._frames)} frames')
         self._next_id = widget.after(self._frames.first_delay, self.next)
-        self._run = True
+        self._run = not paused
 
     @property
     def current_image(self) -> PILImage:
@@ -146,6 +148,10 @@ class Animation:
     @property
     def frame_num(self) -> int:
         return self._frames.n
+
+    @property
+    def paused(self):
+        return not self._run
 
     def next(self):
         frame, delay = next(self._frames)

@@ -144,7 +144,8 @@ class ImageView2(ImageView, view_name='show_image_2', primary=False):
     def handle_click(self, event):
         pos = (event.x, event.y)
         color = self.gui_img.get_pixel_color(*pos)
-        self.log.info(f'Click {pos=} {color=}')
+        hex_color = ''.join(map('{:02X}'.format, color[:3]))
+        self.log.info(f'Click {pos=} {color=} hex_color=#{hex_color}')
 
 
 if __name__ == '__main__':

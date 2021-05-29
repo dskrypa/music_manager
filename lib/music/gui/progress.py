@@ -5,6 +5,7 @@ Progress indicator helpers
 """
 
 import logging
+from pathlib import Path
 from typing import Union, TypeVar, Iterable, Iterator
 
 from PySimpleGUI import popup_animated, ProgressBar
@@ -12,6 +13,7 @@ from PySimpleGUI import popup_animated, ProgressBar
 from ..files.track.track import SongFile
 
 __all__ = ['Spinner', 'ProgressTracker']
+SPINNERS_DIR = Path(__file__).resolve().parents[3].joinpath('icons', 'spinners')
 log = logging.getLogger(__name__)
 T = TypeVar('T')
 
@@ -24,8 +26,9 @@ class Spinner:
     automatically advance the animation on each iteration.
     """
 
-    def __init__(self, image_source: Union[str, bytes], *args, **kwargs):
-        self.image_source = image_source
+    def __init__(self, image_source: Union[str, bytes] = None, *args, **kwargs):
+        # TODO: Remove the constants file with base64 gifs
+        self.image_source = image_source or SPINNERS_DIR.joinpath('blue_dots_noalpha.gif')
         self.args = args
         self.kwargs = kwargs
         self.update()

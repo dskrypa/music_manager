@@ -20,8 +20,8 @@ from plexapi.video import Movie, Show, Season, Episode
 from PySimpleGUI import Column, HorizontalSeparator, Image
 from requests import RequestException
 
+from ds_tools.images.utils import ImageType, as_image, scale_image
 from ...common.ratings import stars
-from ...common.images import as_image, scale_image, ImageType
 from ..constants import LoadingSpinner
 from ..elements import ExtendedImage, Rating, ExtText
 from ..popups.text import popup_ok

@@ -11,7 +11,7 @@ from typing import Union
 from PIL import Image
 from PySimpleGUI import Image as GuiImage
 
-from ...common.images import ImageType, as_image
+from ds_tools.images.utils import ImageType, as_image
 from ..elements.image import ExtendedImage
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from .base import BasePopup

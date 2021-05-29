@@ -18,10 +18,10 @@ from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listb
 from PySimpleGUI import HorizontalSeparator, VerticalSeparator, WRITE_ONLY_KEY
 
 from ds_tools.fs.paths import get_user_cache_dir
+from ds_tools.images.utils import ImageType
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
 from ...common.ratings import stars_from_256
-from ...common.images import ImageType
 from ...files.album import AlbumDir
 from ...files.exceptions import TagNotFound
 from ...files.track.track import SongFile

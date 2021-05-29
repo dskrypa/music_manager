@@ -8,7 +8,7 @@ import logging
 import webbrowser
 from functools import cached_property
 from tkinter import Label, X, Y, BOTH
-from typing import Union
+from typing import Union, Any
 
 from PySimpleGUI import Text, COLOR_SYSTEM_DEFAULT, pin
 
@@ -98,7 +98,13 @@ class ExtText(Text):
             self._tk_label.configure(cursor='')
 
     def update(
-        self, value=None, link: Union[bool, str] = None, background_color=None, text_color=None, font=None, visible=None
+        self,
+        value: Any = None,
+        link: Union[bool, str] = None,
+        background_color: str = None,
+        text_color: str = None,
+        font: Union[str, int, tuple[str, int]] = None,
+        visible: bool = None,
     ):
         if value is not None:
             self.value = value

@@ -9,10 +9,11 @@ from time import monotonic
 from typing import Union
 
 from PIL import Image
-from PySimpleGUI import Image as GuiImage
+from PySimpleGUI import Image as GuiImage, Button, Column
 
 from ds_tools.images.utils import ImageType, as_image
 from ..elements.image import ExtendedImage
+from ..elements.text import ExtText
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from .base import BasePopup
 
@@ -80,6 +81,72 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         return layout, kwargs
 
 
+class ImageView2(ImageView, view_name='show_image_2', primary=False):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._paused = False
+        self._prev = Button('Previous', disabled=True)
+        self._next = Button('Next', disabled=True)
+        self._toggle = Button('Pause', key='play_pause')
+        self._frame_n = ExtText('', key='frame_num', visible=False, size=(3, 1))
+
+    @event_handler(default=True)
+    def default(self, event: Event, data: EventData):
+        pass
+        # self.log.debug(f'Received unhandled {event=}')
+
+    def _get_new_size(self, new_w: int, new_h: int):
+        last_w, last_h = self._last_size
+        target_w = new_w - 4
+        target_h = new_h - 6 - 60
+        # self.log.debug(f'{last_w=} {last_h=}  |  {target_w=} {target_h=}')
+        if not ((last_h == new_h and target_w < new_w) or (last_w == new_w and target_h < new_h)):
+            return target_w, target_h
+        return None
+
+    def get_render_args(self) -> RenderArgs:
+        layout = [
+            [self.gui_img],
+            [Column([[ExtText(''), self._frame_n, ExtText('')]])],
+            [self._prev, self._toggle, self._next],
+        ]
+        kwargs = {'title': self.title, 'resizable': True, 'element_justification': 'center', 'margins': (0, 0)}
+        return layout, kwargs
+
+    def post_render(self):
+        super().post_render()
+        self.gui_img._widget.bind('<Button-1>', self.handle_click)
+
+    @event_handler
+    def play_pause(self, event: Event, data: EventData):
+        self._paused = paused = not self._paused
+        if paused:
+            self.gui_img.animation.pause()
+        else:
+            self.gui_img.animation.resume()
+        self._prev.update(disabled=not paused)
+        self._next.update(disabled=not paused)
+        self._frame_n.update(self.gui_img.animation.frame_num, visible=paused)
+        self._toggle.update('Play' if paused else 'Pause')
+
+    @event_handler('Previous')
+    def previous(self, event: Event, data: EventData):
+        self.log.info(f'Rewinding...')
+        self.gui_img.animation.previous()
+        self._frame_n.update(self.gui_img.animation.frame_num)
+
+    @event_handler('Next')
+    def next(self, event: Event, data: EventData):
+        self.log.info(f'Stepping forward...')
+        self.gui_img.animation.next()
+        self._frame_n.update(self.gui_img.animation.frame_num)
+
+    def handle_click(self, event):
+        pos = (event.x, event.y)
+        color = self.gui_img.get_pixel_color(*pos)
+        self.log.info(f'Click {pos=} {color=}')
+
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -87,8 +154,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.image_path:
         from ds_tools.logging import init_logging
-        init_logging(2, log_path=None, names=None)
+        init_logging(12, log_path=None, names=None)
         try:
-            ImageView(args.image_path[0]).get_result()
+            ImageView2(args.image_path[0]).get_result()
         except Exception as e:
             print(e, file=sys.stderr)

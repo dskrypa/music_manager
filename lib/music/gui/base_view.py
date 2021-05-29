@@ -155,11 +155,12 @@ class GuiView(ABC):
             cls.allow_no_handler = allow_no_handler
         # print(f'Initialized subclass={cls.__name__!r}')
 
-    def __init__(self, binds: Mapping[str, str] = None, **kwargs):
+    def __init__(self, binds: Mapping[str, str] = None, read_timeout_ms: int = None, **kwargs):
         self.parent: Optional[GuiView] = None if self.primary else GuiView.active_view
         self._monitor = None
         self._view_num = next(self._counter)
         self.binds = binds or {}
+        self.read_timeout_ms = read_timeout_ms
         # self.log.debug(f'{self} initialized with handlers: {", ".join(sorted(self.event_handlers))}')
         if self.name not in self.wildcard_handlers:  # Populate/compile wildcard patterns once per class
             self.wildcard_handlers[self.name] = wildcard_handlers = {}
@@ -175,7 +176,7 @@ class GuiView(ABC):
 
     def __next__(self) -> tuple[Event, EventData]:
         # self.log.debug(f'[View#{self._view_num}] Calling self.window.read...', extra={'color': 11})
-        event, data = self.window.read()
+        event, data = self.window.read(self.read_timeout_ms)
         # self.log.debug(f'[View#{self._view_num}] Read {event=}', extra={'color': 10})
         if event == 'Exit' or event == WIN_CLOSED:
             raise StopIteration
@@ -371,7 +372,10 @@ class GuiView(ABC):
     def monitor(self) -> Monitor:
         if monitor := self._monitor:
             return monitor
-        x, y = pos = self.window.current_location()
+        try:
+            x, y = pos = self.window.current_location()
+        except AttributeError:  # No parent window exists
+            x, y = pos = 0, 0
         if monitor := self._get_monitor(x, y):
             self._monitor = monitor
             return monitor

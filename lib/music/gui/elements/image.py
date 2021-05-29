@@ -5,21 +5,22 @@ Extended image elements for PySimpleGUI
 """
 
 import logging
-from itertools import count
+from itertools import count, cycle
 from tkinter import Label
 from typing import Optional, Callable, Union
 
+from PIL import Image
 from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage
-from PySimpleGUI import Image
+from PySimpleGUI import Image as ImageElement
 
-from ...common.images import ImageType, as_image, calculate_resize
+from ...common.images import ImageType, as_image, calculate_resize, AnimatedGif
 
 __all__ = ['ExtendedImage', 'Spacer']
 log = logging.getLogger(__name__)
 
 
-class ExtendedImage(Image):
+class ExtendedImage(ImageElement):
     def __init__(
         self,
         image: ImageType = None,
@@ -37,6 +38,8 @@ class ExtendedImage(Image):
         self._popup_title = popup_title
         self._current_size = self._get_size(*self.Size)
         self._init_callback = init_callback
+        self._frames = None
+        self._animate = True
 
     @property
     def Widget(self) -> Optional[Label]:
@@ -72,7 +75,7 @@ class ExtendedImage(Image):
             new_w, new_h = self._get_size(width, height)
             # self.log.log(19, f'Resizing image from {img_w}x{img_h} to {new_w}x{new_h}')
             try:
-                image = PhotoImage(self._image.resize((new_w, new_h), 1))  # 1 = ANTIALIAS
+                image = PhotoImage(self._image.resize((new_w, new_h), Image.ANTIALIAS))
             except OSError as e:
                 log.warning(f'Error resizing {self._image}: {e}')
             else:
@@ -82,6 +85,18 @@ class ExtendedImage(Image):
                 self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
                 if self._bind_click:
                     self._widget.bind('<Button-1>', self.handle_click)
+                self._prepare_animation()
+
+    def _prepare_animation(self):
+        image = self._image
+        if image.format == 'GIF':
+            frames = [
+                (PhotoImage(f), f.info.get('duration', 100))
+                for f in AnimatedGif(image).resize(self._current_size, 1).frames()
+            ]
+            log.debug(f'Prepared {len(frames)} frames')
+            self._frames = cycle(frames)
+            self._widget.after(image.info.get('duration', 100), self.advance_animation)
 
     def _get_size(self, width: int, height: int):
         if (image := self._image) is not None:
@@ -93,8 +108,24 @@ class ExtendedImage(Image):
 
         ImageView(self.click_image or self._image, self._popup_title).get_result()
 
+    def advance_animation(self):
+        frame, delay = next(self._frames)
+        width, height = self._current_size
+        self._widget.configure(image=frame, width=width, height=height)
+        # self._widget.image = frame
+        # self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+        if self._animate:
+            self._widget.after(delay, self.advance_animation)
 
-class Spacer(Image):
+    def pause_animation(self):
+        self._animate = False
+
+    def play_animation(self):
+        self._animate = True
+        self.advance_animation()
+
+
+class Spacer(ImageElement):
     _count = count()
 
     def __init__(self, *args, key=None, **kwargs):

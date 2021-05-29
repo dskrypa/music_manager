@@ -18,8 +18,15 @@ __all__ = ['BasePopup']
 
 
 class BasePopup(GuiView, view_name='_base_popup', primary=False, metaclass=ABCMeta):
-    def __init__(self, title: str = '', binds: Mapping[str, str] = None, layout: Layout = None, **kwargs):
-        super().__init__(binds=binds)
+    def __init__(
+        self,
+        title: str = '',
+        binds: Mapping[str, str] = None,
+        layout: Layout = None,
+        read_timeout_ms: int = None,
+        **kwargs
+    ):
+        super().__init__(binds=binds, read_timeout_ms=read_timeout_ms)
         self.__layout = layout
         self.title = title
         self.kwargs = kwargs

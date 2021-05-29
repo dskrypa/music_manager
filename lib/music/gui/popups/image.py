@@ -4,15 +4,16 @@ View: Show Image
 :author: Doug Skrypa
 """
 
+import sys
 from time import monotonic
-from typing import Any, Union
+from typing import Union
 
 from PIL import Image
-from PySimpleGUI import Element, Image as GuiImage
+from PySimpleGUI import Image as GuiImage
 
 from ...common.images import ImageType, as_image
 from ..elements.image import ExtendedImage
-from ..base_view import event_handler
+from ..base_view import event_handler, Event, EventData, RenderArgs
 from .base import BasePopup
 
 __all__ = ['ImageView']
@@ -20,10 +21,10 @@ __all__ = ['ImageView']
 
 class ImageView(BasePopup, view_name='show_image', primary=False):
     def __init__(self, image: Union[GuiImage, ImageType], title: str = None, img_key: str = None):
+        self.pil_img = image = as_image(image.Data if isinstance(image, GuiImage) else image)
         super().__init__(binds={'<Escape>': 'Exit'})
         self._title = title or 'Image'
         self.img_key = img_key or f'img::{id(image)}'
-        self.pil_img = image = as_image(image.Data if isinstance(image, GuiImage) else image)
         self.log.debug(f'Displaying {image=} with {image.format=} mime={Image.MIME.get(image.format)!r}')
         self.orig_size = image.size
         self._last_size = init_size = self._init_size()
@@ -59,7 +60,7 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         return None
 
     @event_handler
-    def window_resized(self, event: str, data: dict[str, Any]):
+    def window_resized(self, event: Event, data: EventData):
         if self.pil_img is None:
             return
         elif monotonic() - self._last_resize < 0.1:
@@ -72,8 +73,22 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
             self.window.set_title(self.title)
             self._last_resize = monotonic()
 
-    def get_render_args(self) -> tuple[list[list[Element]], dict[str, Any]]:
+    def get_render_args(self) -> RenderArgs:
         layout = [[self.gui_img]]
         # TODO: Make large images scrollable instead of always shrinking the image; allow zoom without window resize
         kwargs = {'title': self.title, 'resizable': True, 'element_justification': 'center', 'margins': (0, 0)}
         return layout, kwargs
+
+
+if __name__ == '__main__':
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('image_path', nargs='*', help='Path to an image file')
+    args = parser.parse_args()
+    if args.image_path:
+        from ds_tools.logging import init_logging
+        init_logging(2, log_path=None, names=None)
+        try:
+            ImageView(args.image_path[0]).get_result()
+        except Exception as e:
+            print(e, file=sys.stderr)

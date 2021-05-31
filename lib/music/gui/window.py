@@ -5,6 +5,7 @@ Extended Window class from PySimpleGUI
 """
 
 import signal
+from typing import Callable
 from weakref import WeakSet
 
 from PySimpleGUI import Window as _Window
@@ -15,7 +16,8 @@ __all__ = ['Window']
 class Window(_Window):
     __instances = WeakSet()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, finalize_callback: Callable = None, **kwargs):
+        self._finalize_callback = finalize_callback
         super().__init__(*args, **kwargs)
         self.__instances.add(self)
 
@@ -26,6 +28,8 @@ class Window(_Window):
     def finalize(self):
         super().finalize()
         self.TKroot.after(250, self._sigint_fix)
+        if (callback := self._finalize_callback) is not None:
+            callback()
         return self
 
     Finalize = finalize

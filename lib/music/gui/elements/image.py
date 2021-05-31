@@ -7,6 +7,7 @@ Extended image elements for PySimpleGUI
 import logging
 from inspect import Signature
 from itertools import count
+from pathlib import Path
 from tkinter import Label
 from typing import Optional, Callable, Union
 
@@ -16,6 +17,7 @@ from PIL.Image import Image as PILImage
 from PySimpleGUI import Image as ImageElement
 
 from ds_tools.images.colors import color_at_pos
+from ds_tools.images.animated.cycle import PhotoImageCycle
 from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
@@ -97,24 +99,30 @@ class ExtendedImage(ImageElement):
         if image := self._image:
             new_w, new_h = self._get_size(width, height)
             # self.log.log(19, f'Resizing image from {img_w}x{img_h} to {new_w}x{new_h}')
-            try:
-                self._current_image = resized = image.resize((new_w, new_h), Image.ANTIALIAS)
-                tk_image = PhotoImage(resized)
-            except OSError as e:
-                log.warning(f'Error resizing {image}: {e}')
+            if image.format == 'GIF':
+                n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
+                self._animation = Animation(self, self._widget, image, self._current_size, n, paused)
+                self._animation.next(True)
             else:
-                self._current_size = (new_w, new_h)
-                self._widget.configure(image=tk_image, width=new_w, height=new_h)
-                self._widget.image = tk_image
-                self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
-                if self._bind_click:
-                    self._widget.bind('<Button-1>', self.handle_click)
-                if image.format == 'GIF':
-                    n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
-                    self._animation = Animation(self, self._widget, image, self._current_size, n, paused)
+                try:
+                    self._current_image = resized = image.resize((new_w, new_h), Image.ANTIALIAS)
+                    tk_image = PhotoImage(resized)
+                except OSError as e:
+                    log.warning(f'Error resizing {image}: {e}')
+                else:
+                    self._current_size = (new_w, new_h)
+                    self._widget.configure(image=tk_image, width=new_w, height=new_h)
+                    self._widget.image = tk_image
+                    self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+            if self._bind_click:
+                self._widget.bind('<Button-1>', self.handle_click)
 
     def _get_size(self, width: int, height: int):
         if (image := self._image) is not None:
+            if width is None or height is None:
+                img_w, img_h = image.size
+                width = width if width is not None else img_w
+                height = height if height is not None else img_h
             return calculate_resize(*image.size, width, height)
         return width, height
 
@@ -177,7 +185,7 @@ class Animation:
         self,
         image_ele: ExtendedImage,
         widget: Label,
-        image: Union[PILImage, Spinner],
+        image: Union[PILImage, Spinner, Path, str],
         size: Size,
         last_frame_num: int = 0,
         paused: bool = False,
@@ -187,8 +195,13 @@ class Animation:
         self._size = size
         if isinstance(image, Spinner):
             self._frames = image.resize(size).cycle(PhotoImage)
-        else:
-            self._frames = AnimatedGif(image).resize(size, 1).cycle(PhotoImage)
+        elif isinstance(image, (Path, str)):
+            self._frames = PhotoImageCycle(Path(image).expanduser())
+        else:  # TODO: PhotoImageCycle will not result in expected resize behavior...
+            if path := getattr(image, 'filename', None) or getattr(getattr(image, 'fp', None), 'name', None):
+                self._frames = PhotoImageCycle(Path(path))
+            else:
+                self._frames = AnimatedGif(image).resize(size, 1).cycle(PhotoImage)
         self._frames.n = last_frame_num
         log.debug(f'Prepared {len(self._frames)} frames')
         self._next_id = widget.after(self._frames.first_delay, self.next)

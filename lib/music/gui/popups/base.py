@@ -10,8 +10,9 @@ from contextlib import contextmanager
 from threading import current_thread
 from typing import Mapping
 
+from PySimpleGUI import Window
+
 from ..base_view import event_handler, GuiView, Event, EventData, Layout, RenderArgs
-from ..window import Window
 
 __all__ = ['BasePopup']
 

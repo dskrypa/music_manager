@@ -8,10 +8,10 @@ import logging
 from functools import cached_property
 from typing import Union, TypeVar, Iterable, Iterator, Optional
 
-from PySimpleGUI import popup_animated, ProgressBar
+from PySimpleGUI import ProgressBar
 
 from ..files.track.track import SongFile
-from .elements.image import SpinnerImage
+from .elements.image import SpinnerImage, ExtendedImage
 from .elements.text import ExtText
 from .positioning import positioner
 from .window import Window
@@ -31,14 +31,8 @@ class Spinner:
     """
 
     def __init__(self, image_source: Union[str, bytes] = None, *args, **kwargs):
-        self.image_source = image_source
-        if image_source is None:
-            kwargs.setdefault('size', (200, 200))
-            self._popup = SpinnerPopup(**kwargs)
-        else:
-            self._popup = None
-        self.args = args
-        self.kwargs = kwargs
+        image = ExtendedImage(image_source, bind_click=False) if image_source is not None else None
+        self._popup = SpinnerPopup(image, *args, **kwargs)
         self.update()
 
     def __enter__(self):
@@ -54,24 +48,19 @@ class Spinner:
             yield item
 
     def update(self):
-        if self._popup:
-            self._popup.read()
-        else:
-            popup_animated(self.image_source, *self.args, **self.kwargs)
+        self._popup.read()
 
     def close(self):  # noqa
-        if self._popup:
-            self._popup.close()
-        else:
-            popup_animated(None)
+        self._popup.close()
 
 
 class SpinnerPopup:
     def __init__(
         self,
-        size: tuple[int, int],
+        image: ExtendedImage = None,
         message: str = None,
         *,
+        size: tuple[int, int] = None,
         bg: str = None,
         fg: str = None,
         font=None,
@@ -86,7 +75,8 @@ class SpinnerPopup:
         parent: Window = None,
         **kwargs,
     ):
-        self.image = SpinnerImage(size=size, background_color=bg, **kwargs)
+        size = size or (200, 200)
+        self.image = image or SpinnerImage(size=size, background_color=bg, **kwargs)
         self._message = message
         self.text = ExtText(message, background_color=bg, text_color=fg, font=font)
         self._parent = parent
@@ -148,7 +138,22 @@ class ProgressTracker:
 
 
 if __name__ == '__main__':
+    from argparse import ArgumentParser
     from ds_tools.logging import init_logging
+    parser = ArgumentParser()
+    parser.add_argument('image_path', nargs='*', help='Path to an image file')
+    args = parser.parse_args()
     init_logging(12, log_path=None, names=None)
-    popup = SpinnerPopup((200, 200))
-    popup.read(None)  # noqa
+
+    spinner = Spinner(
+        args.image_path[0] if args.image_path else None,
+        # size=(200, 200)
+    )
+    # popup.read(None)  # noqa
+    spinner.update()
+    # import time
+    # while True:
+    #     time.sleep(0.1)
+    #     spinner.update()
+
+    spinner._popup.read(None)  # noqa

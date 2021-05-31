@@ -12,7 +12,6 @@ from PySimpleGUI import Text, Column, HSep, Button
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, Event, EventData, RenderArgs
-from ..constants import LoadingSpinner
 from ..elements.inputs import ExtInput
 from ..options import GuiOptions
 from ..progress import Spinner
@@ -140,7 +139,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.options.parse(data)
         dry_run = self.options['dry_run']
 
-        with Spinner(LoadingSpinner.blue_dots, message='Applying Changes...') as spinner:
+        with Spinner(message='Applying Changes...') as spinner:
             file_tag_map = {file: info.tags() for file, info in self.file_info_map.items()}
             if new_image_obj := self.album_info.get_new_cover(self.album, force=True):
                 image, data, mime_type = self.album._prepare_cover_image(new_image_obj)

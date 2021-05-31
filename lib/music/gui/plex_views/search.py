@@ -8,7 +8,6 @@ from PySimpleGUI import Text, Button, Combo
 
 from ...plex.query_parsing import PlexQuery, QueryParseError
 from ..base_view import event_handler, RenderArgs, Event, EventData
-from ..constants import LoadingSpinner
 from ..elements import ExtInput
 from ..options import GuiOptions
 from ..popups.simple import popup_ok
@@ -93,7 +92,7 @@ class PlexSearchView(PlexView, view_name='search'):
         else:
             self.log.debug(f'Parsed query={kwargs}')
 
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
+        with Spinner() as spinner:
             spinner.update()
             objects = self.plex.find_objects(result_type, section=self.lib_section, **kwargs)
             spinner.update()

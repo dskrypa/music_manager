@@ -29,7 +29,7 @@ class Spinner:
     def __init__(self, image_source: Union[str, bytes] = None, *args, **kwargs):
         # TODO: Remove the constants file with base64 gifs
         # TODO: Use ExtendedImage instead of popup_animated
-        self.image_source = image_source or SPINNERS_DIR.joinpath('blue_dots_noalpha.gif')
+        self.image_source = image_source or SPINNERS_DIR.joinpath('blue_dots_noalpha.gif').as_posix()
         self.args = args
         self.kwargs = kwargs
         self.update()

@@ -13,7 +13,6 @@ from PySimpleGUI import Text, HorizontalSeparator, Column
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..base_view import event_handler, RenderArgs, Event, EventData
-from ..constants import LoadingSpinner
 from ..elements.inputs import ExtInput
 from ..popups.simple import popup_input_invalid
 from ..popups.path_prompt import get_directory
@@ -71,7 +70,7 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
         win_w, win_h = self._window_size
         max_h = win_h - 66
 
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
+        with Spinner() as spinner:
             layout = [[]]
             albums, formatters = (self.src_album, self.dst_album), (self.src_formatter, self.dst_formatter)
             for loc, album, formatter in zip(('src', 'dst'), albums, formatters):

@@ -16,7 +16,6 @@ from ...common.ratings import stars_to_256
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, RenderArgs, Event, EventData
-from ..constants import LoadingSpinner
 from ..elements.inputs import ExtInput
 from ..popups.simple import popup_ok
 from ..popups.text import popup_error, popup_get_text
@@ -96,7 +95,7 @@ class AlbumView(MainView, view_name='album'):
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
+        with Spinner() as spinner:
             album_path = self.album.path.as_posix()
             layout = [
                 [Text('Album Path:'), ExtInput(album_path, disabled=True, size=(150, 1), path=album_path)],

@@ -37,7 +37,6 @@ from PySimpleGUI import Window, WIN_CLOSED, Element, theme, theme_list
 from screeninfo import get_monitors, Monitor
 
 from .config import GuiConfig
-from .constants import LoadingSpinner
 from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
 from .options import GuiOptions
 from .progress import Spinner
@@ -496,7 +495,7 @@ class GuiView(ABC):
             self.log.debug(f'Monitor corners={mon_corners}  Window corners={win_corners}')
 
     @classmethod
-    def start_task(cls, func: Callable, args=(), kwargs=None, spinner_img=LoadingSpinner.blue_dots, **spin_kwargs):
+    def start_task(cls, func: Callable, args=(), kwargs=None, spinner_img=None, **spin_kwargs):
         with Spinner(spinner_img, **spin_kwargs) as spinner:
             t = Thread(target=func, args=args, kwargs=kwargs)
             t.start()

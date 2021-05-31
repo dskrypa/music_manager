@@ -22,7 +22,6 @@ from requests import RequestException
 
 from ds_tools.images.utils import ImageType, as_image, scale_image
 from ...common.ratings import stars
-from ..constants import LoadingSpinner
 from ..elements import ExtendedImage, Rating, ExtText
 from ..popups.text import popup_ok
 from ..progress import Spinner
@@ -200,7 +199,7 @@ class ResultTable(Column):
         # TODO: Add handling for clicking a column header to sort ascending/descending by that column
         #  + remember last field+asc/desc per obj type
         self.sort_by = sort_by
-        with Spinner(LoadingSpinner.blue_dots) as spinner:
+        with Spinner() as spinner:
             self.results = sorted(self.results, key=attrgetter(self.sort_by))
             self.show_page(1, spinner)
 
@@ -208,7 +207,7 @@ class ResultTable(Column):
         self.results = None
         self.result_count = 0
         if self.last_page_count:
-            with Spinner(LoadingSpinner.blue_dots) as spinner:
+            with Spinner() as spinner:
                 for i in spinner(range(self.last_page_count)):
                     self.rows[i].clear()
 

@@ -15,7 +15,7 @@ from PIL.Image import Image as PILImage
 from PySimpleGUI import Image as ImageElement
 
 from ds_tools.images.colors import color_at_pos
-from ds_tools.images.gif import AnimatedGif
+from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.utils import ImageType, as_image, calculate_resize
 
 __all__ = ['ExtendedImage', 'Spacer']

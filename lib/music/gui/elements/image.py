@@ -16,9 +16,10 @@ from PySimpleGUI import Image as ImageElement
 
 from ds_tools.images.colors import color_at_pos
 from ds_tools.images.animated.gif import AnimatedGif
-from ds_tools.images.utils import ImageType, as_image, calculate_resize
+from ds_tools.images.animated.spinner import Spinner
+from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
 
-__all__ = ['ExtendedImage', 'Spacer']
+__all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage']
 log = logging.getLogger(__name__)
 
 
@@ -109,7 +110,7 @@ class ExtendedImage(ImageElement):
                     self._widget.bind('<Button-1>', self.handle_click)
                 if image.format == 'GIF':
                     n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
-                    self._animation = Animation(self._widget, image, self._current_size, n, paused)
+                    self._animation = Animation(self, self._widget, image, self._current_size, n, paused)
 
     def _get_size(self, width: int, height: int):
         if (image := self._image) is not None:
@@ -130,14 +131,55 @@ class ExtendedImage(ImageElement):
         return color_at_pos(image, (x, y))
 
 
+class SpinnerImage(ExtendedImage):
+    def __init__(self, *args, bind_click: bool = False, **kwargs):
+        super().__init__(*args, bind_click=bind_click, **kwargs)
+
+    @property
+    def Widget(self) -> Optional[Label]:
+        return self._widget
+
+    @Widget.setter
+    def Widget(self, tktext_label: Label):
+        self._widget = tktext_label
+        if tktext_label is not None:
+            self.resize(*self.Size)
+            if callback := self._init_callback:
+                callback(self)
+
+    def _get_size(self, width: int, height: int):
+        try:
+            old_w, old_h = self._current_size
+        except AttributeError:
+            return width, height
+        return calculate_resize(old_w, old_h, width, height)
+
+    def resize(self, width: int, height: int):
+        new_w, new_h = calculate_resize(*self._current_size, width, height)
+        n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
+        self._animation = Animation(self, self._widget, Spinner((new_w, new_h)), self._current_size, n, paused)
+        self._animation.next(True)
+        if self._bind_click:
+            self._widget.bind('<Button-1>', self.handle_click)
+
+
 class Animation:
     def __init__(
-        self, widget: Label, image: PILImage, size: tuple[int, int], last_frame_num: int = 0, paused: bool = False
+        self,
+        image_ele: ExtendedImage,
+        widget: Label,
+        image: Union[PILImage, Spinner],
+        size: Size,
+        last_frame_num: int = 0,
+        paused: bool = False,
     ):
-        # TODO: Support ds_tools.images.animated.spinner.Spinner
+        self._image_ele = image_ele
         self._widget = widget
         self._size = size
-        self._frames = AnimatedGif(image).resize(size, 1).cycle(PhotoImage)
+        if isinstance(image, Spinner):
+            self._frames = image.resize(size).cycle(PhotoImage)
+        else:
+            self._frames = AnimatedGif(image).resize(size, 1).cycle(PhotoImage)
         self._frames.n = last_frame_num
         log.debug(f'Prepared {len(self._frames)} frames')
         self._next_id = widget.after(self._frames.first_delay, self.next)
@@ -155,12 +197,14 @@ class Animation:
     def paused(self):
         return not self._run
 
-    def next(self):
+    def next(self, init: bool = False):
         frame, delay = next(self._frames)
         width, height = self._size
         self._widget.configure(image=frame, width=width, height=height)
-        # self._widget.image = frame
-        # self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+        if init:
+            self._widget.image = frame
+            x, y = self._image_ele.pad_used
+            self._widget.pack(padx=x, pady=y)
         if self._run:
             self._next_id = self._widget.after(delay, self.next)
 

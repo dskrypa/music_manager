@@ -15,6 +15,7 @@ from ds_tools.images.utils import ImageType, as_image
 from ..elements.image import ExtendedImage
 from ..elements.text import ExtText
 from ..base_view import event_handler, Event, EventData, RenderArgs
+from ..positioning import positioner
 from .base import BasePopup
 
 __all__ = ['ImageView']
@@ -33,7 +34,7 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         self._last_resize = 0
 
     def _init_size(self):
-        monitor = self.monitor
+        monitor = positioner.get_monitor(self.window)
         img_w, img_h = self.orig_size
         return min(monitor.width - 70, img_w or 0), min(monitor.height - 70, img_h or 0)
 

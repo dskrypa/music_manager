@@ -34,11 +34,11 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collection, Union
 
 from PySimpleGUI import Window, WIN_CLOSED, Element, theme, theme_list
-from screeninfo import get_monitors, Monitor
 
 from .config import GuiConfig
-from .exceptions import NoEventHandlerRegistered, MonitorDetectionError
+from .exceptions import NoEventHandlerRegistered
 from .options import GuiOptions
+from .positioning import positioner
 from .progress import Spinner
 from .utils import ViewLoggerAdapter
 
@@ -123,7 +123,6 @@ class GuiView(ABC):
     _ele_event_match = re.compile(r'^(.*?):::([a-zA-Z_]+)$').match
     _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
     _window_pos: tuple[Optional[int], Optional[int]] = (None, None)  # x, y
-    _monitors = get_monitors()
     _log_clicks: bool = False
 
     # noinspection PyMethodOverriding
@@ -337,7 +336,7 @@ class GuiView(ABC):
             GuiView.active_view = self
         elif popup_pos:
             new_window.read(1)
-            new_window.move(*self._get_center(new_window.size))
+            new_window.move(*positioner.get_center(new_window, getattr(self.parent, 'window', None), self._window_pos))
 
         return new_window
 
@@ -360,57 +359,6 @@ class GuiView(ABC):
             # f'    event.__dict__={event.__dict__}',
             extra={'color': 14}
         )
-
-    def _get_monitor(self, x: int, y: int) -> Optional[Monitor]:
-        for m in self._monitors:
-            if m.x <= x <= m.x + m.width and m.y <= y <= m.y + m.height:
-                return m
-        return None
-
-    @property
-    def monitor(self) -> Monitor:
-        if monitor := self._monitor:
-            return monitor
-        try:
-            x, y = pos = self.window.current_location()
-        except AttributeError:  # No parent window exists
-            x, y = pos = 0, 0
-        if monitor := self._get_monitor(x, y):
-            self._monitor = monitor
-            return monitor
-        self.__class__._monitors = get_monitors()  # Maybe a monitor was added/removed - refresh known monitors
-        if monitor := self._get_monitor(x, y):
-            self._monitor = monitor
-            return monitor
-        raise MonitorDetectionError(f'Unable to determine monitor for window {pos=} from monitors={self._monitors}')
-
-    def _get_center(self, size: tuple[int, int]) -> tuple[int, int]:
-        own_w, own_h = size
-        own_h += 30  # Title bar size on Windows 10
-        if self.parent and (parent_window := self.parent.window):
-            x, y = parent_window.current_location() or self._window_pos
-            # self.log.debug(f'Initial pos=({x}, {y}) {size=}')
-            monitor = self._get_monitor(x, y)
-            par_w, par_h = parent_window.size
-            x += (par_w - own_w) // 2
-            y += (par_h - own_h) // 2
-            # self.log.debug(f'Centered on parent pos=({x}, {y})')
-        else:
-            x, y = self.window.current_location() or self._window_pos
-            monitor = self._get_monitor(x, y)
-
-        if monitor:
-            x_min = monitor.x
-            x_max = x_min + monitor.width
-            y_min = monitor.y
-            y_max = y_min + monitor.height
-            if x < x_min or (x + own_w) > x_max:
-                x = x_min + (monitor.width - own_w) // 2
-            if y < y_min or (y + own_h) > y_max:
-                y = y_min + (monitor.height - own_h) // 2
-            # self.log.debug(f'Centered on monitor pos=({x}, {y})')
-
-        return 0 if x < 0 else x, 0 if y < 0 else y
 
     def render(self):
         render_args = self.get_render_args()
@@ -482,7 +430,7 @@ class GuiView(ABC):
         window = self.window
         win_x, win_y = win_pos = window.current_location()
         win_w, win_h = win_size = window.size
-        monitor = self.monitor
+        monitor = positioner.get_monitor(window)
         mon_x, mon_y = mon_pos = monitor.x, monitor.y
         mon_w, mon_h = mon_size = monitor.width, monitor.height
         self.log.debug(

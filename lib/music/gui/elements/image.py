@@ -5,6 +5,7 @@ Extended image elements for PySimpleGUI
 """
 
 import logging
+from inspect import Signature
 from itertools import count
 from tkinter import Label
 from typing import Optional, Callable, Union
@@ -132,8 +133,16 @@ class ExtendedImage(ImageElement):
 
 
 class SpinnerImage(ExtendedImage):
+    _spinner_keys = set(Signature.from_callable(Spinner).parameters.keys())
+
     def __init__(self, *args, bind_click: bool = False, **kwargs):
-        super().__init__(*args, bind_click=bind_click, **kwargs)
+        spinner_kwargs = {key: kwargs.pop(key) for key in self._spinner_keys if key in kwargs}
+        size = spinner_kwargs.setdefault('size', (200, 200))
+        spinner_kwargs.setdefault('frame_fade_pct', 0.01)
+        spinner_kwargs.setdefault('frame_duration_ms', 20)
+        spinner_kwargs.setdefault('frames_per_spoke', 3)
+        self._spinner = Spinner(**spinner_kwargs)
+        super().__init__(*args, bind_click=bind_click, size=size, **kwargs)
 
     @property
     def Widget(self) -> Optional[Label]:
@@ -155,9 +164,9 @@ class SpinnerImage(ExtendedImage):
         return calculate_resize(old_w, old_h, width, height)
 
     def resize(self, width: int, height: int):
-        new_w, new_h = calculate_resize(*self._current_size, width, height)
+        size = calculate_resize(*self._current_size, width, height)
         n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
-        self._animation = Animation(self, self._widget, Spinner((new_w, new_h)), self._current_size, n, paused)
+        self._animation = Animation(self, self._widget, self._spinner, size, n, paused)
         self._animation.next(True)
         if self._bind_click:
             self._widget.bind('<Button-1>', self.handle_click)

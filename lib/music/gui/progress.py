@@ -76,14 +76,14 @@ class SpinnerPopup:
         no_titlebar: bool = True,
         grab_anywhere: bool = True,
         keep_on_top: bool = True,
-        location=(None, None),
+        location=(None, None),  # TODO: Auto-center
         alpha_channel=None,
         transparent_color=None,
         title: str = '',
         icon=None,
+        **kwargs,
     ):
-        # TODO: Accept/handle spinner args too
-        self.image = SpinnerImage(size=size, background_color=bg)
+        self.image = SpinnerImage(size=size, background_color=bg, **kwargs)
         self._message = message
         self.text = ExtText(message, background_color=bg, text_color=fg, font=font)
         self.kwargs = dict(
@@ -109,8 +109,8 @@ class SpinnerPopup:
     def close(self):
         self.window.close()
 
-    def read(self):
-        return self.window.read(1)
+    def read(self, timeout: int = 1):
+        return self.window.read(timeout)
 
 
 class ProgressTracker:
@@ -132,12 +132,14 @@ class ProgressTracker:
 
 
 if __name__ == '__main__':
+    import time
     from ds_tools.logging import init_logging
     init_logging(12, log_path=None, names=None)
     try:
         popup = SpinnerPopup((200, 200))
         while True:
-            popup.read()
+            popup.read(0)
+
     except Exception as e:
         import sys
         print(e, file=sys.stderr)

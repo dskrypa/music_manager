@@ -22,7 +22,6 @@ event handler loop control is transferred to that view until it is closed, and t
 
 import logging
 import re
-import signal
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from fnmatch import _compile_pattern
@@ -33,7 +32,7 @@ from threading import Thread
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collection, Union
 
-from PySimpleGUI import Window, WIN_CLOSED, Element, theme, theme_list
+from PySimpleGUI import WIN_CLOSED, Element, theme, theme_list
 
 from .config import GuiConfig
 from .exceptions import NoEventHandlerRegistered
@@ -41,6 +40,7 @@ from .options import GuiOptions
 from .positioning import positioner
 from .progress import Spinner
 from .utils import ViewLoggerAdapter
+from .window import Window
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -204,7 +204,6 @@ class GuiView(ABC):
             obj.window.write_event_value(*init_event)  # Note: data[event] => the EventData value passed here
 
         if not interactive:
-            signal.signal(signal.SIGINT, GuiView._handle_sigint)
             while True:
                 try:
                     event, data = next(cls.active_view)  # noqa
@@ -213,18 +212,8 @@ class GuiView(ABC):
                     break
 
             cls.window.close()
-
-    @classmethod
-    def _handle_sigint(cls, *args):
-        """
-        With just the _sigint_fix loop, the tkinter stdlib python code ignores SIGINT - this is required to actually
-        handle it immediately.
-        """
-        cls.window.write_event_value(None, None)
-
-    def _sigint_fix(self):
-        """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
-        self.window.TKroot.after(250, self._sigint_fix)
+        else:
+            Window.unregister_sigint_handler()
 
     @classmethod
     def _handle_next(cls):
@@ -325,7 +314,6 @@ class GuiView(ABC):
         duration = monotonic() - start
         self.log.debug(f'Window finalization finished after {duration:.6f} seconds')
         new_window.bind('<Configure>', 'config_changed')  # Capture window size change as an event
-        new_window.TKroot.after(250, self._sigint_fix)
 
         if self.primary:
             if old_window is not None:
@@ -397,9 +385,6 @@ class GuiView(ABC):
 
     def post_render(self):
         pass
-
-    def is_maximized(self):
-        return self.window.TKroot.state() == 'zoomed'
 
     @event_handler
     def config_changed(self, event: Event, data: EventData):

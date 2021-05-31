@@ -8,10 +8,10 @@ import logging
 from functools import singledispatchmethod
 from typing import Optional
 
-from PySimpleGUI import Window
 from screeninfo import get_monitors, Monitor
 
 from .exceptions import MonitorDetectionError
+from .window import Window
 
 __all__ = ['WindowPositioner', 'positioner']
 log = logging.getLogger(__name__)

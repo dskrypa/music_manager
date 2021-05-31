@@ -8,7 +8,7 @@ import logging
 import tkinter
 from contextlib import contextmanager
 
-from PySimpleGUI import Window
+from ..window import Window
 
 __all__ = ['temp_hidden_window']
 log = logging.getLogger(__name__)

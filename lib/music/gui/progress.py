@@ -8,12 +8,13 @@ import logging
 from functools import cached_property
 from typing import Union, TypeVar, Iterable, Iterator, Optional
 
-from PySimpleGUI import popup_animated, ProgressBar, Window
+from PySimpleGUI import popup_animated, ProgressBar
 
 from ..files.track.track import SongFile
 from .elements.image import SpinnerImage
 from .elements.text import ExtText
 from .positioning import positioner
+from .window import Window
 
 __all__ = ['Spinner', 'ProgressTracker']
 # SPINNERS_DIR = Path(__file__).resolve().parents[3].joinpath('icons', 'spinners')
@@ -77,7 +78,7 @@ class SpinnerPopup:
         no_titlebar: bool = True,
         grab_anywhere: bool = True,
         keep_on_top: bool = True,
-        location=(None, None),  # TODO: Auto-center
+        location=(None, None),
         alpha_channel=None,
         transparent_color=None,
         title: str = '',
@@ -150,5 +151,4 @@ if __name__ == '__main__':
     from ds_tools.logging import init_logging
     init_logging(12, log_path=None, names=None)
     popup = SpinnerPopup((200, 200))
-    while True:
-        popup.read(0)
+    popup.read(None)  # noqa

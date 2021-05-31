@@ -7,7 +7,9 @@ Simple popups.
 import logging
 from typing import Union, Iterable
 
-from PySimpleGUI import Window, Button, Text
+from PySimpleGUI import Button, Text
+
+from ..window import Window
 
 __all__ = ['popup', 'popup_ok', 'popup_input_invalid', 'popup_yes_no', 'popup_no_yes']
 log = logging.getLogger(__name__)

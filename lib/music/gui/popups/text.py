@@ -8,11 +8,12 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from PySimpleGUI import Element, Text, Button, Multiline, Input, Window, Column
+from PySimpleGUI import Element, Text, Button, Multiline, Input, Column
 
 from ds_tools.images.utils import ImageType
 from ..base_view import event_handler, RenderArgs
 from ..elements.image import ExtendedImage
+from ..window import Window
 from .base import BasePopup
 
 __all__ = ['TextPopup', 'popup_ok', 'popup_error', 'TextInputPopup', 'popup_get_text', 'popup_warning']

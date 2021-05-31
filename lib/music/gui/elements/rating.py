@@ -7,21 +7,19 @@ Rating element for PySimpleGui
 import logging
 from functools import cached_property
 from itertools import count
-from pathlib import Path
 from typing import Optional, Literal, Iterator, Callable
 
 from PIL import Image
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Column, Text, Element, ELEM_TYPE_GRAPH
 
-from ds_tools.core.decorate import cached_classproperty
 from ...common.ratings import star_fill_counts, stars_to_256
+from ..icons import Icons
 from .image import ExtendedImage
 from .inputs import ExtInput
 
 __all__ = ['Rating']
 log = logging.getLogger(__name__)
-ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 Color = Literal['black', 'gold']
 FillAmount = Literal['empty', 'full', 'half']
 
@@ -61,23 +59,16 @@ class Rating(Column):
     def __repr__(self):
         return f'<{self.__class__.__name__}({self.rating}, key={self._key!r}, {self._show_value=}, {self._disabled=})>'
 
-    @cached_classproperty
-    def __star_images(cls) -> dict[Color, dict[FillAmount, PILImage]]:  # noqa
-        # TODO: Change color with PIL instead
-        # TODO: See about using SVG without PIL?
-        star_images = {'black': {}, 'gold': {}}
-        for path in ICONS_DIR.glob('star-*.png'):
-            fill, color = path.stem.split('-')[1:]
-            star_images[color][fill] = Image.open(path)
-        return star_images  # noqa
-
     @cached_property
     def _star_images(self) -> dict[Color, dict[FillAmount, PILImage]]:
-        resized_images = {
-            color: {fill: img.resize(self._star_size) for fill, img in fill_img_map.items()}
-            for color, fill_img_map in self.__star_images.items()
+        colors = {'gold': '#F2D250', 'black': '#000000'}
+        names = {'empty': 'star', 'half': 'star-half', 'full': 'star-fill'}
+        icons = Icons(max(self._star_size))
+        images = {
+            color: {name: icons.draw(icon, color=rgb, bg='#ffffff00') for name, icon in names.items()}
+            for color, rgb in colors.items()
         }
-        return resized_images
+        return images
 
     def prepare_layout(self) -> list[list[Element]]:
         if rating_input := self.rating_input:

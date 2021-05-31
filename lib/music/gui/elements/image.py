@@ -134,6 +134,7 @@ class Animation:
     def __init__(
         self, widget: Label, image: PILImage, size: tuple[int, int], last_frame_num: int = 0, paused: bool = False
     ):
+        # TODO: Support ds_tools.images.animated.spinner.Spinner
         self._widget = widget
         self._size = size
         self._frames = AnimatedGif(image).resize(size, 1).cycle(PhotoImage)

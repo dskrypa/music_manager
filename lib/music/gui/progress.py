@@ -6,13 +6,14 @@ Progress indicator helpers
 
 import logging
 from functools import cached_property
-from typing import Union, TypeVar, Iterable, Iterator
+from typing import Union, TypeVar, Iterable, Iterator, Optional
 
 from PySimpleGUI import popup_animated, ProgressBar, Window
 
 from ..files.track.track import SongFile
 from .elements.image import SpinnerImage
 from .elements.text import ExtText
+from .positioning import positioner
 
 __all__ = ['Spinner', 'ProgressTracker']
 # SPINNERS_DIR = Path(__file__).resolve().parents[3].joinpath('icons', 'spinners')
@@ -81,11 +82,13 @@ class SpinnerPopup:
         transparent_color=None,
         title: str = '',
         icon=None,
+        parent: Window = None,
         **kwargs,
     ):
         self.image = SpinnerImage(size=size, background_color=bg, **kwargs)
         self._message = message
         self.text = ExtText(message, background_color=bg, text_color=fg, font=font)
+        self._parent = parent
         self.kwargs = dict(
             no_titlebar=no_titlebar,
             grab_anywhere=grab_anywhere,
@@ -101,10 +104,22 @@ class SpinnerPopup:
             title=title,
         )
 
+    def _find_parent(self) -> Optional[Window]:
+        if self._parent:
+            return self._parent
+        from .base_view import GuiView
+        return getattr(GuiView.active_view, 'window', None)
+
     @cached_property
     def window(self):
         layout = [[self.image], [self.text]] if self._message else [[self.image]]
-        return Window(layout=layout, finalize=True, **self.kwargs)
+        window = Window(layout=layout, finalize=True, **self.kwargs)
+        window.read(1)
+        if (parent := self._find_parent()) and not isinstance(parent, Window):
+            parent = getattr(parent, 'window', None)
+        pos = positioner.get_center(window, parent)
+        window.move(*pos)
+        return window
 
     def close(self):
         self.window.close()
@@ -132,14 +147,8 @@ class ProgressTracker:
 
 
 if __name__ == '__main__':
-    import time
     from ds_tools.logging import init_logging
     init_logging(12, log_path=None, names=None)
-    try:
-        popup = SpinnerPopup((200, 200))
-        while True:
-            popup.read(0)
-
-    except Exception as e:
-        import sys
-        print(e, file=sys.stderr)
+    popup = SpinnerPopup((200, 200))
+    while True:
+        popup.read(0)

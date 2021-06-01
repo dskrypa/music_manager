@@ -735,7 +735,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         """
         try:
             bpm = int(self.tag_text('bpm'))
-        except TagException:
+        except (TagException, ValueError):
             if calculate:
                 from .bpm import get_bpm
                 if not (bpm := self._bpm):

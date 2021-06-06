@@ -4,6 +4,7 @@
 
 import logging
 import os
+import struct
 from datetime import date
 from functools import cached_property
 from hashlib import sha256
@@ -20,6 +21,11 @@ from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureTy
 from mutagen.id3._specs import MultiSpec, Spec
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover, AtomDataType, MP4FreeForm
+from mutagen.ogg import OggFileType, OggPage
+from mutagen.oggflac import OggFLAC
+from mutagen.oggvorbis import OggVorbis
+from mutagen.oggopus import OggOpus
+from mutagen.wave import WAVE, _WaveID3
 from plexapi.audio import Track
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
@@ -59,8 +65,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     filename = MusicFileProperty('filename')                            # type: str
     length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
     channels = MusicFileProperty('info.channels')                       # type: int
-    bitrate = MusicFileProperty('info.bitrate')                         # type: int
-    sample_rate = MusicFileProperty('info.sample_rate')                 # type: int
+    _bitrate = MusicFileProperty('info.bitrate')                        # type: int
+    _sample_rate = MusicFileProperty('info.sample_rate')                # type: int
     tag_artist = TextTagProperty('artist', default=None)                # type: Optional[str]
     tag_album_artist = TextTagProperty('album_artist', default=None)    # type: Optional[str]
     tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]
@@ -77,7 +83,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         try:
             return cls.__instances[file_path]
         except KeyError:
-            options = (MP3, FLAC, MP4, ID3FileType) if options is _NotSet else options
+            # options = (MP3, FLAC, MP4, ID3FileType) if options is _NotSet else options
+            if options is _NotSet:  # note: webm is not supported by mutagen
+                options = (MP3, FLAC, MP4, ID3FileType, WAVE, OggFLAC, OggVorbis, OggOpus)
             ipod = hasattr(file_path, '_ipod')
             filething = file_path.open('rb') if ipod else file_path
             error = True
@@ -167,6 +175,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             self._f.tags.save(self._f.filename)
 
+    # region Metadata
+
     @cached_property
     def length_str(self) -> str:
         """
@@ -181,28 +191,118 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @cached_property
     def tag_type(self) -> Optional[str]:
-        tags = self._f.tags
+        file = self._f
+        tags = file.tags
         if isinstance(tags, MP4Tags):
             return 'mp4'
+        elif isinstance(tags, _WaveID3):
+            return 'wav'
         elif isinstance(tags, ID3):
             return 'mp3'
         elif isinstance(tags, VCFLACDict):
             return 'flac'
+        elif isinstance(file, OggFileType):
+            return 'ogg'
         return None
 
     @cached_property
     def tag_version(self) -> str:
-        tags = self._f.tags
+        file = self._f
+        tags = file.tags
         if isinstance(tags, MP4Tags):
             return 'MP4'
+        elif isinstance(tags, _WaveID3):
+            return 'WAV/ID3'
         elif isinstance(tags, ID3):
             return 'ID3v{}.{}'.format(*tags.version[:2])
         elif isinstance(tags, VCFLACDict):
             return 'FLAC'
+        elif isinstance(file, OggFileType):
+            if isinstance(file, OggFLAC):
+                return 'OGG[flac]'
+            elif isinstance(file, OggVorbis):
+                return 'OGG[vorbis]'
+            elif isinstance(file, OggOpus):
+                return 'OGG[opus]'
+            return 'OGG[unknown]'
         elif tags is None:
             return '[no tags]'
         else:
             return tags.__name__
+
+    @cached_property
+    def bitrate(self) -> int:
+        # Bitrate is variable for lossless formats, so the reported value will be an average
+        # bit_rate = file_info.sample_rate * file_info.bits_per_sample * file_info.channels  # not accurate for VBR
+        info = self._f.info
+        try:
+            return info.bitrate
+        except AttributeError:
+            if self.tag_type != 'ogg':
+                raise
+
+        with self.path.open('rb') as f:
+            while (page := OggPage(f)).position == 0:
+                pass
+            f.seek(0, 2)  # End of the file
+            return int((f.tell() - page.offset) * 8 / info.length)
+
+    @cached_property
+    def sample_rate(self) -> int:
+        # total_samples = file_info.sample_rate * file_info.length
+        file = self._f
+        info = file.info
+        try:
+            return info.sample_rate
+        except AttributeError:
+            if not isinstance(file, OggOpus):
+                raise
+        with self.path.open('rb') as f:
+            while not (page := OggPage(f)).packets[0].startswith(b'OpusHead'):
+                pass
+            return struct.unpack('<I', page.packets[0][12:16])[0]
+
+    @cached_property
+    def lossless(self) -> bool:
+        tag_type = self.tag_type
+        if tag_type in ('flac', 'wav'):
+            return True
+        elif tag_type == 'mp4':
+            return self._f.info.codec == 'alac'
+        elif tag_type == 'ogg':
+            return isinstance(self._f, OggFLAC)
+        return False
+
+    @cached_property
+    def info(self):
+        file_info = self._f.info
+        tag_type = self.tag_type
+        size = self.path.stat().st_size
+        info = {
+            'bitrate': self.bitrate, 'bitrate_str': f'{self.bitrate // 1000} Kbps',
+            'sample_rate': self.sample_rate, 'sample_rate_str': f'{self.sample_rate:,d} Hz',
+            'length': file_info.length, 'length_str': self.length_str,
+            'size': size, 'size_str': readable_bytes(size),
+            'lossless': self.lossless,
+            'channels': file_info.channels,
+        }
+        if tag_type == 'mp3':
+            info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'
+            info['encoder'] = file_info.encoder_info
+        elif tag_type == 'mp4':
+            codec = file_info.codec
+            info['codec'] = codec if codec == 'alac' else f'{codec} ({file_info.codec_description})'
+        return info
+
+    def info_summary(self):
+        info = self.info
+        lossless = ' [lossless]' if info['lossless'] else ''
+        return (
+            f'{self.tag_version}{lossless} @ {info["bitrate_str"]} ({info["sample_rate_str"]})'
+            f' {info["length_str"]} / {info["size_str"]}'
+        )
+
+    # endregion
 
     # region Add/Remove/Get Tags
     def delete_tag(self, tag_id: str, save: bool = False):

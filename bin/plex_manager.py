@@ -56,6 +56,10 @@ def parser():
         rate_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
         rate_parser.add_argument('query', nargs=argparse.REMAINDER, help=f'Query in the format --field[__operation] value; valid operations: {ops}')
 
+    with parser.add_subparser('action', 'playlist', help='Save or compare playlists') as playlist_parser:
+        playlist_parser.add_argument('sub_action', choices=('dump', 'compare'), help='Playlist action')
+        playlist_parser.add_argument('path', help='Location to write the playlist dump')
+
     parser.add_common_sp_arg('--server_path_root', '-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
     parser.add_common_sp_arg('--server_url', '-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
     parser.add_common_sp_arg('--username', '-n', help='Plex username (only needed when a token is not already cached)')
@@ -171,6 +175,13 @@ def main():
                     log.info(f'{prefix} {obj}\'s rating => {stars(args.rating)}')
                     if not args.dry_run:
                         obj.edit(**{'userRating.value': args.rating})
+    elif args.action == 'playlist':
+        if args.sub_action == 'dump':
+            plex.dump_playlists(args.path)
+        elif args.sub_action == 'compare':
+            plex.compare_playlists(args.path)
+        else:
+            log.error(f'Invalid playlist action={args.sub_action!r}')
     else:
         log.error(f'Invalid action={args.action!r}')
 

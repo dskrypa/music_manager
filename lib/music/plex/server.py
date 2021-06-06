@@ -4,23 +4,22 @@ Local Plex server client implementation.
 :author: Doug Skrypa
 """
 
+import json
 import logging
 from configparser import NoSectionError
 from functools import cached_property
 from pathlib import Path
-from typing import Optional, Iterable, Union
+from typing import Optional, Union
 
 from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
 from plexapi.audio import Track, Artist, Album
 from plexapi.library import MusicSection, Library, LibrarySection
 from plexapi.myplex import MyPlexAccount
-from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 from plexapi.utils import SEARCHTYPES
 from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
-from ds_tools.output import bullet_list
 from ..common.prompts import get_input, getpass, UIMode
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
@@ -196,6 +195,35 @@ class LocalPlexServer:
             playlist.sync(query, **criteria)
         else:
             playlist.create(query, **criteria)
+
+    def dump_playlists(self, path: Union[str, Path]):
+        playlists = {}
+        for name, playlist in self.playlists.items():
+            pl_data, track_data = playlist.dumps()
+            playlists[name] = {'playlist': pl_data, 'tracks': track_data}
+
+        log.info(f'Saving {len(playlists)} playlists to {path}')
+        path = Path(path).expanduser()
+        if not path.parent.exists():
+            path.parent.mkdir(parents=True)
+        with path.open('w', encoding='utf-8') as f:
+            json.dump(playlists, f, indent=4, sort_keys=True)
+
+    def compare_playlists(self, path: Union[str, Path]):
+        playlists = self.playlists
+        with Path(path).expanduser().open('r', encoding='utf-8') as f:
+            loaded = json.load(f)
+
+        for name, data in loaded.items():
+            try:
+                current = playlists[name]
+            except KeyError:
+                pass
+            else:
+                playlist = PlexPlaylist.loads(data['playlist'], data['tracks'], self)
+                current.name += ' (current)'
+                playlist.name += ' (old)'
+                current.compare_tracks(playlist)
 
     def sync_ratings_to_files(self, path_filter: str = None):
         """

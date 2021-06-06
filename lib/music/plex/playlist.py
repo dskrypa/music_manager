@@ -16,7 +16,8 @@ from plexapi.exceptions import BadRequest
 from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
-from ds_tools.output import bullet_list
+from ds_tools.output.color import colored
+from ds_tools.output.formatting import bullet_list
 from .exceptions import InvalidPlaylist
 from .query import QueryResults
 
@@ -157,8 +158,11 @@ class PlexPlaylist:
 
     def dump(self, path: Union[str, Path]):
         playlist, tracks = self.dumps()
-        with Path(path).expanduser().open('w', encoding='utf-8') as f:
-            json.dump({'playlist': playlist, 'tracks': tracks}, f)
+        path = Path(path).expanduser()
+        if not path.parent.exists():
+            path.parent.mkdir(parents=True)
+        with path.open('w', encoding='utf-8') as f:
+            json.dump({'playlist': playlist, 'tracks': tracks}, f, indent=4, sort_keys=True)
 
     @classmethod
     def loads(cls, playlist_data: str, track_data: Collection[str], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
@@ -167,7 +171,7 @@ class PlexPlaylist:
             server = LocalPlexServer()
 
         playlist = Playlist(server._session, fromstring(playlist_data.encode('utf-8')))
-        playlist._items = [Playlist(server._session, fromstring(td.encode('utf-8'))) for td in track_data]
+        playlist._items = [Track(server._session, fromstring(td.encode('utf-8'))) for td in track_data]
         return cls(playlist.title, server, playlist)
 
     @classmethod
@@ -175,6 +179,18 @@ class PlexPlaylist:
         with Path(path).expanduser().open('r', encoding='utf-8') as f:
             data = json.load(f)
         return cls.loads(data['playlist'], data['tracks'], server)
+
+    def compare_tracks(self, other: 'PlexPlaylist'):
+        self_tracks = set(self.playlist.items())
+        other_tracks = set(other.playlist.items())
+        if removed := other_tracks.difference(self_tracks):
+            log.info(f'{len(removed)} tracks are in {other} but not in {self}', extra={'color': 'red'})
+            print(colored(bullet_list(removed), 'red'))
+        if added := self_tracks.difference(other_tracks):
+            log.info(f'{len(removed)} tracks are in {self} but not in {other}', extra={'color': 'green'})
+            print(colored(bullet_list(added), 'green'))
+        if not removed and not added:
+            log.info(f'Playlists {self} and {other} are identical')
 
 
 def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:

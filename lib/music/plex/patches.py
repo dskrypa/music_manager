@@ -1,18 +1,16 @@
 """
+Patches for PlexAPI
+
 :author: Doug Skrypa
 """
 
-import logging
-
 from plexapi.audio import Track, Album, Artist
 from plexapi.base import PlexObject
-from plexapi.playlist import Playlist
 
 from ..common.ratings import stars
 from ..common.utils import deinit_colorama as _deinit_colorama
 
 __all__ = ['apply_plex_patches', 'track_repr']
-log = logging.getLogger(__name__)
 
 
 def cls_name(obj):
@@ -42,20 +40,6 @@ def apply_plex_patches(deinit_colorama=True):
     if deinit_colorama:
         _deinit_colorama()
 
-    def removeItems(self, items):
-        """
-        Remove multiple tracks from a playlist.  Avoids calling reload after every removal when removing items in bulk.
-
-        Original::
-            for track in items:
-                plist.removeItem(track)
-        """
-        del_method = self._server._session.delete
-        uri_fmt = '{}/items/{{}}'.format(self.key)
-        results = [self._server.query(uri_fmt.format(item.playlistItemID), method=del_method) for item in items]
-        self.reload()
-        return results
-
     def album_repr(self):
         fmt = '<{}#{}[{}]({!r}, artist={!r}, genres={})>'
         rating = stars(float(self._data.attrib.get('userRating', 0)))
@@ -75,7 +59,6 @@ def apply_plex_patches(deinit_colorama=True):
     PlexObject.__lt__ = lambda self, other: int(self._clean(self.key)) < int(other._clean(other.key))
     PlexObject.as_dict = lambda self: full_info(self._data)
 
-    Playlist.removeItems = removeItems
     Track.__repr__ = track_repr
     Album.__repr__ = album_repr
     Artist.__repr__ = artist_repr

@@ -24,6 +24,7 @@ from ds_tools.output import bullet_list
 from ..common.prompts import get_input, getpass, UIMode
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
+from .playlist import PlexPlaylist
 from .query import QueryResults
 from .typing import PlexObjTypes, PlexObj
 
@@ -181,71 +182,20 @@ class LocalPlexServer:
         return QueryResults(self, obj_type, data, section.key).filter(**kwargs)
 
     @property
-    def playlists(self) -> dict[str, Playlist]:
-        return {p.title: p for p in self._session.playlists()}
+    def playlists(self) -> dict[str, PlexPlaylist]:
+        return {p.title: PlexPlaylist(p.title, self, p) for p in self._session.playlists()}
 
-    def playlist(self, name: str) -> Playlist:
-        playlists = self.playlists
-        if playlist := playlists.get(name):
-            return playlist
-        lc_name = name.lower()
-        if playlist := next((p for n, p in playlists.items() if n.lower() == lc_name), None):
+    def playlist(self, name: str) -> PlexPlaylist:
+        if (playlist := PlexPlaylist(name, self)).exists:
             return playlist
         raise ValueError(f'Playlist {name!r} does not exist')
 
-    def create_playlist(self, name: str, items: Iterable[Track]) -> Playlist:
-        if not items:
-            raise ValueError('An iterable containing one or more tracks/items must be provided')
-        elif not isinstance(items, (Track, list, tuple)):   # Workaround overly strict type checking by Playlist._create
-            items = list(items)
-
-        prefix = '[DRY RUN] Would create' if self.dry_run else 'Creating'
-        log.info(f'{prefix} playlist={name!r} with {len(items):,d} tracks')
-        if not self.dry_run:
-            return Playlist.create(self._session, name, items)
-
     def sync_playlist(self, name: str, *, query: Optional[QueryResults] = None, **criteria):
-        if query is not None:
-            if query._type != 'track':
-                raise ValueError(f'Expected track results, found {query._type!r}')
-            expected = query.results()
+        playlist = PlexPlaylist(name, self)
+        if playlist.exists:
+            playlist.sync(query, **criteria)
         else:
-            expected = self.get_tracks(**criteria)
-
-        try:
-            plist = self.playlists[name]
-        except KeyError:
-            log.info(f'Creating playlist {name} with {len(expected):,d} tracks', extra={'color': 10})
-            log.debug(f'Creating playlist {name} with tracks: {expected}')
-            plist = self.create_playlist(name, expected)
-        else:
-            plist_items = set(plist.items())
-            size = len(plist_items)
-            if to_rm := plist_items.difference(expected):
-                prefix = '[DRY RUN] Would remove' if self.dry_run else 'Removing'
-                rm_fmt = '{} {:,d} tracks from playlist {} ({:,d} tracks => {:,d}):'
-                log.info(rm_fmt.format(prefix, len(to_rm), name, size, size - len(to_rm)), extra={'color': 13})
-                print(bullet_list(to_rm))
-                size -= len(to_rm)
-                if not self.dry_run:
-                    plist.removeItems(to_rm)  # method added via music.plex.patches.apply_plex_patches
-            else:
-                log.log(19, f'Playlist {name} does not contain any tracks that should be removed')
-
-            if to_add := expected.difference(plist_items):
-                prefix = '[DRY RUN] Would add' if self.dry_run else 'Adding'
-                add_fmt = '{} {:,d} tracks to playlist {} ({:,d} tracks => {:,d}):'
-                log.info(add_fmt.format(prefix, len(to_add), name, size, size + len(to_add)), extra={'color': 14})
-                print(bullet_list(to_add))
-                if not self.dry_run:
-                    plist.addItems(list(to_add))
-                size += len(to_add)
-            else:
-                log.log(19, f'Playlist {name} is not missing any tracks')
-
-            if not to_add and not to_rm:
-                fmt = 'Playlist {} contains {:,d} tracks and is already in sync with the given criteria'
-                log.info(fmt.format(name, len(plist_items)), extra={'color': 11})
+            playlist.create(query, **criteria)
 
     def sync_ratings_to_files(self, path_filter: str = None):
         """

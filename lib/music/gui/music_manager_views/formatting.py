@@ -15,7 +15,7 @@ from typing import Optional, Any, Iterator, Collection
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
-from PySimpleGUI import HorizontalSeparator, VerticalSeparator, WRITE_ONLY_KEY
+from PySimpleGUI import HorizontalSeparator, WRITE_ONLY_KEY
 
 from ds_tools.fs.paths import get_user_cache_dir
 from ds_tools.images.utils import ImageType
@@ -461,9 +461,7 @@ class TrackFormatter:
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
         return [
             Text('File:'), ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str),
-            # VerticalSeparator(),
             Text('Length:'), ExtInput(track.length_str, size=(6, 1), disabled=True),
-            # VerticalSeparator(),
             Text('Type:'), ExtInput(tag_version, size=(20, 1), disabled=True),
         ]
 
@@ -471,14 +469,12 @@ class TrackFormatter:
         info = self.track.info
         row = [
             Text('Bitrate:'), ExtInput(info['bitrate_str'], size=(14, 1), disabled=True),
-            # VerticalSeparator(),
             Text('Sample Rate:'), ExtInput(info['sample_rate_str'], size=(10, 1), disabled=True),
         ]
         for key in ('encoder', 'codec'):
             if value := info.get(key):
                 row.append(Text(f'{key.title()}:'))
                 row.append(ExtInput(value, size=(15, 1), disabled=True))
-
         return row
 
     def as_info_rows(self, editable: bool = True, keys: Collection[str] = None):
@@ -490,12 +486,7 @@ class TrackFormatter:
         cover = Column([[self.cover_image_thumbnail]], key=f'col::{self.path_str}::cover')
         tag_rows, ele_binds = self.get_tag_rows(editable)
         tags = Column(tag_rows, key=f'col::{self.path_str}::tags')
-        layout = [
-            [HorizontalSeparator()],
-            self.get_basic_info_row(),
-            self.get_metadata_row(),
-            [cover, tags],
-        ]
+        layout = [[HorizontalSeparator()], self.get_basic_info_row(), self.get_metadata_row(), [cover, tags]]
         return layout, ele_binds
 
     def as_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):

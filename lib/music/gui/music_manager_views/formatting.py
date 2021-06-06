@@ -458,16 +458,28 @@ class TrackFormatter:
 
     def get_basic_info_row(self):
         track = self.track
+        tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
         return [
-            Text('File:'),
-            ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str),
-            VerticalSeparator(),
-            Text('Length:'),
-            ExtInput(track.length_str, size=(6, 1), disabled=True),
-            VerticalSeparator(),
-            Text('Type:'),
-            ExtInput(track.tag_version, size=(10, 1), disabled=True),
+            Text('File:'), ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str),
+            # VerticalSeparator(),
+            Text('Length:'), ExtInput(track.length_str, size=(6, 1), disabled=True),
+            # VerticalSeparator(),
+            Text('Type:'), ExtInput(tag_version, size=(20, 1), disabled=True),
         ]
+
+    def get_metadata_row(self):
+        info = self.track.info
+        row = [
+            Text('Bitrate:'), ExtInput(info['bitrate_str'], size=(14, 1), disabled=True),
+            # VerticalSeparator(),
+            Text('Sample Rate:'), ExtInput(info['sample_rate_str'], size=(10, 1), disabled=True),
+        ]
+        for key in ('encoder', 'codec'):
+            if value := info.get(key):
+                row.append(Text(f'{key.title()}:'))
+                row.append(ExtInput(value, size=(14, 1), disabled=True))
+
+        return row
 
     def as_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         yield [HorizontalSeparator()]
@@ -478,7 +490,12 @@ class TrackFormatter:
         cover = Column([[self.cover_image_thumbnail]], key=f'col::{self.path_str}::cover')
         tag_rows, ele_binds = self.get_tag_rows(editable)
         tags = Column(tag_rows, key=f'col::{self.path_str}::tags')
-        layout = [[HorizontalSeparator()], self.get_basic_info_row(), [cover, tags]]
+        layout = [
+            [HorizontalSeparator()],
+            self.get_basic_info_row(),
+            self.get_metadata_row(),
+            [cover, tags],
+        ]
         return layout, ele_binds
 
     def as_diff_rows(self, new_track_info: TrackInfo, title_case: bool = False, add_genre: bool = False):

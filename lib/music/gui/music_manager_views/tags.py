@@ -39,14 +39,14 @@ class AllTagsView(MainView, view_name='all_tags'):
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
         ele_binds = {}
-        with Spinner() as spinner:
+        with Spinner():
             layout = [
                 [Text('Album Path:'), ExtInput(self.album.path.as_posix(), disabled=True, size=(150, 1))],
                 [HorizontalSeparator()],
             ]
 
             track_rows = []
-            for track_block in spinner(self.album_formatter):
+            for track_block in self.album_formatter:
                 track_layout, track_binds = track_block.as_all_tag_rows(True)
                 track_rows.extend(track_layout)
                 ele_binds.update(track_binds)

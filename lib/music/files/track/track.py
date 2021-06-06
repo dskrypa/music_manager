@@ -288,10 +288,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         }
         if tag_type == 'mp3':
             info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'
-            info['encoder'] = file_info.encoder_info
+            if file_info.encoder_info:
+                info['encoder'] = file_info.encoder_info
         elif tag_type == 'mp4':
             codec = file_info.codec
             info['codec'] = codec if codec == 'alac' else f'{codec} ({file_info.codec_description})'
+        elif tag_type == 'ogg':
+            info['codec'] = self.tag_version[4:-1]
         return info
 
     def info_summary(self):

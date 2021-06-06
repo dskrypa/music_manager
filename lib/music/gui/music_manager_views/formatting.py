@@ -477,7 +477,7 @@ class TrackFormatter:
         for key in ('encoder', 'codec'):
             if value := info.get(key):
                 row.append(Text(f'{key.title()}:'))
-                row.append(ExtInput(value, size=(14, 1), disabled=True))
+                row.append(ExtInput(value, size=(15, 1), disabled=True))
 
         return row
 

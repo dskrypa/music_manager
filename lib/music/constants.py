@@ -1,29 +1,29 @@
 TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mapping
-    'title': {'mp4': '\xa9nam', 'mp3': 'TIT2', 'flac': 'TITLE'},
-    'date': {'mp4': '\xa9day', 'mp3': 'TDRC', 'flac': 'DATE'},
-    'genre': {'mp4': '\xa9gen', 'mp3': 'TCON', 'flac': 'GENRE'},
-    'album': {'mp4': '\xa9alb', 'mp3': 'TALB', 'flac': 'ALBUM'},
-    'artist': {'mp4': '\xa9ART', 'mp3': 'TPE1', 'flac': 'ARTIST'},
-    'album_artist': {'mp4': 'aART', 'mp3': 'TPE2', 'flac': 'ALBUMARTIST'},
-    'track': {'mp4': 'trkn', 'mp3': 'TRCK', 'flac': 'TRACKNUMBER'},
-    'disk': {'mp4': 'disk', 'mp3': 'TPOS', 'flac': 'DISCNUMBER'},
-    'grouping': {'mp4': '\xa9grp', 'mp3': 'TIT1', 'flac': 'GROUPING'},
-    'album_sort_order': {'mp4': 'soal', 'mp3': 'TSOA', 'flac': 'ALBUMSORT'},
-    'track_sort_order': {'mp4': 'sonm', 'mp3': 'TSOT', 'flac': 'TITLESORT'},
-    'album_artist_sort_order': {'mp4': 'soaa', 'mp3': 'TSO2', 'flac': 'ALBUMARTISTSORT'},
-    'track_artist_sort_order': {'mp4': 'soar', 'mp3': 'TSOP', 'flac': 'ARTISTSORT'},
-    'isrc': {'mp4': '----:com.apple.iTunes:ISRC', 'mp3': 'TSRC', 'flac': 'ISRC'},  # International Standard Recording Code
-    'compilation': {'mp4': 'cpil', 'mp3': 'TCMP', 'flac': 'COMPILATION'},
-    'podcast': {'mp4': 'pcst', 'mp3': 'PCST'},  # flac: None
-    'bpm': {'mp4': 'tmpo', 'mp3': 'TBPM', 'flac': 'BPM'},
-    'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'mp3': 'TLAN', 'flac': 'LANGUAGE'},
-    'lyrics': {'mp4': '\xa9lyr', 'mp3': 'USLT', 'flac': 'LYRICS'},
-    'cover': {'mp4': 'covr', 'mp3': 'APIC'},  # flac: FLAC.pictures
-    'wiki:album': {'mp4': '----:WIKI:ALBUM', 'mp3': 'WXXX:WIKI:ALBUM', 'flac': 'WIKI:ALBUM'},
-    'wiki:artist': {'mp4': '----:WIKI:ARTIST', 'mp3': 'WXXX:WIKI:ARTIST', 'flac': 'WIKI:ARTIST'},
-    'kpop:gen': {'mp4': 'KPOP:GEN', 'mp3': 'TXXX:KPOP:GEN', 'flac': 'KPOP:GEN'},
-    'rating': {'mp4': 'POPM', 'mp3': 'POPM', 'flac': 'POPM'},  # No official mp4/flac version; 0-255 maps to 0-10
-    # 'name': {'mp4': '', 'mp3': '', 'flac': ''},
+    'title': {'mp4': '\xa9nam', 'id3': 'TIT2', 'vorbis': 'TITLE'},
+    'date': {'mp4': '\xa9day', 'id3': 'TDRC', 'vorbis': 'DATE'},
+    'genre': {'mp4': '\xa9gen', 'id3': 'TCON', 'vorbis': 'GENRE'},
+    'album': {'mp4': '\xa9alb', 'id3': 'TALB', 'vorbis': 'ALBUM'},
+    'artist': {'mp4': '\xa9ART', 'id3': 'TPE1', 'vorbis': 'ARTIST'},
+    'album_artist': {'mp4': 'aART', 'id3': 'TPE2', 'vorbis': 'ALBUMARTIST'},
+    'track': {'mp4': 'trkn', 'id3': 'TRCK', 'vorbis': 'TRACKNUMBER'},
+    'disk': {'mp4': 'disk', 'id3': 'TPOS', 'vorbis': 'DISCNUMBER'},
+    'grouping': {'mp4': '\xa9grp', 'id3': 'TIT1', 'vorbis': 'GROUPING'},
+    'album_sort_order': {'mp4': 'soal', 'id3': 'TSOA', 'vorbis': 'ALBUMSORT'},
+    'track_sort_order': {'mp4': 'sonm', 'id3': 'TSOT', 'vorbis': 'TITLESORT'},
+    'album_artist_sort_order': {'mp4': 'soaa', 'id3': 'TSO2', 'vorbis': 'ALBUMARTISTSORT'},
+    'track_artist_sort_order': {'mp4': 'soar', 'id3': 'TSOP', 'vorbis': 'ARTISTSORT'},
+    'isrc': {'mp4': '----:com.apple.iTunes:ISRC', 'id3': 'TSRC', 'vorbis': 'ISRC'},  # International Standard Recording Code
+    'compilation': {'mp4': 'cpil', 'id3': 'TCMP', 'vorbis': 'COMPILATION'},
+    'podcast': {'mp4': 'pcst', 'id3': 'PCST'},  # vorbis: None
+    'bpm': {'mp4': 'tmpo', 'id3': 'TBPM', 'vorbis': 'BPM'},
+    'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'id3': 'TLAN', 'vorbis': 'LANGUAGE'},
+    'lyrics': {'mp4': '\xa9lyr', 'id3': 'USLT', 'vorbis': 'LYRICS'},
+    'cover': {'mp4': 'covr', 'id3': 'APIC'},  # vorbis: FLAC.pictures
+    'wiki:album': {'mp4': '----:WIKI:ALBUM', 'id3': 'WXXX:WIKI:ALBUM', 'vorbis': 'WIKI:ALBUM'},
+    'wiki:artist': {'mp4': '----:WIKI:ARTIST', 'id3': 'WXXX:WIKI:ARTIST', 'vorbis': 'WIKI:ARTIST'},
+    'kpop:gen': {'mp4': 'KPOP:GEN', 'id3': 'TXXX:KPOP:GEN', 'vorbis': 'KPOP:GEN'},
+    'rating': {'mp4': 'POPM', 'id3': 'POPM', 'vorbis': 'POPM'},  # No official mp4/vorbis version; 0-255 maps to 0-10
+    # 'name': {'mp4': '', 'id3': '', 'vorbis': ''},
 }
 # Note: Reverse mapping is handled by music.files.track.utils.tag_id_to_name_map_for_type
 
@@ -48,7 +48,7 @@ TAG_NAME_DISPLAY_NAME_MAP = {
 }
 
 
-MP3_TAG_DISPLAY_NAME_MAP = {
+ID3_TAG_DISPLAY_NAME_MAP = {
     # iTunes Verified Fields
     'TIT2': 'Song title',
     'TALB': 'Album',
@@ -243,7 +243,7 @@ MP4_TAG_DISPLAY_NAME_MAP = {
 }
 
 
-FLAC_TAG_DISPLAY_NAME_MAP = {
+VORBIS_TAG_DISPLAY_NAME_MAP = {
     'album': 'Album',
     'albumartist': 'Album Artist',
     'albumartistsort': 'Album Artist [for sorting]',
@@ -267,5 +267,5 @@ FLAC_TAG_DISPLAY_NAME_MAP = {
 
 
 TYPED_TAG_DISPLAY_NAME_MAP = {
-    'mp3': MP3_TAG_DISPLAY_NAME_MAP, 'mp4': MP4_TAG_DISPLAY_NAME_MAP, 'flac': FLAC_TAG_DISPLAY_NAME_MAP
+    'id3': ID3_TAG_DISPLAY_NAME_MAP, 'mp4': MP4_TAG_DISPLAY_NAME_MAP, 'vorbis': VORBIS_TAG_DISPLAY_NAME_MAP
 }

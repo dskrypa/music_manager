@@ -75,7 +75,7 @@ def add_track_bpm(paths: Paths, parallel=4, dry_run=False, verbosity=0):
     _init_logging = partial(init_logging, verbosity, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
     add_bpm_func = partial(_add_bpm, dry_run=dry_run)
     # Using a list instead of an iterator because pool.map needs to be able to chunk the items
-    tracks = [f for f in iter_music_files(paths) if f.tag_type != 'flac']
+    tracks = [f for f in iter_music_files(paths) if f.tag_type != 'vorbis']
     # May result in starvation if one proc finishes first due to less work, but it's simpler than a queue-based approach
     with Pool(parallel, _init_logging) as pool:
         pool.map(add_bpm_func, tracks)

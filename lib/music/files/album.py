@@ -260,7 +260,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 callback(music_file, n)
             music_file.cleanup_lyrics(dry_run)
             tag_type = music_file.tag_type
-            if tag_type != 'mp3':
+            if tag_type != 'id3':
                 log.debug(f'Skipping date tags for non-MP3: {music_file}')
                 continue
 
@@ -297,7 +297,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             if callback:
                 callback(music_file, n)
             rm_tag_match = _rm_tag_matcher(music_file.tag_type)
-            if music_file.tag_type == 'flac':
+            if music_file.tag_type == 'vorbis':
                 log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
                 # noinspection PyArgumentList
                 if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
@@ -322,7 +322,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             if callback:
                 callback(music_file, n)
             rm_tag_match = _rm_tag_matcher(music_file.tag_type)
-            if music_file.tag_type == 'flac':
+            if music_file.tag_type == 'vorbis':
                 log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
                 # noinspection PyArgumentList
                 if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
@@ -362,9 +362,9 @@ def _rm_tag_matcher(tag_type: str):
         matchers = _rm_tag_matcher._matchers
     except AttributeError:
         matchers = _rm_tag_matcher._matchers = {
-            'mp3': ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
+            'id3': ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
             'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
-            'flac': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
+            'vorbis': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
         }
     try:
         return matchers[tag_type]

@@ -4,9 +4,12 @@ Plex playlist management utilities
 :author: Doug Skrypa
 """
 
+import json
 import logging
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Union, Collection, Optional
+from xml.etree.ElementTree import tostring, fromstring
 
 from plexapi.audio import Track
 from plexapi.exceptions import BadRequest
@@ -146,6 +149,32 @@ class PlexPlaylist:
         if not to_add and not to_rm:
             msg = f'{self} contains {size:,d} tracks and is already in sync with the given criteria'
             log.info(msg, extra={'color': 11})
+
+    def dumps(self) -> tuple[str, list[str]]:
+        playlist = tostring(self.playlist._data, encoding='unicode')
+        tracks = [tostring(track._data, encoding='unicode') for track in self.playlist.items()]
+        return playlist, tracks
+
+    def dump(self, path: Union[str, Path]):
+        playlist, tracks = self.dumps()
+        with Path(path).expanduser().open('w', encoding='utf-8') as f:
+            json.dump({'playlist': playlist, 'tracks': tracks}, f)
+
+    @classmethod
+    def loads(cls, playlist_data: str, track_data: Collection[str], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+        if server is None:
+            from .server import LocalPlexServer
+            server = LocalPlexServer()
+
+        playlist = Playlist(server._session, fromstring(playlist_data.encode('utf-8')))
+        playlist._items = [Playlist(server._session, fromstring(td.encode('utf-8'))) for td in track_data]
+        return cls(playlist.title, server, playlist)
+
+    @classmethod
+    def load(cls, path: Union[str, Path], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+        with Path(path).expanduser().open('r', encoding='utf-8') as f:
+            data = json.load(f)
+        return cls.loads(data['playlist'], data['tracks'], server)
 
 
 def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:

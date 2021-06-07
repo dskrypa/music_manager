@@ -180,6 +180,17 @@ class PlexPlaylist:
             data = json.load(f)
         return cls.loads(data['playlist'], data['tracks'], server)
 
+    @classmethod
+    def load_all(cls, path: Union[str, Path], server: 'LocalPlexServer' = None) -> dict[str, 'PlexPlaylist']:
+        if server is None:
+            from .server import LocalPlexServer
+            server = LocalPlexServer()
+
+        with Path(path).expanduser().open('r', encoding='utf-8') as f:
+            loaded = json.load(f)
+
+        return {name: cls.loads(data['playlist'], data['tracks'], server) for name, data in loaded.items()}
+
     def compare_tracks(self, other: 'PlexPlaylist'):
         self_tracks = set(self.playlist.items())
         other_tracks = set(other.playlist.items())

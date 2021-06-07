@@ -211,16 +211,12 @@ class LocalPlexServer:
 
     def compare_playlists(self, path: Union[str, Path]):
         playlists = self.playlists
-        with Path(path).expanduser().open('r', encoding='utf-8') as f:
-            loaded = json.load(f)
-
-        for name, data in loaded.items():
+        for name, playlist in PlexPlaylist.load_all(path, self).items():
             try:
                 current = playlists[name]
             except KeyError:
                 pass
             else:
-                playlist = PlexPlaylist.loads(data['playlist'], data['tracks'], self)
                 current.name += ' (current)'
                 playlist.name += ' (old)'
                 current.compare_tracks(playlist)

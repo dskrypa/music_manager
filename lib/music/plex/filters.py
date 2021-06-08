@@ -91,23 +91,36 @@ def check_attrs(elem, **kwargs):
 def get_attr_value(elem, attrstr, results=None):
     # log.debug('Fetching {} in {}'.format(attrstr, elem.tag))
     try:
+        value = elem.attrib[attrstr]
+    except KeyError:
+        if attrstr == 'etag':
+            return [elem.tag]
+    else:
+        return [value]
+    try:
         attr, attrstr = attrstr.split('__', 1)
     except ValueError:
         lc_attr = attrstr.lower()
-        # check were looking for the tag
-        if lc_attr == 'etag':
-            return [elem.tag]
-        # loop through attrs so we can perform case-insensitive match
-        for _attr, value in elem.attrib.items():
-            if lc_attr == _attr.lower():
-                return [value]
+        try:
+            value = elem.attrib[lc_attr]
+        except KeyError:
+            # loop through attrs so we can perform case-insensitive match
+            for _attr, value in elem.attrib.items():
+                if lc_attr == _attr.lower():
+                    return [value]
+        else:
+            return [value]
         return []
     else:
         lc_attr = attr.lower()
         results = [] if results is None else results
         for child in (c for c in elem if c.tag.lower() == lc_attr):
             results.extend(get_attr_value(child, attrstr, results))
-        return list(filter(lambda r: r is not None, results))
+        return list(filter(_is_not_none, results))
+
+
+def _is_not_none(value):
+    return value is not None
 
 
 def _cast(cast, value, attr, elem):

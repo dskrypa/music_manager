@@ -20,6 +20,7 @@ from plexapi.utils import SEARCHTYPES
 from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
+from ds_tools.fs.paths import unique_path
 from ..common.prompts import get_input, getpass, UIMode
 from ..files.track.track import SongFile
 from .patches import apply_plex_patches
@@ -202,10 +203,12 @@ class LocalPlexServer:
             pl_data, track_data = playlist.dumps()
             playlists[name] = {'playlist': pl_data, 'tracks': track_data}
 
-        log.info(f'Saving {len(playlists)} playlists to {path}')
         path = Path(path).expanduser()
         if not path.parent.exists():
             path.parent.mkdir(parents=True)
+        if path.is_dir():
+            path = unique_path(path, 'all_plex_playlists', '.json')
+        log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
         with path.open('w', encoding='utf-8') as f:
             json.dump(playlists, f, indent=4, sort_keys=True)
 

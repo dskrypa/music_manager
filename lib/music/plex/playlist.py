@@ -16,6 +16,7 @@ from plexapi.exceptions import BadRequest
 from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
+from ds_tools.fs.paths import unique_path, sanitize_file_name
 from ds_tools.output.color import colored
 from ds_tools.output.formatting import bullet_list
 from .exceptions import InvalidPlaylist
@@ -161,6 +162,9 @@ class PlexPlaylist:
         path = Path(path).expanduser()
         if not path.parent.exists():
             path.parent.mkdir(parents=True)
+        if path.is_dir():
+            path = unique_path(path, sanitize_file_name(self.name), '.json')
+        log.info(f'Saving {self} to {path.as_posix()}')
         with path.open('w', encoding='utf-8') as f:
             json.dump({'playlist': playlist, 'tracks': tracks}, f, indent=4, sort_keys=True)
 

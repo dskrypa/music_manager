@@ -276,7 +276,7 @@ def apply_perf_patches(skip_changed: bool = True):
                 continue
 
         setattr(cls, method_name, patched_method)
-        print(f'Patched {method.__qualname__}')
+        # print(f'Patched {method.__qualname__}')
 
 
 class PatchedMethodChanged(UserWarning):

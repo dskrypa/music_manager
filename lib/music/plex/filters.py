@@ -40,7 +40,12 @@ OPERATORS = dict(_OPERATORS, **{
     'notset': lambda v, q: (not v) if q else v,
     'is_odd': lambda v, q: divmod(int(float(v)), 2)[1],
     'is_even': lambda v, q: not divmod(int(float(v)), 2)[1],
-    'not_in': lambda v, q: v not in q
+    'not_in': lambda v, q: v not in q,
+    'inot_in': lambda v, q: v.lower() not in q.lower(),
+    'inot_in_any': lambda v, qs: all(lv not in q.lower() for q in qs) if (lv := v.lower()) else False,
+    'not_contains': lambda v, q: q not in v,
+    'inot_contains': lambda v, q: q.lower() not in v.lower(),
+    'inot_contains_any': lambda v, qs: all(q.lower() not in lv for q in qs) if (lv := v.lower()) else True,
 })
 
 

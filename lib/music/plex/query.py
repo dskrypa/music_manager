@@ -109,9 +109,9 @@ class QueryResults:
 
     def in_playlist(self, name: str) -> 'QueryResults':
         if not self._type == 'track':
-            raise InvalidQueryFilter(f'in_playlist() is only permitted for track results')
+            raise InvalidQueryFilter('in_playlist() is only implemented for track results')
 
-        playlist = self.server.playlist(name)
+        playlist = self.server._session.playlist(name)
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 

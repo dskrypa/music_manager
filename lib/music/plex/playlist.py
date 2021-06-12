@@ -4,6 +4,7 @@ Plex playlist management utilities
 :author: Doug Skrypa
 """
 
+import gzip
 import json
 import logging
 from functools import cached_property
@@ -16,7 +17,7 @@ from plexapi.exceptions import BadRequest
 from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
-from ds_tools.fs.paths import unique_path, sanitize_file_name
+from ds_tools.fs.paths import prepare_path, PathLike
 from ds_tools.output.color import colored
 from ds_tools.output.formatting import bullet_list
 from .exceptions import InvalidPlaylist
@@ -32,10 +33,7 @@ Tracks = Union[Collection[Track], QueryResults]
 
 class PlexPlaylist:
     def __init__(self, name: str, server: 'LocalPlexServer' = None, playlist: Playlist = None):
-        if server is None:
-            from .server import LocalPlexServer
-            server = LocalPlexServer()
-        self.server = server
+        self.server = _get_server(server)
         self.name = name
         self._playlist = playlist
 
@@ -152,49 +150,6 @@ class PlexPlaylist:
             msg = f'{self} contains {size:,d} tracks and is already in sync with the given criteria'
             log.info(msg, extra={'color': 11})
 
-    def dumps(self) -> tuple[str, list[str]]:
-        playlist = tostring(self.playlist._data, encoding='unicode')
-        tracks = [tostring(track._data, encoding='unicode') for track in self.playlist.items()]
-        return playlist, tracks
-
-    def dump(self, path: Union[str, Path]):
-        playlist, tracks = self.dumps()
-        path = Path(path).expanduser()
-        if not path.parent.exists():
-            path.parent.mkdir(parents=True)
-        if path.is_dir():
-            path = unique_path(path, sanitize_file_name(self.name), '.json')
-        log.info(f'Saving {self} to {path.as_posix()}')
-        with path.open('w', encoding='utf-8') as f:
-            json.dump({'playlist': playlist, 'tracks': tracks}, f, indent=4, sort_keys=True)
-
-    @classmethod
-    def loads(cls, playlist_data: str, track_data: Collection[str], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
-        if server is None:
-            from .server import LocalPlexServer
-            server = LocalPlexServer()
-
-        playlist = Playlist(server._session, fromstring(playlist_data.encode('utf-8')))
-        playlist._items = [Track(server._session, fromstring(td.encode('utf-8'))) for td in track_data]
-        return cls(playlist.title, server, playlist)
-
-    @classmethod
-    def load(cls, path: Union[str, Path], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
-        with Path(path).expanduser().open('r', encoding='utf-8') as f:
-            data = json.load(f)
-        return cls.loads(data['playlist'], data['tracks'], server)
-
-    @classmethod
-    def load_all(cls, path: Union[str, Path], server: 'LocalPlexServer' = None) -> dict[str, 'PlexPlaylist']:
-        if server is None:
-            from .server import LocalPlexServer
-            server = LocalPlexServer()
-
-        with Path(path).expanduser().open('r', encoding='utf-8') as f:
-            loaded = json.load(f)
-
-        return {name: cls.loads(data['playlist'], data['tracks'], server) for name, data in loaded.items()}
-
     def compare_tracks(self, other: 'PlexPlaylist'):
         self_tracks = set(self.playlist.items())
         other_tracks = set(other.playlist.items())
@@ -206,6 +161,54 @@ class PlexPlaylist:
             print(colored(bullet_list(added), 'green'))
         if not removed and not added:
             log.info(f'Playlists {self} and {other} are identical')
+
+    # region Serialization
+
+    def dumps(self) -> dict[str, Union[str, list[str]]]:
+        playlist = tostring(self.playlist._data, encoding='unicode')
+        tracks = [tostring(track._data, encoding='unicode') for track in self.playlist.items()]
+        return {'playlist': playlist, 'tracks': tracks}
+
+    def dump(self, path: PathLike, compress: bool = True):
+        path = prepare_path(path, (self.name, '.json.gz' if compress else '.json'), sanitize=True)
+        log.info(f'Saving {self} to {path.as_posix()}')
+        open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
+        with open_func(path, mode, encoding='utf-8') as f:
+            json.dump(self.dumps(), f, indent=4, sort_keys=True)
+
+    @classmethod
+    def dump_all(cls, path: PathLike, server: 'LocalPlexServer' = None, compress: bool = True):
+        playlists = {name: playlist.dumps() for name, playlist in _get_server(server).playlists.items()}
+        path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'))
+        log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
+        open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
+        with open_func(path, mode, encoding='utf-8') as f:
+            json.dump(playlists, f, indent=4, sort_keys=True)
+
+    @classmethod
+    def loads(cls, playlist_data: str, track_data: Collection[str], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+        server = _get_server(server)
+        playlist = Playlist(server._session, fromstring(playlist_data.encode('utf-8')))
+        playlist._items = [Track(server._session, fromstring(td.encode('utf-8'))) for td in track_data]
+        return cls(playlist.title, server, playlist)
+
+    @classmethod
+    def load(cls, path: PathLike, server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+        path = Path(path).expanduser()
+        open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
+        with open_func(path, mode, encoding='utf-8') as f:
+            data = json.load(f)
+        return cls.loads(data['playlist'], data['tracks'], server)
+
+    @classmethod
+    def load_all(cls, path: PathLike, server: 'LocalPlexServer' = None) -> dict[str, 'PlexPlaylist']:
+        path = Path(path).expanduser()
+        open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
+        with open_func(path, mode, encoding='utf-8') as f:
+            loaded = json.load(f)
+        return {name: cls.loads(data['playlist'], data['tracks'], _get_server(server)) for name, data in loaded.items()}
+
+    # endregion
 
 
 def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:
@@ -223,3 +226,11 @@ def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -
     elif criteria:
         return server.get_tracks(**criteria)
     raise ValueError('Query results or criteria, or an iterable containing one or more tracks/items are required')
+
+
+def _get_server(server: 'LocalPlexServer' = None) -> 'LocalPlexServer':
+    """Workaround for the circular dependency"""
+    if server is None:
+        from .server import LocalPlexServer
+        server = LocalPlexServer()
+    return server

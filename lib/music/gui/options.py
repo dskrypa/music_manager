@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator, Mapping, Union
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse
+from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse, Button
 
 from .elements.inputs import ExtInput
 from .utils import resize_text_column, make_checkbox_grid
@@ -142,9 +142,14 @@ class GuiOptions:
         *,
         size: tuple[int, int] = None,
         select_mode: str = 'extended',
+        extendable: bool = False,
         **kwargs
     ):
-        kwargs.update(size=size or (max(map(len, choices)) + 3, len(choices)), select_mode=select_mode, choices=choices)
+        try:
+            size = size or (max(map(len, choices)) + 3, len(choices))
+        except ValueError:  # max() arg is an empty sequence
+            size = (15, 1)
+        kwargs.update(size=size, select_mode=select_mode, choices=choices, extendable=extendable)
         self._add_option('listbox', option, label, choices if default is _NotSet else default, **kwargs)
 
     def _add_path(
@@ -168,7 +173,8 @@ class GuiOptions:
         for name, opt in self.options.items():
             opt_type, col_num, row_num = opt['opt_type'], opt['col'], opt['row']
             val = opt.get('value', opt['default'])
-            common = {'key': f'opt::{name}', 'disabled': disable_all or opt['disabled']}
+            disabled = disable_all or opt['disabled']
+            common = {'key': f'opt::{name}', 'disabled': disabled}
             if opt_kwargs := opt.get('kwargs'):
                 common.update(opt_kwargs)
             for param in COMMON_PARAMS:
@@ -191,6 +197,8 @@ class GuiOptions:
                 yield col_num, row_num, Listbox(
                     choices, default_values=val or choices, no_scrollbar=True, select_mode=opt['select_mode'], **common
                 )
+                if opt['extendable']:
+                    yield col_num, row_num, Button('Add...', key=f'btn::{name}', disabled=disabled)
             elif opt_type == 'path':
                 val = val.as_posix() if isinstance(val, Path) else None if val is _NotSet else val
                 yield col_num, row_num, Text(opt['label'], key=f'lbl::{name}')

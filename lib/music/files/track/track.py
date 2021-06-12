@@ -193,13 +193,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def file_type(self):
         file = self._f
         tags = file.tags
-        if isinstance(tags, MP4Tags):
+        if isinstance(tags, MP4Tags) or isinstance(file, MP4):
             return 'mp4'
-        elif isinstance(tags, _WaveID3):
+        elif isinstance(tags, _WaveID3) or isinstance(file, WAVE):
             return 'wav'
-        elif isinstance(tags, ID3):
+        elif isinstance(tags, ID3) or isinstance(file, MP3):
             return 'mp3'
-        elif isinstance(tags, VCFLACDict):
+        elif isinstance(tags, VCFLACDict) or isinstance(file, FLAC):
             return 'flac'
         elif isinstance(file, OggFileType):
             return 'ogg'
@@ -209,9 +209,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def tag_type(self) -> Optional[str]:
         file = self._f
         tags = file.tags
-        if isinstance(tags, MP4Tags):
+        if isinstance(tags, MP4Tags) or isinstance(file, MP4):
             return 'mp4'
-        elif isinstance(tags, ID3):
+        elif isinstance(tags, ID3) or isinstance(file, MP3):
             return 'id3'
         elif isinstance(tags, VCFLACDict) or isinstance(file, OggFileType):
             return 'vorbis'
@@ -372,6 +372,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def _set_mp3_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
         tags = self._f.tags  # type: ID3
+        if tags is None:
+            self._f.add_tags()
+            tags = self._f.tags
         tag_id = tag_id.upper()
         try:
             tag_id, desc = tag_id.split(':', 1)
@@ -521,7 +524,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :return list: All tags from this file with the given ID
         """
         if self.tag_type == 'id3':
-            return self._f.tags.getall(tag_id.upper())      # all MP3 tags are uppercase; some MP4 tags are mixed case
+            try:
+                return self._f.tags.getall(tag_id.upper())  # all MP3 tags are uppercase; some MP4 tags are mixed case
+            except AttributeError:
+                if self._f.tags is None:
+                    return []
+                raise
         return self._f.tags.get(tag_id, [])                 # MP4Tags doesn't have getall() and always returns a list
 
     def tags_for_name(self, tag_name: str):
@@ -1031,7 +1039,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def _set_cover_data(self, image: 'Image.Image', data: bytes, mime_type: str, dry_run: bool = False):
         if self.tag_type == 'id3':
-            current = self._f.tags.getall('APIC')
+            current = self.tags_for_id('APIC')
             cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
             if self._log_cover_changes(current, cover, dry_run):
                 self._f.tags.delall('APIC')

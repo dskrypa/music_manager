@@ -106,13 +106,14 @@ class CleanView(MainView, view_name='clean'):
         self.render()  # to disable inputs
 
         dry_run = self.options['dry_run']
+        rm_tags = self.config.get('rm_tags', None)
         with output_log_handler(self.output, level=0, logger=self.result_logger):
             for album in self.albums:
-                album.remove_bad_tags(dry_run, self.prog_tracker.update)
+                album.remove_bad_tags(dry_run, self.prog_tracker.update, extras=rm_tags)
                 album.fix_song_tags(dry_run, add_bpm=False, callback=self.prog_tracker.update)
 
             if self.no_alb_files:
-                AlbumDir._remove_bad_tags(self.no_alb_files, dry_run, self.prog_tracker.update)
+                AlbumDir._remove_bad_tags(self.no_alb_files, dry_run, self.prog_tracker.update, extras=rm_tags)
                 AlbumDir._fix_song_tags(self.no_alb_files, dry_run, add_bpm=False, callback=self.prog_tracker.update)
 
             if self.options['bpm']:

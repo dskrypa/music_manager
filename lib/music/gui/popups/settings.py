@@ -5,14 +5,18 @@ View: Settings
 """
 
 from functools import partial
-from typing import Any, Iterable, Collection
+from typing import TYPE_CHECKING, Any, Iterable, Collection
 
-from PySimpleGUI import Element, Submit, theme
+from PySimpleGUI import Element, Submit, theme, Listbox
 
 from ..base_view import event_handler, Event, EventData
 from ..options import GuiOptions, SingleParsingError, MultiParsingError
 from ..utils import update_color
 from .base import BasePopup
+from .text import popup_get_text
+
+if TYPE_CHECKING:
+    import tkinter
 
 __all__ = ['SettingsView']
 
@@ -78,3 +82,23 @@ class SettingsView(BasePopup, view_name='settings', primary=False):
         if element := self._failed_validation.pop(key, None):
             element.TKEntry.unbind('<Key>')
             update_color(element, element.TextColor, element.BackgroundColor)
+
+    @event_handler('btn::*')
+    def add_to_list(self, event: Event, data: EventData):
+        field = event.split('::', 1)[1]
+        list_box = self.window[f'opt::{field}']
+        if not isinstance(list_box, Listbox):
+            return
+        prompt_name = self.options.options[field]['prompt_name']
+        # label = self.window[f'lbl::{field}'].get()
+        if not (new_value := popup_get_text(f'Enter a new {prompt_name} value to add', title=f'Add {prompt_name}')):
+            return
+        indexes = list(list_box.get_indexes())
+        values = list_box.Values or []
+        values.append(new_value)
+        indexes.append(len(values) - 1)
+        list_box.update(values, set_to_index=indexes)
+        tk_list_box = list_box.TKListbox  # type: tkinter.Listbox
+        height = tk_list_box.cget('height')
+        if (val_count := len(values)) and val_count != height:
+            tk_list_box.configure(height=val_count)

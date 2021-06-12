@@ -11,9 +11,9 @@ from datetime import date
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable
+from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection
 
-from mutagen.id3 import TDRC
+from mutagen.id3 import TDRC, ID3
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.core.patterns import FnMatcher, ReMatcher
@@ -254,25 +254,27 @@ class AlbumDir(ClearableCachedPropertyMixin):
         cls, tracks: Iterable[SongFile], dry_run: bool = False, add_bpm: bool = False, callback: Callable = None
     ):
         prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
-
         for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
             music_file.cleanup_lyrics(dry_run)
             tag_type = music_file.tag_type
             if tag_type != 'id3':
-                log.debug(f'Skipping date tags for non-MP3: {music_file}')
+                log.debug(f'Skipping tag fix for non-MP3: {music_file}')
+                continue
+            elif not isinstance((track_tags := music_file.tags), ID3):
+                log.debug(f'Skipping tag fix due to no tags present in {music_file}')
                 continue
 
-            tdrc = music_file.tags.getall('TDRC')
-            txxx_date = music_file.tags.getall('TXXX:DATE')
+            tdrc = track_tags.getall('TDRC')
+            txxx_date = track_tags.getall('TXXX:DATE')
             if (not tdrc) and txxx_date:
                 file_date = txxx_date[0].text[0]
 
                 log.info(f'{prefix}{add_msg} TDRC={file_date} to {music_file} and {rmv_msg} its TXXX:DATE tag')
                 if not dry_run:
-                    music_file.tags.add(TDRC(text=file_date))
-                    music_file.tags.delall('TXXX:DATE')
+                    track_tags.add(TDRC(text=file_date))
+                    track_tags.delall('TXXX:DATE')
                     music_file.save()
 
         if add_bpm:
@@ -290,54 +292,43 @@ class AlbumDir(ClearableCachedPropertyMixin):
             for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
                 future.result()
 
-    def remove_bad_tags(self, dry_run: bool = False, callback: Callable = None):
-        keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
-        i = 0
-        for n, music_file in enumerate(self.songs, 1):
-            if callback:
-                callback(music_file, n)
-            rm_tag_match = _rm_tag_matcher(music_file.tag_type)
-            if music_file.tag_type == 'vorbis':
-                log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
-                # noinspection PyArgumentList
-                if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
-                    if i:
-                        log.debug('')
-            else:
-                # noinspection PyArgumentList
-                if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
-                    if i:
-                        log.debug('')
-
-            i += int(music_file.remove_tags(to_remove, dry_run))
-
-        if not i:
-            log.debug(f'None of the songs in {self} had any tags that needed to be removed')
+    def remove_bad_tags(self, dry_run: bool = False, callback: Callable = None, extras: Collection[str] = None):
+        self._remove_bad_tags(self, dry_run, callback, extras)
 
     @classmethod
-    def _remove_bad_tags(cls, tracks: Iterable[SongFile], dry_run: bool = False, callback: Callable = None):
+    def _remove_bad_tags(
+        cls,
+        tracks: Iterable[SongFile],
+        dry_run: bool = False,
+        callback: Callable = None,
+        extras: Collection[str] = None,
+    ):
         keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
         i = 0
         for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
-            rm_tag_match = _rm_tag_matcher(music_file.tag_type)
-            if music_file.tag_type == 'vorbis':
-                log.info(f'{music_file}: Bad tag removal is not currently supported for flac files')
-                # noinspection PyArgumentList
-                if to_remove := {tag for tag, val in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
-                    if i:
-                        log.debug('')
-            else:
-                # noinspection PyArgumentList
-                if to_remove := {tag for tag in music_file.tags if rm_tag_match(tag) and tag not in keep_tags}:
-                    if i:
-                        log.debug('')
+            try:
+                rm_tag_match = _rm_tag_matcher(music_file.tag_type, extras)
+            except TypeError as e:
+                raise TypeError(f'Unhandled tag type={music_file.tag_type!r} for {music_file=}') from e
+            if (track_tags := music_file.tags) is not None:
+                if music_file.tag_type == 'vorbis':
+                    # noinspection PyArgumentList
+                    if to_remove := {tag for tag, val in track_tags if rm_tag_match(tag) and tag not in keep_tags}:
+                        if i:
+                            log.debug('')
+                else:
+                    # noinspection PyArgumentList
+                    if to_remove := {tag for tag in track_tags if rm_tag_match(tag) and tag not in keep_tags}:
+                        if i:
+                            log.debug('')
 
-            i += int(music_file.remove_tags(to_remove, dry_run))
+                i += int(music_file.remove_tags(to_remove, dry_run))
 
         if not i:
-            log.debug(f'None of the provided songs had any tags that needed to be removed')
+            mid = f'songs in {tracks}' if isinstance(tracks, cls) else 'provided songs'
+            log.debug(f'None of the {mid} had any tags that needed to be removed')
 
     def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
         updates = {file: file.get_tag_updates(tag_ids, value, patterns=patterns, partial=partial) for file in self}
@@ -357,7 +348,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
             song_file._set_cover_data(image, data, mime_type, dry_run)
 
 
-def _rm_tag_matcher(tag_type: str):
+def _rm_tag_matcher(tag_type: str, extras: Collection[str] = None) -> Callable:
     try:
         matchers = _rm_tag_matcher._matchers
     except AttributeError:
@@ -367,9 +358,21 @@ def _rm_tag_matcher(tag_type: str):
             'vorbis': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
         }
     try:
-        return matchers[tag_type]
+        matcher = matchers[tag_type]
     except KeyError as e:
         raise TypeError(f'Unhandled tag type: {tag_type}') from e
+    else:
+        if extras:
+            extras = set(map(str.lower, extras))
+
+            def _matcher(value):
+                if matcher(value):  # noqa
+                    return True
+                return value.lower() in extras
+
+            return _matcher
+        else:
+            return matcher
 
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:

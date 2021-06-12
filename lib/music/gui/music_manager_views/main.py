@@ -254,6 +254,11 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
 
     def _settings(self):
         options = super()._settings()
+        config = self.config
         with options.next_row() as options:
-            options.add_directory('output_base_dir', 'Output Directory', self.config['output_base_dir'])
+            options.add_directory('output_base_dir', 'Output Directory', config['output_base_dir'])
+        with options.next_row() as options:
+            options.add_listbox(
+                'rm_tags', 'Tags to Remove', config.get('rm_tags', []), extendable=True, prompt_name='tag to remove'
+            )
         return options

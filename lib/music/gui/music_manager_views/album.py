@@ -15,11 +15,13 @@ from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
 from ...common.ratings import stars_to_256
 from ...files.album import AlbumDir
+from ...files.exceptions import InvalidAlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
 from ...text.extraction import split_enclosed
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..elements.inputs import ExtInput
-from ..popups.simple import popup_ok
+from ..popups.path_prompt import get_directory
+from ..popups.simple import popup_ok, popup_input_invalid
 from ..popups.text import popup_error, popup_get_text
 from ..progress import Spinner
 # from ..utils import update_color
@@ -65,12 +67,13 @@ class AlbumView(MainView, view_name='album'):
             [
                 Button('Clean & Add BPM', key='clean', **bkw),
                 Button('View All Tags', key='all_tags', **bkw),
+                Button('Edit', key='edit', **bkw),
                 Button('Wiki Update', key='wiki_update', **bkw),
             ],
             [
-                Button('Edit', key='edit', **bkw),
                 Button('Sync Ratings From...', key='sync_ratings::dst_album', **bkw),
                 Button('Sync Ratings To...', key='sync_ratings::src_album', **bkw),
+                Button('Copy Tags From...', key='copy_data', **bkw),
             ],
         ]
         edit_buttons = [Button('Review & Save Changes', key='save', **bkw), Button('Cancel', key='cancel', **bkw)]
@@ -339,6 +342,31 @@ class AlbumView(MainView, view_name='album'):
             return SyncRatingsView(last_view=self, **kwargs)
         except ValueError as e:
             popup_error(str(e))
+
+    @event_handler
+    def copy_data(self, event: Event, data: EventData):
+        from .diff import AlbumDiffView
+
+        if self.editing:
+            self.toggle_editing()
+
+        prompt = f'Select data source for {self.album.name}'
+        last_dir = self._get_last_dir('sync_src')
+        if path := get_directory(prompt, no_window=True, initial_folder=last_dir):
+            try:
+                album_dir = AlbumDir(path)
+            except InvalidAlbumDir as e:
+                popup_input_invalid(str(e), logger=cls.log)  # noqa
+                return
+            else:
+                if path != last_dir:
+                    self.config[f'last_dir:sync_src'] = path.as_posix()
+                    self.config.save()
+        else:
+            return
+
+        src_info = AlbumInfo.from_album_dir(album_dir)
+        return AlbumDiffView(self.album, src_info, self.album_formatter, last_view=self)
 
     # endregion
 

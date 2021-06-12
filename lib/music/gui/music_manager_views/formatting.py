@@ -369,7 +369,7 @@ class TrackFormatter:
             if n := next(nums[tag_id]):
                 tag_id = f'{tag_id}--{n}'
 
-            key_ele = Text(disp_name, key=self.key_for('tag', tag_id, WRITE_ONLY_KEY))
+            key_ele = Text(disp_name, key=self.key_for('tag', tag_id, WRITE_ONLY_KEY), tooltip=tag_id)
             sel_box = Checkbox('', key=self.key_for('del', tag_id), visible=editable, enable_events=True)
             tooltip = f'Toggle all {tag_id} tags with Shift+Click'
             val_key = self.key_for('val', tag_id)

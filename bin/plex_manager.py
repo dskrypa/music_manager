@@ -9,7 +9,7 @@ import _venv  # This will activate the venv, if it exists and is not already act
 
 import argparse
 import logging
-from typing import TYPE_CHECKING, Iterable, Tuple, Dict
+from typing import TYPE_CHECKING, Iterable
 
 from ds_tools.argparsing import ArgParser
 from ds_tools.core.main import wrap_main
@@ -18,13 +18,16 @@ from music.__version__ import __author_email__, __version__
 
 if TYPE_CHECKING:
     from plexapi.audio import Track
-    from music.plex.typing import PlexObjTypes
 
 log = logging.getLogger(__name__)
 
 
 def parser():
-    parser = ArgParser(description='Plex Manager\n\nYou will be securely prompted for your password for the first login, after which a session token will be cached')
+    description = (
+        'Plex Manager\n\nYou will be securely prompted for your password for the first login, after which a session'
+        ' token will be cached'
+    )
+    parser = ArgParser(description=description)
 
     with parser.add_subparser('action', 'sync', help='Sync Plex information') as sync_parser:
         ratings_parser = sync_parser.add_subparser('sync_action', 'ratings', help='Sync song rating information between Plex and files')
@@ -81,99 +84,25 @@ def main():
     apply_mutagen_patches()
 
     from music.plex import LocalPlexServer
-    from music.plex.utils import parse_filters
     plex = LocalPlexServer(
         args.server_url, args.username, args.server_path_root, args.config_path, args.music_library, args.dry_run
     )
 
     if args.action == 'sync':
         if args.sync_action == 'ratings':
-            if args.direction == 'to_files':
-                plex.sync_ratings_to_files(args.path_filter)
-            elif args.direction == 'from_files':
-                plex.sync_ratings_from_files(args.path_filter)
-            else:
-                log.error('Unconfigured direction')
+            from music.plex.ratings import sync_ratings
+            sync_ratings(plex, args.direction, args.path_filter)
         elif args.sync_action == 'playlists':
-            kpop_tracks = plex.query('track')
-            plex.sync_playlist(
-                'K-Pop Female Solo Artists 3\u00BD+ Stars',
-                query=kpop_tracks.filter(
-                    userRating__gte=7,
-                    grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
-                )
-            )
-            plex.sync_playlist('K-Pop ALL', query=kpop_tracks)
-            plex.sync_playlist('K-Pop 1 Star', query=kpop_tracks.filter(userRating=2))
-            plex.sync_playlist('K-Pop 2 Stars', query=kpop_tracks.filter(userRating=4))
-            plex.sync_playlist('K-Pop 3 Stars', query=kpop_tracks.filter(userRating=6))
-            plex.sync_playlist('K-Pop 3+ Stars', query=kpop_tracks.filter(userRating__gte=6))
-            plex.sync_playlist('K-Pop 3\u00BD Stars', query=kpop_tracks.filter(userRating=7))
-            plex.sync_playlist('K-Pop 3\u00BD+ Stars', query=kpop_tracks.filter(userRating__gte=7))
-            plex.sync_playlist('K-Pop 4 Stars', query=kpop_tracks.filter(userRating=8))
-            plex.sync_playlist('K-Pop 4+ Stars', query=kpop_tracks.filter(userRating__gte=8))
-            plex.sync_playlist('K-Pop 4~4\u00BD Stars', query=kpop_tracks.filter(userRating__gte=8, userRating__lte=9))
-            plex.sync_playlist('K-Pop 4\u00BD Stars', query=kpop_tracks.filter(userRating=9))
-            plex.sync_playlist('K-Pop 5 Stars', query=kpop_tracks.filter(userRating__gte=10))
-            plex.sync_playlist(
-                'K-Pop Unrated',
-                query=kpop_tracks.filter(
-                    userRating=0,
-                    genre__like_exact='k-?pop',
-                    genre__not_like='christmas',
-                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix|snow',
-                    parentTitle__not_like='christmas|santa',
-                    duration__gte=60000,
-                ).unique()
-            )
-            plex.sync_playlist(
-                'K-Pop Unrated from Known Artists',
-                query=kpop_tracks.filter(userRating__gte=7).artists().tracks().filter(
-                    userRating=0,
-                    genre__like_exact='k-?pop',
-                    genre__not_like='christmas',
-                    title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix|snow',
-                    parentTitle__not_like='christmas|santa',
-                    duration__gte=60000,
-                ).unique()
-            )
+            sync_playlists(plex)
         else:
-            log.error('Unconfigured sync action')
+            raise ValueError(f'Invalid sync action={args.sync_action!r}')
     elif args.action == 'find':
-        from ds_tools.output import bullet_list, Printer
-
-        p = Printer(args.format)
-        obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
-        objects = plex.find_objects(obj_type, **kwargs)  # type: Iterable[Track]
-        if objects:
-            if args.full_info:
-                p.pprint({repr(obj): obj.as_dict() for obj in objects})
-                # for obj in objects:
-                #     print(f'{obj.artist().title}\t{obj.album().title}\t{obj.title}\t{obj.userRating}')
-            else:
-                print(bullet_list(objects))
-        else:
-            log.warning('No results.')
+        find_and_print(
+            plex, args.format, args.obj_type, args.title, dynamic, args.escape, args.allow_inst, args.full_info
+        )
     elif args.action == 'rate':
-        from music.common.ratings import stars
-
-        if args.rating < 0 or args.rating > 10:
-            raise ValueError('Ratings must be between 0 and 10')
-        obj_type, kwargs = parse_filters(args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
-        if len(kwargs) == 1:
-            raise ValueError('At least one identifier is required')
-        objects = plex.find_objects(obj_type, **kwargs)
-        if not objects:
-            log.warning('No results.')
-        else:
-            prefix = '[DRY RUN] Would update' if args.dry_run else 'Updating'
-            for obj in objects:
-                if obj.userRating == args.rating:
-                    log.info(f'No changes necessary for {obj}')
-                else:
-                    log.info(f'{prefix} {obj}\'s rating => {stars(args.rating)}')
-                    if not args.dry_run:
-                        obj.edit(**{'userRating.value': args.rating})
+        from music.plex.ratings import find_and_rate
+        find_and_rate(plex, args.rating, args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
     elif args.action == 'playlist':
         if args.sub_action == 'dump':
             plex.dump_playlists(args.path)
@@ -183,6 +112,69 @@ def main():
             log.error(f'Invalid playlist action={args.sub_action!r}')
     else:
         log.error(f'Invalid action={args.action!r}')
+
+
+def find_and_print(plex, fmt, obj_type, title, dynamic, escape, allow_inst, full_info):
+    from ds_tools.output import bullet_list, Printer
+    from music.plex.utils import parse_filters
+
+    p = Printer(fmt)
+    obj_type, kwargs = parse_filters(obj_type, title, dynamic, escape, allow_inst)
+    objects = plex.find_objects(obj_type, **kwargs)  # type: Iterable[Track]
+    if objects:
+        if full_info:
+            p.pprint({repr(obj): obj.as_dict() for obj in objects})
+            # for obj in objects:
+            #     print(f'{obj.artist().title}\t{obj.album().title}\t{obj.title}\t{obj.userRating}')
+        else:
+            print(bullet_list(objects))
+    else:
+        log.warning('No results.')
+
+
+def sync_playlists(plex):
+    kpop_tracks = plex.query('track')
+    plex.sync_playlist(
+        'K-Pop Female Solo Artists 3\u00BD+ Stars',
+        query=kpop_tracks.filter(
+            userRating__gte=7,
+            grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
+        )
+    )
+    plex.sync_playlist('K-Pop ALL', query=kpop_tracks)
+    plex.sync_playlist('K-Pop 1 Star', query=kpop_tracks.filter(userRating=2))
+    plex.sync_playlist('K-Pop 2 Stars', query=kpop_tracks.filter(userRating=4))
+    plex.sync_playlist('K-Pop 3 Stars', query=kpop_tracks.filter(userRating=6))
+    plex.sync_playlist('K-Pop 3+ Stars', query=kpop_tracks.filter(userRating__gte=6))
+    plex.sync_playlist('K-Pop 3\u00BD Stars', query=kpop_tracks.filter(userRating=7))
+    plex.sync_playlist('K-Pop 3\u00BD+ Stars', query=kpop_tracks.filter(userRating__gte=7))
+    plex.sync_playlist('K-Pop 4 Stars', query=kpop_tracks.filter(userRating=8))
+    plex.sync_playlist('K-Pop 4+ Stars', query=kpop_tracks.filter(userRating__gte=8))
+    plex.sync_playlist('K-Pop 4~4\u00BD Stars', query=kpop_tracks.filter(userRating__gte=8, userRating__lte=9))
+    plex.sync_playlist('K-Pop 4\u00BD Stars', query=kpop_tracks.filter(userRating=9))
+    plex.sync_playlist('K-Pop 5 Stars', query=kpop_tracks.filter(userRating__gte=10))
+    plex.sync_playlist(
+        'K-Pop Unrated',
+        query=kpop_tracks.filter(
+            userRating=0,
+            genre__like_exact='k-?pop',
+            genre__not_like='christmas',
+            title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix|snow',
+            parentTitle__not_like='christmas|santa',
+            duration__gte=60000,
+        ).unique()
+    )
+    plex.sync_playlist(
+        'K-Pop Unrated from Known Artists',
+        query=kpop_tracks.filter(userRating__gte=7).artists().tracks().filter(
+            userRating=0,
+            genre__like_exact='k-?pop',
+            genre__not_like='christmas',
+            title__not_like=r'(?:^|\()(?:intro|outro)(?:$|\s|:|\))|\(inst(?:\.?|rumental)|(?:japanese|jp|karaoke|mandarin|chinese) ver(?:\.|sion)|christmas|santa|remix|snow',
+            parentTitle__not_like='christmas|santa',
+            duration__gte=60000,
+        ).unique()
+    )
 
 
 if __name__ == '__main__':

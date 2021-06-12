@@ -20,7 +20,6 @@ from requests import Session
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ..common.prompts import get_input, getpass, UIMode
-from ..files.track.track import SongFile
 from .patches import apply_plex_patches
 from .playlist import PlexPlaylist
 from .query import QueryResults
@@ -209,46 +208,3 @@ class LocalPlexServer:
                 current.name += ' (current)'
                 playlist.name += ' (old)'
                 current.compare_tracks(playlist)
-
-    def sync_ratings_to_files(self, path_filter: str = None):
-        """
-        Sync the song ratings from this Plex server to the files
-
-        :param path_filter: String that file paths must contain to be sync'd
-        """
-        if self.server_root is None:
-            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
-        prefix = '[DRY RUN] Would update' if self.dry_run else 'Updating'
-        kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
-        for track in self.find_songs_by_rating_gte(1, **kwargs):
-            file = SongFile.for_plex_track(track, self.server_root)
-            file_stars = file.star_rating_10
-            plex_stars = track.userRating
-            if file_stars == plex_stars:
-                log.log(9, 'Rating is already correct for {}'.format(file))
-            else:
-                log.info('{} rating from {} to {} for {}'.format(prefix, file_stars, plex_stars, file))
-                if not self.dry_run:
-                    file.star_rating_10 = plex_stars
-
-    def sync_ratings_from_files(self, path_filter: str = None):
-        """
-        Sync the song ratings on this Plex server with the ratings in the files
-
-        :param path_filter: String that file paths must contain to be sync'd
-        """
-        if self.server_root is None:
-            raise ValueError(f'The custom.server_path_root is missing from {self._config_path} and wasn\'t provided')
-        prefix = '[DRY RUN] Would update' if self.dry_run else 'Updating'
-        kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
-        for track in self.get_tracks(**kwargs):
-            file = SongFile.for_plex_track(track, self.server_root)
-            file_stars = file.star_rating_10
-            if file_stars is not None:
-                plex_stars = track.userRating
-                if file_stars == plex_stars:
-                    log.log(9, 'Rating is already correct for {}'.format(file))
-                else:
-                    log.info('{} rating from {} to {} for {}'.format(prefix, plex_stars, file_stars, file))
-                    if not self.dry_run:
-                        track.edit(**{'userRating.value': file_stars})

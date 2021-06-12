@@ -394,17 +394,20 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
         if intro := artist_page.intro():
             log.debug(f'Looking for groups in intro for {artist_page}', extra={'color': 11})
-            for link, entity in EntertainmentEntity.from_links(intro.find_all(Link, recurse=True), strict=0).items():
-                if entity._categories == GROUP_CATEGORIES:
-                    log.debug(f'Found link from {artist_page} to group={entity}', extra={'color': 11})
-
-                # noinspection PyUnresolvedReferences
-                if entity._categories == GROUP_CATEGORIES and (members := entity.members):
-                    # noinspection PyUnboundLocalVariable
-                    log.debug(f'Found link from {artist_page} to group={entity} with {members=}', extra={'color': 11})
-                    # noinspection PyUnboundLocalVariable
-                    if any(artist_page == page for m in members for page in m.pages):
-                        yield link
+            try:
+                links = intro.find_all(Link, recurse=True)
+            except AttributeError:
+                log.debug(f'Error finding links on page={artist_page!r} in {intro=}')
+            else:
+                for link, entity in EntertainmentEntity.from_links(links, strict=0).items():
+                    if entity._categories == GROUP_CATEGORIES:
+                        log.debug(f'Found link from {artist_page} to group={entity}', extra={'color': 11})
+                    if entity._categories == GROUP_CATEGORIES and (members := entity.members):  # noqa
+                        log.debug(
+                            f'Found link from {artist_page} to group={entity} with {members=}', extra={'color': 11}
+                        )
+                        if any(artist_page == page for m in members for page in m.pages):
+                            yield link
 
     @classmethod
     def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:

@@ -147,6 +147,8 @@ class SearchMenu(ContextualMenu):
         'google': 'Search Google for {selected!r}',
         'kpop.fandom': 'Search kpop.fandom.com for {selected!r}',
         'generasia': 'Search generasia for {selected!r}',
+        'wiki.d-addicts': 'Search DramaWiki for {selected!r}',
+        'wikipedia': 'Search Wikipedia for {selected!r}',
     }
 
     def __init__(self, *args, **kwargs):
@@ -163,4 +165,9 @@ class SearchMenu(ContextualMenu):
             webbrowser.open(f'https://www.google.com/search?q={quoted}')
         elif key == 'generasia':
             url = f'https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={quoted}'
+            webbrowser.open(url)
+        elif key == 'wiki.d-addicts':
+            webbrowser.open(f'https://wiki.d-addicts.com/index.php?search={quoted}')
+        elif key == 'wikipedia':
+            url = f'https://en.wikipedia.org/w/index.php?search={quoted}&title=Special%3ASearch&fulltext=Search&ns0=1'
             webbrowser.open(url)

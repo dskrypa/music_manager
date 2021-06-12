@@ -4,6 +4,7 @@ View: Album + track tag values.  Allows editing, after which the view transition
 :author: Doug Skrypa
 """
 
+import threading
 from dataclasses import fields
 # from functools import partial
 from itertools import chain
@@ -15,6 +16,7 @@ from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 from ...common.ratings import stars_to_256
 from ...files.album import AlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
+from ...text.extraction import split_enclosed
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..elements.inputs import ExtInput
 from ..popups.simple import popup_ok
@@ -33,6 +35,7 @@ class AlbumView(MainView, view_name='album'):
 
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(expand_on_resize=['col::all_data', 'col::album_container', 'col::track_data'], **kwargs)
+        self._edit_event = threading.Event()
         self.album = album
         self._albums = sorted(self.album.path.parent.iterdir())
         self._album_index = self._albums.index(self.album.path)
@@ -44,6 +47,17 @@ class AlbumView(MainView, view_name='album'):
         self._image_path = None
         self._failed_validation = {}
         self._rating_callback_names = {}
+
+    @property
+    def editing(self) -> bool:
+        return self._edit_event.is_set()
+
+    @editing.setter
+    def editing(self, value: bool):
+        if value:
+            self._edit_event.set()
+        else:
+            self._edit_event.clear()
 
     def _prepare_button_rows(self):
         bkw = {'size': (18, 1)}
@@ -147,6 +161,15 @@ class AlbumView(MainView, view_name='album'):
             self.window.TKroot.bind('<Button-1>', _handle_click)
         else:
             self.window.TKroot.unbind('<Button-1>')
+
+    def _flip_name_parts(self, key):
+        element = self.window[key]  # type: ExtInput  # noqa
+        try:
+            a, b = split_enclosed(element.value, maxsplit=1)
+        except ValueError:
+            popup_error(f'Unable to split {element.value}')
+        else:
+            element.update(f'{b} ({a})')
 
     # def _register_validation_failed(self, key: str, element=None):
     #     element = element or self.window[key]
@@ -258,6 +281,7 @@ class AlbumView(MainView, view_name='album'):
         info_dict['tracks'] = track_info_dict = {}
         info_fields = {f.name: f for f in fields(AlbumInfo)} | {f.name: f for f in fields(TrackInfo)}
 
+        # TODO: On manual edit of number/type, auto update numbered type
         failed = []
         for data_key, value in data.items():
             # self.log.debug(f'Processing {data_key=} {value=}')

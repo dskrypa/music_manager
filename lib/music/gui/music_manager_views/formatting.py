@@ -106,7 +106,10 @@ class AlbumFormatter:
             future_objs = {executor.submit(self.wiki_client.get_image, title): title for title in urls}
             for future in futures.as_completed(future_objs):
                 title = future_objs[future]
-                self._images[title] = future.result()
+                try:
+                    self._images[title] = future.result()
+                except Exception as e:
+                    self.log.error(f'Error retrieving image={title!r}: {e}')
 
     def get_wiki_cover_images(self):
         if self._images is None:
@@ -214,6 +217,8 @@ class AlbumFormatter:
 
     def get_album_data_rows(self, editable: bool = False):
         rows = []
+        album_view = self.view.name == 'album'
+        flip_keys = {'title', 'artist', 'name', 'parent', 'singer'}
         for key, value in self.album_info.to_dict().items():
             if key == 'tracks':
                 continue
@@ -226,6 +231,14 @@ class AlbumFormatter:
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
                 val_ele = value_ele(value, val_key, disabled)
+                if album_view and key in flip_keys:
+                    val_ele.right_click_menu.add_option(  # noqa
+                        'Flip name parts',
+                        val_key,
+                        self.view._flip_name_parts,  # noqa
+                        call_with_kwargs=False,
+                        event=self.view._edit_event,  # noqa
+                    )
 
             rows.append([key_ele, val_ele])
 
@@ -396,6 +409,8 @@ class TrackFormatter:
 
     def get_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         rows = []
+        album_view = self.album_formatter.view.name == 'album'
+        flip_keys = {'title', 'artist', 'name'}
         for key, value in self.info.to_dict().items():
             if keys and key not in keys:
                 continue
@@ -404,7 +419,18 @@ class TrackFormatter:
                 rows.append(self._rating_row(key, value, editable))
             else:
                 key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, WRITE_ONLY_KEY))
-                val_ele = value_ele(value, self.key_for('val', key), not editable)
+
+                val_key = self.key_for('val', key)
+                val_ele = value_ele(value, val_key, not editable)
+                if album_view and key in flip_keys:
+                    val_ele.right_click_menu.add_option(  # noqa
+                        'Flip name parts',
+                        val_key,
+                        self.album_formatter.view._flip_name_parts,  # noqa
+                        call_with_kwargs=False,
+                        event=self.album_formatter.view._edit_event,  # noqa
+                    )
+
                 rows.append([key_ele, val_ele])
 
         return resize_text_column(rows)

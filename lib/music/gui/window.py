@@ -58,7 +58,10 @@ class Window(_Window):
         handle it immediately.
         """
         for inst in cls.__instances:
-            inst.write_event_value(None, None)
+            try:
+                inst.write_event_value(None, None)
+            except AttributeError:
+                pass
 
     def is_maximized(self) -> bool:
         return self.TKroot.state() == 'zoomed'

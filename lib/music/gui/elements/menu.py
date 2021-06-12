@@ -8,7 +8,8 @@ import webbrowser
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from tkinter import Tk, Menu, Event
+from threading import Event
+from tkinter import Tk, Menu, Event as TkEvent
 from typing import Callable, Mapping, Union, Hashable
 from urllib.parse import quote_plus
 
@@ -24,6 +25,7 @@ class ShowMode(Enum):
     ON_KW_VALUE_TRUTHY = 'kw_value_truthy'
     ON_NO_KWARGS = 'no_kwargs'
     ON_CB_ARG_TRUTHY = 'cb_arg'
+    ON_EVENT_SET = 'on_event'
 
 
 class ContextualMenu:
@@ -69,13 +71,19 @@ class ContextualMenu:
         show: Union[ShowMode, str] = None,
         format: bool = True,  # noqa
         call_with_kwargs: bool = True,
+        event: Event = None,
     ):
         if (cb := cb or self.default_cb) is None:
             raise TypeError(f'A callback is required for option {text=}')
-        show = (ShowMode.ON_KEYWORD if keyword else ShowMode.ALWAYS) if show is None else ShowMode(show)
-        self._options.append(MenuOption(text, cb_arg, show, format, keyword, cb, call_with_kwargs))
+        if show is None:
+            show = ShowMode.ON_KEYWORD if keyword else ShowMode.ON_EVENT_SET if event is not None else ShowMode.ALWAYS
+        else:
+            show = ShowMode(show)
+        if show == ShowMode.ON_EVENT_SET and event is None:
+            raise ValueError(f'{show=} is invalid when event is None')
+        self._options.append(MenuOption(text, cb_arg, show, format, keyword, cb, call_with_kwargs, event))
 
-    def show(self, event: Event, parent: Tk = None, **kwargs) -> bool:
+    def show(self, event: TkEvent, parent: Tk = None, **kwargs) -> bool:
         menu = Menu(parent, tearoff=0)
         added_any = False
         for option in self._options:
@@ -98,6 +106,7 @@ class MenuOption:
     keyword: str = None
     callback: Callable = None
     call_with_kwargs: bool = True
+    event: Event = None
 
     def maybe_add(self, menu: Menu, kwargs: dict) -> bool:
         if not self.should_show(kwargs):
@@ -119,6 +128,8 @@ class MenuOption:
             return not kwargs
         elif show == ShowMode.ON_CB_ARG_TRUTHY:
             return bool(self.cb_arg)
+        elif show == ShowMode.ON_EVENT_SET:
+            return self.event.is_set()
         else:
             return False
 

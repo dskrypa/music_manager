@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Union, Optional
 
-from PySimpleGUI import Text, Element, WRITE_ONLY_KEY
+from PySimpleGUI import Text, Element, WRITE_ONLY_KEY, Image
 
 from ..elements.inputs import ExtInput
 
@@ -36,7 +36,11 @@ def get_a_to_b(label: str, src_val: Union[str, Path], new_val: Union[str, Path],
     new_val = new_val.as_posix() if isinstance(new_val, Path) else new_val
     new_kwargs = {'size': (len(new_val), 1)} if len(new_val) > 50 else {}
     new_ele = ExtInput(new_val, disabled=True, key=f'new::{src}::{tag}', **new_kwargs)
-    return [Text(label), src_ele, Text('\u2794', font=('Helvetica', 15)), new_ele]
+    if len(src_val) + len(new_val) > 200:
+        yield [Text(label), src_ele]
+        yield [Image(size=(len(label) * 7, 1)), Text('\u2794', font=('Helvetica', 15)), new_ele]
+    else:
+        yield [Text(label), src_ele, Text('\u2794', font=('Helvetica', 15)), new_ele]
 
 
 def split_key(key: str) -> Optional[tuple[str, str, str]]:

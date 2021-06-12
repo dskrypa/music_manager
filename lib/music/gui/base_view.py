@@ -308,7 +308,7 @@ class GuiView(ABC):
                 kwargs.setdefault('location', popup_pos)
 
         kwargs.setdefault('margins', (5, 5))
-        # self.log.debug(f'Initializing window with {kwargs=}')
+        self.log.debug(f'Initializing window with {kwargs=}', extra={'color': 8})
         start = monotonic()
         new_window = Window(layout=layout, finalize=True, **kwargs)
         duration = monotonic() - start

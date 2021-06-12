@@ -96,6 +96,7 @@ class AlbumFormatter:
         if client := self.wiki_client:
             page = client.get_page(client.article_url_to_title(self.album_info.wiki_album))
             if image_titles := client.get_page_image_titles(page.title)[page.title]:
+                self.log.debug(f'Found {len(image_titles)} images on page={page.title!r}: {image_titles}')
                 return client.get_image_urls(image_titles)
         return None
 
@@ -119,16 +120,17 @@ class AlbumFormatter:
     def get_wiki_cover_choice(self) -> Optional[Path]:
         from ..popups.choose_image import choose_image
 
-        images = self.get_wiki_cover_images()
-        if title := choose_image(images):
-            cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
-            name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
-            path = cover_dir.joinpath(name)
-            if not path.is_file():
-                img_data = self.wiki_client.get_image(title)
-                with path.open('wb') as f:
-                    f.write(img_data)
-            return path
+        if images := self.get_wiki_cover_images():
+            if title := choose_image(images):
+                cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
+                name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
+                path = cover_dir.joinpath(name)
+                if not path.is_file():
+                    img_data = self.wiki_client.get_image(title)
+                    with path.open('wb') as f:
+                        f.write(img_data)
+                return path
+        return None
 
     # endregion
 
@@ -519,7 +521,7 @@ class TrackFormatter:
         yield [HorizontalSeparator()]
         new_name = new_track_info.expected_name(self.track)
         if self.track.path.name != new_name:
-            yield get_a_to_b('File Rename:', self.track.path.name, new_name, self.path_str, 'file_name')
+            yield from get_a_to_b('File Rename:', self.track.path.name, new_name, self.path_str, 'file_name')
         else:
             yield [
                 Text('File:'),

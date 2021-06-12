@@ -86,7 +86,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
             layout.extend([[img_diff_col], [HSep()]])
 
         if dest_album_path := self.get_dest_album_path():
-            layout.append(get_a_to_b('Album Rename:', self.album.path, dest_album_path, 'album', 'path'))
+            layout.extend(get_a_to_b('Album Rename:', self.album.path, dest_album_path, 'album', 'path'))
         else:
             layout.append([Text('Album Path:'), ExtInput(self.album.path.as_posix(), disabled=True, size=(150, 1))])
 

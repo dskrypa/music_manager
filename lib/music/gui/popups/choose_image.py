@@ -32,6 +32,8 @@ class ChooseImagePopup(BasePopup, view_name='choose_image_popup', primary=False)
             title: PIL.Image.open(BytesIO(image)) if not isinstance(image, PILImage) else image
             for title, image in images.items()
         }
+        self.expand_on_resize = ['col::choices']
+        kwargs.setdefault('resizable', True)
         self.kwargs = kwargs
         self.img_size = img_size
         self._selected: bool = False
@@ -64,7 +66,7 @@ class ChooseImagePopup(BasePopup, view_name='choose_image_popup', primary=False)
                 Image(data=data, key=f'img::{title}', enable_events=True, size=self.img_size)
             ])
 
-        images_shown = max(1, min(self.window.get_screen_size()[1] // 270, len(self.images)) - 1)
+        images_shown = max(1, min(self.window.get_screen_size()[1] // 270, len(self.images)))
         content_col = Column(
             choices, key='col::choices', scrollable=True, vertical_scroll_only=True, size=(500, images_shown * 270)
         )
@@ -86,6 +88,15 @@ class ChooseImagePopup(BasePopup, view_name='choose_image_popup', primary=False)
         self.render()
         self.run()
         return self.result if self._selected else None
+
+    @event_handler
+    def window_resized(self, event: Event, data: EventData):
+        # data = {'old_size': old_size, 'new_size': new_size}
+        key_dict = self.window.key_dict
+        for key in self.expand_on_resize:
+            if column := key_dict.get(key):
+                # self.log.debug(f'Expanding {column=}')
+                column.expand(True, True)
 
 
 def choose_image(images: dict[str, Union[bytes, PILImage]], **kwargs) -> Optional[str]:

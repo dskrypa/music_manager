@@ -108,6 +108,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
         for song in songs:
             song._in_album_dir = True
             song._album_dir = self
+        try:
+            songs.sort(key=lambda t: (t.disk_num, t.track_num))
+        except Exception as e:
+            log.debug(f'Error sorting tracks in {self}: {e}', exc_info=True)
         return songs
 
     @cached_property

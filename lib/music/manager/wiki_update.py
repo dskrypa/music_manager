@@ -455,8 +455,21 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
     @cached_property
     def file_track_map(self) -> Dict[SongFile, Track]:
-        ft_iter = zip(sorted(self.album_dir.songs, key=lambda sf: sf.track_num), self.disco_part.tracks)
-        return {file: track for file, track in ft_iter}
+        # ft_iter = zip(sorted(self.album_dir.songs, key=lambda sf: sf.track_num), self.disco_part.tracks)
+        album_dir, disco_part = self.album_dir, self.disco_part
+        if len(album_dir) != len(disco_part.tracks):
+            file_track_map = {}
+            for song_file in album_dir:
+                try:
+                    file_track_map[song_file] = disco_part.tracks[song_file.track_num - 1]
+                except IndexError:
+                    log.warning(f'Unable to match {song_file=} by number between {album_dir} and {disco_part}')
+                    break
+            else:
+                return file_track_map
+
+        ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), disco_part.tracks)
+        return {song_file: wiki_track for song_file, wiki_track in ft_iter}
 
     @cached_property
     def _artists(self):

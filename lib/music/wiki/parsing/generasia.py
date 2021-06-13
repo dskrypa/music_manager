@@ -269,6 +269,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     continue
                 de_type = DiscoEntryType.for_name(alb_type)
                 content = alb_type_section.content
+                if not isinstance(content, ListNode):
+                    log.warning(
+                        f'Unexpected {section_prefix} album section content type={type(content)} on {artist_page=}',
+                        stack_info=True,
+                    )
+                    continue
                 for entry in content.iter_flat():
                     try:
                         cls._process_disco_entry(artist_page, finder, de_type, entry, lang)

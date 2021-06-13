@@ -14,6 +14,7 @@ from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection
+from urllib.parse import quote
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
@@ -393,6 +394,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         value_spec = frame_spec[-1]  # type: Spec  # main value field is usually last
         value_key = value_spec.name
         kwargs = {'encoding': Encoding.UTF8} if 'encoding' in spec_fields else {}  # noqa
+        if tag_id == 'WXXX' and value and isinstance(value, str):
+            a, b = value.rsplit('/', 1)
+            value = f'{a}/{quote(b)}'
         if not (isinstance(value, Collection) and not isinstance(value, str)):
             value = [value]
 

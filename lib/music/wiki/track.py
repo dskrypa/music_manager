@@ -146,6 +146,12 @@ class Track:
 
         return combine_with_parens(parts)
 
+    @cached_property
+    def extras(self):
+        if extras := self.name.extra:
+            return extras
+        return {}
+
 
 def artist_string(node: CompoundNode) -> Tuple[str, int]:
     found = 0

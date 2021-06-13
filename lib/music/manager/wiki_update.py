@@ -8,7 +8,7 @@ import webbrowser
 from functools import cached_property
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Union, Optional, Dict, Tuple, Iterator
+from typing import Union, Optional, Iterator
 
 from ds_tools.fs.paths import Paths, get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
@@ -112,7 +112,7 @@ class WikiUpdater:
             else:
                 album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
 
-    def get_album_info(self, album_url: Optional[str], artist_only: bool) -> Tuple[AlbumDir, 'ArtistInfoProcessor']:
+    def get_album_info(self, album_url: Optional[str], artist_only: bool) -> tuple[AlbumDir, 'ArtistInfoProcessor']:
         if album_url:
             return self._from_album_url(album_url)
         else:
@@ -137,7 +137,7 @@ class WikiUpdater:
                 )
                 return album_dir, processor
 
-    def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
+    def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         if load_path:
             yield self._from_path(load_path)
         elif album_url:
@@ -153,7 +153,7 @@ class WikiUpdater:
             else:
                 yield from self._from_album_matches()
 
-    def _from_path(self, load_path: str) -> Tuple[AlbumDir, AlbumInfo]:
+    def _from_path(self, load_path: str) -> tuple[AlbumDir, AlbumInfo]:
         album_info = AlbumInfo.load(Path(load_path).expanduser().resolve())
         try:
             album_dir = album_info.album_dir
@@ -161,7 +161,7 @@ class WikiUpdater:
             album_dir = get_album_dir(self.paths, 'load path')
         return album_dir, album_info
 
-    def _from_album_url(self, album_url: str) -> Tuple[AlbumDir, 'AlbumInfoProcessor']:
+    def _from_album_url(self, album_url: str) -> tuple[AlbumDir, 'AlbumInfoProcessor']:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
         processor = AlbumInfoProcessor(
@@ -176,12 +176,12 @@ class WikiUpdater:
         )
         return album_dir, processor
 
-    def _from_artist(self) -> Iterator[Tuple[AlbumDir, 'ArtistInfoProcessor']]:
+    def _from_artist(self) -> Iterator[tuple[AlbumDir, 'ArtistInfoProcessor']]:
         for album_dir in iter_album_dirs(self.paths):
             processor = ArtistInfoProcessor(album_dir, self.artist, self.soloist, self.title_case)
             yield album_dir, processor
 
-    def _from_artist_matches(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
+    def _from_artist_matches(self) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
                 processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
@@ -191,7 +191,7 @@ class WikiUpdater:
             else:
                 yield album_dir, processor.to_album_info()
 
-    def _from_album_matches(self) -> Iterator[Tuple[AlbumDir, AlbumInfo]]:
+    def _from_album_matches(self) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
                 processor = AlbumInfoProcessor.for_album_dir(
@@ -259,7 +259,7 @@ class ArtistInfoProcessor:
         return album_info
 
     @cached_property
-    def artist_name_overrides(self) -> Dict[str, str]:
+    def artist_name_overrides(self) -> dict[str, str]:
         overrides_path = CONFIG_DIR.joinpath('artist_name_overrides.json')
         if overrides_path.exists():
             log.debug(f'Loading {overrides_path}')
@@ -279,7 +279,7 @@ class ArtistInfoProcessor:
         return self._init_artist
 
     @cached_property
-    def _soloist_overrides(self) -> Dict[str, str]:
+    def _soloist_overrides(self) -> dict[str, str]:
         overrides_path = CONFIG_DIR.joinpath('soloist_overrides.json')
         if overrides_path.exists():
             log.debug(f'Loading {overrides_path}')
@@ -454,22 +454,8 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return self.ost and self.edition.full_ost
 
     @cached_property
-    def file_track_map(self) -> Dict[SongFile, Track]:
-        # ft_iter = zip(sorted(self.album_dir.songs, key=lambda sf: sf.track_num), self.disco_part.tracks)
-        album_dir, disco_part = self.album_dir, self.disco_part
-        if len(album_dir) != len(disco_part.tracks):
-            file_track_map = {}
-            for song_file in album_dir:
-                try:
-                    file_track_map[song_file] = disco_part.tracks[song_file.track_num - 1]
-                except IndexError:
-                    log.warning(f'Unable to match {song_file=} by number between {album_dir} and {disco_part}')
-                    break
-            else:
-                return file_track_map
-
-        ft_iter = zip(sorted(album_dir.songs, key=lambda sf: sf.track_num), disco_part.tracks)
-        return {song_file: wiki_track for song_file, wiki_track in ft_iter}
+    def file_track_map(self) -> dict[SongFile, Track]:
+        return TrackZip(self.album_dir, self.disco_part).zip()
 
     @cached_property
     def _artists(self):
@@ -634,3 +620,46 @@ def get_album_dir(paths: Paths, message: str) -> AlbumDir:
     elif not album_dirs:
         raise ValueError(f'No album dirs found for {paths}')
     return album_dirs[0]
+
+
+class TrackZip:
+    def __init__(self, album_dir: AlbumDir, disco_part: Union[DiscographyEntryPart, SoundtrackPart]):
+        self.album_dir = album_dir
+        self.disco_part = disco_part
+        self.files = album_dir.songs
+        self.tracks = disco_part.tracks
+
+    def _basic(self) -> dict[SongFile, Track]:
+        ft_iter = zip(sorted(self.files, key=lambda sf: sf.track_num), self.tracks)
+        return {song_file: wiki_track for song_file, wiki_track in ft_iter}
+
+    def _zip_by_number(self, tracks: list[Track], src: str):
+        file_track_map = {}
+        for song_file in self.files:
+            try:
+                file_track_map[song_file] = tracks[song_file.track_num - 1]
+            except IndexError:
+                raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
+        return file_track_map
+
+    def _by_number(self) -> dict[SongFile, Track]:
+        return self._zip_by_number(self.tracks, str(self.disco_part))
+
+    def _by_number_and_availability(self):
+        tracks = [track for track in self.tracks if 'availability' not in track.extras]
+        if (available := len(tracks)) != (file_count := len(self.files)):
+            raise TrackZipError(f'Tracks that are {available=} != {file_count=}')
+        return self._zip_by_number(tracks, f'available tracks in {self.disco_part}')
+
+    def zip(self):
+        if len(self.files) != len(self.tracks):
+            for method in (self._by_number_and_availability, self._by_number):
+                try:
+                    return method()
+                except TrackZipError as e:
+                    log.debug(e)
+        return self._basic()
+
+
+class TrackZipError(Exception):
+    pass

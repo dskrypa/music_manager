@@ -10,7 +10,7 @@ from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
-from typing import Optional, Any, Iterator, Collection
+from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection
 
 from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
@@ -31,6 +31,9 @@ from ..elements import ExtendedImage, ExtInput, SearchMenu, Rating
 from ..popups.simple import popup_ok
 from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
+
+if TYPE_CHECKING:
+    from .album import AlbumView
 
 __all__ = ['TrackFormatter', 'AlbumFormatter']
 _multiple_covers_warned = set()
@@ -220,7 +223,7 @@ class AlbumFormatter:
     def get_album_data_rows(self, editable: bool = False):
         rows = []
         album_view = self.view.name == 'album'
-        flip_keys = {'title', 'artist', 'name', 'parent', 'singer'}
+        text_keys = {'title', 'artist', 'name', 'parent', 'singer'}
         for key, value in self.album_info.to_dict().items():
             if key == 'tracks':
                 continue
@@ -232,15 +235,10 @@ class AlbumFormatter:
                     types.append(value)
                 val_ele = Combo(types, value, key=val_key, disabled=disabled)
             else:
-                val_ele = value_ele(value, val_key, disabled)
-                if album_view and key in flip_keys:
-                    val_ele.right_click_menu.add_option(  # noqa
-                        'Flip name parts',
-                        val_key,
-                        self.view._flip_name_parts,  # noqa
-                        call_with_kwargs=False,
-                        event=self.view._edit_event,  # noqa
-                    )
+                kwargs = {'link': True} if key.startswith('wiki_') else {}
+                val_ele = value_ele(value, val_key, disabled, **kwargs)
+                if album_view and key in text_keys:
+                    add_right_click_text_options(val_ele, val_key, self.view)  # noqa
 
             rows.append([key_ele, val_ele])
 
@@ -250,6 +248,16 @@ class AlbumFormatter:
 class MultipleCoversFound(Exception):
     def __init__(self, n: int):
         self.n = n
+
+
+def add_right_click_text_options(val_ele: ExtInput, val_key: str, view: 'AlbumView'):
+    val_ele.right_click_menu.add_option(
+        'Flip name parts', val_key, val_ele.flip_name_content_parts, call_with_kwargs=False, event=view._edit_event
+    )
+    for case in ('title', 'lower', 'upper'):
+        val_ele.right_click_menu.add_option(
+            f'Change case: {case.title()}', case, val_ele.change_case, call_with_kwargs=False, event=view._edit_event
+        )
 
 
 def value_ele(
@@ -412,27 +420,18 @@ class TrackFormatter:
     def get_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         rows = []
         album_view = self.album_formatter.view.name == 'album'
-        flip_keys = {'title', 'artist', 'name'}
+        text_keys = {'title', 'artist', 'name'}
         for key, value in self.info.to_dict().items():
             if keys and key not in keys:
                 continue
-
-            if key == 'rating':
+            elif key == 'rating':
                 rows.append(self._rating_row(key, value, editable))
             else:
                 key_ele = Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, WRITE_ONLY_KEY))
-
                 val_key = self.key_for('val', key)
                 val_ele = value_ele(value, val_key, not editable)
-                if album_view and key in flip_keys:
-                    val_ele.right_click_menu.add_option(  # noqa
-                        'Flip name parts',
-                        val_key,
-                        self.album_formatter.view._flip_name_parts,  # noqa
-                        call_with_kwargs=False,
-                        event=self.album_formatter.view._edit_event,  # noqa
-                    )
-
+                if album_view and key in text_keys:
+                    add_right_click_text_options(val_ele, val_key, self.album_formatter.view)  # noqa
                 rows.append([key_ele, val_ele])
 
         return resize_text_column(rows)

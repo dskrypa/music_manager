@@ -13,6 +13,7 @@ from typing import Union, Optional
 
 from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
 
+from ...text.extraction import split_enclosed
 from ..utils import open_in_file_manager
 from .menu import ContextualMenu
 
@@ -171,6 +172,22 @@ class ExtInput(Input):
         if (value := self.value) and value.startswith(('http://', 'https://')):
             webbrowser.open(value)
 
+    def flip_name_content_parts(self, key):
+        try:
+            a, b = split_enclosed(self.value, maxsplit=1)
+        except ValueError:
+            popup_error(f'Unable to split {self.value}')
+        else:
+            self.update(f'{b} ({a})')
+
+    def change_case(self, case: str):
+        try:
+            value = getattr(self.value, case)()
+        except Exception as e:
+            popup_error(f'Unable to change case to {case!r}: {e}')
+        else:
+            self.update(value)
+
 
 class NotSelectionOwner(Exception):
     pass
@@ -178,3 +195,9 @@ class NotSelectionOwner(Exception):
 
 def _clear_selection(entry, event):
     entry.selection_clear()
+
+
+def popup_error(*args, **kwargs):
+    # Workaround for circular import
+    from ..popups.text import popup_error as _popup_error
+    return _popup_error(*args, **kwargs)

@@ -250,10 +250,9 @@ class Soundtrack(DiscographyEntry):
     def split_editions(self):
         full, parts, extras = None, None, None
         for edition in self.editions:
-            # noinspection PyUnresolvedReferences
-            if edition.full_ost:
+            if getattr(edition, 'full_ost', True):  # If it is not a DramaWiki soundtrack with this attr, treat as full
                 full = edition
-            elif edition.ost_extras:
+            elif getattr(edition, 'ost_extras', False):
                 extras = edition
             else:
                 parts = edition

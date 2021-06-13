@@ -77,7 +77,6 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
 
     if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
         # log.debug(f'Found multi-lang name match: {m}')
-        # noinspection PyUnboundLocalVariable
         cleaned = rm_lang_prefix(m_str)
         if split_prefix := next((p for p in ('(stylized', '(short for') if p in cleaned), None):
             cleaned = cleaned.partition(split_prefix)[0].strip()
@@ -118,8 +117,8 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
             name = strip_enclosed(name.replace(' : ', ': '))
             yield Name(name)
         else:
-            while len(first_part) > 2 * len(paren_part):
-                # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; attempting re-split')
+            while _should_resplit(first_part, paren_part):
+                # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; re-splitting...', extra={'color': 11})
                 try:
                     first_part, paren_part = split_enclosed(first_part, reverse=True, maxsplit=1)
                 except ValueError:
@@ -176,6 +175,12 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
                         yield Name.from_enclosed(first_part)
                     else:
                         yield Name.from_parts((first_part, paren_part))
+
+
+def _should_resplit(first_part, paren_part) -> bool:
+    if len(first_part) > 2 * len(paren_part):
+        return True
+    return paren_part.startswith('is a') or paren_part.startswith('was a') and '(' in first_part
 
 
 def _multi_lang_names(primary, parts):

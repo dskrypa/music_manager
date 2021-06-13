@@ -122,6 +122,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Take.1 Are You There?')})
 
+    def test_eng_han_stylized_was(self):
+        page = fake_page(as_node("""'''Wanna One''' (워너원; also stylized as '''WANNA·ONE''') was an 11-member boy group under [[Swing Entertainment]]. They debuted on August 7, 2017 with their first mini album ''[[1X1=1 (To Be One)]]''."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('Wanna One', '워너원')})
+
 
 if __name__ == '__main__':
     main()

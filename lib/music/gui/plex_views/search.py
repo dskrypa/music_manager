@@ -33,7 +33,7 @@ class PlexSearchView(PlexView, view_name='search'):
         result_type = self.get_result_type(section)
         self.section_picker = Combo(list(self.lib_sections), section.title, enable_events=True, key='section')
         self.type_picker = Combo(LIB_TYPE_ENTITY_MAP[section.type], result_type.title(), enable_events=True, key='type')
-        self.query = ExtInput('title~.*', size=(150, 1), key='query', focus=True)
+        self.query = ExtInput('artist~.*', size=(150, 1), key='query', focus=True)
         win_w, win_h = self._window_size
         self.results = ResultTable(size=(win_w - 40, win_h - 160))
 

@@ -100,8 +100,10 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
     @event_handler
     def init_view(self, event: Event, data: EventData):
         data = data[event]
-        if (view := data['view']) == 'album':
-            pass
+        if (view := data['view']) == 'search':
+            from .search import PlexSearchView
+
+            return PlexSearchView(plex=self.plex)
         else:
             popup_input_invalid(f'Unexpected initial {view=!r}', logger=self.log)
 

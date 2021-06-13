@@ -100,7 +100,7 @@ class PlexSearchView(PlexView, view_name='search'):
                 spinner.close()
                 return popup_ok('No results.')
 
-            self.results.show_results(objects, spinner)
+            self.results.show_results(objects)
 
     @event_handler
     def window_resized(self, event: Event, data: EventData):

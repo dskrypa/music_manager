@@ -6,15 +6,15 @@ High level PySimpleGUI elements that represent Plex objects
 
 import logging
 from datetime import datetime
+from functools import cached_property
 from itertools import count
 from math import ceil
-from operator import attrgetter
+from operator import itemgetter
 from pathlib import Path
 from tempfile import gettempdir
-from typing import Union, Collection, Optional
+from typing import Union, Collection, Optional, Iterable
 from urllib.parse import quote
 
-from plexapi.base import PlexPartialObject
 from plexapi.audio import Track, Album, Artist
 from plexapi.video import Movie, Show, Season, Episode
 from PySimpleGUI import Column, HorizontalSeparator, Image
@@ -30,7 +30,7 @@ __all__ = ['ResultRow', 'ResultTable']
 log = logging.getLogger(__name__)
 ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 TMP_DIR = Path(gettempdir()).joinpath('plex', 'images')
-Result = Union[Track, Album, Artist, Movie, Show, Season, Episode]
+PlexObj = Union[Track, Album, Artist, Movie, Show, Season, Episode]
 
 FIELD_SIZES = {
     'year': (4, 1),
@@ -51,6 +51,119 @@ TYPE_FIELDS_MAP = {
     'season': {'image', 'show', 'title', 'plays'},
     'episode': {'image', 'year', 'show', 'season', 'title', 'duration', 'plays', 'rating'},
 }
+DEFAULT_SORT_FIELDS = {
+    'track': ('artist', 'album', 'title'),
+    'album': ('artist', 'year', 'title'),
+    'artist': ('title',),
+    'movie': ('title', 'year'),
+    'show': ('title', 'year'),
+    'season': ('show', 'title'),
+    'episode': ('show', 'season', 'title'),
+}
+
+
+class Result:
+    def __init__(self, plex_obj: PlexObj):
+        self.plex_obj = plex_obj
+        self.type = plex_obj.TYPE
+        self.fields = TYPE_FIELDS_MAP[self.type]
+
+    def __getitem__(self, key: str):
+        return self.field_value_map[key]
+
+    def get(self, key: str, default=None):
+        return self.field_value_map.get(key, default)
+
+    def get_link(self, key: str, default: str = None) -> Optional[str]:
+        return self.plex_links.get(key, default)
+
+    @property
+    def duration(self) -> str:
+        # Invalid for Season & Album
+        duration = int(self.plex_obj.duration / 1000)
+        duration_dt = datetime.fromtimestamp(duration)
+        return duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S')
+
+    @cached_property
+    def field_value_map(self) -> dict[str, str]:
+        plex_obj = self.plex_obj
+        field_value_map = {'title': plex_obj.title}
+        if isinstance(plex_obj, Artist):
+            return field_value_map
+
+        field_value_map['plays'] = plex_obj.viewCount
+        if not isinstance(plex_obj, (Season, Album)):
+            field_value_map['duration'] = self.duration
+        if not isinstance(plex_obj, (Track, Season)):
+            field_value_map['year'] = plex_obj.year
+
+        if isinstance(plex_obj, Track):
+            field_value_map.update(
+                artist=plex_obj.grandparentTitle,
+                album=plex_obj.parentTitle,
+                year=plex_obj._data.attrib.get('parentYear'),
+            )
+        elif isinstance(plex_obj, Album):
+            field_value_map['artist'] = plex_obj.parentTitle
+        elif isinstance(plex_obj, Season):
+            field_value_map['show'] = plex_obj.parentTitle
+        elif isinstance(plex_obj, Episode):
+            field_value_map.update(show=plex_obj.grandparentTitle, season=plex_obj.parentTitle)
+
+        return field_value_map
+
+    def get_images(self, img_size: tuple[int, int]) -> Union[ImageType, tuple[ImageType, ImageType]]:
+        full_size_path = TMP_DIR.joinpath(self.plex_obj.thumb[1:])
+        thumb_path = full_size_path.with_name('{}__{}x{}'.format(full_size_path.name, *img_size))
+        if thumb_path.exists():
+            return thumb_path, full_size_path
+        elif full_size_path.exists():
+            return convert_and_save_thumbnail(full_size_path, thumb_path, img_size), full_size_path
+
+        server = self.plex_obj._server
+        try:
+            resp = server._session.get(server.url(self.plex_obj.thumb), headers=server._headers())
+        except RequestException as e:
+            log.debug(f'Error retrieving image for {self.plex_obj}: {e}')
+            return ICONS_DIR.joinpath('x.png')
+        else:
+            if not full_size_path.parent.exists():
+                full_size_path.parent.mkdir(parents=True)
+            log.debug(f'Saving image for {self.plex_obj} to {full_size_path.as_posix()}')
+            image_bytes = resp.content
+            with full_size_path.open('wb') as f:
+                f.write(image_bytes)
+            return convert_and_save_thumbnail(image_bytes, thumb_path, img_size), full_size_path
+
+    @property
+    def rating(self) -> Optional[int]:
+        return self.plex_obj.userRating if not isinstance(self.plex_obj, Season) else None
+
+    def set_rating(self, rating: int):
+        log.info(f'Updating rating for {self.plex_obj} to {stars(rating)}')
+        self.plex_obj.edit(**{'userRating.value': rating})
+
+    @cached_property
+    def plex_links(self) -> dict[str, str]:
+        plex_obj = self.plex_obj
+        srv = plex_obj._server
+        base = f'{srv._baseurl}/web/index.html#!/server/{srv.machineIdentifier}/details?library%3Acontent.library&key='
+        if isinstance(plex_obj, Track):
+            return {'artist': f'{base}{quote(plex_obj.grandparentKey)}', 'album': f'{base}{quote(plex_obj.parentKey)}'}
+        elif isinstance(plex_obj, Album):
+            return {'artist': f'{base}{quote(plex_obj.parentKey)}', 'title': f'{base}{quote(plex_obj.key)}'}
+        elif isinstance(plex_obj, (Artist, Movie, Show)):
+            return {'title': f'{base}{quote(plex_obj.key)}'}
+        elif isinstance(plex_obj, Season):
+            return {'show': f'{base}{quote(plex_obj.parentKey)}', 'title': f'{base}{quote(plex_obj.key)}'}
+        elif isinstance(plex_obj, Episode):
+            return {
+                'show': f'{base}{quote(plex_obj.grandparentKey)}',
+                'season': f'{base}{quote(plex_obj.parentKey)}',
+                'title': f'{base}{quote(plex_obj.key)}',
+            }
+        else:
+            return {}
 
 
 class ResultRow:
@@ -73,7 +186,7 @@ class ResultRow:
         self.column = Column(
             [row], key=kp, visible=False, justification='center', element_justification='center', expand_x=True
         )
-        self.plex_obj: Optional[PlexPartialObject] = None
+        self.result: Optional[Result] = None
 
     def hide(self):
         self.column.update(visible=False)
@@ -97,27 +210,27 @@ class ResultRow:
                 self.hide()
 
     def update(self, result: Result):
-        self.plex_obj = result
-        field_link_map = plex_links(result)
-        field_value_map = field_values(result)
-        self.fields['title'].update(result.title, link=field_link_map.get('title'))
-        for field, value in field_value_map.items():
-            self.fields[field].update(value, link=field_link_map.get(field))
-        if not isinstance(result, Season):
-            self.rating.update(result.userRating)
-        self.image.image = get_images(result, self.img_size)
+        self.result = result
+        self.fields['title'].update(result.plex_obj.title, link=result.get_link('title'))
+        for field, value in result.field_value_map.items():
+            self.fields[field].update(value, link=result.get_link(field))
+        if (rating := result.rating) is not None:
+            self.rating.update(rating)
+        self.image.image = result.get_images(self.img_size)
         self.column.update(visible=True)
         self.column.expand(True, True, True)
 
     def rating_changed(self, rating: Rating):
-        log.info(f'Updating rating for {self.plex_obj} to {stars(rating.rating)}')
-        self.plex_obj.edit(**{'userRating.value': rating.rating})
+        self.result.set_rating(rating.rating)
 
 
 class ResultTable(Column):
+    _default_params = {
+        'scrollable': True, 'vertical_scroll_only': True, 'element_justification': 'center', 'justification': 'center'
+    }
     __counter = count()
 
-    def __init__(self, rows: int = 50, img_size: tuple[int, int] = None, sort_by: str = None, **kwargs):
+    def __init__(self, rows: int = 50, img_size: tuple[int, int] = None, sort_by: Iterable[str] = None, **kwargs):
         self.img_size = img_size
         self.rows = [ResultRow(img_size) for _ in range(rows)]
         header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1)}
@@ -135,13 +248,11 @@ class ResultTable(Column):
         self.results: Optional[list[Result]] = None
         self.result_count = 0
         self.last_page_count = 0
-        self.sort_by = sort_by or 'title'
+        self.sort_by = sort_by or ('title',)
         self._num = next(self.__counter)
         kwargs.setdefault('key', f'result_table:{self._num}')
-        kwargs.setdefault('scrollable', True)
-        kwargs.setdefault('vertical_scroll_only', True)
-        kwargs.setdefault('element_justification', 'center')
-        kwargs.setdefault('justification', 'center')
+        for key, val in self._default_params.items():
+            kwargs.setdefault(key, val)
         layout = [
             [Image(size=(kwargs['size'][0], 1), pad=(0, 0))],
             [self.header_column],
@@ -153,6 +264,7 @@ class ResultTable(Column):
     def set_result_type(self, result_type: str):
         if result_type != self.result_type:
             self.result_type = result_type
+            self.sort_by = DEFAULT_SORT_FIELDS[result_type]
             show_fields = TYPE_FIELDS_MAP[result_type]
             for field, header_ele in self.headers.items():
                 header_ele.update_visibility(field in show_fields)
@@ -163,14 +275,14 @@ class ResultTable(Column):
             self.expand(expand_x=True, expand_row=True)
             self.contents_changed()
 
-    def show_results(self, results: set[Result], spinner: Spinner):
-        self.results = results = sorted(results, key=attrgetter(self.sort_by))
+    def show_results(self, results: set[PlexObj]):
+        self.results = results = sorted(map(Result, results), key=itemgetter(*self.sort_by))
         self.result_count = result_count = len(results)
         pages = ceil(result_count / 100)
         log.info(f'Found {result_count} ({pages=}) {self.result_type}s')
-        self.show_page(1, spinner)
+        self.show_page(1)
 
-    def show_page(self, page: int, spinner: Spinner):
+    def show_page(self, page: int):
         per_page = len(self.rows)
         pages = ceil(self.result_count / per_page)
         if pages < page or page <= 0:
@@ -180,62 +292,39 @@ class ResultTable(Column):
         end = start + per_page if page < pages else self.result_count
         self.last_page_count = total = end - start
         log.debug(f'Showing {page=} with {total}/{self.result_count} results ({start} - {end})')
-        for row, obj in spinner(zip(self.rows, self.results[start:end])):
+        for row, obj in zip(self.rows, self.results[start:end]):
             row.update(obj)
 
         if total < per_page:
-            for i in spinner(range(total, per_page)):
+            for i in range(total, per_page):
                 self.rows[i].clear()
 
         try:
             self.TKColFrame.canvas.yview_moveto(0)  # noqa
         except Exception:
             pass
-        self.expand(expand_y=True)  # including expand_x=True in this call results in no vertical scroll
-        self.expand(expand_x=True, expand_row=True)  # results in shorter y, but scroll works...
+        # self.expand(expand_y=True)  # including expand_x=True in this call results in no vertical scroll
+        # self.expand(expand_x=True, expand_row=True)  # results in shorter y, but scroll works...
+        self.expand(True, True)  # The behavior referenced by the above comment has now reversed.
         self.contents_changed()
 
     def sort_results(self, sort_by: str):
         # TODO: Add handling for clicking a column header to sort ascending/descending by that column
         #  + remember last field+asc/desc per obj type
         self.sort_by = sort_by
-        with Spinner() as spinner:
-            self.results = sorted(self.results, key=attrgetter(self.sort_by))
-            self.show_page(1, spinner)
+        with Spinner():
+            self.results = sorted(self.results, key=itemgetter(*self.sort_by))
+            self.show_page(1)
 
     def clear_results(self):
         self.results = None
         self.result_count = 0
         if self.last_page_count:
-            with Spinner() as spinner:
-                for i in spinner(range(self.last_page_count)):
+            with Spinner():
+                for i in range(self.last_page_count):
                     self.rows[i].clear()
 
         self.last_page_count = 0
-
-
-def get_images(result: Result, img_size: tuple[int, int]) -> Union[ImageType, tuple[ImageType, ImageType]]:
-    full_size_path = TMP_DIR.joinpath(result.thumb[1:])
-    thumb_path = full_size_path.with_name('{}__{}x{}'.format(full_size_path.name, *img_size))
-    if thumb_path.exists():
-        return thumb_path, full_size_path
-    elif full_size_path.exists():
-        return convert_and_save_thumbnail(full_size_path, thumb_path, img_size), full_size_path
-
-    server = result._server
-    try:
-        resp = server._session.get(server.url(result.thumb), headers=server._headers())
-    except RequestException as e:
-        log.debug(f'Error retrieving image for {result}: {e}')
-        return ICONS_DIR.joinpath('x.png')
-    else:
-        if not full_size_path.parent.exists():
-            full_size_path.parent.mkdir(parents=True)
-        log.debug(f'Saving image for {result} to {full_size_path.as_posix()}')
-        image_bytes = resp.content
-        with full_size_path.open('wb') as f:
-            f.write(image_bytes)
-        return convert_and_save_thumbnail(image_bytes, thumb_path, img_size), full_size_path
 
 
 def convert_and_save_thumbnail(image: ImageType, thumb_path: Path, img_size: tuple[int, int]):
@@ -246,54 +335,3 @@ def convert_and_save_thumbnail(image: ImageType, thumb_path: Path, img_size: tup
     with thumb_path.open('wb') as f:
         thumbnail.save(f, 'png' if thumbnail.mode == 'RGBA' else 'jpeg')
     return thumbnail
-
-
-def format_duration(duration_ms: int) -> str:
-    duration = int(duration_ms / 1000)
-    duration_dt = datetime.fromtimestamp(duration)
-    return duration_dt.strftime('%M:%S' if duration < 3600 else '%H:%M:%S')
-
-
-def field_values(result: Result) -> dict[str, str]:
-    if isinstance(result, Artist):
-        return {}
-
-    field_value_map = {'plays': result.viewCount}
-    if not isinstance(result, (Season, Album)):
-        field_value_map['duration'] = format_duration(result.duration)
-    if not isinstance(result, (Track, Season)):
-        field_value_map['year'] = result.year
-
-    if isinstance(result, Track):
-        field_value_map.update(
-            artist=result.grandparentTitle, album=result.parentTitle, year=result._data.attrib.get('parentYear')
-        )
-    elif isinstance(result, Album):
-        field_value_map['artist'] = result.parentTitle
-    elif isinstance(result, Season):
-        field_value_map['show'] = result.parentTitle
-    elif isinstance(result, Episode):
-        field_value_map.update(show=result.grandparentTitle, season=result.parentTitle)
-
-    return field_value_map
-
-
-def plex_links(result: Result) -> dict[str, str]:
-    srv = result._server
-    base = f'{srv._baseurl}/web/index.html#!/server/{srv.machineIdentifier}/details?library%3Acontent.library&key='
-    if isinstance(result, Track):
-        return {'artist': f'{base}{quote(result.grandparentKey)}', 'album': f'{base}{quote(result.parentKey)}'}
-    elif isinstance(result, Album):
-        return {'artist': f'{base}{quote(result.parentKey)}', 'title': f'{base}{quote(result.key)}'}
-    elif isinstance(result, (Artist, Movie, Show)):
-        return {'title': f'{base}{quote(result.key)}'}
-    elif isinstance(result, Season):
-        return {'show': f'{base}{quote(result.parentKey)}', 'title': f'{base}{quote(result.key)}'}
-    elif isinstance(result, Episode):
-        return {
-            'show': f'{base}{quote(result.grandparentKey)}',
-            'season': f'{base}{quote(result.parentKey)}',
-            'title': f'{base}{quote(result.key)}',
-        }
-    else:
-        return {}

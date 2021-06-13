@@ -9,7 +9,8 @@ from mutagen.id3 import ID3
 
 from ds_tools.core.patterns import FnMatcher
 from ds_tools.fs.paths import Paths
-from ds_tools.output import uprint, Table, SimpleColumn, TableBar
+from ds_tools.output.table import Table, SimpleColumn, TableBar
+from ds_tools.output.terminal import uprint
 from ..constants import TYPED_TAG_DISPLAY_NAME_MAP
 from ..files.track.track import iter_music_files
 from ..files.track.utils import tag_repr

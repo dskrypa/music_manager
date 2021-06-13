@@ -5,8 +5,9 @@
 from collections import defaultdict, Counter
 from typing import TYPE_CHECKING, Mapping, Tuple, Any, Dict
 
-from ds_tools.output import colored, uprint
+from ds_tools.output.color import colored
 from ds_tools.output.table import mono_width
+from ds_tools.output.terminal import uprint
 
 if TYPE_CHECKING:
     from .album import AlbumDir

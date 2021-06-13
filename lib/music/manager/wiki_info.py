@@ -5,10 +5,10 @@
 from itertools import count
 from typing import Optional, Iterable, Set
 
-from ds_tools.output import uprint
+from ds_tools.output.terminal import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
 from ..common.disco_entry import DiscoEntryType
-from ..text.name import Name
+# from ..text.name import Name
 from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart, TVSeries
 from ..wiki.discography import DiscographyMixin, Discography
 

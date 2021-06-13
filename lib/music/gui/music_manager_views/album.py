@@ -9,10 +9,11 @@ from dataclasses import fields
 # from functools import partial
 from itertools import chain
 from pathlib import Path
-from tkinter import Frame, Listbox
+from tkinter import Frame, Listbox as TkListbox
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
+from ds_tools.utils.misc import num_suffix
 from ...common.ratings import stars_to_256
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
@@ -34,7 +35,10 @@ __all__ = ['AlbumView']
 
 class AlbumView(MainView, view_name='album'):
     back_tooltip = 'Go back to edit'
+    # _log_clicks = True
 
+    # TODO: Undo/redo?
+    # TODO: Find/replace
     def __init__(self, album: AlbumDir, album_formatter: AlbumFormatter = None, editing: bool = False, **kwargs):
         super().__init__(expand_on_resize=['col::all_data', 'col::album_container', 'col::track_data'], **kwargs)
         self._edit_event = threading.Event()
@@ -222,7 +226,7 @@ class AlbumView(MainView, view_name='album'):
             values.append(new_value)
             indexes.append(len(values) - 1)
             ele.update(values, set_to_index=indexes)
-            list_box = ele.TKListbox  # type: Listbox
+            list_box = ele.TKListbox  # type: TkListbox
             height = list_box.cget('height')
             if (val_count := len(values)) and val_count != height:
                 list_box.configure(height=val_count)
@@ -322,6 +326,9 @@ class AlbumView(MainView, view_name='album'):
             info_dict['cover_path'] = self._image_path.as_posix()
 
         album_info = AlbumInfo.from_dict(info_dict)
+        if album_info.number and album_info.type and not album_info.numbered_type:
+            album_info.numbered_type = f'{album_info.number}{num_suffix(album_info.number)} {album_info.type.real_name}'
+
         return AlbumDiffView(self.album, album_info, self.album_formatter, last_view=self)
 
     @event_handler

@@ -16,6 +16,7 @@ from PIL import Image as ImageModule
 from PIL.Image import Image as PILImage
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, WRITE_ONLY_KEY
+from requests import RequestException
 
 from ds_tools.fs.paths import get_user_cache_dir
 from ds_tools.images.utils import ImageType
@@ -91,16 +92,23 @@ class AlbumFormatter:
     @property
     def wiki_client(self) -> Optional[MediaWikiClient]:
         if wiki_album_url := self.album_info.wiki_album:
+            if wiki_album_url.startswith('https://music.bugs.co.kr'):
+                return None
             return MediaWikiClient(wiki_album_url, nopath=True)
         return None
 
     @property
     def wiki_image_urls(self) -> Optional[dict[str, str]]:
         if client := self.wiki_client:
-            page = client.get_page(client.article_url_to_title(self.album_info.wiki_album))
-            if image_titles := client.get_page_image_titles(page.title)[page.title]:
-                self.log.debug(f'Found {len(image_titles)} images on page={page.title!r}: {image_titles}')
-                return client.get_image_urls(image_titles)
+            try:
+                page = client.get_page(client.article_url_to_title(self.album_info.wiki_album))
+            except RequestException as e:
+                self.log.error(f'Error retrieving images from {self.album_info.wiki_album}: {e}')
+                return None
+            else:
+                if image_titles := client.get_page_image_titles(page.title)[page.title]:
+                    self.log.debug(f'Found {len(image_titles)} images on page={page.title!r}: {image_titles}')
+                    return client.get_image_urls(image_titles)
         return None
 
     def _get_wiki_cover_images(self):
@@ -283,7 +291,7 @@ def value_ele(
         if add_button:
             val_ele = Column(
                 [[val_ele, Button('Add...', key=val_key.replace('val::', 'add::', 1), disabled=disabled, pad=(0, 0))]],
-                key=f'col::{val_key}{WRITE_ONLY_KEY}',
+                key=f'col::{val_key}',
                 pad=(0, 0),
                 vertical_alignment='center',
                 justification='center',

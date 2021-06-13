@@ -127,6 +127,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(name_from_intro(page))
         self.assertNamesEqual(names, {Name('Wanna One', '워너원')})
 
+    def test_math_at_start(self):
+        page = fake_page(as_node("""'''''1-1=0 (Nothing Without You)''''' is a repackage of [[Wanna One]]'s debut mini-album '''''[[1X1=1 (To Be One)]]'''''. It was released on November 13, 2017 with "Beautiful" serving as the album's title track. The physical release comes in two versions: Wanna and One."""))
+        names = set(name_from_intro(page))
+        self.assertNamesEqual(names, {Name('1-1=0 (Nothing Without You)')})
+
 
 if __name__ == '__main__':
     main()

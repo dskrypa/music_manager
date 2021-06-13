@@ -13,8 +13,8 @@ from typing import Union, Optional
 
 from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
 
+from ds_tools.utils.launch import explore, launch
 from ...text.extraction import split_enclosed
-from ..utils import open_in_file_manager
 from .menu import ContextualMenu
 
 __all__ = ['ExtInput']
@@ -76,7 +76,9 @@ class ExtInput(Input):
             if self._path:
                 menu = ContextualMenu() if menu is None else menu
                 path = self.DefaultText if self._path is True else self._path
-                menu.add_option('Open in File Manager', path, open_in_file_manager, None, 'cb_arg', False, False)
+                menu.add_option('Open in File Manager', path, explore, None, 'cb_arg', False, False)
+                if not Path(path).is_dir():
+                    menu.add_option('Play', path, launch, None, 'cb_arg', False, False)
 
             self._right_click_menu = menu
             if menu and not self.RightClickMenu:

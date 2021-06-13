@@ -7,8 +7,6 @@ Utilities for formatting gui elements.
 import logging
 import sys
 from contextlib import contextmanager
-from pathlib import Path
-from subprocess import Popen
 from typing import Union
 
 from PySimpleGUI import Element, Input, Output, Multiline, Listbox, Checkbox, Text
@@ -22,7 +20,6 @@ __all__ = [
     'OutputHandler',
     'output_log_handler',
     'update_color',
-    'open_in_file_manager',
 ]
 log = logging.getLogger(__name__)
 
@@ -133,19 +130,3 @@ def update_color(ele: Element, fg: str = None, bg: str = None):
         ele.update(background_color=bg, text_color=fg)
     elif isinstance(ele, Listbox):
         ele.TKListbox.configure(bg=bg, fg=fg)
-
-
-def open_in_file_manager(path: Union[Path, str]):
-    path = Path(path)
-    if sys.platform.startswith('linux'):
-        cmd = ['xdg-open', path.as_posix()]
-    elif sys.platform.startswith('win'):
-        if path.is_file():
-            cmd = ['explorer', '/select,', str(path)]
-        else:
-            cmd = ['explorer', str(path)]
-    else:
-        cmd = ['open', path.as_posix()]
-
-    log.debug(f'Running: {cmd}')
-    Popen(cmd)

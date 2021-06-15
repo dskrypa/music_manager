@@ -14,6 +14,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..elements.inputs import ExtInput
 from ..options import GuiOptions
+from ..popups.text import popup_error
 from ..progress import Spinner
 from .formatting import AlbumFormatter
 from .main import MainView
@@ -164,7 +165,11 @@ class AlbumDiffView(MainView, view_name='album_diff'):
                         self.log.log(19, f'Checking directory: {path}')
                         if path.exists() and next(path.iterdir(), None) is None:
                             self.log.log(19, f'Removing empty directory: {path}')
-                            path.rmdir()
+                            try:
+                                path.rmdir()
+                            except OSError as e:
+                                popup_error(f'Unable to delete empty directory={path.as_posix()!r}:\n{e}')
+                                break
 
         if not dry_run:
             return AlbumView(self.album, last_view=self)

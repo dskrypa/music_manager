@@ -150,14 +150,22 @@ class PlexPlaylist:
             msg = f'{self} contains {size:,d} tracks and is already in sync with the given criteria'
             log.info(msg, extra={'color': 11})
 
-    def compare_tracks(self, other: 'PlexPlaylist'):
+    def compare_tracks(self, other: 'PlexPlaylist', strict: bool = False):
         self_tracks = set(self.playlist.items())
         other_tracks = set(other.playlist.items())
-        if removed := other_tracks.difference(self_tracks):
-            log.info(f'{len(removed)} tracks are in {other} but not in {self}', extra={'color': 'red'})
+        print(f'{self} contains {len(self_tracks)} tracks, {other} contains {len(other_tracks)} tracks')
+        if strict:
+            removed, added = other_tracks.difference(self_tracks), self_tracks.difference(other_tracks)
+        else:
+            removed, added = _track_diff(other_tracks, self_tracks), _track_diff(self_tracks, other_tracks)
+
+        if removed:
+            # log.info(f'{len(removed)} tracks are in {other} but not in {self}', extra={'color': 'red'})
+            log.info(f'{len(removed)} tracks were removed from {other}:', extra={'color': 'red'})
             print(colored(bullet_list(removed), 'red'))
-        if added := self_tracks.difference(other_tracks):
-            log.info(f'{len(removed)} tracks are in {self} but not in {other}', extra={'color': 'green'})
+        if added:
+            # log.info(f'{len(added)} tracks are in {self} but not in {other}', extra={'color': 'green'})
+            log.info(f'{len(added)} tracks were added to {self}:', extra={'color': 'green'})
             print(colored(bullet_list(added), 'green'))
         if not removed and not added:
             log.info(f'Playlists {self} and {other} are identical')
@@ -206,7 +214,13 @@ class PlexPlaylist:
         open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
         with open_func(path, mode, encoding='utf-8') as f:
             loaded = json.load(f)
-        return {name: cls.loads(data['playlist'], data['tracks'], _get_server(server)) for name, data in loaded.items()}
+
+        server = _get_server(server)
+        if len(loaded) == 2 and isinstance(loaded.get('playlist'), str) and isinstance(loaded.get('tracks'), list):
+            playlist = cls.loads(loaded['playlist'], loaded['tracks'], server)
+            return {playlist.name: playlist}
+        else:
+            return {name: cls.loads(data['playlist'], data['tracks'], server) for name, data in loaded.items()}
 
     # endregion
 
@@ -234,3 +248,21 @@ def _get_server(server: 'LocalPlexServer' = None) -> 'LocalPlexServer':
         from .server import LocalPlexServer
         server = LocalPlexServer()
     return server
+
+
+def _track_diff(a: set[Track], b: set[Track]) -> set[Track]:
+    """
+    Considers tracks with the same ID or with the same artist name + album name + title to be the same track.
+
+    :param a: A set of tracks
+    :param b: A set of tracks
+    :return: The set of tracks that are in set A that are not in set B
+    """
+    a_dict = {(t.grandparentTitle, t.parentTitle, t.title): t for t in a}
+    b_titles = {(t.grandparentTitle, t.parentTitle, t.title) for t in b}
+    if title_diff := set(a_dict).difference(b_titles):
+        diff_id_map = {t._int_key: t for t in (a_dict[k] for k in title_diff)}
+        keep_ids = set(diff_id_map).difference(t._int_key for t in b)
+        return {diff_id_map[i] for i in keep_ids}
+    else:
+        return set()

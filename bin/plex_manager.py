@@ -60,8 +60,15 @@ def parser():
         rate_parser.add_argument('query', nargs=argparse.REMAINDER, help=f'Query in the format --field[__operation] value; valid operations: {ops}')
 
     with parser.add_subparser('action', 'playlist', help='Save or compare playlists') as playlist_parser:
-        playlist_parser.add_argument('sub_action', choices=('dump', 'compare'), help='Playlist action')
-        playlist_parser.add_argument('path', help='Location to write the playlist dump')
+        with playlist_parser.add_subparser('sub_action', 'dump', help='Save playlists') as playlist_dump:
+            playlist_dump.add_argument('path', help='Location to write the playlist dump')
+            playlist_dump.add_argument('--playlist', '-p', help='Dump the specified playlist (default: all)')
+        with playlist_parser.add_subparser('sub_action', 'compare', help='Compare playlists') as playlist_cmp:
+            playlist_cmp.add_argument('path', help='Location of the playlist dump to compare')
+            playlist_cmp.add_argument('--playlist', '-p', help='Compare the specified playlist (default: all)')
+            playlist_cmp.add_argument('--strict', '-s', action='store_true', help='Perform a strict comparison (default: by artist/album/title)')
+        with playlist_parser.add_subparser('sub_action', 'list', help='List playlists in a dump') as playlist_list:
+            playlist_list.add_argument('path', help='Location of the playlist dump to read')
 
     parser.add_common_sp_arg('--server_path_root', '-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
     parser.add_common_sp_arg('--server_url', '-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
@@ -105,9 +112,11 @@ def main():
         find_and_rate(plex, args.rating, args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
     elif args.action == 'playlist':
         if args.sub_action == 'dump':
-            plex.dump_playlists(args.path)
+            plex.dump_playlists(args.path, args.playlist)
         elif args.sub_action == 'compare':
-            plex.compare_playlists(args.path)
+            plex.compare_playlists(args.path, args.playlist, args.strict)
+        elif args.sub_action == 'list':
+            plex.list_playlists(args.path)
         else:
             log.error(f'Invalid playlist action={args.sub_action!r}')
     else:

@@ -44,11 +44,11 @@ class PlexPlaylist:
     def playlist(self) -> Optional[Playlist]:
         if self._playlist is None:
             playlists = self.server._session.playlists()
-            if playlist := next((p for p in playlists if p.title == self.name), None):
+            if (playlist := next((p for p in playlists if p.title == self.name), None)) is not None:
                 self._playlist = playlist
             else:
                 lc_name = self.name.lower()
-                if playlist := next((p for p in playlists if p.title.lower() == lc_name), None):
+                if (playlist := next((p for p in playlists if p.title.lower() == lc_name), None)) is not None:
                     self._playlist = playlist
                     self.name = playlist.title
         return self._playlist
@@ -113,7 +113,7 @@ class PlexPlaylist:
             self._log_change(items, True)
         if self.server.dry_run:
             return
-        if not (playlist := self.playlist):
+        if (playlist := self.playlist) is None:
             raise InvalidPlaylist(f'{self} does not exist - cannot add items to it')
         list_type = self.type
         rating_keys = []

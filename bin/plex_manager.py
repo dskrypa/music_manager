@@ -59,6 +59,11 @@ def parser():
         rate_parser.add_argument('--allow_inst', '-I', action='store_true', help='Allow search results that include instrumental versions of songs')
         rate_parser.add_argument('query', nargs=argparse.REMAINDER, help=f'Query in the format --field[__operation] value; valid operations: {ops}')
 
+    with parser.add_subparser('action', 'rate_offset', help='Update all track ratings in Plex with an offset') as rate_offset_parser:
+        rate_offset_parser.add_argument('--min_rating', '-min', type=int, default=2, help='Minimum rating for which a change will be made')
+        rate_offset_parser.add_argument('--max_rating', '-max', type=int, default=10, help='Maximum rating for which a change will be made')
+        rate_offset_parser.add_argument('--offset', '-o', type=int, default=-1, help='Adjustment to make')
+
     with parser.add_subparser('action', 'playlist', help='Save or compare playlists') as playlist_parser:
         with playlist_parser.add_subparser('sub_action', 'dump', help='Save playlists') as playlist_dump:
             playlist_dump.add_argument('path', help='Location to write the playlist dump')
@@ -110,6 +115,9 @@ def main():
     elif args.action == 'rate':
         from music.plex.ratings import find_and_rate
         find_and_rate(plex, args.rating, args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
+    elif args.action == 'rate_offset':
+        from music.plex.ratings import adjust_track_ratings
+        adjust_track_ratings(plex, args.min_rating, args.max_rating, args.offset)
     elif args.action == 'playlist':
         if args.sub_action == 'dump':
             plex.dump_playlists(args.path, args.playlist)
@@ -144,9 +152,9 @@ def find_and_print(plex, fmt, obj_type, title, dynamic, escape, allow_inst, full
 def sync_playlists(plex):
     kpop_tracks = plex.query('track')
     plex.sync_playlist(
-        'K-Pop Female Solo Artists 3\u00BD+ Stars',
+        'K-Pop Female Solo Artists 3+ Stars',
         query=kpop_tracks.filter(
-            userRating__gte=7,
+            userRating__gte=6,
             grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
         )
     )
@@ -175,7 +183,7 @@ def sync_playlists(plex):
     )
     plex.sync_playlist(
         'K-Pop Unrated from Known Artists',
-        query=kpop_tracks.filter(userRating__gte=7).artists().tracks().filter(
+        query=kpop_tracks.filter(userRating__gte=6).artists().tracks().filter(
             userRating=0,
             genre__like_exact='k-?pop',
             genre__not_like='christmas',

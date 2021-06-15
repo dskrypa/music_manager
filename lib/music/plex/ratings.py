@@ -12,7 +12,7 @@ from ..files.track.track import SongFile
 from .server import LocalPlexServer
 from .utils import parse_filters
 
-__all__ = ['find_and_rate', 'sync_ratings', 'sync_ratings_to_files', 'sync_ratings_from_files']
+__all__ = ['find_and_rate', 'sync_ratings', 'sync_ratings_to_files', 'sync_ratings_from_files', 'adjust_track_ratings']
 log = logging.getLogger(__name__)
 
 
@@ -98,3 +98,13 @@ def sync_ratings_from_files(plex: LocalPlexServer, path_filter: str = None):
                 log.info('{} rating from {} to {} for {}'.format(prefix, plex_stars, file_stars, file))
                 if not plex.dry_run:
                     track.edit(**{'userRating.value': file_stars})
+
+
+def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating: int = 10, offset: int = -1):
+    from ..common.ratings import stars
+    prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
+    for obj in plex.get_tracks(userRating__gte=min_rating, userRating__lte=max_rating):
+        rating = obj.userRating + offset
+        log.info(f'{prefix} {obj}\'s rating => {stars(rating)}')
+        if not plex.dry_run:
+            obj.edit(**{'userRating.value': rating})

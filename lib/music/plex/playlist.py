@@ -26,7 +26,7 @@ from .query import QueryResults
 if TYPE_CHECKING:
     from .server import LocalPlexServer
 
-__all__ = ['PlexPlaylist']
+__all__ = ['PlexPlaylist', 'dump_playlists', 'compare_playlists', 'list_playlists']
 log = logging.getLogger(__name__)
 Tracks = Union[Collection[Track], QueryResults]
 
@@ -128,6 +128,12 @@ class PlexPlaylist:
         playlist.reload()
         return result
 
+    def sync_or_create(self, query: QueryResults = None, **criteria):
+        if self.exists:
+            self.sync(query, **criteria)
+        else:
+            self.create(query, **criteria)
+
     def sync(self, query: QueryResults = None, **criteria):
         expected = _get_tracks(self.server, query, **criteria)
         plist = self.playlist
@@ -223,6 +229,41 @@ class PlexPlaylist:
             return {name: cls.loads(data['playlist'], data['tracks'], server) for name, data in loaded.items()}
 
     # endregion
+
+
+# region Public Functions
+
+def dump_playlists(plex: 'LocalPlexServer', path: Union[str, Path], name: str = None, compress: bool = True):
+    if name:
+        plex.playlist(name).dump(path, compress)
+    else:
+        PlexPlaylist.dump_all(path, plex, compress)
+
+
+def compare_playlists(plex: 'LocalPlexServer', path: Union[str, Path], name: str = None, strict: bool = False):
+    file_playlists = PlexPlaylist.load_all(path, plex)
+    if name:
+        try:
+            file_playlists = {name: file_playlists[name]}
+        except KeyError as e:
+            raise ValueError(f'Playlist {name!r} was not stored in {path}') from e
+    live_playlists = plex.playlists
+    for name, playlist in file_playlists.items():
+        try:
+            current = live_playlists[name]
+        except KeyError:
+            pass
+        else:
+            current.name += ' (current)'
+            playlist.name += ' (old)'
+            current.compare_tracks(playlist, strict)
+
+
+def list_playlists(plex: 'LocalPlexServer', path: Union[str, Path]):
+    for name in sorted(PlexPlaylist.load_all(path, plex)):
+        print(name)
+
+# endregion
 
 
 def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:

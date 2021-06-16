@@ -186,39 +186,3 @@ class LocalPlexServer:
         if (playlist := PlexPlaylist(name, self)).exists:
             return playlist
         raise ValueError(f'Playlist {name!r} does not exist')
-
-    def sync_playlist(self, name: str, *, query: Optional[QueryResults] = None, **criteria):
-        playlist = PlexPlaylist(name, self)
-        if playlist.exists:
-            playlist.sync(query, **criteria)
-        else:
-            playlist.create(query, **criteria)
-
-    def dump_playlists(self, path: Union[str, Path], name: str = None, compress: bool = True):
-        if name:
-            self.playlist(name).dump(path, compress)
-        else:
-            PlexPlaylist.dump_all(path, self, compress)
-
-    def compare_playlists(self, path: Union[str, Path], name: str = None, strict: bool = False):
-        file_playlists = PlexPlaylist.load_all(path, self)
-        if name:
-            try:
-                file_playlists = {name: file_playlists[name]}
-            except KeyError as e:
-                raise ValueError(f'Playlist {name!r} was not stored in {path}') from e
-        live_playlists = self.playlists
-        for name, playlist in file_playlists.items():
-            try:
-                current = live_playlists[name]
-            except KeyError:
-                pass
-            else:
-                current.name += ' (current)'
-                playlist.name += ' (old)'
-                current.compare_tracks(playlist, strict)
-
-    def list_playlists(self, path: Union[str, Path]):
-        file_playlists = PlexPlaylist.load_all(path, self)
-        for name in sorted(file_playlists):
-            print(name)

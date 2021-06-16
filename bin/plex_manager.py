@@ -119,12 +119,13 @@ def main():
         from music.plex.ratings import adjust_track_ratings
         adjust_track_ratings(plex, args.min_rating, args.max_rating, args.offset)
     elif args.action == 'playlist':
+        from music.plex.playlist import dump_playlists, compare_playlists, list_playlists
         if args.sub_action == 'dump':
-            plex.dump_playlists(args.path, args.playlist)
+            dump_playlists(plex, args.path, args.playlist)
         elif args.sub_action == 'compare':
-            plex.compare_playlists(args.path, args.playlist, args.strict)
+            compare_playlists(plex, args.path, args.playlist, args.strict)
         elif args.sub_action == 'list':
-            plex.list_playlists(args.path)
+            list_playlists(plex, args.path)
         else:
             log.error(f'Invalid playlist action={args.sub_action!r}')
     else:
@@ -150,28 +151,27 @@ def find_and_print(plex, fmt, obj_type, title, dynamic, escape, allow_inst, full
 
 
 def sync_playlists(plex):
+    from music.plex.playlist import PlexPlaylist
+
     kpop_tracks = plex.query('track')
-    plex.sync_playlist(
-        'K-Pop Female Solo Artists 3+ Stars',
-        query=kpop_tracks.filter(
-            userRating__gte=6,
-            grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
-        )
+    PlexPlaylist('K-Pop Female Solo Artists 3+ Stars', plex).sync_or_create(query=kpop_tracks.filter(
+        userRating__gte=6, grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
+    ))
+    PlexPlaylist('K-Pop ALL', plex).sync_or_create(query=kpop_tracks)
+    PlexPlaylist('K-Pop 1 Star', plex).sync_or_create(query=kpop_tracks.filter(userRating=2))
+    PlexPlaylist('K-Pop 2 Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating=4))
+    PlexPlaylist('K-Pop 3 Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating=6))
+    PlexPlaylist('K-Pop 3+ Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=6))
+    PlexPlaylist('K-Pop 3\u00BD Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating=7))
+    PlexPlaylist('K-Pop 3\u00BD+ Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=7))
+    PlexPlaylist('K-Pop 4 Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating=8))
+    PlexPlaylist('K-Pop 4+ Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=8))
+    PlexPlaylist('K-Pop 4~4\u00BD Stars', plex).sync_or_create(
+        query=kpop_tracks.filter(userRating__gte=8, userRating__lte=9)
     )
-    plex.sync_playlist('K-Pop ALL', query=kpop_tracks)
-    plex.sync_playlist('K-Pop 1 Star', query=kpop_tracks.filter(userRating=2))
-    plex.sync_playlist('K-Pop 2 Stars', query=kpop_tracks.filter(userRating=4))
-    plex.sync_playlist('K-Pop 3 Stars', query=kpop_tracks.filter(userRating=6))
-    plex.sync_playlist('K-Pop 3+ Stars', query=kpop_tracks.filter(userRating__gte=6))
-    plex.sync_playlist('K-Pop 3\u00BD Stars', query=kpop_tracks.filter(userRating=7))
-    plex.sync_playlist('K-Pop 3\u00BD+ Stars', query=kpop_tracks.filter(userRating__gte=7))
-    plex.sync_playlist('K-Pop 4 Stars', query=kpop_tracks.filter(userRating=8))
-    plex.sync_playlist('K-Pop 4+ Stars', query=kpop_tracks.filter(userRating__gte=8))
-    plex.sync_playlist('K-Pop 4~4\u00BD Stars', query=kpop_tracks.filter(userRating__gte=8, userRating__lte=9))
-    plex.sync_playlist('K-Pop 4\u00BD Stars', query=kpop_tracks.filter(userRating=9))
-    plex.sync_playlist('K-Pop 5 Stars', query=kpop_tracks.filter(userRating__gte=10))
-    plex.sync_playlist(
-        'K-Pop Unrated',
+    PlexPlaylist('K-Pop 4\u00BD Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating=9))
+    PlexPlaylist('K-Pop 5 Stars', plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=10))
+    PlexPlaylist('K-Pop Unrated', plex).sync_or_create(
         query=kpop_tracks.filter(
             userRating=0,
             genre__like_exact='k-?pop',
@@ -181,8 +181,7 @@ def sync_playlists(plex):
             duration__gte=60000,
         ).unique()
     )
-    plex.sync_playlist(
-        'K-Pop Unrated from Known Artists',
+    PlexPlaylist('K-Pop Unrated from Known Artists', plex).sync_or_create(
         query=kpop_tracks.filter(userRating__gte=6).artists().tracks().filter(
             userRating=0,
             genre__like_exact='k-?pop',

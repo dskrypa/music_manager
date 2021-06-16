@@ -57,7 +57,8 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 options.add_bool('no_album_move', 'Do Not Move Album', tooltip='Do not rename the album directory')
 
             with self.options.column(1) as options:
-                options.add_listbox('sites', 'Sites', choices=ALL_SITES, default=ALL_SITES[:-1], tooltip='The wiki sites to search')
+                sites = self.config.get('wiki_update:sites', ALL_SITES[:-1])
+                options.add_listbox('sites', 'Sites', choices=ALL_SITES, default=sites, tooltip='The wiki sites to search')
 
             self.options.update(options)
 
@@ -89,6 +90,8 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         parsed = self.options.parse(data)
         self.log.info(f'Parsed options:')
         Printer('json-pretty').pprint(parsed)
+        if set(parsed['sites']) != set(self.config.get('wiki_update:sites', ())):
+            self.config['wiki_update:sites'] = sorted(parsed['sites'])
 
         updater = WikiUpdater(
             [self.album.path],

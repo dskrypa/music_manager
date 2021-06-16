@@ -367,8 +367,7 @@ class AlbumView(MainView, view_name='album'):
                 return
             else:
                 if path != last_dir:
-                    self.config[f'last_dir:sync_src'] = path.as_posix()
-                    self.config.save()
+                    self.config['last_dir:sync_src'] = path.as_posix()
         else:
             return
 

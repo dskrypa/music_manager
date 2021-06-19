@@ -46,6 +46,7 @@ def launch_gui(args):
 
     start_kwargs = dict(title='Plex Manager', resizable=True, size=(1700, 750), element_justification='center')
     start_kwargs['init_event'] = ('init_view', {'view': 'search'})
+    # start_kwargs['init_event'] = ('init_view', {'view': 'player'})
     PlexView.start(**start_kwargs)
 
 

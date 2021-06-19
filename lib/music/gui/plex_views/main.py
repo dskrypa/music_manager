@@ -72,7 +72,11 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         return entity_types[0]
 
     def get_render_args(self) -> RenderArgs:
-        layout = [[Menu(self.menu)]]
+        try:
+            layout = [[Menu(self.menu)]]
+        except AttributeError:
+            layout = []
+
         if self.__class__ is PlexView:
             image = image_to_bytes(ICONS_DIR.joinpath('search.png'), size=(200, 200))
             button = Button(

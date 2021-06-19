@@ -303,6 +303,9 @@ class GuiView(ABC):
         else:
             kwargs.setdefault('keep_on_top', True)
             kwargs.setdefault('modal', True)
+            get_cfg = self.config.get
+            if get_cfg(f'remember_size:{self.name}') and (size := get_cfg(f'popup_size:{self.name}', type=tuple)):
+                kwargs['size'] = size
             if old_window is not None:  # At least initially place its top-left corner on the same window; center below
                 popup_pos = old_window.current_location() or self._window_pos
                 kwargs.setdefault('location', popup_pos)
@@ -407,6 +410,8 @@ class GuiView(ABC):
             loc._window_size = new_size
             if self.primary and self.config['remember_size']:
                 loc.config['window_size'] = new_size
+            elif self.config.get(f'remember_size:{self.name}'):
+                loc.config[f'popup_size:{self.name}'] = new_size
             # self.log.debug(f'Window for {loc=} size changed: {old_size} -> {new_size}')
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty

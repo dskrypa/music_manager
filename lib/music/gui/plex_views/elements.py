@@ -5,8 +5,10 @@ High level PySimpleGUI elements that represent Plex objects
 """
 
 import logging
+from base64 import b64encode
 from datetime import datetime
 from functools import cached_property
+from io import BytesIO
 from itertools import count
 from math import ceil
 from operator import itemgetter
@@ -17,11 +19,12 @@ from urllib.parse import quote
 
 from plexapi.audio import Track, Album, Artist
 from plexapi.video import Movie, Show, Season, Episode
-from PySimpleGUI import Column, HorizontalSeparator, Image
+from PySimpleGUI import Column, HorizontalSeparator, Image, Button
 from requests import RequestException
 
 from ds_tools.images.utils import ImageType, as_image, scale_image
 from ...common.ratings import stars
+from ..icons import Icons
 from ..elements import ExtendedImage, Rating, ExtText
 from ..popups.text import popup_ok
 from ..progress import Spinner
@@ -31,7 +34,7 @@ log = logging.getLogger(__name__)
 ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 TMP_DIR = Path(gettempdir()).joinpath('plex', 'images')
 PlexObj = Union[Track, Album, Artist, Movie, Show, Season, Episode]
-
+PLAY_ICON = Icons(15).draw('play')
 FIELD_SIZES = {
     'year': (4, 1),
     'artist': (30, 1),
@@ -43,13 +46,13 @@ FIELD_SIZES = {
     'plays': (5, 1),
 }
 TYPE_FIELDS_MAP = {
-    'track': {'cover', 'year', 'artist', 'album', 'title', 'duration', 'plays', 'rating'},
+    'track': {'cover', 'year', 'artist', 'album', 'title', 'duration', 'plays', 'rating', 'play'},
     'album': {'cover', 'year', 'artist', 'title', 'plays', 'rating'},
     'artist': {'image', 'title'},
-    'movie': {'image', 'year', 'title', 'duration', 'plays', 'rating'},
+    'movie': {'image', 'year', 'title', 'duration', 'plays', 'rating', 'play'},
     'show': {'image', 'year', 'title', 'duration', 'plays', 'rating'},
     'season': {'image', 'show', 'title', 'plays'},
-    'episode': {'image', 'year', 'show', 'season', 'title', 'duration', 'plays', 'rating'},
+    'episode': {'image', 'year', 'show', 'season', 'title', 'duration', 'plays', 'rating', 'play'},
 }
 DEFAULT_SORT_FIELDS = {
     'track': ('artist', 'album', 'title'),
@@ -165,24 +168,35 @@ class Result:
         else:
             return {}
 
+    @cached_property
+    def stream_url(self) -> Optional[str]:
+        try:
+            return self.plex_obj.getStreamURL()
+        except AttributeError:
+            return None
+
 
 class ResultRow:
     __counter = count()
+    _play_icon = None
 
     def __init__(self, img_size: tuple[int, int] = None):
         self.img_size = img_size or (40, 40)
         self._num = next(self.__counter)
         kp = f'result:{self._num}'
         self.image = ExtendedImage(size=self.img_size, key=f'{kp}:cover', pad=((20, 5), 3))
+        if self._play_icon is None:
+            ResultRow._play_icon = img_to_b64(PLAY_ICON)
+        self.play_button = Button(image_data=self._play_icon, key=f'{kp}:play')
         self.result_type = None
         self.fields: dict[str, ExtText] = {
             field: ExtText(
                 size=size, key=f'{kp}:{field}', justification='right' if field in ('duration', 'plays') else None
             )
-            for field, size in FIELD_SIZES.items()
+            for field, size in FIELD_SIZES.items() if field != 'play'
         }
         self.rating = Rating(key=f'{kp}:rating', change_cb=self.rating_changed)
-        row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating]
+        row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating, self.play_button]
         self.column = Column(
             [row], key=kp, visible=False, justification='center', element_justification='center', expand_x=True
         )
@@ -206,6 +220,7 @@ class ResultRow:
             show_fields = show_fields or TYPE_FIELDS_MAP[result_type]
             for field, text_ele in self.fields.items():
                 text_ele.update_visibility(field in show_fields)
+            self.play_button.update(visible='play' in show_fields)
             if hide:
                 self.hide()
 
@@ -233,13 +248,13 @@ class ResultTable(Column):
     def __init__(self, rows: int = 50, img_size: tuple[int, int] = None, sort_by: Iterable[str] = None, **kwargs):
         self.img_size = img_size
         self.rows = [ResultRow(img_size) for _ in range(rows)]
-        header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1)}
+        header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1), 'play': (4, 1)}
         self.headers: dict[str, ExtText] = {
-            header: ExtText(
+            header.strip(): ExtText(
                 header.title(),
                 size=size,
                 key=f'header:{header}',
-                justification='right' if header in ('duration', 'plays') else None,
+                justification='right' if header in ('duration', 'plays', 'play') else None,
             )
             for header, size in header_sizes.items()
         }
@@ -260,6 +275,9 @@ class ResultTable(Column):
             *([tr.column] for tr in self.rows),
         ]
         super().__init__(layout, **kwargs)
+
+    def __getitem__(self, row: int) -> ResultRow:
+        return self.rows[row]
 
     def set_result_type(self, result_type: str):
         if result_type != self.result_type:
@@ -335,3 +353,9 @@ def convert_and_save_thumbnail(image: ImageType, thumb_path: Path, img_size: tup
     with thumb_path.open('wb') as f:
         thumbnail.save(f, 'png' if thumbnail.mode == 'RGBA' else 'jpeg')
     return thumbnail
+
+
+def img_to_b64(image) -> bytes:
+    bio = BytesIO()
+    image.save(bio, 'PNG')
+    return b64encode(bio.getvalue())

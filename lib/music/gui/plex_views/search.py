@@ -105,3 +105,12 @@ class PlexSearchView(PlexView, view_name='search'):
     @event_handler
     def window_resized(self, event: Event, data: EventData):
         self.results.expand(True, True)
+
+    @event_handler('*:play')
+    def play_clicked(self, event: Event, data: EventData):
+        self.log.info(f'Clicked: {event}')
+        row = self.results[int(event.split(':')[1])]
+        if stream_url := row.result.stream_url:
+            from .player import PlexPlayerPopup
+
+            return PlexPlayerPopup(plex=self.plex, url=stream_url, duration=row.result.plex_obj.duration)

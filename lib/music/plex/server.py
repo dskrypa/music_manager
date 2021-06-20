@@ -111,14 +111,14 @@ class LocalPlexServer:
             self._config.write(f)
 
     @cached_property
-    def _session(self) -> PlexServer:
+    def server(self) -> PlexServer:
         session = Session()
         session.verify = False
         return PlexServer(self.url, self._token, session=session)
 
     @property
     def _library(self) -> Library:
-        return self._session.library
+        return self.server.library
 
     def _section(self, section: LibSection) -> LibrarySection:
         if isinstance(section, LibrarySection):
@@ -180,7 +180,7 @@ class LocalPlexServer:
 
     @property
     def playlists(self) -> dict[str, PlexPlaylist]:
-        return {p.title: PlexPlaylist(p.title, self, p) for p in self._session.playlists()}
+        return {p.title: PlexPlaylist(p.title, self, p) for p in self.server.playlists()}
 
     def playlist(self, name: str) -> PlexPlaylist:
         if (playlist := PlexPlaylist(name, self)).exists:

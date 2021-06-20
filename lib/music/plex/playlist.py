@@ -32,8 +32,8 @@ Tracks = Union[Collection[Track], QueryResults]
 
 
 class PlexPlaylist:
-    def __init__(self, name: str, server: 'LocalPlexServer' = None, playlist: Playlist = None):
-        self.server = _get_server(server)
+    def __init__(self, name: str, plex: 'LocalPlexServer' = None, playlist: Playlist = None):
+        self.plex = _get_plex(plex)
         self.name = name
         self._playlist = playlist
 
@@ -43,7 +43,7 @@ class PlexPlaylist:
     @property
     def playlist(self) -> Optional[Playlist]:
         if self._playlist is None:
-            playlists = self.server._session.playlists()
+            playlists = self.plex.server.playlists()
             if (playlist := next((p for p in playlists if p.title == self.name), None)) is not None:
                 self._playlist = playlist
             else:
@@ -58,18 +58,18 @@ class PlexPlaylist:
         return self.playlist is not None
 
     @classmethod
-    def new(cls, name: str, server: 'LocalPlexServer' = None, content: Tracks = None, **criteria) -> 'PlexPlaylist':
-        self = cls(name, server)
+    def new(cls, name: str, plex: 'LocalPlexServer' = None, content: Tracks = None, **criteria) -> 'PlexPlaylist':
+        self = cls(name, plex)
         self.create(content, **criteria)
         return self
 
     def create(self, content: Tracks = None, **criteria):
-        items = list(_get_tracks(self.server, content, **criteria))
-        prefix = '[DRY RUN] Would create' if self.server.dry_run else 'Creating'
+        items = list(_get_tracks(self.plex, content, **criteria))
+        prefix = '[DRY RUN] Would create' if self.plex.dry_run else 'Creating'
         log.info(f'{prefix} {self} with {len(items):,d} tracks', extra={'color': 10})
         log.debug(f'Creating {self} with tracks: {items}')
-        if not self.server.dry_run:
-            self._playlist = Playlist.create(self.server._session, self.name, items)
+        if not self.plex.dry_run:
+            self._playlist = Playlist.create(self.plex.server, self.name, items)
 
     @cached_property
     def type(self):
@@ -80,7 +80,7 @@ class PlexPlaylist:
 
     def _log_change(self, items: Collection[Track], adding: bool, size: int = None):
         size = len(self.playlist) if size is None else size
-        dry_run = self.server.dry_run
+        dry_run = self.plex.dry_run
         prefix = f'[DRY RUN] Would {"add" if adding else "remove"}' if dry_run else ('Adding' if adding else 'Removing')
         num = len(items)
         new, prep, color = (size + num, 'to', 14) if adding else (size - num, 'from', 13)
@@ -98,7 +98,7 @@ class PlexPlaylist:
         """
         if not quiet:
             self._log_change(items, False)
-        if self.server.dry_run:
+        if self.plex.dry_run:
             return
         if not (playlist := self.playlist):
             raise InvalidPlaylist(f'{self} does not exist - cannot remove items from it')
@@ -111,7 +111,7 @@ class PlexPlaylist:
     def add_items(self, items: Collection[Track], quiet: bool = False):
         if not quiet:
             self._log_change(items, True)
-        if self.server.dry_run:
+        if self.plex.dry_run:
             return
         if (playlist := self.playlist) is None:
             raise InvalidPlaylist(f'{self} does not exist - cannot add items to it')
@@ -135,7 +135,7 @@ class PlexPlaylist:
             self.create(query, **criteria)
 
     def sync(self, query: QueryResults = None, **criteria):
-        expected = _get_tracks(self.server, query, **criteria)
+        expected = _get_tracks(self.plex, query, **criteria)
         plist = self.playlist
         plist_items = set(plist.items())
         size = len(plist_items)
@@ -191,8 +191,8 @@ class PlexPlaylist:
             json.dump(self.dumps(), f, indent=4, sort_keys=True)
 
     @classmethod
-    def dump_all(cls, path: PathLike, server: 'LocalPlexServer' = None, compress: bool = True):
-        playlists = {name: playlist.dumps() for name, playlist in _get_server(server).playlists.items()}
+    def dump_all(cls, path: PathLike, plex: 'LocalPlexServer' = None, compress: bool = True):
+        playlists = {name: playlist.dumps() for name, playlist in _get_plex(plex).playlists.items()}
         path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'))
         log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
         open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
@@ -200,33 +200,33 @@ class PlexPlaylist:
             json.dump(playlists, f, indent=4, sort_keys=True)
 
     @classmethod
-    def loads(cls, playlist_data: str, track_data: Collection[str], server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
-        server = _get_server(server)
-        playlist = Playlist(server._session, fromstring(playlist_data.encode('utf-8')))
-        playlist._items = [Track(server._session, fromstring(td.encode('utf-8'))) for td in track_data]
-        return cls(playlist.title, server, playlist)
+    def loads(cls, playlist_data: str, track_data: Collection[str], plex: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+        plex = _get_plex(plex)
+        playlist = Playlist(plex.server, fromstring(playlist_data.encode('utf-8')))
+        playlist._items = [Track(plex.server, fromstring(td.encode('utf-8'))) for td in track_data]
+        return cls(playlist.title, plex, playlist)
 
     @classmethod
-    def load(cls, path: PathLike, server: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+    def load(cls, path: PathLike, plex: 'LocalPlexServer' = None) -> 'PlexPlaylist':
         path = Path(path).expanduser()
         open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
         with open_func(path, mode, encoding='utf-8') as f:
             data = json.load(f)
-        return cls.loads(data['playlist'], data['tracks'], server)
+        return cls.loads(data['playlist'], data['tracks'], plex)
 
     @classmethod
-    def load_all(cls, path: PathLike, server: 'LocalPlexServer' = None) -> dict[str, 'PlexPlaylist']:
+    def load_all(cls, path: PathLike, plex: 'LocalPlexServer' = None) -> dict[str, 'PlexPlaylist']:
         path = Path(path).expanduser()
         open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
         with open_func(path, mode, encoding='utf-8') as f:
             loaded = json.load(f)
 
-        server = _get_server(server)
+        plex = _get_plex(plex)
         if len(loaded) == 2 and isinstance(loaded.get('playlist'), str) and isinstance(loaded.get('tracks'), list):
-            playlist = cls.loads(loaded['playlist'], loaded['tracks'], server)
+            playlist = cls.loads(loaded['playlist'], loaded['tracks'], plex)
             return {playlist.name: playlist}
         else:
-            return {name: cls.loads(data['playlist'], data['tracks'], server) for name, data in loaded.items()}
+            return {name: cls.loads(data['playlist'], data['tracks'], plex) for name, data in loaded.items()}
 
     # endregion
 
@@ -266,7 +266,7 @@ def list_playlists(plex: 'LocalPlexServer', path: Union[str, Path]):
 # endregion
 
 
-def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:
+def _get_tracks(plex: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:
     if content is not None:
         if isinstance(content, QueryResults):
             if content._type != 'track':
@@ -279,16 +279,16 @@ def _get_tracks(server: 'LocalPlexServer', content: Tracks = None, **criteria) -
         else:
             raise TypeError(f'Unexpected track type={type(content).__name__!r}')
     elif criteria:
-        return server.get_tracks(**criteria)
+        return plex.get_tracks(**criteria)
     raise ValueError('Query results or criteria, or an iterable containing one or more tracks/items are required')
 
 
-def _get_server(server: 'LocalPlexServer' = None) -> 'LocalPlexServer':
+def _get_plex(plex: 'LocalPlexServer' = None) -> 'LocalPlexServer':
     """Workaround for the circular dependency"""
-    if server is None:
+    if plex is None:
         from .server import LocalPlexServer
-        server = LocalPlexServer()
-    return server
+        plex = LocalPlexServer()
+    return plex
 
 
 def _track_diff(a: set[Track], b: set[Track]) -> set[Track]:

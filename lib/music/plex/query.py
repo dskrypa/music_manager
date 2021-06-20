@@ -31,8 +31,8 @@ CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsreg
 
 
 class QueryResults:
-    def __init__(self, server: 'LocalPlexServer', obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
-        self.server = server
+    def __init__(self, plex: 'LocalPlexServer', obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
+        self.plex = plex
         self._type = obj_type
         self._data = data
         if library_section_id:
@@ -43,7 +43,7 @@ class QueryResults:
             self._library_section_id = None
 
     def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> 'QueryResults':
-        return self.__class__(self.server, obj_type or self._type, data, self._library_section_id)
+        return self.__class__(self.plex, obj_type or self._type, data, self._library_section_id)
 
     def __iter__(self) -> Iterator[Element]:
         return iter(self._data)
@@ -57,13 +57,13 @@ class QueryResults:
     def __len__(self):
         return len(self._data)
 
-    def __validate(self, other, op):
+    def __validate(self, other: 'QueryResults', op):
         if not isinstance(other, self.__class__):
             raise TypeError(f'Unable to {op} results with type={other.__class__.__name__}')
         elif self._type != other._type:
             raise ValueError(f'Unable to {op} results for incompatible types ({self._type}, {other._type})')
-        elif self.server != other.server:
-            raise ValueError(f'Unable to {op} results from different servers ({self.server}, {other.server})')
+        elif self.plex != other.plex:
+            raise ValueError(f'Unable to {op} results from different servers ({self.plex}, {other.plex})')
 
     def __add__(self, other):
         self.__validate(other, 'combine')
@@ -85,7 +85,7 @@ class QueryResults:
 
     def _query(self, obj_type: PlexObjTypes, **kwargs):
         log.debug(f'Submitting query for {obj_type=} {kwargs=}')
-        return self.server.query(obj_type, section=self._library_section_id, **kwargs)
+        return self.plex.query(obj_type, section=self._library_section_id, **kwargs)
 
     def __serializable__(self):
         return self.results()
@@ -111,7 +111,7 @@ class QueryResults:
         if not self._type == 'track':
             raise InvalidQueryFilter('in_playlist() is only implemented for track results')
 
-        playlist = self.server._session.playlist(name)
+        playlist = self.plex.server.playlist(name)
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 
@@ -192,8 +192,8 @@ class QueryResults:
 
     def results(self) -> set[PlexObj]:
         library_section_id = self._library_section_id
-        initpath = self.server.music._initpath
-        server = self.server.music._server
+        initpath = self.plex.music._initpath
+        server = self.plex.music._server
         get_ecls = PLEXOBJECTS.get
         results = set()
         add_result = results.add
@@ -207,7 +207,7 @@ class QueryResults:
         return results
 
     def result(self) -> Optional[PlexObj]:
-        build_item = self.server.music._buildItemOrNone
+        build_item = self.plex.music._buildItemOrNone
         for elem in self._data:
             if (obj := build_item(elem, None, None)) is not None:
                 obj.librarySectionID = self._library_section_id
@@ -272,7 +272,7 @@ class QueryResults:
             title_obj_map = artist_title_obj_map[artist]
             lc_title = td['title'].lower()
             if existing := title_obj_map.get(lc_title):
-                keep = _pick_uniq_track(existing, track, self.server, rated, latest, singles)
+                keep = _pick_uniq_track(existing, track, self.plex, rated, latest, singles)
             else:
                 keep = track
 
@@ -289,7 +289,7 @@ class QueryResults:
                     if match := next(filter(track_name.matches, artist_uniq), None):
                         existing = artist_uniq.pop(match)
                         # log.debug(f'Found {match=!r} / {existing=} for {track_name=!r} / {track=}', extra={'color': 13})
-                        keep = _pick_uniq_track(existing, track, self.server, rated, latest, singles)
+                        keep = _pick_uniq_track(existing, track, self.plex, rated, latest, singles)
                         keep_name = match if keep == existing else track_name
                     else:
                         # log.debug(f'{track_name=!r} / {track=} did not match any other tracks from {artist_key=!r}')
@@ -303,7 +303,7 @@ class QueryResults:
         return self._new(results)
 
 
-def _pick_uniq_track(existing: Element, track: Element, server, rated, latest, singles) -> Element:
+def _pick_uniq_track(existing: Element, track: Element, plex: 'LocalPlexServer', rated, latest, singles) -> Element:
     if rated:
         if existing.attrib.get('userRating') and not track.attrib.get('userRating'):
             # log.debug(f'Keeping {existing=} instead of {track=} because of rating', extra={'color': 11})
@@ -311,7 +311,7 @@ def _pick_uniq_track(existing: Element, track: Element, server, rated, latest, s
         elif not existing.attrib.get('userRating') and track.attrib.get('userRating'):
             # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
             return track
-        elif latest and (latest_track := _get_latest(existing, track, server.server_root, singles)):
+        elif latest and (latest_track := _get_latest(existing, track, plex.server_root, singles)):
             # if latest_track == existing:
             #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
             # else:
@@ -320,7 +320,7 @@ def _pick_uniq_track(existing: Element, track: Element, server, rated, latest, s
             return latest_track
         else:                                                           # Ensure the chosen value is stable between runs
             return min(existing, track, key=lambda e: int(e.attrib['ratingKey']))
-    elif latest and (latest_track := _get_latest(existing, track, server.server_root, singles)):
+    elif latest and (latest_track := _get_latest(existing, track, plex.server_root, singles)):
         # if latest_track == existing:
         #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
         # else:

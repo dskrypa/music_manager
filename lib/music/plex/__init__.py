@@ -3,9 +3,9 @@ Package for working with the Plex API, and for syncing Plex ratings with ratings
 
 Note on fetchItems:
 The kwargs to fetchItem/fetchItems use __ to access nested attributes, but the only nested attributes available are
-those that are returned in the items in ``plex._session.query(plex._ekey(search_type))``, not the higher level objects.
+those that are returned in the items in ``plex.server.query(plex._ekey(search_type))``, not the higher level objects.
 Example available attributes::\n
-    >>> data = plex._session.query(plex._ekey('track'))
+    >>> data = plex.server.query(plex._ekey('track'))
     >>> media = [c for c in data[0]]
     >>> for m in media:
     ...     m
@@ -23,7 +23,7 @@ Example available attributes::\n
     {'id': '76387', 'key': '/library/parts/76387/1555183134/file.mp3', 'duration': '238680', 'file': '/path/to/song.mp3', 'size': '9773247', 'container': 'mp3', 'hasThumbnail': '1'}
     container, duration, file, hasThumbnail, id, key, size
 
-    >>> data = plex._session.query(plex._ekey('album'))
+    >>> data = plex.server.query(plex._ekey('album'))
     >>> data[0]
     <Element 'Directory' at 0x000001E4E3C92458>
     >>> print(', '.join(sorted(data[0].attrib.keys())))

@@ -18,6 +18,7 @@ from .constants import LIB_TYPE_ENTITY_MAP
 from .main import PlexView
 
 __all__ = ['PlexSearchView']
+QUERY_DEFAULTS = {'track': 'artist~.*', 'episode': 'show~.*'}
 
 
 class PlexSearchView(PlexView, view_name='search'):
@@ -33,17 +34,20 @@ class PlexSearchView(PlexView, view_name='search'):
         result_type = self.get_result_type(section)
         self.section_picker = Combo(list(self.lib_sections), section.title, enable_events=True, key='section')
         self.type_picker = Combo(LIB_TYPE_ENTITY_MAP[section.type], result_type.title(), enable_events=True, key='type')
-        self.query = ExtInput('artist~.*', size=(150, 1), key='query', focus=True)
+        query_str = QUERY_DEFAULTS.get(result_type.lower(), 'title~.*')
+        self.query = ExtInput(query_str, size=(150, 1), key='query', focus=True)
         win_w, win_h = self._window_size
         self.results = ResultTable(size=(win_w - 40, win_h - 160))
 
     @property
-    def result_type(self):
+    def result_type(self) -> str:
         return self.results.result_type
 
     @result_type.setter
     def result_type(self, value: str):
-        self.results.set_result_type(value.lower())
+        value = value.lower()
+        self.results.set_result_type(value)
+        self.query.update(QUERY_DEFAULTS.get(value, 'title~.*'))
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -109,8 +113,8 @@ class PlexSearchView(PlexView, view_name='search'):
     @event_handler('*:play')
     def play_clicked(self, event: Event, data: EventData):
         self.log.info(f'Clicked: {event}')
-        row = self.results[int(event.split(':')[1])]
-        if stream_url := row.result.stream_url:
+        plex_obj = self.results[int(event.split(':')[1])].result.plex_obj
+        if plex_obj.type in ('movie', 'episode', 'track'):
             from .player import PlexPlayerPopup
 
-            return PlexPlayerPopup(plex=self.plex, url=stream_url, duration=row.result.plex_obj.duration)
+            return PlexPlayerPopup(plex=self.plex, plex_obj=plex_obj)

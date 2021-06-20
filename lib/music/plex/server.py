@@ -16,7 +16,7 @@ from plexapi.library import MusicSection, Library, LibrarySection
 from plexapi.myplex import MyPlexAccount
 from plexapi.server import PlexServer
 from plexapi.utils import SEARCHTYPES
-from requests import Session
+from requests import Session, Response
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ..common.prompts import get_input, getpass, UIMode
@@ -115,6 +115,11 @@ class LocalPlexServer:
         session = Session()
         session.verify = False
         return PlexServer(self.url, self._token, session=session)
+
+    def request(self, method: str, endpoint: str, **kwargs) -> Response:
+        server = self.server
+        url = f'{server._baseurl}/{endpoint[1:] if endpoint.startswith("/") else endpoint}'
+        return server._session.request(method, url, headers=server._headers(), **kwargs)
 
     @property
     def library(self) -> Library:

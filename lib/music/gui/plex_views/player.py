@@ -4,12 +4,17 @@ View: Player
 :author: Doug Skrypa
 """
 
+import os
 import sys
 from base64 import b64encode
 from io import BytesIO
+from pathlib import Path
 from tkinter import Event as TkEvent
-from typing import Optional
+from typing import Optional, Union
+from urllib.parse import urlencode
 
+from plexapi.audio import Track
+from plexapi.video import Movie, Episode
 from PySimpleGUI import Button, Image, ProgressBar, WIN_CLOSED
 try:
     from vlc import Instance, MediaPlayer, Media, EventManager, Event as VlcEvent, EventType
@@ -22,21 +27,24 @@ from ...plex.server import LocalPlexServer
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..icons import Icons
 from ..popups.base import BasePopup
+from ..popups.simple import popup_ok
 from ..popups.path_prompt import get_file_path
+from ..progress import Spinner
 from .main import PlexView, DEFAULT_CONFIG
 
 __all__ = ['PlexPlayerView', 'PlexPlayerPopup']
 ON_WINDOWS = sys.platform.startswith('win')
 DEFAULT_POPUP_SIZE = (600, 400)
+StreamablePlexObj = Union[Track, Movie, Episode]
 
 
 class PlexPlayerView(PlexView, view_name='player'):
-    def __init__(self, url: str = None, **kwargs):
+    def __init__(self, plex_obj: StreamablePlexObj = None, **kwargs):
         super().__init__(**kwargs)
         self.menu[0][1].insert(0, '&Open')
-        self._init(url)
+        self._init(plex_obj)
 
-    def _init(self, url: str = None):
+    def _init(self, plex_obj: StreamablePlexObj = None):
         if self.name == 'player':
             win_w, win_h = self.window.size
         else:
@@ -47,6 +55,7 @@ class PlexPlayerView(PlexView, view_name='player'):
         self.vlc_event_mgr = self.vlc_player.event_manager()  # type: EventManager
         self.vlc_event_mgr.event_attach(EventType.MediaPlayerEndReached, self._stopped)  # noqa
         self.vlc_event_mgr.event_attach(EventType.MediaPlayerTimeChanged, self._time_changed)  # noqa
+        self.vlc_event_mgr.event_attach(EventType.MediaPlayerEncounteredError, self._player_error)  # noqa
         self.media = None  # type: Optional[Media]
         self.stopped = True
         self._length = None
@@ -57,12 +66,12 @@ class PlexPlayerView(PlexView, view_name='player'):
             'stop': img_to_b64(icons.draw('stop-circle')),
             'back': img_to_b64(icons.draw('skip-backward-circle')),
             'forward': img_to_b64(icons.draw('skip-forward-circle')),
-            'start': img_to_b64(icons.draw('skip-start-circle')),
+            'beginning': img_to_b64(icons.draw('skip-start-circle')),
             'end': img_to_b64(icons.draw('skip-end-circle')),
         }
         button_size = (50, 50)
         self.buttons = {
-            'start': Button(image_data=self.icons['start'], key='start', size=button_size),
+            'beginning': Button(image_data=self.icons['beginning'], key='beginning', size=button_size),
             'back': Button(image_data=self.icons['back'], key='back', size=button_size),
             'play_pause': Button(image_data=self.icons['play'], key='play_pause', size=button_size),
             'stop': Button(image_data=self.icons['stop'], key='stop', size=button_size),
@@ -70,7 +79,8 @@ class PlexPlayerView(PlexView, view_name='player'):
             'end': Button(image_data=self.icons['end'], key='end', size=button_size),
         }
         self.progress = ProgressBar(0, size=(win_w - 10, 15), key='position')
-        self.url = url
+        self.plex_obj = plex_obj
+        self.spinner = None
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -91,9 +101,56 @@ class PlexPlayerView(PlexView, view_name='player'):
             self.vlc_player.set_xwindow(self.video_image.Widget.winfo_id())
         self.progress.Widget.bind('<Button-1>', self._handle_seek_click)
         # self.video_image.Widget.bind('<Button-1>', self._handle_click)
-        if self.url:
-            self.media = self.vlc_inst.media_new(self.url)  # type: Media
+        if self.plex_obj:
+            # url = self._get_stream_url()
+            url = self._get_local_path()
+            self.log.info(f'Beginning stream with {url=}')
+            self.media = self.vlc_inst.media_new(url)  # type: Media
             self._start()
+
+    def _get_local_path(self) -> str:
+        root = self.plex.server_root
+        if ON_WINDOWS:
+            if isinstance(root, Path):  # Path does not work for network shares in Windows
+                root = root.as_posix()
+            if root.startswith('/') and not root.startswith('//'):
+                root = '/' + root
+        rel_path = self.plex_obj.media[0].parts[0].file
+        return os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
+
+    def _get_stream_url(self) -> str:
+        """
+        Unused - Could not find way to craft a URL that would not result in transcoding...
+        Maybe should use this if it's possible to play without transcoding, otherwise play local file?
+
+        https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview
+
+        TODO: (Maybe) Look into crafting an M3U8 from these:
+            /video/:/transcode/universal/decision
+            /video/:/transcode/universal/start.mpd
+            /video/:/transcode/universal/session/{session}/{1,0}/header
+            /video/:/transcode/universal/session/{session}/{1,0}/{n}.m4s
+        """
+        plex_obj = self.plex_obj
+        params = {
+            'path': plex_obj.key,
+            'offset': 0,
+            'copyts': 1,
+            'protocol': 'http',
+            'mediaIndex': 0,
+            # 'X-Plex-Platform': 'Desktop',
+            'X-Plex-Platform': 'Chrome',
+            'directPlay': 1,
+            'directStream': 1,
+            # 'fastSeek': 1,
+            # 'location': 'lan',
+            # 'directStreamAudio': 1,
+            # 'subtitles': 'none',
+        }
+        stream_type = 'audio' if plex_obj.TYPE == 'track' else 'video'
+        return plex_obj._server.url(
+            f'/{stream_type}/:/transcode/universal/start.m3u8?{urlencode(params)}', includeToken=True
+        )
 
     def _handle_seek_click(self, event: TkEvent):
         if length_ms := self._length:
@@ -106,14 +163,23 @@ class PlexPlayerView(PlexView, view_name='player'):
     #     print(event)
 
     def _start(self):
+        if self.plex_obj and not isinstance(self.plex_obj, Track):
+            self.spinner = Spinner(parent=self.window)
         self.vlc_player.set_media(self.media)
         self.vlc_player.play()
-        self._length = getattr(self, '_duration', None)
+        self._length = self.plex_obj.duration if self.plex_obj else None
         self.buttons['play_pause'].update(image_data=self.icons['pause'])
         self.stopped = False
 
+    def _player_error(self, event):  # event type: VlcEvent (VLC doesn't like annotations on this for some reason)
+        if self.spinner is not None:
+            self.spinner.close()
+            self.spinner = None
+            popup_ok(f'Player encountered an error:\n{event.meta_type=}\n{event.type=}\n{event.obj=}')
+
     def _stopped(self, event):  # event type: VlcEvent (VLC doesn't like annotations on this for some reason)
         # TODO: Tell plex to incr play count
+        # TODO: Tell plex the pause/stop position for movies/episodes
         self.stopped = True
         self.buttons['play_pause'].update(image_data=self.icons['play'])
         self.progress.update(0)
@@ -123,9 +189,14 @@ class PlexPlayerView(PlexView, view_name='player'):
         if self._length is None:
             self._length = self.vlc_player.get_length()
         self.progress.update(event.meta_type.value, max=self._length)
+        if self.spinner is not None:
+            self.spinner.close()
+            self.spinner = None
+
+    # region Media Navigation
 
     @event_handler
-    def start(self, event: Event, data: EventData):
+    def beginning(self, event: Event, data: EventData):
         if self.vlc_player.is_playing():
             self.vlc_player.set_time(0)
         elif self.media:
@@ -164,10 +235,13 @@ class PlexPlayerView(PlexView, view_name='player'):
             self.vlc_player.play()
             self.buttons['play_pause'].update(image_data=self.icons['pause'])
 
+    # endregion
+
     @event_handler
     def open(self, event: Event, data: EventData):
         if path := get_file_path('Select a file to play', no_window=True):
             self.media = self.vlc_inst.media_new(path.as_posix())  # type: Media
+            self.plex_obj = None
             self._start()
 
     @event_handler
@@ -183,11 +257,10 @@ class PlexPlayerPopup(
     config_path='plex_gui_config.json',
     defaults=DEFAULT_CONFIG | {'remember_size:player_popup': True},
 ):
-    def __init__(self, url: str = None, duration: int = None, plex: LocalPlexServer = None, **kwargs):
+    def __init__(self, plex_obj: StreamablePlexObj = None, plex: LocalPlexServer = None, **kwargs):
         BasePopup.__init__(self, **kwargs)
         self.plex: LocalPlexServer = plex or LocalPlexServer(config_path=self.config['config_path'])
-        self._init(url)
-        self._duration = duration
+        self._init(plex_obj)
 
     def __next__(self) -> tuple[Event, EventData]:
         # self.log.debug(f'[View#{self._view_num}] Calling self.window.read...', extra={'color': 11})
@@ -204,6 +277,7 @@ class PlexPlayerPopup(
         full_layout, kwargs = super().get_render_args()
         kwargs['size'] = DEFAULT_POPUP_SIZE
         kwargs['resizable'] = True
+        kwargs['keep_on_top'] = False
         kwargs['element_justification'] = 'center'
         return full_layout, kwargs
 

@@ -38,7 +38,7 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
 
     @cached_property
     def lib_sections(self) -> dict[str, LibrarySection]:
-        return {lib.title: lib for lib in self.plex._library.sections()}
+        return {lib.title: lib for lib in self.plex.library.sections()}
 
     @property
     def last_section(self) -> LibrarySection:

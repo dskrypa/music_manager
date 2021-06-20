@@ -117,16 +117,16 @@ class LocalPlexServer:
         return PlexServer(self.url, self._token, session=session)
 
     @property
-    def _library(self) -> Library:
+    def library(self) -> Library:
         return self.server.library
 
-    def _section(self, section: LibSection) -> LibrarySection:
+    def get_lib_section(self, section: LibSection) -> LibrarySection:
         if isinstance(section, LibrarySection):
             return section
         elif isinstance(section, str):
-            return self._library.section(section)
+            return self.library.section(section)
         elif isinstance(section, int):
-            for lib_section in self._library.sections():
+            for lib_section in self.library.sections():
                 if lib_section.key == section:
                     return lib_section
             raise ValueError(f'No lib section found for id={section}')
@@ -135,10 +135,10 @@ class LocalPlexServer:
 
     @cached_property
     def music(self) -> MusicSection:
-        return self._library.section(self.music_library)
+        return self.library.section(self.music_library)
 
     def _ekey(self, search_type: PlexObjTypes, section: LibSection = None) -> str:
-        section = self._section(section) if section is not None else self.music
+        section = self.get_lib_section(section) if section is not None else self.music
         ekey = f'/library/sections/{section.key}/all?type={SEARCHTYPES[search_type]}'
         # log.debug(f'Resolved {search_type=!r} => {ekey=!r}')
         return ekey
@@ -174,7 +174,7 @@ class LocalPlexServer:
         return self.find_objects('track', **kwargs)
 
     def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
-        section = self._section(section) if section is not None else self.music
+        section = self.get_lib_section(section) if section is not None else self.music
         data = section._server.query(self._ekey(obj_type, section))
         return QueryResults(self, obj_type, data, section.key).filter(**kwargs)
 

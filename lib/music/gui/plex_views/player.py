@@ -7,11 +7,12 @@ View: Player
 import sys
 from base64 import b64encode
 from io import BytesIO
+from tkinter import Event as TkEvent
 from typing import Optional
 
 from PySimpleGUI import Button, Image, ProgressBar, WIN_CLOSED
 try:
-    from vlc import Instance, MediaPlayer, Media, EventManager, Event, EventType
+    from vlc import Instance, MediaPlayer, Media, EventManager, Event as VlcEvent, EventType
 except (FileNotFoundError, OSError) as e:
     raise RuntimeError(
         'VLC Player is not installed, or the 32 bit version is installed and cannot be loaded from a 64 bit program'
@@ -73,13 +74,11 @@ class PlexPlayerView(PlexView, view_name='player'):
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-
         layout = [
             [self.video_image],
             [self.progress],
             [b for b in self.buttons.values()],
         ]
-
         full_layout.extend(layout)
         return full_layout, kwargs
 
@@ -90,13 +89,20 @@ class PlexPlayerView(PlexView, view_name='player'):
             self.vlc_player.set_hwnd(self.video_image.Widget.winfo_id())
         else:
             self.vlc_player.set_xwindow(self.video_image.Widget.winfo_id())
+        self.progress.Widget.bind('<Button-1>', self._handle_seek_click)
         # self.video_image.Widget.bind('<Button-1>', self._handle_click)
         if self.url:
-            # self.window.write_event_value()
             self.media = self.vlc_inst.media_new(self.url)  # type: Media
             self._start()
 
-    # def _handle_click(self, event):
+    def _handle_seek_click(self, event: TkEvent):
+        if length_ms := self._length:
+            seek_ms = int(length_ms * event.x / self.progress.Widget.winfo_width())  # noqa
+            self.log.debug(f'Seeking to {seek_ms=:,d}')
+            self.vlc_player.set_time(seek_ms)
+            self.progress.update(seek_ms, max=length_ms)
+
+    # def _handle_click(self, event: TkEvent):
     #     print(event)
 
     def _start(self):
@@ -106,13 +112,13 @@ class PlexPlayerView(PlexView, view_name='player'):
         self.buttons['play_pause'].update(image_data=self.icons['pause'])
         self.stopped = False
 
-    def _stopped(self, event):
+    def _stopped(self, event):  # event type: VlcEvent (VLC doesn't like annotations on this for some reason)
         # TODO: Tell plex to incr play count
-        self.progress.update(self._length, max=self._length)
         self.stopped = True
         self.buttons['play_pause'].update(image_data=self.icons['play'])
+        self.progress.update(0)
 
-    def _time_changed(self, event):
+    def _time_changed(self, event):  # event type: VlcEvent (VLC doesn't like annotations on this for some reason)
         # self.log.info(f'_time_changed: {self._length=} {event.meta_type=} {event.type=} {event.obj=}')
         if self._length is None:
             self._length = self.vlc_player.get_length()

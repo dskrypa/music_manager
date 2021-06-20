@@ -7,9 +7,11 @@ View: Player
 import os
 import sys
 from base64 import b64encode
+from functools import partial
 from io import BytesIO
 from pathlib import Path
-from tkinter import Event as TkEvent
+from time import monotonic
+from tkinter import Menu, Tk, Event as TkEvent
 from typing import Optional, Union
 from urllib.parse import urlencode
 
@@ -49,9 +51,14 @@ class PlexPlayerView(PlexView, view_name='player'):
             win_w, win_h = self.window.size
         else:
             win_w, win_h = self.config.get(f'popup_size:{self.name}', DEFAULT_POPUP_SIZE)
-        self.video_image = Image(size=(win_w - 50, win_h - 90), key='video')
-        self.vlc_inst = Instance()
+        self.video_image = Image(size=(win_w - 2, win_h - 90), key='video', pad=(0, 0))
+        inst_args = [
+            # '--video-on-top'
+        ]
+        self.vlc_inst = Instance(inst_args)  # type: Instance
         self.vlc_player = self.vlc_inst.media_player_new()  # type: MediaPlayer
+        self.vlc_player.video_set_mouse_input(False)
+        self.vlc_player.video_set_key_input(False)
         self.vlc_event_mgr = self.vlc_player.event_manager()  # type: EventManager
         self.vlc_event_mgr.event_attach(EventType.MediaPlayerEndReached, self._stopped)  # noqa
         self.vlc_event_mgr.event_attach(EventType.MediaPlayerTimeChanged, self._time_changed)  # noqa
@@ -81,6 +88,8 @@ class PlexPlayerView(PlexView, view_name='player'):
         self.progress = ProgressBar(0, size=(win_w - 10, 15), key='position')
         self.plex_obj = plex_obj
         self.spinner = None
+        self._last_click = 0
+        self._full_screen = False
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -90,6 +99,8 @@ class PlexPlayerView(PlexView, view_name='player'):
             [b for b in self.buttons.values()],
         ]
         full_layout.extend(layout)
+        kwargs['margins'] = (0, 0)
+        kwargs['element_padding'] = (0, 0)
         return full_layout, kwargs
 
     def post_render(self):
@@ -100,7 +111,9 @@ class PlexPlayerView(PlexView, view_name='player'):
         else:
             self.vlc_player.set_xwindow(self.video_image.Widget.winfo_id())
         self.progress.Widget.bind('<Button-1>', self._handle_seek_click)
-        # self.video_image.Widget.bind('<Button-1>', self._handle_click)
+        self.video_image.Widget.bind('<Double-Button-1>', self._handle_double_click)
+        self.video_image.Widget.bind('<Button-1>', self._handle_left_click)
+        self.video_image.Widget.bind('<Button-3>', self._handle_right_click)
         if self.plex_obj:
             # url = self._get_stream_url()
             url = self._get_local_path()
@@ -159,8 +172,52 @@ class PlexPlayerView(PlexView, view_name='player'):
             self.vlc_player.set_time(seek_ms)
             self.progress.update(seek_ms, max=length_ms)
 
-    # def _handle_click(self, event: TkEvent):
-    #     print(event)
+    def _handle_double_click(self, event: TkEvent):
+        if monotonic() - self._last_click < 0.5:
+            self.play_pause()  # Un-pause
+
+        self._toggle_full_screen()
+
+    def _toggle_full_screen(self, event = None):
+        tk_root = self.window.TKroot  # type: Tk
+        full_screen = not self._full_screen
+        tk_root.attributes('-fullscreen', full_screen)
+        button = next(iter(self.buttons.values()))
+        if self._full_screen:
+            tk_root.unbind('<Escape>')
+            self.progress.unhide_row()
+            button.unhide_row()
+        else:
+            tk_root.bind('<Escape>', self._toggle_full_screen)
+            self.progress.hide_row()
+            button.hide_row()
+
+        self.video_image.expand(True, True)
+        self._full_screen = full_screen
+
+    def _handle_left_click(self, event: TkEvent):
+        self._last_click = monotonic()
+        self.play_pause()
+
+    def _handle_right_click(self, event: TkEvent):
+        menu = Menu(self.video_image.Widget.master, tearoff=0)
+
+        crop_menu = Menu(menu)
+        ratios = ('Default', '16:10', '16:9', '4:3', '1.85:1', '2.21:1', '2.35:1', '2.39:1', '5:3', '5:4', '1:1')
+        values = ('default', '16:10', '16:9', '4:3', '37:20', '11:5', '47:20', '43:18', '5:3', '5:4', '1:1')
+        for ratio, value in zip(ratios, values):
+            crop_menu.add_command(label=ratio, command=partial(self._crop, value))
+        menu.add_cascade(label='Crop', menu=crop_menu)
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)  # noqa
+        finally:
+            menu.grab_release()
+
+    def _crop(self, ratio: str):
+        """WidthxHeight+Left+Top"""
+        self.vlc_player.video_set_crop_geometry(None if ratio == 'default' else ratio)
+        # TODO: Save crop ratio for a given show & load on start play
 
     def _start(self):
         if self.plex_obj and not isinstance(self.plex_obj, Track):
@@ -224,7 +281,7 @@ class PlexPlayerView(PlexView, view_name='player'):
         self.vlc_player.set_time(self.vlc_player.get_length())
 
     @event_handler
-    def play_pause(self, event: Event, data: EventData):
+    def play_pause(self, event: Event = None, data: EventData = None):
         if self.vlc_player.is_playing():
             self.vlc_player.pause()
             self.buttons['play_pause'].update(image_data=self.icons['play'])
@@ -247,6 +304,7 @@ class PlexPlayerView(PlexView, view_name='player'):
     @event_handler
     def window_resized(self, event: Event, data: EventData):
         self.video_image.expand(True, True)
+        # TODO: Show: self.vlc_player.video_get_scale()
 
 
 class PlexPlayerPopup(

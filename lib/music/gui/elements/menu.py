@@ -149,6 +149,7 @@ class SearchMenu(ContextualMenu):
         'generasia': 'Search generasia for {selected!r}',
         'wiki.d-addicts': 'Search DramaWiki for {selected!r}',
         'wikipedia': 'Search Wikipedia for {selected!r}',
+        'translate': 'Translate {selected!r}',
     }
 
     def __init__(self, *args, **kwargs):
@@ -171,3 +172,5 @@ class SearchMenu(ContextualMenu):
         elif key == 'wikipedia':
             url = f'https://en.wikipedia.org/w/index.php?search={quoted}&title=Special%3ASearch&fulltext=Search&ns0=1'
             webbrowser.open(url)
+        elif key == 'translate':
+            webbrowser.open(f'https://translate.google.com/?sl=auto&tl=en&text={quoted}&op=translate')

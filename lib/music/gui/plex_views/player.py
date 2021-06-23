@@ -144,6 +144,7 @@ class PlexPlayerView(PlexView, view_name='player'):
             /video/:/transcode/universal/session/{session}/{1,0}/header
             /video/:/transcode/universal/session/{session}/{1,0}/{n}.m4s
         """
+        # return self.plex_obj.getStreamURL()
         plex_obj = self.plex_obj
         params = {
             'path': plex_obj.key,

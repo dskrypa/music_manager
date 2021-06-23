@@ -168,13 +168,6 @@ class Result:
         else:
             return {}
 
-    @cached_property
-    def stream_url(self) -> Optional[str]:
-        try:
-            return self.plex_obj.getStreamURL()
-        except AttributeError:
-            return None
-
 
 class ResultRow:
     __counter = count()
@@ -196,14 +189,13 @@ class ResultRow:
             for field, size in FIELD_SIZES.items() if field != 'play'
         }
         self.rating = Rating(key=f'{kp}:rating', change_cb=self.rating_changed)
-        row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating, self.play_button]
-        self.column = Column(
-            [row], key=kp, visible=False, justification='center', element_justification='center', expand_x=True
-        )
+        self.visible = True
+        self.row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating, self.play_button]
         self.result: Optional[Result] = None
 
     def hide(self):
-        self.column.update(visible=False)
+        self.visible = False
+        self.row[0].hide_row()
 
     def clear(self, hide: bool = True):
         # TODO: Subsequent queries sometimes still show old values, specifically year, at least
@@ -232,8 +224,8 @@ class ResultRow:
         if (rating := result.rating) is not None:
             self.rating.update(rating)
         self.image.image = result.get_images(self.img_size)
-        self.column.update(visible=True)
-        self.column.expand(True, True, True)
+        self.row[0].unhide_row()
+        self.visible = True
 
     def rating_changed(self, rating: Rating):
         self.result.set_rating(rating.rating)
@@ -272,7 +264,7 @@ class ResultTable(Column):
             [Image(size=(kwargs['size'][0], 1), pad=(0, 0))],
             [self.header_column],
             [HorizontalSeparator()],
-            *([tr.column] for tr in self.rows),
+            *(tr.row for tr in self.rows),
         ]
         super().__init__(layout, **kwargs)
 
@@ -287,7 +279,7 @@ class ResultTable(Column):
             for field, header_ele in self.headers.items():
                 header_ele.update_visibility(field in show_fields)
             for row in self.rows:
-                if hide := row.column._visible:
+                if hide := row.visible:
                     row.clear(False)
                 row.set_result_type(result_type, show_fields, hide)
             self.expand(expand_x=True, expand_row=True)

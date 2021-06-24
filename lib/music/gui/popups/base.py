@@ -24,9 +24,10 @@ class BasePopup(GuiView, view_name='_base_popup', primary=False, metaclass=ABCMe
         binds: Mapping[str, str] = None,
         layout: Layout = None,
         read_timeout_ms: int = None,
+        init_event: tuple[Event, EventData] = None,
         **kwargs
     ):
-        super().__init__(binds=binds, read_timeout_ms=read_timeout_ms)
+        super().__init__(binds=binds, read_timeout_ms=read_timeout_ms, init_event=init_event)
         self.__layout = layout
         self.title = title
         self.kwargs = kwargs

@@ -154,6 +154,7 @@ class GuiView(ABC):
         # print(f'Initialized subclass={cls.__name__!r}')
 
     def __init__(self, binds: Mapping[str, str] = None, read_timeout_ms: int = None, **kwargs):
+        self._init_event = kwargs.get('init_event')
         self.parent: Optional[GuiView] = None if self.primary else GuiView.active_view
         self._monitor = None
         self._view_num = next(self._counter)
@@ -198,7 +199,7 @@ class GuiView(ABC):
         if size := kwargs.get('size'):
             GuiView._window_size = size
 
-        obj = cls(**cls_kwargs) if cls_kwargs else cls()
+        obj = cls(init_event=init_event, **(cls_kwargs or {}))
         obj.render()
         if init_event:
             obj.window.write_event_value(*init_event)  # Note: data[event] => the EventData value passed here

@@ -6,7 +6,8 @@ View: Search results
 
 from PySimpleGUI import Text, Button, Combo
 
-from ...plex.query_parsing import PlexQuery, QueryParseError
+from ...plex.exceptions import QueryParseError
+from ...plex.query_parsing import PlexQuery
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..elements import ExtInput
 from ..options import GuiOptions

@@ -7,14 +7,15 @@ Plex query grammar / parsing
 import logging
 from functools import cached_property
 from io import StringIO
-from typing import Union, Iterable
+from typing import Iterable
 
 from lark import Lark, Tree, Token, Transformer, v_args
 from lark.exceptions import UnexpectedEOF, UnexpectedInput
 
 from ds_tools.core.decorate import cached_classproperty
+from .exceptions import UnexpectedParseError, InvaidQuery
 
-__all__ = ['PlexQuery', 'BaseQueryParseError', 'UnexpectedParseError', 'QueryParseError', 'InvaidQuery']
+__all__ = ['PlexQuery']
 log = logging.getLogger(__name__)
 
 
@@ -135,42 +136,6 @@ class QueryTransformer(Transformer):
 
     VALUE = KEY
     EXC = NOT
-
-
-class BaseQueryParseError(Exception):
-    """Base class for errors encountered while parsing a query"""
-
-
-class UnexpectedParseError(BaseQueryParseError):
-    """Exception to be raised when a query cannot be parsed"""
-
-
-class QueryParseError(BaseQueryParseError):
-    def __init__(self, text: str, cause: Union[UnexpectedInput, UnexpectedEOF]):
-        self.text = text
-        self.cause = cause
-        if isinstance(cause, UnexpectedInput):
-            self.context = cause.get_context(text)
-            self.expected = None
-        elif isinstance(cause, UnexpectedEOF):
-            self.context = None
-            self.expected = ', '.join(x.name for x in cause.expected)
-        else:
-            raise TypeError(f'Unexpected {cause=}')
-
-    def __str__(self):
-        if self.context is not None:
-            return f'Parsing error - section with unexpected content:\n{self.context}'
-        else:
-            return f'Parsing error - unexpected EOF - expected one of:\n{self.expected}'
-
-
-class InvaidQuery(QueryParseError):
-    def __str__(self):
-        if self.context is not None:
-            return f'Invalid query - section with unexpected content:\n{self.context}'
-        else:
-            return f'Invalid query - unexpected EOF - expected one of:\n{self.expected}'
 
 
 def print_tree(tree):

@@ -33,7 +33,7 @@ class PlexSearchView(PlexView, view_name='search'):
 
         self.lib_section = section = self.last_section
         result_type = self.get_result_type(section)
-        self.section_picker = Combo(list(self.lib_sections), section.title, enable_events=True, key='section')
+        self.section_picker = Combo(list(self.plex.sections), section.title, enable_events=True, key='section')
         self.type_picker = Combo(LIB_TYPE_ENTITY_MAP[section.type], result_type.title(), enable_events=True, key='type')
         query_str = QUERY_DEFAULTS.get(result_type.lower(), 'title~.*')
         self.query = ExtInput(query_str, size=(150, 1), key='query', focus=True)
@@ -73,7 +73,7 @@ class PlexSearchView(PlexView, view_name='search'):
         last_section = self.last_section
         if (section_title := self.section_picker.get()) != last_section.title:
             self.config['lib_section'] = section_title
-            self.lib_section = section = self.lib_sections[section_title]
+            self.lib_section = section = self.plex.sections[section_title]
             if section.type != last_section.type:
                 self.result_type = result_type = self.get_result_type(section)
                 self.type_picker.update(result_type.title(), LIB_TYPE_ENTITY_MAP[section.type])

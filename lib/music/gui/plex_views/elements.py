@@ -204,6 +204,7 @@ class ResultRow:
         for text_ele in self.fields.values():
             text_ele.value = ''
         self.image.image = None
+        self.image._current_size = self.img_size  # Reset size in case the previous image was smaller
         self.rating.update(0)
 
     def set_result_type(self, result_type: str, show_fields: Collection = None, hide: bool = False):

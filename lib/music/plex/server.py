@@ -12,7 +12,7 @@ from typing import Optional, Union
 
 from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
 from plexapi.audio import Track, Artist, Album
-from plexapi.library import MusicSection, Library, LibrarySection
+from plexapi.library import Library, LibrarySection, MusicSection, ShowSection, MovieSection
 from plexapi.myplex import MyPlexAccount
 from plexapi.server import PlexServer
 from plexapi.utils import SEARCHTYPES
@@ -20,6 +20,7 @@ from requests import Session, Response
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
 from ..common.prompts import get_input, getpass, UIMode
+from .constants import TYPE_SECTION_MAP
 from .patches import apply_plex_patches
 from .playlist import PlexPlaylist
 from .query import QueryResults
@@ -38,6 +39,8 @@ class LocalPlexServer:
         server_path_root: str = None,
         config_path: str = DEFAULT_CONFIG_PATH,
         music_library: str = None,
+        tv_library: str = None,
+        movie_library: str = None,
         dry_run: bool = False,
     ):
         disable_urllib3_warnings()
@@ -53,7 +56,10 @@ class LocalPlexServer:
         self.user = self._get_config('auth', 'myplex_username', 'username', user, required=need_user)
         server_path_root = self._get_config('custom', 'server_path_root', new_value=server_path_root)
         self.server_root = Path(server_path_root) if server_path_root else None
-        self.music_library = self._get_config('custom', 'music_lib_name', new_value=music_library) or 'Music'
+        libs = {'music': (music_library, 'Music'), 'tv': (tv_library, 'TV Shows'), 'movies': (movie_library, 'Movies')}
+        self.primary_lib_names = {
+            k: self._get_config('custom', f'{k}_lib_name', new_value=name) or d for k, (name, d) in libs.items()
+        }
         self.dry_run = dry_run
 
     def __repr__(self):
@@ -125,27 +131,59 @@ class LocalPlexServer:
     def library(self) -> Library:
         return self.server.library
 
-    def get_lib_section(self, section: LibSection) -> LibrarySection:
-        if isinstance(section, LibrarySection):
+    def get_lib_section(self, section: LibSection = None, obj_type: PlexObjTypes = None) -> LibrarySection:
+        if section is None:
+            try:
+                return self.primary_sections[TYPE_SECTION_MAP[obj_type]]
+            except KeyError as e:
+                if obj_type is None:
+                    raise ValueError('A section and/or obj_type is required') from None
+                raise ValueError(f'A section is required for {obj_type=}') from e
+        elif isinstance(section, LibrarySection):
             return section
         elif isinstance(section, str):
             return self.library.section(section)
         elif isinstance(section, int):
-            for lib_section in self.library.sections():
+            for lib_section in self.sections.values():
                 if lib_section.key == section:
                     return lib_section
-            raise ValueError(f'No lib section found for id={section}')
+            raise ValueError(f'No lib section found for {section=}')
         else:
             raise TypeError(f'Unexpected lib section type={type(section)}')
 
     @cached_property
-    def music(self) -> MusicSection:
-        return self.library.section(self.music_library)
+    def sections(self) -> dict[str, LibrarySection]:
+        return {section.title: section for section in self.library.sections()}
 
-    def _ekey(self, search_type: PlexObjTypes, section: LibSection = None) -> str:
-        section = self.get_lib_section(section) if section is not None else self.music
-        ekey = f'/library/sections/{section.key}/all?type={SEARCHTYPES[search_type]}'
-        # log.debug(f'Resolved {search_type=!r} => {ekey=!r}')
+    @cached_property
+    def typed_sections(self) -> dict[str, dict[str, LibrarySection]]:
+        types = {'music': MusicSection, 'tv': ShowSection, 'movies': MovieSection}
+        sections = {'music': {}, 'tv': {}, 'movies': {}}
+        for name, section in self.sections.items():
+            if key := next((k for k, t in types.items() if isinstance(section, t)), None):
+                sections[key][name] = section
+        return sections
+
+    @cached_property
+    def primary_sections(self) -> dict[str, Union[MusicSection, ShowSection, MovieSection]]:
+        return {key: self.sections[name] for key, name in self.primary_lib_names.items()}
+
+    @cached_property
+    def music(self) -> MusicSection:
+        return self.primary_sections['music']
+
+    @cached_property
+    def tv(self) -> ShowSection:
+        return self.primary_sections['tv']
+
+    @cached_property
+    def movies(self) -> MovieSection:
+        return self.primary_sections['movies']
+
+    def _ekey(self, obj_type: PlexObjTypes, section: LibSection = None) -> str:
+        section = self.get_lib_section(section, obj_type)
+        ekey = f'/library/sections/{section.key}/all?type={SEARCHTYPES[obj_type]}'
+        # log.debug(f'Resolved {obj_type=!r} => {ekey=!r}')
         return ekey
 
     def find_songs_by_rating_gte(self, rating: int, **kwargs) -> set[Track]:
@@ -166,8 +204,8 @@ class LocalPlexServer:
         kwargs.setdefault('title__{}'.format(mode), name)
         return self.find_objects('album', **kwargs)
 
-    def find_object(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> Optional[PlexObj]:
-        return self.query(obj_type, section=section).filter(**kwargs).result()
+    def find_object(self, obj_type: PlexObjTypes, **kwargs) -> Optional[PlexObj]:
+        return self.query(obj_type, **kwargs).result()
 
     def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> set[PlexObj]:
         return self.query(obj_type, **kwargs).results()
@@ -179,7 +217,7 @@ class LocalPlexServer:
         return self.find_objects('track', **kwargs)
 
     def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
-        section = self.get_lib_section(section) if section is not None else self.music
+        section = self.get_lib_section(section, obj_type)
         data = section._server.query(self._ekey(obj_type, section))
         return QueryResults(self, obj_type, data, section.key).filter(**kwargs)
 

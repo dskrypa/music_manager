@@ -36,29 +36,26 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         ]
         self.plex: LocalPlexServer = plex or LocalPlexServer(config_path=self.config['config_path'])
 
-    @cached_property
-    def lib_sections(self) -> dict[str, LibrarySection]:
-        return {lib.title: lib for lib in self.plex.library.sections()}
-
     @property
     def last_section(self) -> LibrarySection:
-        lib_sections = self.lib_sections
+        sections = self.plex.sections
         if last_section := self.config.get('lib_section'):
             try:
-                return lib_sections[last_section]
+                return sections[last_section]
             except KeyError:
                 self.log.warning(f'Last lib section={last_section!r} does not seem to exist')
+        music_lib_name = self.plex.primary_lib_names['music']
         try:
-            return lib_sections[self.plex.music_library]
+            return sections[music_lib_name]
         except KeyError:
-            self.log.warning(f'Configured music lib section={self.plex.music_library!r} does not seem to exist')
+            self.log.warning(f'Configured music lib section={music_lib_name!r} does not seem to exist')
 
-        for title, lib in lib_sections.items():
+        for title, lib in sections.items():
             if lib.type == 'artist':
                 return lib
 
-        if lib_sections:
-            return next(iter(lib_sections.values()))
+        if sections:
+            return next(iter(sections.values()))
 
         popup_warning('No library sections are available!')
         raise RuntimeError('No library sections are available!')
@@ -77,7 +74,7 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         except AttributeError:
             layout = []
 
-        if self.__class__ is PlexView:
+        if self.__class__ is PlexView and not self._init_event:
             image = image_to_bytes(ICONS_DIR.joinpath('search.png'), size=(200, 200))
             button = Button(
                 'Search', image_data=image, image_size=(210, 210), font=('Helvetica', 18), bind_return_key=True
@@ -120,7 +117,7 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         with options.next_row():
             options.add_directory('server_path_root', 'Server Path Root', self.plex.server_root)
         with options.next_row():
-            options.add_input('music_lib_name', 'Music Lib Name', self.plex.music_library)
+            options.add_input('music_lib_name', 'Music Lib Name', self.plex.primary_lib_names['music'])
         return options
 
     @event_handler
@@ -132,9 +129,9 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
         if (server_path_root := results.get('server_path_root')) and server_path_root != self.plex.server_root:
             self.plex._set_config('custom', 'server_path_root', server_path_root)
             self.plex.server_root = Path(server_path_root)
-        if (music_lib_name := results.get('music_lib_name')) and music_lib_name != self.plex.music_library:
+        if (music_lib_name := results.get('music_lib_name')) and music_lib_name != self.plex.primary_lib_names['music']:
             self.plex._set_config('custom', 'music_lib_name', music_lib_name)
-            self.plex.music_library = music_lib_name
+            self.plex.primary_lib_names['music'] = music_lib_name
 
     @event_handler
     def search(self, event: Event, data: EventData):

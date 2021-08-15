@@ -303,6 +303,10 @@ class ClockAnimation(Animation):
         self._last_time = datetime.now() - timedelta(seconds=1)
         self._delay = 200 if seconds else 1000
 
+    def toggle_slim(self):
+        self.lcd_clock.slim = not self.lcd_clock.slim
+        self._last_time = datetime.now() - timedelta(seconds=1)
+
     @property
     def frame_num(self) -> int:
         return 1
@@ -316,6 +320,7 @@ class ClockAnimation(Animation):
         widget = self._widget
         now = datetime.now()
         if now - self._last_time >= timedelta(seconds=1):
+            self._last_time = now
             image = PhotoImage(self.lcd_clock.draw_time(now, self._seconds))
             width, height = self._size
             widget.configure(image=image, width=width, height=height)

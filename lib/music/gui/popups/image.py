@@ -84,9 +84,9 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
 
 
 class ClockView(ImageView, view_name='clock_view', primary=False):
-    def __init__(self, *args, char_width: int = 40, seconds: bool = True, **kwargs):
+    def __init__(self, *args, char_width: int = 40, seconds: bool = True, slim: bool = False, **kwargs):
         super().__init__(None, *args, **kwargs)
-        self.gui_img = ClockImage(char_width=char_width, seconds=seconds)
+        self.gui_img = ClockImage(char_width=char_width, seconds=seconds, slim=slim)
         self.orig_size = self._last_size = self.gui_img.Size
         self._show_titlebar = False
 
@@ -117,13 +117,17 @@ class ClockView(ImageView, view_name='clock_view', primary=False):
         }
         return layout, kwargs
 
-    def handle_click(self, event):
+    def show_hide_title(self, event):
         self.window.TKroot.wm_overrideredirect(self._show_titlebar)
         self._show_titlebar = not self._show_titlebar
 
+    def toggle_slim(self, event):
+        self.gui_img.animation.toggle_slim()  # noqa
+
     def post_render(self):
         super().post_render()
-        self.gui_img._widget.bind('<Button-3>', self.handle_click)
+        self.gui_img._widget.bind('<Button-2>', self.toggle_slim)  # Middle click
+        self.gui_img._widget.bind('<Button-3>', self.show_hide_title)  # Right click
 
 
 class ImageView2(ImageView, view_name='show_image_2', primary=False):

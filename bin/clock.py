@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 def parser():
     parser = ArgParser(description='Clock')
     parser.add_argument('--no_seconds', '-S', dest='seconds', action='store_false', help='Hide seconds')
+    parser.add_argument('--slim', '-s', action='store_true', help='Use thinner numbers')
     parser.include_common_args('verbosity')
     return parser
 
@@ -31,7 +32,7 @@ def main():
     from ds_tools.logging import init_logging
     init_logging(args.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
-    ClockView(seconds=args.seconds).get_result()
+    ClockView(seconds=args.seconds, slim=args.slim).get_result()
 
 
 if __name__ == '__main__':

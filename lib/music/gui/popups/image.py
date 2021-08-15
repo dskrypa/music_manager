@@ -84,10 +84,11 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
 
 
 class ClockView(ImageView, view_name='clock_view', primary=False):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, char_width: int = 40, seconds: bool = True, **kwargs):
         super().__init__(None, *args, **kwargs)
-        self.gui_img = ClockImage(char_width=40)
+        self.gui_img = ClockImage(char_width=char_width, seconds=seconds)
         self.orig_size = self._last_size = self.gui_img.Size
+        self._show_titlebar = False
 
     @event_handler
     def window_resized(self, event: Event, data: EventData):
@@ -100,6 +101,29 @@ class ClockView(ImageView, view_name='clock_view', primary=False):
             self.gui_img.resize(*new_size)
             self.window.set_title(self.title)
             self._last_resize = monotonic()
+
+    def get_render_args(self) -> RenderArgs:
+        layout = [[self.gui_img]]
+        kwargs = {
+            'title': self.title,
+            'resizable': True,
+            'element_justification': 'center',
+            'margins': (0, 0),
+            'border_depth': 0,
+            'background_color': 'black',
+            'alpha_channel': 0.8,
+            'grab_anywhere': True,
+            'no_titlebar': True,
+        }
+        return layout, kwargs
+
+    def handle_click(self, event):
+        self.window.TKroot.wm_overrideredirect(self._show_titlebar)
+        self._show_titlebar = not self._show_titlebar
+
+    def post_render(self):
+        super().post_render()
+        self.gui_img._widget.bind('<Button-3>', self.handle_click)
 
 
 class ImageView2(ImageView, view_name='show_image_2', primary=False):

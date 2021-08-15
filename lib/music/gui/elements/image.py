@@ -189,23 +189,27 @@ class ClockImage(_AnimatedImage):
 
     def __init__(self, *args, **kwargs):
         self._clock_kwargs = {key: kwargs.pop(key) for key in self._clock_keys if key in kwargs}
+        self._clock_kwargs.setdefault('bg', '#000000')
         self._include_seconds = kwargs.pop('seconds', True)
         kwargs.setdefault('size', LCDClock.time_size(self._clock_kwargs.get('char_width', 20), self._include_seconds))
         kwargs['bind_click'] = False
+        kwargs.setdefault('background_color', 'black')
+        kwargs.setdefault('pad', (0, 0))
         super().__init__(*args, **kwargs)
 
     def resize(self, width: int, height: int):
         width, height = size = calculate_resize(*self._current_size, width, height)
-        print('resizing')
-        char_width = height * 4 // 7
-        paused = a.paused if (a := self._animation) else False
-        self._clock_kwargs['char_width'] = char_width
-        self._animation = ClockAnimation(
-            self, self._widget, size, LCDClock(**self._clock_kwargs), self._include_seconds, paused
-        )
-        self._animation.next()
-        if self._bind_click:
-            self._widget.bind('<Button-1>', self.handle_click)
+        if a := self._animation:
+            a.resize(width, height)
+        else:
+            self._clock_kwargs['char_width'] = height * 4 // 7
+            paused = False
+            self._animation = ClockAnimation(
+                self, self._widget, size, LCDClock(**self._clock_kwargs), self._include_seconds, paused
+            )
+            self._animation.next()
+            if self._bind_click:
+                self._widget.bind('<Button-1>', self.handle_click)
 
 
 class Animation:
@@ -300,6 +304,11 @@ class ClockAnimation(Animation):
     @property
     def frame_num(self) -> int:
         return 1
+
+    def resize(self, width, height):
+        char_width = height * 4 // 7
+        self.lcd_clock.char_size = (char_width, char_width * 7 // 4)
+        self._size = (width, height)
 
     def next(self):  # noqa
         image = PhotoImage(self.lcd_clock.draw_time(datetime.now(), self._seconds))

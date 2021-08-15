@@ -5,7 +5,7 @@ Extended image elements for PySimpleGUI
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from inspect import Signature
 from itertools import count
 from pathlib import Path
@@ -300,6 +300,8 @@ class ClockAnimation(Animation):
         self._run = not paused
         self.lcd_clock = lcd_clock
         self._seconds = seconds
+        self._last_time = datetime.now() - timedelta(seconds=1)
+        self._delay = 200 if seconds else 1000
 
     @property
     def frame_num(self) -> int:
@@ -311,21 +313,19 @@ class ClockAnimation(Animation):
         self._size = (width, height)
 
     def next(self):  # noqa
-        image = PhotoImage(self.lcd_clock.draw_time(datetime.now(), self._seconds))
-        width, height = self._size
-        self._widget.configure(image=image, width=width, height=height)
-        self._widget.image = image
-        x, y = self._image_ele.pad_used
-        self._widget.pack(padx=x, pady=y)
+        widget = self._widget
+        now = datetime.now()
+        if now - self._last_time >= timedelta(seconds=1):
+            image = PhotoImage(self.lcd_clock.draw_time(now, self._seconds))
+            width, height = self._size
+            widget.configure(image=image, width=width, height=height)
+            widget.image = image
+            x, y = self._image_ele.pad_used
+            widget.pack(padx=x, pady=y)
         if self._run:
-            self._next_id = self._widget.after(1000, self.next)
+            self._next_id = widget.after(self._delay, self.next)
 
-    def previous(self):
-        image = PhotoImage(self.lcd_clock.draw_time(datetime.now(), self._seconds))
-        width, height = self._size
-        self._widget.configure(image=image, width=width, height=height)
-        if self._run:
-            self._next_id = self._widget.after(1000, self.previous)
+    previous = next
 
 
 class Spacer(ImageElement):

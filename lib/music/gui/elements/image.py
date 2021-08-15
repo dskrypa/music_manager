@@ -5,6 +5,7 @@ Extended image elements for PySimpleGUI
 """
 
 import logging
+from datetime import datetime
 from inspect import Signature
 from itertools import count
 from pathlib import Path
@@ -20,9 +21,10 @@ from ds_tools.images.colors import color_at_pos
 from ds_tools.images.animated.cycle import PhotoImageCycle
 from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
+from ds_tools.images.lcd import LCDClock
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
 
-__all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage']
+__all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage', 'ClockImage']
 log = logging.getLogger(__name__)
 
 
@@ -140,18 +142,7 @@ class ExtendedImage(ImageElement):
         return color_at_pos(image, (x, y))
 
 
-class SpinnerImage(ExtendedImage):
-    _spinner_keys = set(Signature.from_callable(Spinner).parameters.keys())
-
-    def __init__(self, *args, bind_click: bool = False, **kwargs):
-        spinner_kwargs = {key: kwargs.pop(key) for key in self._spinner_keys if key in kwargs}
-        size = spinner_kwargs.setdefault('size', (200, 200))
-        spinner_kwargs.setdefault('frame_fade_pct', 0.01)
-        spinner_kwargs.setdefault('frame_duration_ms', 20)
-        spinner_kwargs.setdefault('frames_per_spoke', 3)
-        self._spinner = Spinner(**spinner_kwargs)
-        super().__init__(*args, bind_click=bind_click, size=size, **kwargs)
-
+class _AnimatedImage(ExtendedImage):
     @property
     def Widget(self) -> Optional[Label]:
         return self._widget
@@ -171,11 +162,48 @@ class SpinnerImage(ExtendedImage):
             return width, height
         return calculate_resize(old_w, old_h, width, height)
 
+
+class SpinnerImage(_AnimatedImage):
+    _spinner_keys = set(Signature.from_callable(Spinner).parameters.keys())
+
+    def __init__(self, *args, bind_click: bool = False, **kwargs):
+        spinner_kwargs = {key: kwargs.pop(key) for key in self._spinner_keys if key in kwargs}
+        size = spinner_kwargs.setdefault('size', (200, 200))
+        spinner_kwargs.setdefault('frame_fade_pct', 0.01)
+        spinner_kwargs.setdefault('frame_duration_ms', 20)
+        spinner_kwargs.setdefault('frames_per_spoke', 3)
+        self._spinner = Spinner(**spinner_kwargs)
+        super().__init__(*args, bind_click=bind_click, size=size, **kwargs)
+
     def resize(self, width: int, height: int):
         size = calculate_resize(*self._current_size, width, height)
         n, paused = (a.frame_num, a.paused) if (a := self._animation) else (0, False)
         self._animation = Animation(self, self._widget, self._spinner, size, n, paused)
         self._animation.next(True)
+        if self._bind_click:
+            self._widget.bind('<Button-1>', self.handle_click)
+
+
+class ClockImage(_AnimatedImage):
+    _clock_keys = set(Signature.from_callable(LCDClock).parameters.keys())
+
+    def __init__(self, *args, **kwargs):
+        self._clock_kwargs = {key: kwargs.pop(key) for key in self._clock_keys if key in kwargs}
+        self._include_seconds = kwargs.pop('seconds', True)
+        kwargs.setdefault('size', LCDClock.time_size(self._clock_kwargs.get('char_width', 20), self._include_seconds))
+        kwargs['bind_click'] = False
+        super().__init__(*args, **kwargs)
+
+    def resize(self, width: int, height: int):
+        width, height = size = calculate_resize(*self._current_size, width, height)
+        print('resizing')
+        char_width = height * 4 // 7
+        paused = a.paused if (a := self._animation) else False
+        self._clock_kwargs['char_width'] = char_width
+        self._animation = ClockAnimation(
+            self, self._widget, size, LCDClock(**self._clock_kwargs), self._include_seconds, paused
+        )
+        self._animation.next()
         if self._bind_click:
             self._widget.bind('<Button-1>', self.handle_click)
 
@@ -249,6 +277,46 @@ class Animation:
     def resume(self):
         self._run = True
         self.next()
+
+
+class ClockAnimation(Animation):
+    def __init__(  # noqa
+        self,
+        image_ele: ExtendedImage,
+        widget: Label,
+        size: Size,
+        lcd_clock: LCDClock,
+        seconds: bool,
+        paused: bool = False,
+    ):
+        self._image_ele = image_ele
+        self._widget = widget
+        self._size = size
+        self._next_id = widget.after(0, self.next)
+        self._run = not paused
+        self.lcd_clock = lcd_clock
+        self._seconds = seconds
+
+    @property
+    def frame_num(self) -> int:
+        return 1
+
+    def next(self):  # noqa
+        image = PhotoImage(self.lcd_clock.draw_time(datetime.now(), self._seconds))
+        width, height = self._size
+        self._widget.configure(image=image, width=width, height=height)
+        self._widget.image = image
+        x, y = self._image_ele.pad_used
+        self._widget.pack(padx=x, pady=y)
+        if self._run:
+            self._next_id = self._widget.after(1000, self.next)
+
+    def previous(self):
+        image = PhotoImage(self.lcd_clock.draw_time(datetime.now(), self._seconds))
+        width, height = self._size
+        self._widget.configure(image=image, width=width, height=height)
+        if self._run:
+            self._next_id = self._widget.after(1000, self.previous)
 
 
 class Spacer(ImageElement):

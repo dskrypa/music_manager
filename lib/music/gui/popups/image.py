@@ -12,7 +12,7 @@ from PIL import Image
 from PySimpleGUI import Image as GuiImage, Button, Column
 
 from ds_tools.images.utils import ImageType, as_image
-from ..elements.image import ExtendedImage
+from ..elements.image import ExtendedImage, ClockImage
 from ..elements.text import ExtText
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..positioning import positioner
@@ -27,14 +27,15 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         super().__init__(binds={'<Escape>': 'Exit'})
         self._title = title or 'Image'
         self.img_key = img_key or f'img::{id(image)}'
-        self.log.debug(f'Displaying {image=} with {image.format=} mime={Image.MIME.get(image.format)!r}')
-        self.orig_size = image.size
+        if image:
+            self.log.debug(f'Displaying {image=} with {image.format=} mime={Image.MIME.get(image.format)!r}')
+        self.orig_size = image.size if image else (0, 0)
         self._last_size = init_size = self._init_size()
         self.gui_img = ExtendedImage(image, size=init_size, key=self.img_key, pad=(2, 2), bind_click=False)
         self._last_resize = 0
 
     def _init_size(self):
-        monitor = positioner.get_monitor(self.window)
+        monitor = positioner.get_monitor_for_window(self.window)
         img_w, img_h = self.orig_size
         return min(monitor.width - 70, img_w or 0), min(monitor.height - 70, img_h or 0)
 
@@ -46,7 +47,7 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
             return self._title
         else:
             src_w, src_h = self.orig_size
-            return f'{self._title} ({img_w}x{img_h}, {img_w / src_w:.0%})'
+            return f'{self._title} ({img_w}x{img_h}, {img_w / src_w if src_w else 1:.0%})'
 
     @title.setter
     def title(self, value):
@@ -80,6 +81,25 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         # TODO: Make large images scrollable instead of always shrinking the image; allow zoom without window resize
         kwargs = {'title': self.title, 'resizable': True, 'element_justification': 'center', 'margins': (0, 0)}
         return layout, kwargs
+
+
+class ClockView(ImageView, view_name='clock_view', primary=False):
+    def __init__(self, *args, **kwargs):
+        super().__init__(None, *args, **kwargs)
+        self.gui_img = ClockImage(char_width=40)
+        self.orig_size = self._last_size = self.gui_img.Size
+
+    @event_handler
+    def window_resized(self, event: Event, data: EventData):
+        if monotonic() - self._last_resize < 0.1:
+            # self.log.debug(f'Refusing resize too soon after last one')
+            return
+        elif new_size := self._get_new_size(*data['new_size']):
+            # self.log.debug(f'Resizing image from {self._last_size} to {new_size}')
+            self._last_size = new_size
+            self.gui_img.resize(*new_size)
+            self.window.set_title(self.title)
+            self._last_resize = monotonic()
 
 
 class ImageView2(ImageView, view_name='show_image_2', primary=False):
@@ -158,6 +178,7 @@ if __name__ == '__main__':
         from ds_tools.logging import init_logging
         init_logging(12, log_path=None, names=None)
         try:
-            ImageView2(args.image_path[0]).get_result()
+            ClockView().get_result()
+            # ImageView2(args.image_path[0]).get_result()
         except Exception as e:
             print(e, file=sys.stderr)

@@ -74,4 +74,4 @@ class WindowPositioner:
         return 0 if x < 0 else x, 0 if y < 0 else y
 
 
-positioner = WindowPositioner()
+positioner: WindowPositioner = WindowPositioner()

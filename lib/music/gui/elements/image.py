@@ -21,7 +21,7 @@ from ds_tools.images.colors import color_at_pos
 from ds_tools.images.animated.cycle import PhotoImageCycle
 from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
-from ds_tools.images.lcd import LCDClock
+from ds_tools.images.lcd import SevenSegmentDisplay
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
 
 __all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage', 'ClockImage']
@@ -185,13 +185,15 @@ class SpinnerImage(_AnimatedImage):
 
 
 class ClockImage(_AnimatedImage):
-    _clock_keys = set(Signature.from_callable(LCDClock).parameters.keys())
+    _clock_keys = set(Signature.from_callable(SevenSegmentDisplay).parameters.keys())
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, slim: bool = False, **kwargs):
+        self._slim = slim
         self._clock_kwargs = {key: kwargs.pop(key) for key in self._clock_keys if key in kwargs}
-        self._clock_kwargs.setdefault('bg', '#000000')
+        self._clock_kwargs.setdefault('bar_pct', 0.2)
         self._include_seconds = kwargs.pop('seconds', True)
-        kwargs.setdefault('size', LCDClock.time_size(self._clock_kwargs.get('char_width', 20), self._include_seconds))
+        self._clock = SevenSegmentDisplay(**self._clock_kwargs)
+        kwargs.setdefault('size', self._clock.time_size(self._include_seconds))
         kwargs['bind_click'] = False
         kwargs.setdefault('background_color', 'black')
         kwargs.setdefault('pad', (0, 0))
@@ -202,10 +204,10 @@ class ClockImage(_AnimatedImage):
         if a := self._animation:
             a.resize(width, height)
         else:
-            self._clock_kwargs['char_width'] = height * 4 // 7
+            self._clock.resize(self._clock.calc_width(height))
             paused = False
             self._animation = ClockAnimation(
-                self, self._widget, size, LCDClock(**self._clock_kwargs), self._include_seconds, paused
+                self, self._widget, size, self._clock, self._include_seconds, paused, self._slim
             )
             self._animation.next()
             if self._bind_click:
@@ -289,9 +291,10 @@ class ClockAnimation(Animation):
         image_ele: ExtendedImage,
         widget: Label,
         size: Size,
-        lcd_clock: LCDClock,
+        lcd_clock: SevenSegmentDisplay,
         seconds: bool,
         paused: bool = False,
+        slim: bool = False,
     ):
         self._image_ele = image_ele
         self._widget = widget
@@ -302,9 +305,12 @@ class ClockAnimation(Animation):
         self._seconds = seconds
         self._last_time = datetime.now() - timedelta(seconds=1)
         self._delay = 200 if seconds else 1000
+        self._slim = slim
 
     def toggle_slim(self):
-        self.lcd_clock.slim = not self.lcd_clock.slim
+        lcd_clock = self.lcd_clock
+        lcd_clock.resize(lcd_clock.width, bar_pct=(lcd_clock._bar_pct * 2 if self._slim else lcd_clock._bar_pct / 2))
+        self._slim = not self._slim
         self._last_time = datetime.now() - timedelta(seconds=1)
 
     @property
@@ -312,9 +318,9 @@ class ClockAnimation(Animation):
         return 1
 
     def resize(self, width, height):
-        char_width = height * 4 // 7
-        self.lcd_clock.char_size = (char_width, char_width * 7 // 4)
+        self.lcd_clock.resize(self.lcd_clock.calc_width(height))
         self._size = (width, height)
+        self._last_time = datetime.now() - timedelta(seconds=1)
 
     def next(self):  # noqa
         widget = self._widget

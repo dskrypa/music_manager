@@ -84,19 +84,17 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
 
 
 class ClockView(ImageView, view_name='clock_view', primary=False):
-    def __init__(self, *args, char_width: int = 40, seconds: bool = True, slim: bool = False, **kwargs):
+    def __init__(self, *args, width: int = 40, seconds: bool = True, slim: bool = False, **kwargs):
         super().__init__(None, *args, **kwargs)
-        self.gui_img = ClockImage(char_width=char_width, seconds=seconds, slim=slim)
+        self.gui_img = ClockImage(width=width, seconds=seconds, slim=slim)
         self.orig_size = self._last_size = self.gui_img.Size
         self._show_titlebar = False
 
     @event_handler
     def window_resized(self, event: Event, data: EventData):
         if monotonic() - self._last_resize < 0.1:
-            # self.log.debug(f'Refusing resize too soon after last one')
             return
         elif new_size := self._get_new_size(*data['new_size']):
-            # self.log.debug(f'Resizing image from {self._last_size} to {new_size}')
             self._last_size = new_size
             self.gui_img.resize(*new_size)
             self.window.set_title(self.title)

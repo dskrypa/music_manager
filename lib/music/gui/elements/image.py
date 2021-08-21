@@ -181,7 +181,7 @@ class ClockImage(ExtendedImage, animated=True):
         clock_kwargs = {key: kwargs.pop(key) for key in self._clock_keys if key in kwargs}
         clock_kwargs.setdefault('bar_pct', 0.2)
         self._show_seconds = kwargs.pop('seconds', True)
-        self._clock = SevenSegmentDisplay(**clock_kwargs)
+        self._clock: SevenSegmentDisplay = SevenSegmentDisplay(**clock_kwargs)
 
         kwargs.setdefault('size', self._clock.time_size(self._show_seconds))
         kwargs['bind_click'] = False

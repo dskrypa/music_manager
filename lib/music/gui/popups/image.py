@@ -5,6 +5,7 @@ View: Show Image
 """
 
 import sys
+from math import ceil
 from time import monotonic
 from typing import Union
 
@@ -115,6 +116,25 @@ class ClockView(ImageView, view_name='clock_view', primary=False):
         }
         return layout, kwargs
 
+    def increase_size(self, event):
+        width, height = self.window.size
+        height += 10
+        clock = self.gui_img._clock
+        new_width, _height = clock.time_size(self.gui_img._show_seconds, clock.calc_width(height))
+        width = max(width, new_width)
+        self.window.size = (width, height)
+
+    def decrease_size(self, event):
+        width, height = self.window.size
+        height -= 10
+        clock = self.gui_img._clock
+        new_width, _height = clock.time_size(self.gui_img._show_seconds, clock.calc_width(height))
+        if (ceil(clock.bar_pct * clock.calc_width(_height - 6)) if clock.bar_pct else clock.bar) < 3:
+            self.log.debug('Unable to decrease clock size further')
+            return
+        width = min(width, new_width)
+        self.window.size = (width, height)
+
     def show_hide_title(self, event):
         self.window.TKroot.wm_overrideredirect(self._show_titlebar)
         self._show_titlebar = not self._show_titlebar
@@ -124,8 +144,12 @@ class ClockView(ImageView, view_name='clock_view', primary=False):
 
     def post_render(self):
         super().post_render()
-        self.gui_img._widget.bind('<Button-2>', self.toggle_slim)  # Middle click
-        self.gui_img._widget.bind('<Button-3>', self.show_hide_title)  # Right click
+        widget = self.gui_img._widget
+        widget.bind('<Button-2>', self.toggle_slim)  # Middle click
+        widget.bind('<Button-3>', self.show_hide_title)  # Right click
+        bind = self.window.TKroot.bind
+        bind('<KeyPress-plus>', self.increase_size)
+        bind('<KeyPress-minus>', self.decrease_size)
 
 
 class ImageView2(ImageView, view_name='show_image_2', primary=False):

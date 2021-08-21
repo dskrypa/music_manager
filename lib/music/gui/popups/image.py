@@ -18,7 +18,7 @@ from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..positioning import positioner
 from .base import BasePopup
 
-__all__ = ['ImageView']
+__all__ = ['ImageView', 'ClockView']
 
 
 class ImageView(BasePopup, view_name='show_image', primary=False):
@@ -120,7 +120,7 @@ class ClockView(ImageView, view_name='clock_view', primary=False):
         self._show_titlebar = not self._show_titlebar
 
     def toggle_slim(self, event):
-        self.gui_img.animation.toggle_slim()  # noqa
+        self.gui_img.toggle_slim()
 
     def post_render(self):
         super().post_render()

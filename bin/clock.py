@@ -30,7 +30,7 @@ def main():
     args = parser().parse_args(req_subparser_value=False)
 
     from ds_tools.logging import init_logging
-    init_logging(args.verbose, names=None, millis=True, set_levels={'PIL': 30})
+    init_logging(args.verbose, log_path=None, names=None, millis=True, set_levels={'PIL': 30})
 
     ClockView(seconds=args.seconds, slim=args.slim).get_result()
 

@@ -126,6 +126,7 @@ class Result:
         server = self.plex_obj._server
         try:
             resp = server._session.get(server.url(self.plex_obj.thumb), headers=server._headers())
+            resp.raise_for_status()
         except RequestException as e:
             log.debug(f'Error retrieving image for {self.plex_obj}: {e}')
             return ICONS_DIR.joinpath('x.png')

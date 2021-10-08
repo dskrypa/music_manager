@@ -17,25 +17,14 @@ with project_root.joinpath('lib', 'music', '__version__.py').open('r', encoding=
     exec(f.read(), about)
 
 optional_dependencies = {
-    'dev': [                                            # Development env requirements
-        'pre-commit',
-        'ipython',
-    ],
+    'dev': ['pre-commit', 'ipython'],   # Development env requirements
     'bpm': [                    # Used for BPM calculation; on Win10 with Python 3.8, requires VS 2019 build tools:
         'aubio',                # https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019
         'ffmpeg-python',        # Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
         'numpy',
     ],
-    'ipod': [
-        'pypod@ git+git://github.com/dskrypa/pypod',
-    ],
-    'gui': [
-        'filelock',
-        'psutil',
-        'pysimplegui',
-        'screeninfo',
-        'lark',
-    ],
+    'ipod': ['pypod@ git+git://github.com/dskrypa/pypod',],
+    'gui': ['filelock', 'psutil', 'pysimplegui', 'screeninfo', 'lark'],
 }
 optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))
 
@@ -49,7 +38,8 @@ setup(
     long_description=long_description,
     url=about['__url__'],
     project_urls={'Source': about['__url__']},
-    packages=['lib/music'],
+    packages=['music'],
+    package_dir={'': 'lib'},
     classifiers=[
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.9',    # Due to use of walrus operator + dict union
@@ -57,4 +47,10 @@ setup(
     python_requires='~=3.9',
     install_requires=requirements,
     extras_require=optional_dependencies,
+    entry_points={
+        'console_scripts': [
+            f'{m}=music.cli.{m}:main'
+            for m in ('clock', 'gui_music_manager', 'ipod_shell', 'music_manager', 'plex_manager', 'plex_manager_gui')
+        ],
+    },
 )

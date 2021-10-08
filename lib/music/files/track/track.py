@@ -854,25 +854,31 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 self.set_text_tag('lyrics', new_lyrics)
             self.save()
 
-    def bpm(self, save=True, calculate=True) -> Optional[int]:
+    def bpm(self, save: bool = True, calculate: bool = True) -> Optional[int]:
         """
-        :param bool save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
-        :param bool calculate: If the BPM was not already stored in a tag, calculate it
+        :param save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
+        :param calculate: If the BPM was not already stored in a tag, calculate it
         :return int: This track's BPM from a tag if available, or calculated
         """
         try:
             bpm = int(self.tag_text('bpm'))
         except (TagException, ValueError):
             if calculate:
-                from .bpm import get_bpm
-                if not (bpm := self._bpm):
-                    bpm = self._bpm = get_bpm(self.path, self.sample_rate)
-                if save:
-                    self.set_text_tag('bpm', bpm)
-                    log.debug(f'Saving {bpm=} for {self}')
-                    self.save()
+                bpm = self._calculate_bpm(save)
             else:
                 bpm = None
+        if bpm == 0 and calculate:
+            bpm = self._calculate_bpm(save)
+        return bpm
+
+    def _calculate_bpm(self, save: bool = True):
+        from .bpm import get_bpm
+        if not (bpm := self._bpm):
+            bpm = self._bpm = get_bpm(self.path, self.sample_rate)
+        if save:
+            self.set_text_tag('bpm', bpm)
+            log.debug(f'Saving {bpm=} for {self}')
+            self.save()
         return bpm
 
     def update_tags(self, name_value_map, dry_run=False, no_log=None, none_level=19, add_genre=False):

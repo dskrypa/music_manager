@@ -84,7 +84,7 @@ def add_track_bpm(paths: Paths, parallel=4, dry_run=False, verbosity=0):
 def _add_bpm(track: SongFile, dry_run=False):
     prefix, add_msg = ('[DRY RUN] ', 'Would add') if dry_run else ('', 'Adding')
     bpm = track.bpm(False, False)
-    if bpm is None:
+    if bpm is None or bpm == 0:
         bpm = track.bpm(not dry_run, calculate=True)
         level, message = 20, f'{prefix}{add_msg} BPM={bpm} to {track}'
     else:

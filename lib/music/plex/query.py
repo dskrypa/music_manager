@@ -248,14 +248,16 @@ class QueryResults:
     def with_rating(self, rating, op=eq) -> 'QueryResults':
         return self._new({obj for obj in self._data if op(float(obj.attrib.get('userRating', 0)), rating)})
 
-    def unique(self, rated=True, fuzzy=True, latest=True, singles=False) -> 'QueryResults':
+    def unique(
+        self, rated: bool = True, fuzzy: bool = True, latest: bool = True, singles: bool = False
+    ) -> 'QueryResults':
         """
-        :param bool rated: When multiple versions of a track with a given name exist, and one of them has a rating,
-          keep the one with the rating.  If False, ignore ratings.
-        :param bool fuzzy: Process titles as :class:`Name<music.text.name.Name>` objects
-        :param bool latest: When multiple versions of a track with a given name exist, keep the one that has the more
-          recent release date
-        :param bool singles: Before applying the `latest` filter, allow singles
+        :param rated: When multiple versions of a track with a given name exist, and one of them has a rating, keep the
+          one with the rating.  If False, ignore ratings.
+        :param fuzzy: Process titles as :class:`Name<music.text.name.Name>` objects
+        :param latest: When multiple versions of a track with a given name exist, keep the one that has the more recent
+          release date
+        :param singles: Before applying the `latest` filter, allow singles
         """
         if self._type != 'track':
             raise InvalidQueryFilter('unique() is only permitted for track results')
@@ -284,7 +286,14 @@ class QueryResults:
             for artist_key, title_obj_map in artist_title_obj_map.items():
                 artist_uniq = {}
                 for track in title_obj_map.values():
-                    track_name = name_from_enclosed(track.attrib['title'])
+                    try:
+                        track_name = name_from_enclosed(track.attrib['title'])
+                    except ValueError:
+                        title = track.attrib['title']
+                        parent = track.attrib['parentTitle']
+                        log.error(f'Error processing track name for {artist_key=} {title=} in {parent=}')
+                        raise
+
                     keep = track
                     if match := next(filter(track_name.matches, artist_uniq), None):
                         existing = artist_uniq.pop(match)

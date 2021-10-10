@@ -505,9 +505,11 @@ class DiscographyEntryEdition(_ArtistMixin):
             parts = (
                 f'{num}{num_suffix(num)}',
                 None if artist_lang and album_lang and artist_lang == album_lang else album_lang,
-                self.type.real_name, 'Repackage' if self.repackage else None
+                self.type.real_name,
+                'Repackage' if self.repackage else None,
             )
             return ' '.join(filter(None, parts))
+
         return None
 
 

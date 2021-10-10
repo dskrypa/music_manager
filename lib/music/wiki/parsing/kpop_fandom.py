@@ -560,13 +560,15 @@ class EditionFinder:
                 yield self._edition([d[0] for d in discs], None, ed_lang)  # edition or version = None
         else:
             # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
-            yield self._edition(None, None, entry_page)
+            yield self._edition(None, None, self.find_language(entry_page))
 
     def _edition(self, content, edition, language) -> DiscographyEntryEdition:
-        return DiscographyEntryEdition(
+        edition_obj = DiscographyEntryEdition(
             self.name, self.entry_page, self.entry, self.entry_type, self.artists, self.dates,
             content, edition, language, self.is_repackage_page
         )
+        # log.debug(f'Created edition with name={self.name} page={self.entry_page} {edition=} {language=}')
+        return edition_obj
 
     def find_language(self, content, lang=None):
         return find_language(content, lang, self.languages)

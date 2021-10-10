@@ -5,14 +5,14 @@
 import logging
 import re
 from datetime import datetime, date
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Set, Any, Tuple, Union, Type
+from typing import TYPE_CHECKING, Iterator, Optional, Any, Union, Type
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import (
-    WikiPage, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List as ListNode
-)
 from wiki_nodes.exceptions import SiteDoesNotExist
-from wiki_nodes.nodes import N, AnyNode
+from wiki_nodes.nodes import (
+    N, AnyNode, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List
+)
+from wiki_nodes.page import WikiPage
 from ...common.disco_entry import DiscoEntryType
 from ...text.extraction import split_enclosed, ends_with_enclosed, has_unpaired
 from ...text.name import Name
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 __all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
 
-NodeTypes = Union[Type[AnyNode], Tuple[Type[AnyNode], ...]]
+NodeTypes = Union[Type[AnyNode], tuple[Type[AnyNode], ...]]
 
 DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
@@ -103,7 +103,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     continue
                 try:
                     cls._process_disco_section(artist_page, finder, alb_type_section, alb_type)
-                except Exception as e:
+                except Exception:
                     log.error(err_msg, exc_info=True, extra={'color': 'red'})
         elif section.depth == 2:  # key = language, value = sub-section
             for lang, lang_section in section.children.items():
@@ -114,22 +114,21 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     # log.debug(f'{alb_type}: {alb_type_section.content}')
                     try:
                         cls._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
-                    except Exception as e:
+                    except Exception:
                         log.error(err_msg, exc_info=True, extra={'color': 'red'})
         else:
             log.warning(f'Unexpected section depth: {section.depth} on {artist_page}')
 
     @classmethod
     def _process_disco_section(
-            cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', section: Section, alb_type: str,
-            lang: Optional[str] = None
+        cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', section: Section, alb_type: str, lang: str = None
     ) -> None:
         content = section.content
         # log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
         if type(content) is CompoundNode:   # A template for splitting the discography into
             content = content[0]            # columns follows the list of albums in this section
 
-        if not isinstance(content, ListNode):
+        if not isinstance(content, List):
             try:
                 raise TypeError(f'Unexpected content on {artist_page}: {content.pformat()}')
             except AttributeError:
@@ -276,12 +275,12 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
         tracks = edition._content
-        if tracks.__class__ is CompoundNode and isinstance(tracks[0], ListNode):
+        if tracks.__class__ is CompoundNode and isinstance(tracks[0], List):
             if len(tracks) != 1:
                 log.debug(f'Warning: tracks node on {edition.page} may contain additional data - len={len(tracks)}')
             tracks = tracks[0]
 
-        if isinstance(tracks, ListNode):
+        if isinstance(tracks, List):
             yield DiscographyEntryPart(None, edition, tracks)
         elif isinstance(tracks, list):
             for i, track_node in enumerate(tracks):
@@ -315,15 +314,15 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 return _process_track_string(' '.join(str(n.show if isinstance(n, Link) else n.value) for n in node))
             else:
                 # log.debug(f'Processing track name with complex content from {node=}')
-                return _process_track_complex(node)
+                return ComplexTrackName(node).get_name()
         else:
             log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
 
     @classmethod
     def parse_single_page_track_name(cls, page: WikiPage) -> Name:
         name = cls._album_page_name(page)
-        if not isinstance(name, Name):
-            name = Name.from_enclosed(name)
+        # if not isinstance(name, Name):
+        #     name = Name.from_enclosed(name)
 
         infobox = page.infobox
         try:
@@ -345,7 +344,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         return name
 
     @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
         try:
             members_section = artist_page.sections.find('Members')
         except (KeyError, AttributeError):
@@ -434,7 +433,7 @@ class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
     pass
 
 
-def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs):
+def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs) -> bool:
     if not isinstance(obj, cls):
         return False
     if not isinstance(obj.value, val_cls):
@@ -444,124 +443,145 @@ def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs):
     return True
 
 
-def has_item_types(node, *types):
+def has_item_types(node, *types) -> bool:
     if len(node) != len(types):
         return False
     return all(isinstance(item, cls) for item, cls in zip(node, types))
 
 
-def _process_track_complex(orig_node: CompoundNode) -> Name:
-    nodes = list(orig_node)
-    node = nodes.pop(0)
-    remainder = None
-    if isinstance(node, String):
-        if node.value == '"':
-            node = nodes.pop(0)
-            if isinstance(node, Link):
-                base_name = node.show
-                node = nodes.pop(0)
-                if isinstance(node, String):
-                    remainder = node.value
-                    if remainder.count('"') == 1:
-                        name_part, remainder = map(str.strip, remainder.split('"', 1))
-                        # log.debug(f'{base_name=!r} {name_part=!r} {remainder=!r}')
-                        base_name = f'{base_name} {name_part}'
-                    # else:
-                    #     log.debug(f'{base_name=!r} {remainder=!r}')
+class ComplexTrackName:
+    def __init__(self, orig_node: CompoundNode):
+        self.orig_node = orig_node
+        self.nodes = list(orig_node)
+        self.node = self.nodes.pop(0)
+
+    def __repr__(self) -> str:
+        return f'track={self.orig_node!r} node={self.node!r}'
+
+    def _process_base_name_part_1(self) -> tuple[str, Optional[str]]:
+        remainder = None
+        node = self.node
+        if isinstance(node, String):
+            if node.value == '"':
+                self.node = node = self.nodes.pop(0)
+                if isinstance(node, Link):
+                    base_name = node.show
+                    self.node = node = self.nodes.pop(0)
+                    if isinstance(node, String):
+                        remainder = node.value
+                        if remainder.count('"') == 1:
+                            name_part, remainder = map(str.strip, remainder.split('"', 1))
+                            # log.debug(f'{base_name=!r} {name_part=!r} {remainder=!r}')
+                            base_name = f'{base_name} {name_part}'
+                        # else:
+                        #     log.debug(f'{base_name=!r} {remainder=!r}')
+                    else:
+                        raise TypeError(f'Unexpected third node type for {self}')
                 else:
-                    raise TypeError(f'Unexpected third node type for track={orig_node!r} {node=!r}')
+                    raise ValueError(f'Unexpected second node value for {self}')
             else:
-                raise ValueError(f'Unexpected second node value for track={orig_node!r} {node=!r}')
-        else:
-            value = node.value
-            # noinspection PyUnresolvedReferences
-            if len(nodes) > 1 and value.startswith('"') and has_unpaired(value) and isinstance(nodes[1], String)\
-                    and '"' in nodes[1].value and has_unpaired(nodes[1].value):
-                value = value[1:]
-                # noinspection PyUnresolvedReferences
-                nodes[1].value = nodes[1].value.replace('"', '')
-            else:
-                log.debug(f'{nodes=}')
-            split_name = split_enclosed(value, maxsplit=1)
+                value = node.value
+                if (
+                    len(self.nodes) > 1 and value.startswith('"') and has_unpaired(value)
+                    and isinstance(self.nodes[1], String)
+                    and '"' in self.nodes[1].value and has_unpaired(self.nodes[1].value)
+                ):
+                    value = value[1:]
+                    self.nodes[1].value = self.nodes[1].value.replace('"', '')
+                else:
+                    log.debug(f'nodes={self.nodes}')
+                split_name = split_enclosed(value, maxsplit=1)
+                # log.debug(f'split_enclosed({value!r}) => {split_name}')
+                if len(split_name) == 1:
+                    base_name = split_name[0]
+                else:
+                    base_name, remainder = split_name
+                    if prefix := next(
+                        (k for k in REMAINDER_ARTIST_EXTRA_TYPE_MAP if k in remainder and k != '('), None
+                    ):
+                        # log.debug(f'Found {prefix=!r}')
+                        if not remainder.startswith(prefix):
+                            non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
+                            base_name = f'{base_name} {non_eng}'
+                            remainder = f'{extra_prefix} {after}'.strip()
+        elif isinstance(node, Link):
+            split_name = split_enclosed(node.show, maxsplit=1)
             # log.debug(f'split_enclosed({value!r}) => {split_name}')
             if len(split_name) == 1:
                 base_name = split_name[0]
             else:
                 base_name, remainder = split_name
-                if prefix := next((k for k in REMAINDER_ARTIST_EXTRA_TYPE_MAP if k in remainder and k != '('), None):
-                    # log.debug(f'Found {prefix=!r}')
-                    if not remainder.startswith(prefix):
-                        non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
-                        base_name = f'{base_name} {non_eng}'
-                        remainder = f'{extra_prefix} {after}'.strip()
-    elif isinstance(node, Link):
-        split_name = split_enclosed(node.show, maxsplit=1)
-        # log.debug(f'split_enclosed({value!r}) => {split_name}')
-        if len(split_name) == 1:
-            base_name = split_name[0]
         else:
-            base_name, remainder = split_name
-    else:
-        raise TypeError(f'Unexpected first node type for track={orig_node!r} {node=!r}')
+            raise TypeError(f'Unexpected first node type for {self}')
 
-    # log.debug(f'Processing complex track node: {base_name=!r} {remainder=!r} {nodes=}')
-    if not remainder and nodes:
-        node = nodes.pop(0)
-        if is_node_with(node, (Tag, Template), (CompoundNode, String), name='small'):
-            # noinspection PyUnresolvedReferences
-            if isinstance(node.value, String):
-                # noinspection PyUnresolvedReferences
-                node = node.value
-            else:
-                # noinspection PyUnresolvedReferences
-                nodes = list(node.value) + nodes
-                node = nodes.pop(0)
-            if isinstance(node, String):
+        return base_name, remainder
+
+    def _process_base_name_part_2(self, base_name: str, remainder: Optional[str]) -> tuple[str, Optional[str]]:
+        if not remainder and self.nodes:
+            self.node = node = self.nodes.pop(0)
+            if isinstance(node, Template) and isinstance((tmpl_value := node.value), Link):
+                node = tmpl_value
+
+            if is_node_with(node, (Tag, Template), (CompoundNode, String), name='small'):
+                if isinstance((node_val := node.value), String):
+                    node = node_val
+                else:
+                    self.nodes = list(node_val) + self.nodes
+                    self.node = node = self.nodes.pop(0)
+                if isinstance(node, String):
+                    remainder = node.value
+                else:
+                    raise TypeError(f'Unexpected tag value node type for {self}')
+            elif isinstance(node, String):
                 remainder = node.value
+            elif isinstance(node, Link):
+                if m := UNCLOSED_PAREN_MATCH(base_name):
+                    base_name, remainder = map(str.strip, m.groups())
+                    self.nodes.insert(0, node)
+                else:
+                    raise TypeError(f'Unexpected node type after track name for {self}')
             else:
-                raise TypeError(f'Unexpected tag value node type for track={orig_node!r} {node=!r}')
-        elif isinstance(node, String):
-            remainder = node.value
-        elif isinstance(node, Link):
-            if m := UNCLOSED_PAREN_MATCH(base_name):
-                base_name, remainder = map(str.strip, m.groups())
-                nodes.insert(0, node)
-            else:
-                raise TypeError(f'Unexpected node type after track name for track={orig_node!r} {node=!r}')
-        else:
-            raise TypeError(f'Unexpected node type after track name for track={orig_node!r} {node=!r}')
+                raise TypeError(f'Unexpected node type after track name for {self}')
 
-    extra = {}
-    if remainder:
-        if extra_type := REMAINDER_ARTIST_EXTRA_TYPE_MAP.get(remainder.lower()):
+        return base_name, remainder
+
+    def _process_remainder(self, remainder: str) -> str:
+        if self.nodes:
+            remainder_parts = [remainder]
+            for node in self.nodes:
+                if is_node_with(node, Template, MappingNode, name='small'):
+                    node = node.value['1']
+                remainder_parts.append(str(node.show if isinstance(node, Link) else node.value))
+            remainder = ' '.join(remainder_parts)
+        return remainder
+
+    def get_name(self) -> Name:
+        base_name, remainder = self._process_base_name_part_1()
+        # log.debug(f'Processing complex track node: {base_name=!r} {remainder=!r} nodes={self.nodes}')
+        base_name, remainder = self._process_base_name_part_2(base_name, remainder)
+
+        if remainder and (extra_type := REMAINDER_ARTIST_EXTRA_TYPE_MAP.get(remainder.lower())):
             # log.debug(f'Found {remainder=!r} => {extra_type=!r}')
-            extra, remainder, artists = _process_track_extra_nodes(nodes, extra_type, orig_node)
+            extra, remainder, artists = _process_track_extra_nodes(self.nodes, extra_type, self.orig_node)
             # log.debug(f'Found {artists=} {remainder=!r} {nodes=} {extra=}')
+        else:
+            extra = {}
 
-    remainder = remainder or ''
-    if nodes:
-        remainder_parts = [remainder]
-        for node in nodes:
-            if is_node_with(node, Template, MappingNode, name='small'):
-                # noinspection PyUnresolvedReferences
-                node = node.value['1']
-            remainder_parts.append(str(node.show if isinstance(node, Link) else node.value))
-        remainder = ' '.join(remainder_parts)
+        remainder = self._process_remainder(remainder or '')
 
-    # log.debug(f'Checking {remainder=!r} for a duration...')
-    if m := DURATION_MATCH(remainder):
-        before, extra['length'], after = map(str.strip, m.groups())
-        for part in (before, after):
-            if part:
+        # log.debug(f'Checking {remainder=!r} for a duration...')
+        if m := DURATION_MATCH(remainder):
+            before, extra['length'], after = map(str.strip, m.groups())
+            for part in filter(None, (before, after)):
                 extra.update(_process_track_extras(part))
 
-    # log.debug(f'orig_node={orig_node.pformat()} => {base_name=!r} + {extra=!r}')
-    name = Name.from_enclosed(base_name, extra=extra or None)
-    # log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
-    return name
+        # log.debug(f'orig_node={orig_node.pformat()} => {base_name=!r} + {extra=!r}')
+        name = Name.from_enclosed(base_name, extra=extra or None)
+        # log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
+        return name
 
 
-def _process_track_extra_nodes(nodes: List[N], extra_type: str, source: Union[WikiPage, N]):
+def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[WikiPage, N]):
     root = source if isinstance(source, WikiPage) else source.root
     extra = {}
     artists = []
@@ -625,7 +645,7 @@ def _process_track_extra_nodes(nodes: List[N], extra_type: str, source: Union[Wi
     return extra, remainder, artists
 
 
-def _process_track_string(text: str, extra_content: Optional[str] = None) -> Name:
+def _process_track_string(text: str, extra_content: str = None) -> Name:
     # log.debug(f'Processing track str={text!r} with {extra_content=!r}')
     extra = {}
     if extra_content:
@@ -653,12 +673,9 @@ def _process_track_string(text: str, extra_content: Optional[str] = None) -> Nam
         extra_type, part = _classify_track_part(part)
         if extra_type:
             if extra_type == 'version' and (current := extra.get(extra_type)):
-                # noinspection PyUnboundLocalVariable
                 if isinstance(current, list):
-                    # noinspection PyUnboundLocalVariable
                     current.append(part)
                 else:
-                    # noinspection PyUnboundLocalVariable
                     extra[extra_type] = [current, part]
             else:
                 extra[extra_type] = part
@@ -684,7 +701,7 @@ def _process_track_string(text: str, extra_content: Optional[str] = None) -> Nam
     return name
 
 
-def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:
+def _classify_track_part(text: str) -> tuple[Optional[str], Union[str, bool]]:
     text = text.replace(' : ', ': ')
     lc_text = text.lower()
     if lc_text.startswith(('inst.', 'instrumental')):
@@ -709,7 +726,7 @@ def _classify_track_part(text: str) -> Tuple[Optional[str], Union[str, bool]]:
         return None, text
 
 
-def _process_track_extras(text: str) -> Iterator[Tuple[str, Any]]:
+def _process_track_extras(text: str) -> Iterator[tuple[str, Any]]:
     for part in split_enclosed(text):
         extra_type, part = _classify_track_part(part)
         yield extra_type or 'misc', part
@@ -719,19 +736,17 @@ def _process_album_version(title: str):
     if ends_with_enclosed(title):
         _name, _ver = split_enclosed(title, reverse=True, maxsplit=1)
         lc_ver = _ver.lower()
-        if 'ver' in lc_ver:
-            if lang := LANG_ABBREV_MAP.get(lc_ver.split(maxsplit=1)[0]):
-                return _name, lang
+        if 'ver' in lc_ver and (lang := LANG_ABBREV_MAP.get(lc_ver.split(maxsplit=1)[0])):
+            return _name, lang
     else:
         lc_title = title.lower()
-        if 'ver' in lc_title:
-            if lang := LANG_ABBREV_MAP.get(lc_title.split(maxsplit=1)[0]):
-                return None, lang
+        if 'ver' in lc_title and (lang := LANG_ABBREV_MAP.get(lc_title.split(maxsplit=1)[0])):
+            return None, lang
 
     return title, None
 
 
-def _find_page_languages(entry_page: WikiPage) -> Set[str]:
+def _find_page_languages(entry_page: WikiPage) -> set[str]:
     langs = set()
     for cat in entry_page.categories:
         if cat.endswith('releases'):
@@ -742,7 +757,7 @@ def _find_page_languages(entry_page: WikiPage) -> Set[str]:
     return langs
 
 
-def _find_release_dates(infobox: Template) -> List[date]:
+def _find_release_dates(infobox: Template) -> list[date]:
     dates = []
     if released := infobox.value.get('released'):
         for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
@@ -750,7 +765,7 @@ def _find_release_dates(infobox: Template) -> List[date]:
     return dates
 
 
-def _find_artist_links(infobox: Template, entry_page: WikiPage) -> Set[Link]:
+def _find_artist_links(infobox: Template, entry_page: WikiPage) -> set[Link]:
     try:
         all_links = {link.title: link for link in entry_page.find_all(Link)}
     except Exception as e:

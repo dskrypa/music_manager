@@ -8,36 +8,15 @@ from typing import Iterable, Union
 
 from wiki_nodes import MediaWikiClient, WikiPage, Link, String
 from ..text.name import Name
-from .exceptions import NoLinkSite, NoLinkTarget
 
-__all__ = [
-    'site_titles_map',
-    'link_client_and_title',
-    'page_name',
-    'titles_and_title_name_map',
-    'multi_site_page_map',
-    'short_site',
-]
+__all__ = ['site_titles_map', 'page_name', 'titles_and_title_name_map', 'multi_site_page_map', 'short_site']
 log = logging.getLogger(__name__)
-
-
-def link_client_and_title(link: Link) -> tuple[MediaWikiClient, str]:
-    if not link.source_site:
-        raise NoLinkSite(link)
-    mw_client = MediaWikiClient(link.source_site)
-    title = link.title
-    if link.interwiki:
-        iw_key, title = link.iw_key_title
-        mw_client = mw_client.interwiki_client(iw_key)
-    elif not title:
-        raise NoLinkTarget(link)
-    return mw_client, title
 
 
 def site_titles_map(links: Iterable[Link]) -> dict[MediaWikiClient, dict[str, Link]]:
     site_map = defaultdict(dict)
     for link in links:
-        mw_client, title = link_client_and_title(link)
+        mw_client, title = link.client_and_title
         site_map[mw_client][title] = link
     return site_map  # noqa
 
@@ -82,6 +61,6 @@ def titles_and_title_name_map(titles: Iterable[Union[str, Name]]) -> tuple[list[
 
 def short_site(site: str) -> str:
     parts = site.split('.')[:-1]            # omit domain
-    if parts[0] in ('www', 'wiki', 'en'):   # omit common prefixes
+    if parts[0] in {'www', 'wiki', 'en'}:   # omit common prefixes
         parts = parts[1:]
     return '.'.join(parts)

@@ -11,6 +11,7 @@ from ds_tools.unicode import LangCat
 from wiki_nodes import (
     WikiPage, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List as ListNode
 )
+from wiki_nodes.exceptions import SiteDoesNotExist
 from wiki_nodes.nodes import N, AnyNode
 from ...common.disco_entry import DiscoEntryType
 from ...text.extraction import split_enclosed, ends_with_enclosed, has_unpaired
@@ -20,7 +21,6 @@ from ...text.utils import combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
-from ..exceptions import SiteDoesNotExist
 from .abc import WikiParser, EditionIterator
 from .utils import name_from_intro, get_artist_title, LANG_ABBREV_MAP, find_language
 

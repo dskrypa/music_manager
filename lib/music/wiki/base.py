@@ -17,7 +17,7 @@ from .disambiguation import disambiguation_links, handle_disambiguation_candidat
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError
 from .typing import WE, Pages, PageEntry, StrOrStrs
-from .utils import site_titles_map, link_client_and_title, page_name, titles_and_title_name_map, multi_site_page_map
+from .utils import site_titles_map, page_name, titles_and_title_name_map, multi_site_page_map
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
@@ -157,7 +157,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     ) -> tuple[Type[WE], PageEntry]:
         visited = visited or set()
         visited.add(link)
-        mw_client, title = link_client_and_title(link)
+        mw_client, title = link.client_and_title
         return cls._validate(mw_client.get_page(title), existing, name, prompt, visited)
 
     @classmethod
@@ -393,7 +393,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def from_link(cls: Type[WE], link: Link, **kwargs) -> WE:
-        mw_client, title = link_client_and_title(link)
+        mw_client, title = link.client_and_title
         try:
             return cls._by_category(mw_client.get_page(title), **kwargs)
         except AmbiguousPageError as e:

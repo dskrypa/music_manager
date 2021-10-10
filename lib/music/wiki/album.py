@@ -14,6 +14,7 @@ from ordered_set import OrderedSet
 
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
+from wiki_nodes.exceptions import BadLinkError
 from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table, Template
 from ..common.disco_entry import DiscoEntryType
 from ..text.extraction import strip_enclosed
@@ -21,7 +22,7 @@ from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, BadLinkError, AmbiguousWikiPageError
+from .exceptions import EntityTypeError, AmbiguousWikiPageError
 from .parsing import WikiParser
 from .utils import short_site
 

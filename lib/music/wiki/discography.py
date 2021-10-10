@@ -9,11 +9,11 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Dict, List, Iterable, Iterator, Optional, Union
 
 from wiki_nodes import MediaWikiClient, Link
+from wiki_nodes.exceptions import SiteDoesNotExist
 from .album import DiscographyEntry, DiscographyEntryEdition
 from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, AmbiguousPageError, SiteDoesNotExist
-from .utils import link_client_and_title
+from .exceptions import EntityTypeError, AmbiguousPageError
 
 if TYPE_CHECKING:
     from .artist import Artist
@@ -108,7 +108,7 @@ class DiscographyEntryFinder:
             raise SiteDoesNotExist(f'Bad link: {link!r}')
         disco_entry.links.append(link)
         self.remaining[disco_entry] += 1
-        mw_client, title = link_client_and_title(link)
+        mw_client, title = link.client_and_title
         self.entries_by_site[mw_client][title] = (disco_entry, link)
 
     def add_entry(self, disco_entry: DiscoEntry, content, unexpected=True):

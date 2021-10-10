@@ -23,6 +23,7 @@ class DiscoEntryType(Enum):
     Compilation = 'Compilation', ('compilation', 'best album'), 'Compilations', False
     Feature = 'Feature', ('feature',), 'Collaborations', False
     Live = 'Live Album', ('live album',), 'Live', False
+    Competition = 'Competition', ('participation release',), 'Other', False
     MixTape = 'MixTape', ('mixtape',), 'Other', False
     CoverAlbum = 'Cover Album', ('cover album', 'remake album'), 'Other', False
     Soundtrack = 'Soundtrack', ('soundtrack', 'ost'), 'Soundtracks', False

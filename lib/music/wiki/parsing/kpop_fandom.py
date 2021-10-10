@@ -5,6 +5,7 @@
 import logging
 import re
 from datetime import datetime, date
+from functools import cached_property
 from typing import TYPE_CHECKING, Iterator, Optional, Any, Union, Type
 
 from ds_tools.unicode import LangCat
@@ -160,7 +161,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
                 if isinstance(entry, CompoundNode):
                     links = list(entry.find_all(Link, True))
-                    if alb_type == 'Features':
+                    if alb_type in {'Features', 'Collaborations'}:
                         # {primary artist} - {album or single} [(with collabs)] (year)
                         if isinstance(entry[1], String):
                             entry_1 = entry[1].value.strip()
@@ -205,72 +206,13 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     @classmethod
     def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+        log.debug(f'Processing album editions for page={entry_page}')
         try:
             name = cls._album_page_name(entry_page)
         except Exception as e:
             raise RuntimeError(f'Error parsing page name from {entry_page=}') from e
-        infobox = entry_page.infobox
-        repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
-        if name.extra:
-            repackage_page = repackage_page or name.extra.get('repackage', False)
-        entry_type = DiscoEntryType.for_name(entry_page.categories)     # Note: 'type' is also in infobox sometimes
-        artists = _find_artist_links(infobox, entry_page)
-        try:
-            dates = _find_release_dates(infobox)
-        except ValueError as e:
-            log.error(f'Error parsing date on {entry_page=!r}: {e}')
-            dates = []
-        langs = _find_page_languages(entry_page)
 
-        tl_keys = ('Track list', 'Tracklist')
-        if track_list_section := next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None):
-            orig = track_list_section.pformat('content')
-            try:
-                track_section_content = track_list_section.processed(False, False, False, False, True)
-            except Exception:
-                log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
-                return
-
-            if track_section_content:
-                yield DiscographyEntryEdition(  # edition or version = None
-                    name, entry_page, entry, entry_type, artists, dates, track_section_content, None,
-                    find_language(track_section_content, None, langs), repackage_page
-                )
-
-            discs = []
-            for section in track_list_section:
-                title = section.title
-                lc_title = title.lower()
-                if lc_title == 'cd':
-                    yield DiscographyEntryEdition(  # edition or version = None
-                        name, entry_page, entry, entry_type, artists, dates, section.content, None,
-                        find_language(section.content, None, langs), repackage_page
-                    )
-                elif lc_title.startswith(('cd', 'disc', 'disk')):
-                    discs.append((section.content, find_language(section.content, None, langs)))
-                elif not lc_title.startswith('dvd'):
-                    edition, lang = _process_album_version(title)
-                    yield DiscographyEntryEdition(
-                        name, entry_page, entry, entry_type, artists, dates, section.content, edition,
-                        find_language(section.content, lang, langs), repackage_page
-                    )
-
-            if discs:
-                ed_lang = None
-                if ed_langs := set(filter(None, {disc[1] for disc in discs})):
-                    if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
-                        log.debug(f'Found multiple languages for {entry_page} discs: {ed_langs}')
-
-                yield DiscographyEntryEdition(  # edition or version = None
-                    name, entry_page, entry, entry_type, artists, dates, [d[0] for d in discs], None, ed_lang,
-                    repackage_page
-                )
-        else:
-            # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
-            yield DiscographyEntryEdition(
-                name, entry_page, entry, entry_type, artists, dates, None, None, find_language(entry_page, None, langs),
-                repackage_page
-            )
+        yield from EditionFinder(name, entry, entry_page).editions()
 
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
@@ -577,6 +519,124 @@ class ComplexTrackName:
         return name
 
 
+class EditionFinder:
+    def __init__(self, name: Name, entry: 'DiscographyEntry', entry_page: WikiPage):
+        self.name = name
+        self.entry = entry
+        self.entry_page = entry_page
+
+    def editions(self) -> EditionIterator:
+        entry_page = self.entry_page
+        tl_keys = ('Track list', 'Tracklist')
+        if track_list_section := next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None):
+            orig = track_list_section.pformat('content')
+            try:
+                track_section_content = track_list_section.processed(False, False, False, False, True)
+            except Exception:
+                log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
+                return
+
+            if track_section_content:  # edition or version = None
+                yield self._edition(track_section_content, None, self.find_language(track_section_content))
+
+            discs = []
+            for section in track_list_section:
+                title = section.title
+                lc_title = title.lower()
+                if lc_title == 'cd':  # edition or version = None
+                    yield self._edition(section.content, None, self.find_language(section.content))
+                elif lc_title.startswith(('cd', 'disc', 'disk')):
+                    discs.append((section.content, self.find_language(section.content)))
+                elif not lc_title.startswith('dvd'):
+                    edition, lang = _process_album_version(title)
+                    yield self._edition(section.content, edition, self.find_language(section.content, lang))
+
+            if discs:
+                ed_lang = None
+                if ed_langs := set(filter(None, {disc[1] for disc in discs})):
+                    if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
+                        log.debug(f'Found multiple languages for {entry_page} discs: {ed_langs}')
+
+                yield self._edition([d[0] for d in discs], None, ed_lang)  # edition or version = None
+        else:
+            # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
+            yield self._edition(None, None, entry_page)
+
+    def _edition(self, content, edition, language) -> DiscographyEntryEdition:
+        return DiscographyEntryEdition(
+            self.name, self.entry_page, self.entry, self.entry_type, self.artists, self.dates,
+            content, edition, language, self.is_repackage_page
+        )
+
+    def find_language(self, content, lang=None):
+        return find_language(content, lang, self.languages)
+
+    @cached_property
+    def is_repackage_page(self) -> bool:
+        if infobox := self.entry_page.infobox:
+            repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
+        else:
+            repackage_page = False
+        if extra := self.name.extra:
+            repackage_page = repackage_page or extra.get('repackage', False)
+        return repackage_page
+
+    @cached_property
+    def entry_type(self) -> DiscoEntryType:
+        return DiscoEntryType.for_name(self.entry_page.categories)  # Note: 'type' is also in infobox sometimes
+
+    @cached_property
+    def artists(self) -> set[Link]:
+        if infobox := self.entry_page.infobox:
+            try:
+                all_links = {link.title: link for link in self.entry_page.find_all(Link)}
+            except Exception as e:
+                raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
+            artist_links = set()
+            if artists := infobox.value.get('artist'):
+                if isinstance(artists, String):
+                    artists_str = artists.value
+                    if artists_str.lower() not in ('various', 'various artists'):
+                        for artist in map(str.strip, artists_str.split(', ')):
+                            if artist.startswith('& '):
+                                artist = artist[1:].strip()
+                            if artist_link := all_links.get(artist):
+                                artist_links.add(artist_link)
+                elif isinstance(artists, Link):
+                    artist_links.add(artists)
+                elif isinstance(artists, CompoundNode):
+                    for artist in artists:
+                        if isinstance(artist, Link):
+                            artist_links.add(artist)
+                        elif isinstance(artist, String):
+                            if artist_link := all_links.get(artist.value):
+                                artist_links.add(artist_link)
+            return artist_links
+        else:
+            return set()
+
+    @cached_property
+    def dates(self) -> list[date]:
+        dates = []
+        if (infobox := self.entry_page.infobox) and (released := infobox.value.get('released')):
+            try:
+                dates = [parse_date(dt_str.group(1)) for dt_str in RELEASE_DATE_FINDITER(released.raw.string)]
+            except ValueError as e:
+                log.error(f'Error parsing date on entry_page={self.entry_page!r}: {e}')
+        return dates
+
+    @cached_property
+    def languages(self) -> set[str]:
+        langs = set()
+        for cat in self.entry_page.categories:
+            if cat.endswith('releases'):
+                for word in cat.split():
+                    if lang := LANG_ABBREV_MAP.get(word):
+                        langs.add(lang)
+                        break
+        return langs
+
+
 def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[WikiPage, N]):
     root = source if isinstance(source, WikiPage) else source.root
     extra = {}
@@ -740,50 +800,3 @@ def _process_album_version(title: str):
             return None, lang
 
     return title, None
-
-
-def _find_page_languages(entry_page: WikiPage) -> set[str]:
-    langs = set()
-    for cat in entry_page.categories:
-        if cat.endswith('releases'):
-            for word in cat.split():
-                if lang := LANG_ABBREV_MAP.get(word):
-                    langs.add(lang)
-                    break
-    return langs
-
-
-def _find_release_dates(infobox: Template) -> list[date]:
-    dates = []
-    if released := infobox.value.get('released'):
-        for dt_str in RELEASE_DATE_FINDITER(released.raw.string):
-            dates.append(parse_date(dt_str.group(1)))
-    return dates
-
-
-def _find_artist_links(infobox: Template, entry_page: WikiPage) -> set[Link]:
-    try:
-        all_links = {link.title: link for link in entry_page.find_all(Link)}
-    except Exception as e:
-        raise RuntimeError(f'Error finding artist links for {entry_page=}') from e
-    artist_links = set()
-    if artists := infobox.value.get('artist'):
-        if isinstance(artists, String):
-            artists_str = artists.value
-            if artists_str.lower() not in ('various', 'various artists'):
-                for artist in artists_str.split(', '):
-                    artist = artist.strip()
-                    if artist.startswith('& '):
-                        artist = artist[1:].strip()
-                    if artist_link := all_links.get(artist):
-                        artist_links.add(artist_link)
-        elif isinstance(artists, Link):
-            artist_links.add(artists)
-        elif isinstance(artists, CompoundNode):
-            for artist in artists:
-                if isinstance(artist, Link):
-                    artist_links.add(artist)
-                elif isinstance(artist, String):
-                    if artist_link := all_links.get(artist.value):
-                        artist_links.add(artist_link)
-    return artist_links

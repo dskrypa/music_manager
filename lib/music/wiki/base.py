@@ -83,6 +83,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
         self.clear_cached_properties()
 
     @property
+    def first_page(self) -> WikiPage:
+        return next(iter(self._pages.values()))
+
+    @property
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
 

@@ -3,7 +3,7 @@
 """
 
 from itertools import count
-from typing import Optional, Iterable, Set
+from typing import Optional, Iterable
 
 from ds_tools.output.terminal import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
@@ -13,7 +13,7 @@ from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEnt
 from ..wiki.discography import DiscographyMixin, Discography
 
 __all__ = ['show_wiki_entity', 'pprint_wiki_page']
-AlbTypes = Optional[Set[DiscoEntryType]]
+AlbTypes = Optional[set[DiscoEntryType]]
 
 
 def pprint_wiki_page(url: str, mode: str):
@@ -22,9 +22,7 @@ def pprint_wiki_page(url: str, mode: str):
     page.sections.pprint(mode)
 
 
-def show_wiki_entity(
-    identifier: str, expand=0, limit=0, alb_types: Optional[Iterable[str]] = None, etype: Optional[str] = None
-):
+def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Iterable[str] = None, etype: str = None):
     alb_types = _album_types(alb_types)
     cls = EntertainmentEntity
     if etype:
@@ -56,7 +54,7 @@ def show_wiki_entity(
         uprint(f'  - No additional information is configured for {entity.__class__.__name__} entities')
 
 
-def print_tv_series(tv_series: TVSeries, indent=0):
+def print_tv_series(tv_series: TVSeries, indent: int = 0):
     prefix = ' ' * indent
     if links := tv_series.soundtrack_links():
         uprint(f'{prefix}Discography Links:')
@@ -67,7 +65,12 @@ def print_tv_series(tv_series: TVSeries, indent=0):
 
 
 def print_artist(
-    artist: Artist, indent=0, expand_disco=0, editions=False, track_info=False, alb_types: AlbTypes = None
+    artist: Artist,
+    indent: int = 0,
+    expand_disco: int = 0,
+    editions: bool = False,
+    track_info: bool = False,
+    alb_types: AlbTypes = None,
 ):
     prefix = ' ' * indent
     uprint(f'{prefix}- {artist.name}:')
@@ -98,12 +101,12 @@ def print_artist(
 
 def print_discography(
     entity: DiscographyMixin,
-    indent=0,
-    expand_disco=False,
-    editions=False,
-    track_info=False,
+    indent: int = 0,
+    expand_disco: bool = False,
+    editions: bool = False,
+    track_info: bool = False,
     alb_types: AlbTypes = None,
-    header=False,
+    header: bool = False,
 ):
     prefix = ' ' * indent
     if header:
@@ -122,7 +125,9 @@ def print_discography(
         uprint(f'{prefix}  Discography: [Unavailable]')
 
 
-def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False, limit=0, track_info=False):
+def print_disco_entry(
+    disco_entry: DiscographyEntry, indent: int = 0, editions: bool = False, limit: int = 0, track_info: bool = False
+):
     prefix = ' ' * indent
     suffix = '' if disco_entry.editions else ' [{} info unavailable]'.format('Edition' if editions else 'Part')
     uprint(f'{prefix}- {disco_entry}:{suffix}')
@@ -153,7 +158,7 @@ def print_disco_entry(disco_entry: DiscographyEntry, indent=0, editions=False, l
                 break
 
 
-def print_de_part(part: DiscographyEntryPart, indent=0, track_info=False):
+def print_de_part(part: DiscographyEntryPart, indent: int = 0, track_info: bool = False):
     prefix = ' ' * indent
     if part:
         uprint(f'{prefix}- {part}:')

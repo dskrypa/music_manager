@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, List, Iterable, Optional, Set, Tuple, Collection
+from typing import TYPE_CHECKING, Iterable, Optional, Collection
 
 from ds_tools.fs.paths import Paths
 from ds_tools.output.terminal import uprint
@@ -80,7 +80,7 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
                 print_de_part(album, 4)
 
 
-def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> List[Artist]:
+def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> list[Artist]:
     if artist_url := album_dir.artist_url:
         log.debug(f'Found artist URL via tag for {album_dir}: {artist_url}', extra={'color': 10})
         return [Artist.from_url(artist_url)]
@@ -125,11 +125,7 @@ def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> List[Artist]:
     raise NoArtistFoundException(album_dir)
 
 
-def find_album(
-    album_dir: AlbumDir,
-    artists: Optional[Iterable[Artist]] = None,
-    sites: StrOrStrs = None,
-) -> DiscographyEntryPart:
+def find_album(album_dir: AlbumDir, artists: Iterable[Artist] = None, sites: StrOrStrs = None) -> DiscographyEntryPart:
     if album_url := album_dir.album_url:
         log.debug(f'Found album URL via tag for {album_dir}: {album_url}', extra={'color': 10})
         candidates = list(DiscographyEntry.from_url(album_url).parts())
@@ -164,7 +160,7 @@ def find_album(
 
 def _find_album(
     album_dir: AlbumDir, alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num
-) -> Set[DiscographyEntryPart]:
+) -> set[DiscographyEntryPart]:
     track_count = len(album_dir)
     candidates = set()
     for artist in artists:
@@ -214,7 +210,7 @@ def _find_album(
     return candidates
 
 
-def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEntryPart]) -> Set[DiscographyEntryPart]:
+def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEntryPart]) -> set[DiscographyEntryPart]:
     mlog.debug('Initial candidates ({}):\n{}'.format(len(candidates), '\n'.join(f' - {c}' for c in candidates)))
 
     track_count = len(album_dir)
@@ -249,7 +245,7 @@ def _filter_ost_parts(album_name: 'AlbumName', candidates):
     return _candidates if _candidates else candidates
 
 
-def _sites_for(album_dir: AlbumDir) -> Tuple[str, ...]:
+def _sites_for(album_dir: AlbumDir) -> tuple[str, ...]:
     if album_dir.name.ost:
         return ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com')
         # return ('kpop.fandom.com', 'wiki.d-addicts.com')

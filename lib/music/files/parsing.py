@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, InitVar, fields
 from functools import cached_property, reduce
 from operator import xor
-from typing import Tuple, List, Iterator, Sequence, Union, MutableSequence, Optional, Iterable
+from typing import Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.unicode.languages import LangCat
 from ds_tools.unicode.hangul import HANGUL_REGEX_CHAR_CLASS
@@ -52,8 +52,8 @@ class AlbumName:
     part: int = None
     network_info: str = None
     part_name: str = None
-    feat: Tuple[Name, ...] = None
-    collabs: Tuple[Name, ...] = None
+    feat: tuple[Name, ...] = None
+    collabs: tuple[Name, ...] = None
     song_name: Name = None
     name: Name = None
 
@@ -67,24 +67,24 @@ class AlbumName:
                 name_parts = (name_parts,)
             self.name = Name(*sort_name_parts(name_parts))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         parts = ', '.join(sorted(f'{k}={v!r}' for k, v in zip(_fields(self), self.__parts) if v and k != 'name'))
         parts = f', {parts}' if parts else ''
         return f'{self.__class__.__name__}[{self.type.name}]({self.name!r}{parts})'
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
             return False
         return self.__parts == other.__parts
 
-    def __dir__(self):
+    def __dir__(self) -> list[str]:
         return sorted(set(dir(self.__class__)).union(_fields(self)))
 
     @cached_property
     def __parts(self):
         return tuple(getattr(self, attr) for attr in _fields(self))
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return reduce(xor, map(hash, self.__parts))
 
     @cached_property
@@ -105,7 +105,7 @@ class AlbumName:
         return None
 
     @classmethod
-    def parse(cls, name: str, artist: Optional[str] = None) -> 'AlbumName':
+    def parse(cls, name: str, artist: str = None) -> 'AlbumName':
         self = cls.__new__(cls)                                         # type: AlbumName
         artist = Name.from_enclosed(artist) if artist else None         # type: Optional[Name]
 
@@ -396,7 +396,7 @@ def split_str_list(text: str):
     return map(str.strip, processed)
 
 
-def split_artists(text: str) -> List[Name]:
+def split_artists(text: str) -> list[Name]:
     try:
         return _split_artists(text)
     except UnexpectedListFormat:
@@ -405,7 +405,7 @@ def split_artists(text: str) -> List[Name]:
         raise
 
 
-def _split_artists(text: str) -> List[Name]:
+def _split_artists(text: str) -> list[Name]:
     artists = []
     if pairs := _unzipped_list_pairs(text):
         for pair in pairs:
@@ -497,7 +497,7 @@ def _unzipped_list_pairs(text: str):
     return None
 
 
-def _balance_unzipped_parts(parts: MutableSequence[str], a: str, b: str) -> Iterator[Tuple[str, str]]:
+def _balance_unzipped_parts(parts: MutableSequence[str], a: str, b: str) -> Iterator[tuple[str, str]]:
     group_a, a_members = split_enclosed(a, True, maxsplit=1)
     members = list(reversed(tuple(split_str_list(a_members))))
     while members and (mem_x := members.pop()):

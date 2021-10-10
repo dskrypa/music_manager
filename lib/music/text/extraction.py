@@ -5,7 +5,7 @@
 import logging
 from collections import defaultdict
 from itertools import chain
-from typing import Tuple, Optional
+from typing import Optional
 
 __all__ = [
     'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
@@ -53,17 +53,17 @@ OPENER_TO_CLOSER = _CharMatcher(OPENERS, CLOSERS)
 CLOSER_TO_OPENER = _CharMatcher(CLOSERS, OPENERS)
 
 
-def has_unpaired(text: str, reverse=True, exclude=_NotSet) -> bool:
+def has_unpaired(text: str, reverse: bool = True, exclude=_NotSet) -> bool:
     return bool(get_unpaired(text, reverse, exclude))
 
 
-def get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[str]:
+def get_unpaired(text: str, reverse: bool = True, exclude=_NotSet) -> Optional[str]:
     if (i := _get_unpaired(text, reverse, exclude)) is not None:
         return text[i]
     return None
 
 
-def _get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[int]:
+def _get_unpaired(text: str, reverse: bool = True, exclude=_NotSet) -> Optional[int]:
     exclude = DASH_CHARS if exclude is _NotSet else '' if exclude is None else exclude
     if reverse:
         o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
@@ -106,11 +106,11 @@ def _get_unpaired(text: str, reverse=True, exclude=_NotSet) -> Optional[int]:
     return None
 
 
-def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str]:
+def ends_with_enclosed(text: str, exclude: str = None) -> Optional[str]:
     """
-    :param str text: A string to examine
-    :param str exclude: If specified, exclude the provided characters from counting as closers
-    :return str|None: The opener + closer characters if the string contains enclosed text, otherwise None
+    :param text: A string to examine
+    :param exclude: If specified, exclude the provided characters from counting as closers
+    :return: The opener + closer characters if the string contains enclosed text, otherwise None
     """
     if len(text) < 2:
         return None
@@ -127,16 +127,16 @@ def ends_with_enclosed(text: str, exclude: Optional[str] = None) -> Optional[str
     return None
 
 
-def strip_enclosed(text: str, unpaired=False, exclude: Optional[str] = None) -> str:
+def strip_enclosed(text: str, unpaired: bool = False, exclude: str = None) -> str:
     """
     If the given string is fully enclosed, i.e., its first and last characters are a matching pair of opener and closer
     characters as defined above, then those characters will be stripped from the returned string.  If the first and last
     characters are not a matching pair, then no action will be taken.
 
-    :param str text: A string
-    :param bool unpaired: Also strip unpaired enclosing characters
-    :param str exclude: If specified, exclude the provided characters from counting as closers
-    :return str: The string without the enclosing characters
+    :param text: A string
+    :param unpaired: Also strip unpaired enclosing characters
+    :param exclude: If specified, exclude the provided characters from counting as closers
+    :return: The string without the enclosing characters
     """
     if enclosing := ends_with_enclosed(text, exclude):
         opener, closer = enclosing
@@ -148,7 +148,7 @@ def strip_enclosed(text: str, unpaired=False, exclude: Optional[str] = None) -> 
     return text
 
 
-def strip_unpaired(text: str, reverse=False, exclude=_NotSet) -> str:
+def strip_unpaired(text: str, reverse: bool = False, exclude=_NotSet) -> str:
     if (i := _get_unpaired(text, reverse, exclude)) is not None:
         if i == 0:
             return text[1:].strip()
@@ -157,7 +157,9 @@ def strip_unpaired(text: str, reverse=False, exclude=_NotSet) -> str:
     return text
 
 
-def split_enclosed(text: str, reverse=False, inner=False, recurse=0, maxsplit=0) -> Tuple[str, ...]:
+def split_enclosed(
+    text: str, reverse: bool = False, inner: bool = False, recurse: int = 0, maxsplit: int = 0
+) -> tuple[str, ...]:
     """
     Split the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.  By
     default, the string is traversed from left to right, and outer-most enclosed substrings are extracted when they are
@@ -165,17 +167,17 @@ def split_enclosed(text: str, reverse=False, inner=False, recurse=0, maxsplit=0)
     than 3 values if the original string contained multiple top-level enclosed substrings.  Enclosed substrings within
     those extracted substrings are only extracted when recursion is enabled.
 
-    :param str text: The string to split.
-    :param bool reverse: Traverse the string from right to left instead of left to right.  Does not change the order of
+    :param text: The string to split.
+    :param reverse: Traverse the string from right to left instead of left to right.  Does not change the order of
       substrings in the returned tuple.
-    :param bool inner: Return inner-most enclosed substrings when they are surrounded by multiple different sets of
+    :param inner: Return inner-most enclosed substrings when they are surrounded by multiple different sets of
       enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same pair
       of enclosing characters.
-    :param int recurse: The number of levels to recurse.
-    :param int maxsplit: The maximum number of splits to perform.  If < 2, and text exists after the enclosed portion,
+    :param recurse: The number of levels to recurse.
+    :param maxsplit: The maximum number of splits to perform.  If < 2, and text exists after the enclosed portion,
       then the enclosed portion will not be extracted - it will be attached to the preceding or succeeding part,
       depending on direction of traversal.
-    :return tuple: The split string, with empty values filtered out.  If no enclosed substrings are found, the returned
+    :return: The split string, with empty values filtered out.  If no enclosed substrings are found, the returned
       tuple will contain the original string.
     """
     # log.debug(f'split_enclosed({text!r}, rev={reverse}, inner={inner}, recurse={recurse}, max={maxsplit})')
@@ -240,7 +242,7 @@ def split_enclosed(text: str, reverse=False, inner=False, recurse=0, maxsplit=0)
     return tuple(combined)
 
 
-def _split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[str, ...]:
+def _split_enclosed(text: str, reverse: bool = False, inner: bool = False, recurse: int = 0) -> tuple[str, ...]:
     try:
         a, b, c = partition_enclosed(text, reverse, inner)
     except ValueError:
@@ -257,17 +259,17 @@ def _split_enclosed(text: str, reverse=False, inner=False, recurse=0) -> Tuple[s
     return tuple(filter(None, chained))
 
 
-def partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, str, str]:
+def partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -> tuple[str, str, str]:
     """
     Partition the provided string to separate substrings that are enclosed in matching quotes / parentheses / etc.
 
-    :param str text: The string to partition.
-    :param bool reverse: Traverse the string from right to left instead of left to right.  Does not change the order of
+    :param text: The string to partition.
+    :param reverse: Traverse the string from right to left instead of left to right.  Does not change the order of
       substrings in the returned tuple.
-    :param bool inner: Return inner-most enclosed substrings when they are surrounded by multiple different sets of
+    :param inner: Return inner-most enclosed substrings when they are surrounded by multiple different sets of
       enclosing characters.  Behavior does not change when the substring is enclosed in multiple sets of the same pair
       of enclosing characters.
-    :return tuple: A 3-tuple containing the part before the enclosed substring, the enclosed substring (without the
+    :return: A 3-tuple containing the part before the enclosed substring, the enclosed substring (without the
       enclosing characters), and the part after the enclosed substring.
     :raises: :exc:`ValueError` if no enclosed text is found.
     """
@@ -275,7 +277,7 @@ def partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, str,
     return _return_partitioned(text, first_k, i, reverse)
 
 
-def _partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, int, int]:
+def _partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -> tuple[str, int, int]:
     """
     Returns the text in case it was reversed, the index of the first character that is enclosed, and the index of the
     closing character for the enclosed portion.
@@ -337,7 +339,7 @@ def _partition_enclosed(text: str, reverse=False, inner=False) -> Tuple[str, int
     raise ValueError('No enclosed text found')
 
 
-def _return_partitioned(text: str, first_k: int, i: int, reverse: bool) -> Tuple[str, str, str]:
+def _return_partitioned(text: str, first_k: int, i: int, reverse: bool) -> tuple[str, str, str]:
     a, b, c = text[:first_k - 1].strip(), text[first_k:i].strip(), text[i + 1:].strip()
     if reverse:
         return c[::-1], b[::-1], a[::-1]

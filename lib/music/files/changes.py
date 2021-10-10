@@ -3,7 +3,7 @@
 """
 
 from collections import defaultdict, Counter
-from typing import TYPE_CHECKING, Mapping, Tuple, Any, Dict
+from typing import TYPE_CHECKING, Mapping, Any
 
 from ds_tools.output.color import colored
 from ds_tools.output.table import mono_width
@@ -18,7 +18,7 @@ __all__ = ['count_tag_changes', 'print_tag_changes', 'get_common_changes']
 
 def count_tag_changes(
     updates: Mapping['SongFile', Mapping[str, Any]], add_genre: bool = False
-) -> Dict[str, Dict[Tuple[Any, Any], int]]:
+) -> dict[str, dict[tuple[Any, Any], int]]:
     counts = defaultdict(Counter)
     for file, values in updates.items():
         for tag_name, new_val in values.items():
@@ -42,7 +42,7 @@ def count_tag_changes(
     return counts
 
 
-def print_tag_changes(obj, changes: Mapping[str, Tuple[Any, Any]], dry_run: bool, color=None):
+def print_tag_changes(obj, changes: Mapping[str, tuple[Any, Any]], dry_run: bool, color=None):
     name_width = max(len(tag_name) for tag_name in changes) if changes else 0
     orig_width = max(max(len(r), mono_width(r)) for r in (repr(orig) for orig, _ in changes.values())) if changes else 0
     _fmt = '  - {{:<{}s}}{}{{:>{}s}}{}{{}}'
@@ -83,7 +83,7 @@ def get_common_changes(
     extra_newline: bool = False,
     dry_run: bool = False,
     add_genre: bool = False,
-) -> Dict[str, Tuple[Any, Any]]:
+) -> dict[str, tuple[Any, Any]]:
     counts = count_tag_changes(updates, add_genre)
     # noinspection PyUnboundLocalVariable
     common_changes = {

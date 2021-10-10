@@ -60,6 +60,7 @@ class TextPopup(BasePopup, view_name='text_popup', primary=False):
         self.font = font
         self.image = image
         self.image_size = image_size if image_size else (100, 100) if image else None
+        self.kwargs.setdefault('resizable', True)
 
     @cached_property
     def lines(self):

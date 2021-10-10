@@ -292,7 +292,6 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 log.warning(f'Unexpected type={edition.type} for {edition!r}')
         else:
             try:
-                # noinspection PyUnresolvedReferences
                 log.warning(f'Unexpected type for {edition!r}._content: {tracks.pformat()}', extra={'color': 'red'})
             except AttributeError:
                 log.warning(f'Unexpected type for {edition!r}._content: {tracks!r}')
@@ -365,13 +364,11 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         section = 'current'
         if isinstance(members_node, Table):
             for row in members_node:
-                # noinspection PyUnboundLocalVariable
                 if (
                     isinstance(row, MappingNode)
                     and (name := row.get('Name'))
-                    and (title := get_artist_title(name, artist_page))
+                    and (title := get_artist_title(name, artist_page))  # noqa
                 ):
-                    # noinspection PyUnboundLocalVariable
                     members[section].append(title)
                 elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
                     section = row.value.value
@@ -428,8 +425,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         raise NotImplementedError
 
 
-# noinspection PyAbstractClass
-class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):
+class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):  # noqa
     pass
 
 

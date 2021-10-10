@@ -12,6 +12,7 @@ from typing import Optional, Union
 
 from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
 from plexapi.audio import Track, Artist, Album
+from plexapi.exceptions import Unauthorized
 from plexapi.library import Library, LibrarySection, MusicSection, ShowSection, MovieSection
 from plexapi.myplex import MyPlexAccount
 from plexapi.server import PlexServer
@@ -62,14 +63,16 @@ class LocalPlexServer:
         }
         self.dry_run = dry_run
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.user}@{self.url})>'
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.user == other.user and self.url == other.url
 
+    # region Configs
+
     @cached_property
-    def _token(self):
+    def _token(self) -> str:
         token = self._get_config('auth', 'server_token')
         if not token:
             if UIMode.current() == UIMode.GUI:
@@ -89,7 +92,7 @@ class LocalPlexServer:
             self._set_config('auth', 'server_token', token)
         return token
 
-    def _get_config(self, section, key, name=None, new_value=None, required=False):
+    def _get_config(self, section: str, key: str, name: str = None, new_value=None, required: bool = False):
         name = name or key
         cfg_value = self._config.get(f'{section}.{key}')
         if cfg_value and new_value:
@@ -106,7 +109,7 @@ class LocalPlexServer:
             self._set_config(section, key, new_value)
         return new_value or cfg_value
 
-    def _set_config(self, section, key, value):
+    def _set_config(self, section: str, key: str, value):
         try:
             self._config.set(section, key, value)
         except NoSectionError:
@@ -116,11 +119,22 @@ class LocalPlexServer:
         with self._config_path.open('w', encoding='utf-8') as f:
             self._config.write(f)
 
+    # endregion
+
     @cached_property
     def server(self) -> PlexServer:
         session = Session()
         session.verify = False
-        return PlexServer(self.url, self._token, session=session)
+        try:
+            return PlexServer(self.url, self._token, session=session)
+        except Unauthorized as e:
+            log.warning(f'Token expired: {e}')
+            log.debug(f'Deleting old token from config in {self._config_path.as_posix()}')
+            self._config.remove_option('auth', 'server_token')
+            with self._config_path.open('w', encoding='utf-8') as f:
+                self._config.write(f)
+            del self.__dict__['_token']
+            return PlexServer(self.url, self._token, session=session)
 
     def request(self, method: str, endpoint: str, **kwargs) -> Response:
         server = self.server
@@ -130,6 +144,8 @@ class LocalPlexServer:
     @property
     def library(self) -> Library:
         return self.server.library
+
+    # region Library Sections
 
     def get_lib_section(self, section: LibSection = None, obj_type: PlexObjTypes = None) -> LibrarySection:
         if section is None:
@@ -179,6 +195,8 @@ class LocalPlexServer:
     @cached_property
     def movies(self) -> MovieSection:
         return self.primary_sections['movies']
+
+    # endregion
 
     def _ekey(self, obj_type: PlexObjTypes, section: LibSection = None) -> str:
         section = self.get_lib_section(section, obj_type)

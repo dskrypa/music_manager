@@ -86,7 +86,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
 
-    def page_parsers(self, method: Optional[str] = None) -> Iterator[tuple[WikiPage, 'WikiParser']]:
+    def page_parsers(self, method: str = None) -> Iterator[tuple[WikiPage, 'WikiParser']]:
         for site, page in sorted(self._pages.items(), key=_site_page_key):
             if parser := WikiParser.for_site(site, method):
                 yield page, parser
@@ -97,10 +97,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def _validate(
         cls: Type[WE],
         obj: PageEntry,
-        existing: Optional[WE] = None,
-        name: Optional[Name] = None,
+        existing: WE = None,
+        name: Name = None,
         prompt: bool = True,
-        visited: Optional[set[Link]] = None,
+        visited: set[Link] = None,
     ) -> tuple[Type[WE], PageEntry]:
         """
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
@@ -153,7 +153,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _handle_disambiguation_link(
-        cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: Optional[set[Link]] = None
+        cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: set[Link] = None
     ) -> tuple[Type[WE], PageEntry]:
         visited = visited or set()
         visited.add(link)
@@ -164,19 +164,19 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def _resolve_ambiguous(
         cls: Type[WE],
         page: WikiPage,
-        existing: Optional[WE] = None,
-        name: Optional[Name] = None,
+        existing: WE = None,
+        name: Name = None,
         prompt: bool = True,
-        visited: Optional[set[Link]] = None,
+        visited: set[Link] = None,
     ) -> tuple[Type[WE], WikiPage]:
         """
-        :param WikiPage page: A disambiguation page
-        :param WikiEntity existing: An existing WikiEntity that the resolved page will be added to; used to filter
-          disambiguation page links
-        :param Name name: A Name to match, if no existing WikiEntity exists or if its parsed name is insufficient to
-          filter results
-        :param bool prompt: Attempt to interactively resolve disambiguation pages if unable to do so automatically
-        :return tuple: Tuple of (WikiEntity subclass, WikiPage)
+        :param page: A disambiguation page
+        :param existing: An existing WikiEntity that the resolved page will be added to; used to filter disambiguation
+          page links
+        :param name: A Name to match, if no existing WikiEntity exists or if its parsed name is insufficient to filter
+          results
+        :param prompt: Attempt to interactively resolve disambiguation pages if unable to do so automatically
+        :return: Tuple of (WikiEntity subclass, WikiPage)
         """
         links = disambiguation_links(page)
         if not links:
@@ -198,7 +198,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         return handle_disambiguation_candidates(page, client, candidates, existing, name, prompt)
 
     @classmethod
-    def _by_category(cls: Type[WE], obj: PageEntry, name: Optional[Name] = None, *args, **kwargs) -> WE:
+    def _by_category(cls: Type[WE], obj: PageEntry, name: Name = None, *args, **kwargs) -> WE:
         cat_cls, obj = cls._validate(obj, name=name)
         entity_name = obj.title if isinstance(obj, DiscoEntry) else page_name(obj)
         return cat_cls(entity_name, obj, *args, **kwargs)
@@ -209,12 +209,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _from_multi_site_pages(
-        cls: Type[WE],
-        pages: Collection[WikiPage],
-        name: Optional[Name] = None,
-        strict=2,
-        entity: Optional[WE] = None,
-        **kwargs,
+        cls: Type[WE], pages: Collection[WikiPage], name: Name = None, strict: int = 2, entity: WE = None, **kwargs
     ) -> WE:
         # log.debug(f'Processing {len(pages)} multi-site pages')
         page_link_map = {}
@@ -261,17 +256,17 @@ class WikiEntity(ClearableCachedPropertyMixin):
         sites: StrOrStrs = None,
         search: bool = True,
         research: bool = False,
-        name: Optional[Name] = None,
+        name: Name = None,
         strict: int = 2,
         **kwargs,
     ) -> WE:
         """
-        :param str title: A page title
-        :param iterable sites: A list or other iterable that yields site host strings
-        :param bool search: Whether the provided title should also be searched for, in case there is not an exact match.
-        :param bool research: If only one site returned a hit, re-search with the title from that site
-        :param Name name: The Name of the entity to retrieve
-        :param int strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
+        :param title: A page title
+        :param sites: A list or other iterable that yields site host strings
+        :param search: Whether the provided title should also be searched for, in case there is not an exact match.
+        :param research: If only one site returned a hit, re-search with the title from that site
+        :param name: The Name of the entity to retrieve
+        :param strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
           EntityTypeError and AmbiguousPageError as a warning.  If 0, log those errors on debug level.
         :return: A WikiEntity (or subclass thereof) that represents the page(s) with the given title.
         """
@@ -303,13 +298,13 @@ class WikiEntity(ClearableCachedPropertyMixin):
         research: bool = False,
     ) -> dict[Union[str, Name], WE]:
         """
-        :param Iterable titles: Page titles to retrieve
-        :param str|Iterable sites: Sites from which to retrieve them
-        :param bool search: Resolve titles that may not be exact matches
-        :param int strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
+        :param titles: Page titles to retrieve
+        :param sites: Sites from which to retrieve them
+        :param search: Resolve titles that may not be exact matches
+        :param strict: Error handling strictness.  If 2 (default), let all exceptions be propagated.  If 1, log
           EntityTypeError and AmbiguousPageError as a warning.  If 0, log those errors on debug level.
-        :param bool research: If only one site returned a hit for a given title, re-search with the title from that site
-        :return dict: Mapping of {title: WikiEntity} for the given titles
+        :param research: If only one site returned a hit for a given title, re-search with the title from that site
+        :return: Mapping of {title: WikiEntity} for the given titles
         """
         titles, title_name_map = titles_and_title_name_map(titles)
         # log.debug(f'{title_name_map=}')
@@ -427,7 +422,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         raise ValueError(f'No pages were found')
 
     @classmethod
-    def from_links(cls: Type[WE], links: Iterable[Link], strict=2) -> dict[Link, WE]:
+    def from_links(cls: Type[WE], links: Iterable[Link], strict: int = 2) -> dict[Link, WE]:
         link_entity_map = {}
         client_title_link_map = site_titles_map(links)
         title_entity_map = cls._from_site_title_map(client_title_link_map, False, strict)

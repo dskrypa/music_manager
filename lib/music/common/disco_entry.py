@@ -5,7 +5,7 @@
 import logging
 from enum import Enum
 from functools import cached_property
-from typing import Iterable, Optional, Union, List
+from typing import Iterable, Optional, Union
 
 from ds_tools.core.decorate import cached_classproperty
 
@@ -59,7 +59,7 @@ class DiscoEntryType(Enum):
 
     # noinspection PyMethodParameters
     @cached_classproperty
-    def _members(cls) -> List['DiscoEntryType']:
+    def _members(cls) -> list['DiscoEntryType']:
         return list(cls.__members__.values())
 
     @classmethod
@@ -104,17 +104,17 @@ class DiscoEntryType(Enum):
         return cls.UNKNOWN
 
     @cached_property
-    def real_name(self):
+    def real_name(self) -> str:
         return self.value[0]
 
     @cached_property
-    def categories(self):
+    def categories(self) -> tuple[str]:
         return self.value[1]
 
     @cached_property
-    def directory(self):
+    def directory(self) -> str:
         return self.value[2]
 
     @cached_property
-    def numbered(self):
+    def numbered(self) -> bool:
         return self.value[3]

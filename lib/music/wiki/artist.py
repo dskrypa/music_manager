@@ -7,7 +7,7 @@ Artist wiki pages.
 import logging
 from functools import cached_property
 from itertools import chain
-from typing import MutableSet, List, Optional, Union, Set
+from typing import MutableSet, Optional, Union
 
 from ordered_set import OrderedSet
 
@@ -23,15 +23,15 @@ log = logging.getLogger(__name__)
 class Artist(PersonOrGroup, DiscographyMixin):
     _categories = ()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.name.artist_str()!r})[pages: {len(self._pages)}]>'
 
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         if other is None:
             return False
         return self.name < other.name
 
-    def __gt__(self, other):
+    def __gt__(self, other) -> bool:
         if other is None:
             return True
         return self.name > other.name
@@ -82,7 +82,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
         return finder
 
     @cached_property
-    def languages(self) -> Set[str]:
+    def languages(self) -> set[str]:
         categories = set(chain.from_iterable(cat.split() for page in self.pages for cat in page.categories))
         langs = set(filter(None, (LANGUAGES.get(cat) for cat in categories)))
         if any(val in self._pages for val in ('kpop.fandom.com', 'kindie.fandom.com')):
@@ -114,7 +114,7 @@ class Singer(Artist):
     _not_categories = ('groups', 'record labels')
 
     @cached_property
-    def groups(self) -> List['Group']:
+    def groups(self) -> list['Group']:
         links = set(chain.from_iterable(
             parser.parse_member_of(page) for page, parser in self.page_parsers('parse_member_of')
         ))
@@ -127,7 +127,7 @@ class Group(Artist):
     _not_categories = ('group processes', 'belief', 'single')
 
     @cached_property
-    def members(self) -> Optional[List[Singer]]:
+    def members(self) -> Optional[list[Singer]]:
         for page, parser in self.page_parsers('parse_group_members'):
             members_dict = parser.parse_group_members(page)
             names = set(chain.from_iterable((titles for key, titles in members_dict.items() if titles != 'sub_units')))
@@ -136,7 +136,7 @@ class Group(Artist):
         return None
 
     @cached_property
-    def sub_units(self) -> Optional[List['Group']]:
+    def sub_units(self) -> Optional[list['Group']]:
         for page, parser in self.page_parsers('parse_group_members'):
             members_dict = parser.parse_group_members(page)
             if sub_units := members_dict.get('sub_units'):

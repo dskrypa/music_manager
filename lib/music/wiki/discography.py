@@ -6,7 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
 from functools import cached_property
-from typing import TYPE_CHECKING, Dict, List, Iterable, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Iterable, Iterator, Union
 
 from wiki_nodes import MediaWikiClient, Link
 from wiki_nodes.exceptions import SiteDoesNotExist
@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 
 class DiscographyMixin(ABC):
-    def __iter__(self):
+    def __iter__(self) -> Iterator[DiscographyEntry]:
         return iter(self.discography)
 
     @abstractmethod
@@ -34,7 +34,7 @@ class DiscographyMixin(ABC):
         raise NotImplementedError
 
     @cached_property
-    def discography_entries(self) -> Dict[str, List[DiscographyEntry]]:
+    def discography_entries(self) -> dict[str, list[DiscographyEntry]]:
         return self._finder_with_entries().process_entries()
 
     @property
@@ -56,7 +56,7 @@ class DiscographyMixin(ABC):
                 yield from entry
 
     @cached_property
-    def discography(self) -> List[DiscographyEntry]:
+    def discography(self) -> list[DiscographyEntry]:
         merged = []
         temp = defaultdict(list)
         for site, entries in self.discography_entries.items():
@@ -79,7 +79,7 @@ class DiscographyMixin(ABC):
 
 class DiscographyEntryFinder:
     """Internal-use class that handles common discography entry page discovery; used by Discography and Artist"""
-    def __init__(self, artist: Optional['Artist'] = None):
+    def __init__(self, artist: 'Artist' = None):
         self.artist = artist
         self.created_entry = defaultdict(lambda: False)
         self.remaining = Counter()
@@ -111,13 +111,13 @@ class DiscographyEntryFinder:
         mw_client, title = link.client_and_title
         self.entries_by_site[mw_client][title] = (disco_entry, link)
 
-    def add_entry(self, disco_entry: DiscoEntry, content, unexpected=True):
+    def add_entry(self, disco_entry: DiscoEntry, content, unexpected: bool = True):
         self.no_link_entries[content.root.site].append(disco_entry)
         if unexpected:
             log.log(9, f'Unexpected entry content from {content.root}: {content!r}')
 
-    def process_entries(self) -> Dict[str, List[DiscographyEntry]]:
-        discography = defaultdict(list)                                     # type: Dict[str, List[DiscographyEntry]]
+    def process_entries(self) -> dict[str, list[DiscographyEntry]]:
+        discography = defaultdict(list)                                     # type: dict[str, list[DiscographyEntry]]
         pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(self.entries_by_site)
         for site_client, title_entry_map in self.entries_by_site.items():
             site = site_client.host
@@ -152,7 +152,7 @@ class DiscographyEntryFinder:
                             pass
                         else:
                             self.created_entry[disco_entry] = True
-                except Exception as e:
+                except Exception:
                     self.remaining[disco_entry] -= 1
                     msg = f'Unexpected error processing page={title!r} for {disco_entry=}:'
                     log.error(msg, exc_info=True, extra={'color': 9})

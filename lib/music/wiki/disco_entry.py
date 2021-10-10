@@ -4,11 +4,11 @@
 
 import logging
 from functools import cached_property
-from typing import Optional, Union, Mapping, Iterable, List
+from typing import Optional, Union, Mapping, Iterable
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, Link
-from wiki_nodes.nodes import N
+from wiki_nodes.nodes import N, Link
+from wiki_nodes.page import WikiPage
 from ..common.disco_entry import DiscoEntryType
 from ..text.name import Name
 from ..text.time import parse_date, DateObj, DateResult
@@ -24,25 +24,34 @@ class DiscoEntry:
     May provide useful information when a full page does not exist for a given entry.
     """
     def __init__(
-            self, source: WikiPage, node: N, *, title: Union[str, Name, None] = None,
-            lang: Union[str, LangCat, None] = None, type_: Union[DiscoEntryType, str, Iterable[str], None] = None,
-            date: DateObj = None, year: Optional[int] = None, link: Optional[Link] = None, song: Optional[str] = None,
-            track_data: Optional[N] = None, from_albums: Optional[Mapping[str, Optional[Link]]] = None
+        self,
+        source: WikiPage,
+        node: N,
+        *,
+        title: Union[str, Name] = None,
+        lang: Union[str, LangCat] = None,
+        type_: Union[DiscoEntryType, str, Iterable[str]] = None,
+        date: DateObj = None,
+        year: int = None,
+        link: Link = None,
+        song: str = None,
+        track_data: N = None,
+        from_albums: Mapping[str, Optional[Link]] = None,
     ):
         """
         A basic discography entry from an artist or artist discography page.
 
-        :param WikiPage source: The :class:`WikiPage` object where this entry was found
-        :param Node node: The specific :class:`Node` on that page that represents this entry
-        :param str title: The entry title
-        :param str|LangCat lang: The primary language for the entry
+        :param source: The :class:`WikiPage` object where this entry was found
+        :param node: The specific :class:`Node` on that page that represents this entry
+        :param title: The entry title
+        :param lang: The primary language for the entry
         :param type_: The type of album that this entry represents, i.e., mini album, single, etc.
-        :param str|datetime date: The date that the entry was released
-        :param int year: The year that the entry was released, if the exact date is unavailable
+        :param date: The date that the entry was released
+        :param year: The year that the entry was released, if the exact date is unavailable
         :param link: The link to the full discography entry for this album, if known
-        :param str song: A single song that the artist contributed to on in this album
+        :param song: A single song that the artist contributed to on in this album
         :param track_data: Data about tracks in the album that this entry represents
-        :param dict from_albums: A mapping of {str(name): :class:`Link` or None} for the albums that this
+        :param from_albums: A mapping of {str(name): :class:`Link` or None} for the albums that this
           single / OST track / etc was in, if any.
         """
         self.source = source                                                        # type: WikiPage
@@ -53,12 +62,12 @@ class DiscoEntry:
         self.date = parse_date(date)                                                # type: DateResult
         self.year = year if year else self.date.year if self.date else None         # type: Optional[int]
         self._link = link                                                           # type: Optional[Link]
-        self.links = []                                                             # type: List[Link]
+        self.links = []                                                             # type: list[Link]
         self.song = song                                                            # type: Optional[str]
         self.track_data = track_data                                                # type: Optional[N]
         self.from_albums = from_albums                                  # type: Optional[Mapping[str, Optional[Link]]]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         date = self.date.strftime('%Y-%m-%d') if self.date else self.year
         tracks = f'tracks={len(self.track_data)}' if self.track_data else None
         lang = self.language.full_name if self.language else None
@@ -67,7 +76,7 @@ class DiscoEntry:
         return f'<{type(self).__name__}[{self.name}, {date}] from {self.source}[{additional}]>'
 
     @property
-    def link(self):
+    def link(self) -> Optional[Link]:
         if self._link:
             return self._link
         if links := self.links:
@@ -90,11 +99,11 @@ class DiscoEntry:
         return self.link.show if self.link else None
 
     @title.setter
-    def title(self, value):
+    def title(self, value: str):
         self._title = value
 
     @property
-    def type(self):
+    def type(self) -> DiscoEntryType:
         title = self.title
         if title and (' OST ' in title or title.endswith(' OST')):
             return DiscoEntryType.Soundtrack            # Some sites put OSTs under 'Compilations / Other'
@@ -105,5 +114,5 @@ class DiscoEntry:
         return DiscoEntryType.for_name(self._type)
 
     @property
-    def categories(self):
+    def categories(self) -> tuple[str]:
         return self.type.categories

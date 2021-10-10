@@ -6,10 +6,10 @@ import logging
 import re
 from collections import Counter
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Tuple
+from typing import TYPE_CHECKING, Iterator, Optional
 
-from wiki_nodes import WikiPage, Link, String, MappingNode, Section, CompoundNode
-from wiki_nodes.nodes import N, ContainerNode
+from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section, CompoundNode
+from wiki_nodes.page import WikiPage
 from ...text.extraction import ends_with_enclosed, split_enclosed
 from ...text.name import Name
 from ..album import Soundtrack, SoundtrackEdition, SoundtrackPart
@@ -33,8 +33,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         if profile := get_section_map(artist_page, 'Profile'):
-            keys = ('Name', 'Real name', 'Group name')
-            for key in keys:
+            for key in ('Name', 'Real name', 'Group name'):
                 if value := profile.get(key):
                     parts = value.value.split(' / ')
                     if len(parts) == 2 and ends_with_enclosed(parts[1]):
@@ -150,7 +149,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     @classmethod
     def _process_parts_edition(
-        cls, entry: 'Soundtrack', entry_page: WikiPage, ost_name: str, edition_name: str, parts: List[Section]
+        cls, entry: 'Soundtrack', entry_page: WikiPage, ost_name: str, edition_name: str, parts: list[Section]
     ) -> SoundtrackEdition:
         log.debug(f'Found {len(parts)} {edition_name} on {entry_page=}')
         name, languages, dates, artists = None, Counter(), set(), set()
@@ -232,7 +231,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
 
     @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
         raise NotImplementedError
 
     @classmethod
@@ -287,7 +286,7 @@ def get_section_map(page: WikiPage, title: str) -> Optional[MappingNode]:
         return section.content.as_mapping()
 
 
-def split_sections(page: WikiPage) -> Tuple[List[Section], Optional[Section], Optional[str], List[Section]]:
+def split_sections(page: WikiPage) -> tuple[list[Section], Optional[Section], Optional[str], list[Section]]:
     ost_full = None
     ost_parts = []
     other_parts = []
@@ -332,9 +331,9 @@ def get_name(info: MappingNode, ost_name: Optional[str]) -> Name:
 def get_basic_info(
     info: MappingNode,
     ost_name: Optional[str],
-    languages: Optional[Counter] = None,
-    dates: Optional[set] = None,
-    artists: Optional[set] = None,
+    languages: Counter = None,
+    dates: set[datetime] = None,
+    artists: set[N] = None,
 ):
     languages = Counter() if languages is None else languages  # Need the None check to not replace empty provided value
     dates = set() if dates is None else dates

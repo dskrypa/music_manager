@@ -44,19 +44,26 @@ class DiscographyEntry(EntertainmentEntity):
     A page or set of pages for any item in an artist's top-level discography, i.e., albums, soundtracks, singles,
     collaborations.
 
-    Individiual tracks are represented by :class:`Track<.track.Track>` objects.
+    Individual tracks are represented by :class:`Track<.track.Track>` objects.
     """
     _categories = ()
 
     def __init__(
-        self, name: Optional[str] = None, pages: Pages = None, disco_entry: Optional['DiscoEntry'] = None,
-        artist: Optional['Artist'] = None, entry_type: Optional['DiscoEntryType'] = None
+        self,
+        name: str = None,
+        pages: Pages = None,
+        disco_entry: 'DiscoEntry' = None,
+        artist: 'Artist' = None,
+        entry_type: 'DiscoEntryType' = None,
     ):
         """
-        :param str name: The name of this discography entry
-        :param WikiPage|dict|iterable pages: One or more WikiPage objects
-        :param DiscoEntry disco_entry: The :class:`DiscoEntry<.disco_entry.DiscoEntry>` containing the Node and metadata
+        :param name: The name of this discography entry
+        :param pages: One or more WikiPage objects
+        :param disco_entry: The :class:`DiscoEntry<.disco_entry.DiscoEntry>` containing the Node and metadata
           from the artist or Discography page about this entry.
+        :param artist: The :class:`Artist<.artist.Artist>` whose page contained this entry
+        :param entry_type: The :class:`DiscoEntryType<.common.disco_entry.DiscoEntryType>` from the discography section
+          containing this entry
         """
         if name and name.startswith('"') and name.endswith('"'):
             name = name[1:-1]
@@ -80,17 +87,17 @@ class DiscographyEntry(EntertainmentEntity):
         return names
 
     @cached_property
-    def names_str(self):
+    def names_str(self) -> str:
         names = self.names or [self.name]
         return ' / '.join(map(str, names))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         sites = ', '.join(sorted(short_site(site) for site in self._pages))
         page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
         return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[{page_str}]>'
 
     @property
-    def _basic_repr(self):
+    def _basic_repr(self) -> str:
         # Used in logs to avoid circular references that depend on editions being set
         sites = ', '.join(sorted(short_site(site) for site in self._pages))
         page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
@@ -98,14 +105,14 @@ class DiscographyEntry(EntertainmentEntity):
         name_str = str(Name(self._name))
         return f'<[{date_str}]{self.cls_type_name}({name_str!r})[{page_str}]>'
 
-    def __lt__(self, other: 'DiscographyEntry'):
+    def __lt__(self, other: 'DiscographyEntry') -> bool:
         return self._sort_key < other._sort_key
 
     def __iter__(self) -> Iterator['DiscographyEntryEdition']:
         """Iterate over every edition part in this DiscographyEntry"""
         return iter(self.editions)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.editions)
 
     @cached_property
@@ -140,7 +147,7 @@ class DiscographyEntry(EntertainmentEntity):
         return None
 
     @cached_property
-    def cls_type_name(self):
+    def cls_type_name(self) -> str:
         return self.type.name if self.type else self.__class__.__name__
 
     @cached_property
@@ -278,7 +285,7 @@ class Soundtrack(DiscographyEntry):
         raise ValueError(f'No pages were found for OSTs matching {name!r}')
 
     @cached_property
-    def tv_series(self):
+    def tv_series(self) -> Optional[TVSeries]:
         for entry_page, parser in self.page_parsers('parse_source_show'):
             try:
                 if series := parser.parse_source_show(entry_page):
@@ -362,9 +369,9 @@ class DiscographyEntryEdition(_ArtistMixin):
         artist: NodeOrNodes,
         release_dates: Sequence[date],
         content: Any,
-        edition: Optional[str] = None,
-        lang: Optional[str] = None,
-        repackage=False,
+        edition: str = None,
+        lang: str = None,
+        repackage: bool = False,
     ):
         self._name = name                                                                   # type: NameType
         self.page = page                                                                    # type: WikiPage
@@ -379,7 +386,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         # log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r} {entry_type=!r}')
 
     @property
-    def _basic_repr(self):
+    def _basic_repr(self) -> str:
         # Used in logs from .artists and .artist to avoid circular references that depend on artist being set
         try:
             _date = self.release_dates[0].strftime('%Y-%m-%d')
@@ -400,16 +407,16 @@ class DiscographyEntryEdition(_ArtistMixin):
         lang = f'[lang={self._lang!r}]' if self._lang else ''
         return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.__class__ == other.__class__ and self.page == other.page and self.edition == other.edition
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return reduce(xor, map(hash, (self.__class__, self.page, self.edition)))
 
     def __iter__(self) -> Iterator['DiscographyEntryPart']:
         return iter(self.parts)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.parts)
 
     @property
@@ -429,7 +436,7 @@ class DiscographyEntryEdition(_ArtistMixin):
             lang = lang or artist.language
         return 'Korean' if not lang and self.page.site == 'kpop.fandom.com' else lang
 
-    def _get_lang_from_artist_template(self):
+    def _get_lang_from_artist_template(self) -> Optional[str]:
         for tmpl in self.page.sections.find_all(Template, True):
             if tmpl.name == self.artist.name.english and tmpl.value is None:
                 mwc = MediaWikiClient(tmpl.root.site)
@@ -453,16 +460,16 @@ class DiscographyEntryEdition(_ArtistMixin):
         return Name()
 
     @cached_property
-    def name(self):
+    def name(self) -> Name:
         return Name.from_parts(tuple(map(combine_with_parens, _name_parts(self.name_base, self.edition))))
 
-    def full_name(self, hide_edition=False) -> str:
+    def full_name(self, hide_edition: bool = False) -> str:
         if (edition := self.edition) and edition.lower().endswith(' repackage'):    # Named repackage
             return edition[:-10].strip()
         return combine_with_parens(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
 
     @cached_property
-    def cls_type_name(self):
+    def cls_type_name(self) -> str:
         return self.entry.cls_type_name + 'Edition'
 
     @cached_property
@@ -519,11 +526,11 @@ class SoundtrackEdition(DiscographyEntryEdition):
         return name_base
 
     @property
-    def full_ost(self):
+    def full_ost(self) -> bool:
         return self.edition == '[Full OST]'
 
     @property
-    def ost_extras(self):
+    def ost_extras(self) -> bool:
         return self.edition == '[Extra Parts]'
 
 
@@ -536,8 +543,8 @@ class DiscographyEntryPart:
         name: Optional[str],
         edition: DiscographyEntryEdition,
         tracks: TrackNodes,
-        disc: Optional[int] = None,
-        release_date: Optional[date] = None,
+        disc: int = None,
+        release_date: date = None,
     ):
         self._name = name                                   # type: Optional[str]
         self.edition = edition                              # type: DiscographyEntryEdition
@@ -559,43 +566,43 @@ class DiscographyEntryPart:
     def __lt__(self, other: 'DiscographyEntryPart') -> bool:
         return (self.edition, self._name) < (other.edition, other._name)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.__class__ == other.__class__ and self._name == other._name and self.edition == other.edition
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return reduce(xor, map(hash, (self.__class__, self._name, self.edition)))
 
     def __iter__(self) -> Iterator['Track']:
         return iter(self.tracks)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.tracks)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.track_names)
 
     _basic_repr = property(__repr__)
 
     @cached_property
-    def date(self):
+    def date(self) -> Optional[date]:
         if self._date:
             return self._date
         return self.edition.date
 
     @cached_property
-    def repackage(self):
+    def repackage(self) -> bool:
         return bool(self.edition.repackage)
 
     @cached_property
-    def name(self):
+    def name(self) -> Name:
         ed = self.edition
         return Name.from_parts(tuple(map(combine_with_parens, _name_parts(ed.name_base, ed.edition, part=self._name))))
 
     @cached_property
-    def cls_type_name(self):
+    def cls_type_name(self) -> str:
         return self.edition.entry.cls_type_name + 'Part'
 
-    def full_name(self, hide_edition=False):
+    def full_name(self, hide_edition: bool = False) -> str:
         ed = self.edition
         edition_str = ed.edition
         if edition_str and edition_str.lower().endswith(' repackage'):  # Named repackage
@@ -658,14 +665,14 @@ class SoundtrackPart(DiscographyEntryPart, _ArtistMixin):
         self._artist = artist
 
 
-def _strip(text):
+def _strip(text: str) -> str:
     if text:
         return strip_enclosed(text, exclude='])')
     return text
 
 
 def _name_parts(
-        base: Name, edition: Optional[str] = None, hide_edition=False, part: Optional[str] = None
+    base: Name, edition: str = None, hide_edition: bool = False, part: str = None
 ) -> tuple[tuple[str, ...], ...]:
     eng, non_eng = (_strip(base.english), _strip(base.non_eng))
     edition = None if hide_edition else edition

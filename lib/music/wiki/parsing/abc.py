@@ -4,7 +4,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from wiki_nodes import MediaWikiClient, WikiPage, Link
 from wiki_nodes.nodes import N
@@ -89,7 +89,7 @@ class WikiParser(ABC):
 
     @classmethod
     @abstractmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
         raise NotImplementedError
 
     @classmethod

@@ -5,7 +5,7 @@
 import logging
 from itertools import chain
 from functools import partialmethod, cached_property
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Iterable, Set
+from typing import TYPE_CHECKING, Any, Optional, Iterable
 
 from wiki_nodes import CompoundNode, String, Link
 from ..text.extraction import strip_enclosed
@@ -30,14 +30,14 @@ class Track:
         self.album_part = album_part    # type: Optional[DiscographyEntryPart]
         self._collabs = []
 
-    def _repr(self, long=False):
+    def _repr(self, long: bool = False) -> str:
         if long:
             return f'<{self.__class__.__name__}[{self.num:02d}: {self.name!r} @ {self.album_part}]>'
         return f'<{self.__class__.__name__}[{self.num:02d}: {self.name!r}]>'
 
     __repr__ = partialmethod(_repr, True)
 
-    def __lt__(self, other: 'Track'):
+    def __lt__(self, other: 'Track') -> bool:
         return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)
 
     def __getitem__(self, item: str) -> Any:
@@ -47,7 +47,7 @@ class Track:
             raise KeyError(item)
 
     @cached_property
-    def artists(self) -> Set[Artist]:
+    def artists(self) -> set[Artist]:
         if (extras := self.name.extra) and (artists := extras.get('artists')):
             if isinstance(artists, CompoundNode):  # noqa
                 link_artist_map = Artist.from_links(artists.find_all(Link))  # noqa
@@ -65,10 +65,10 @@ class Track:
         self._collabs.extend(artists)
 
     @cached_property
-    def collab_parts(self) -> List[str]:
+    def collab_parts(self) -> list[str]:
         return self._collab_parts(True)
 
-    def _collab_parts(self, suffixes=True) -> List[str]:
+    def _collab_parts(self, suffixes: bool = True) -> list[str]:
         parts = []
         if extras := self.name.extra:
             if feat := extras.get('feat'):
@@ -105,7 +105,7 @@ class Track:
 
         return parts
 
-    def artist_name(self, artist_name, collabs=True):
+    def artist_name(self, artist_name: str, collabs: bool = True) -> str:
         if artist_name == 'Various Artists':
             if collabs and (parts := self._collab_parts(False)):
                 return ' '.join(parts)  # noqa
@@ -122,10 +122,10 @@ class Track:
             return ' '.join(parts)
         return base
 
-    def full_name(self, collabs=True) -> str:
+    def full_name(self, collabs: bool = True) -> str:
         """
-        :param bool collabs: Whether collaborators / featured artists should be included
-        :return str: This track's full name
+        :param collabs: Whether collaborators / featured artists should be included
+        :return: This track's full name
         """
         name_obj = self.name
         parts = [strip_enclosed(str(name_obj), exclude='])')]
@@ -153,7 +153,7 @@ class Track:
         return {}
 
 
-def artist_string(node: CompoundNode) -> Tuple[str, int]:
+def artist_string(node: CompoundNode) -> tuple[str, int]:
     found = 0
     link_artist_map = Artist.from_links(node.find_all(Link))
     # log.debug(f'Found {link_artist_map=}')

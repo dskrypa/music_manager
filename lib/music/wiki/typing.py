@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Iterable, Union, Dict, TypeVar, Type, Tuple, Mapping
+from typing import TYPE_CHECKING, Iterable, Union, TypeVar, Type, Mapping
 
 from wiki_nodes import WikiPage, Link
 
@@ -15,7 +15,7 @@ __all__ = ['WE', 'Pages', 'PageEntry', 'StrOrStrs', 'Candidates']
 log = logging.getLogger(__name__)
 
 WE = TypeVar('WE', bound='WikiEntity')
-Pages = Union[Dict[str, WikiPage], Iterable[WikiPage], None]
+Pages = Union[dict[str, WikiPage], Iterable[WikiPage], None]
 PageEntry = Union[WikiPage, 'DiscoEntry']
 StrOrStrs = Union[str, Iterable[str], None]
-Candidates = Mapping[Link, Tuple[Type[WE], PageEntry]]
+Candidates = Mapping[Link, tuple[Type[WE], PageEntry]]

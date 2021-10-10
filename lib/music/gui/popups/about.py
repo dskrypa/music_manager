@@ -5,6 +5,7 @@ View: About
 """
 
 import inspect
+import sys
 import webbrowser
 from pathlib import Path
 from functools import cached_property
@@ -25,7 +26,16 @@ class AboutView(BasePopup, view_name='about', primary=False):
     @cached_property
     def top_level_name(self):
         try:
-            return Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem
+            top_level_frame_info = inspect.stack()[-1]
+            g = top_level_frame_info.frame.f_globals
+            installed_via_setup = 'load_entry_point' in g and 'main' not in g
+            path = Path(inspect.getsourcefile(top_level_frame_info[0]))
+            if installed_via_setup and path.name.endswith('-script.py'):
+                if sys.argv:
+                    path = path.with_name(Path(sys.argv[0]).name)
+                else:
+                    path = path.with_name(path.stem[:-7] + '.py')
+            return path.stem
         except Exception as e:
             self.log.debug(f'Error determining top-level script info: {e}')
             return '[unknown]'
@@ -33,7 +43,14 @@ class AboutView(BasePopup, view_name='about', primary=False):
     @cached_property
     def top_level_globals(self):
         try:
-            return inspect.stack()[-1].frame.f_globals
+            stack = inspect.stack()
+            g = stack[-1].frame.f_globals
+            if 'load_entry_point' in g and 'main' not in g:
+                for level in reversed(stack[:-1]):
+                    g = level.frame.f_globals
+                    if any(k in g for k in ('__author_email__', '__version__', '__url__')):
+                        break
+            return g
         except Exception as e:
             self.log.debug(f'Error determining top-level script info: {e}')
             return {}

@@ -4,7 +4,7 @@
 
 import logging
 import re
-from typing import Optional, Iterator, Set
+from typing import Optional, Iterator
 
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode
@@ -12,8 +12,14 @@ from ...text.extraction import split_enclosed, has_unpaired, ends_with_enclosed,
 from ...text.name import Name
 
 __all__ = [
-    'FEAT_ARTIST_INDICATORS', 'LANG_ABBREV_MAP', 'NUM2INT', 'name_from_intro', 'get_artist_title', 'find_language',
-    'LANGUAGES', 'replace_lang_abbrev'
+    'FEAT_ARTIST_INDICATORS',
+    'LANG_ABBREV_MAP',
+    'NUM2INT',
+    'get_artist_title',
+    'find_language',
+    'LANGUAGES',
+    'replace_lang_abbrev',
+    'PageIntro',
 ]
 log = logging.getLogger(__name__)
 
@@ -57,26 +63,32 @@ def _strify_node(node: CompoundNode):
     return ' '.join(parts)
 
 
-def name_from_intro(page: WikiPage) -> Iterator[Name]:
-    _intro = intro = page.intro(True)
-    if isinstance(intro, CompoundNode):
-        intro = _strify_node(intro)
-    elif isinstance(intro, String):
-        intro = intro.value
-    else:
-        intro = None
+class PageIntro:
+    def __init__(self, page: WikiPage):
+        self.page = page
+        self.raw_intro = intro = page.intro(True)
+        if isinstance(intro, CompoundNode):
+            self.intro = _strify_node(intro)
+        elif isinstance(intro, String):
+            self.intro = intro.value
+        else:
+            try:
+                raise ValueError(f'Unexpected intro on {page}:\n{self.raw_intro.pformat()}')
+            except AttributeError:
+                raise ValueError(f'Unexpected intro on {page}: {self.raw_intro!r}') from None
 
-    if intro:
-        first_string = IS_SPLIT(intro, 1)[0]
+    def names(self) -> Iterator[Name]:
+        first_string = IS_SPLIT(self.intro, 1)[0]
         # log.debug(f'{first_string=!r}')
-    else:
-        try:
-            raise ValueError(f'Unexpected intro on {page}:\n{_intro.pformat()}')
-        except AttributeError:
-            raise ValueError(f'Unexpected intro on {page}: {_intro!r}') from None
+        if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
+            # log.debug(f'Found multi-lang name match: {m}')
+            yield from self._names_from_multi_lang_str(m_str)
+        else:
+            name = self._base_name_str(first_string)
+            # log.debug(f'Found {name=!r}')
+            yield from self._split_name_parts(name)
 
-    if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
-        # log.debug(f'Found multi-lang name match: {m}')
+    def _names_from_multi_lang_str(self, m_str: str) -> Iterator[Name]:
         cleaned = rm_lang_prefix(m_str)
         if split_prefix := next((p for p in ('(stylized', '(short for') if p in cleaned), None):
             cleaned = cleaned.partition(split_prefix)[0].strip()
@@ -96,7 +108,8 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
                 yield Name(cleaned)
         else:
             yield Name.from_enclosed(cleaned)
-    else:
+
+    def _base_name_str(self, first_string: str) -> str:
         try:
             name = first_string[:first_string.rindex(')') + 1]
         except ValueError:
@@ -110,75 +123,83 @@ def name_from_intro(page: WikiPage) -> Iterator[Name]:
         if name.startswith('"') and name.count('"') == 1:
             name = name[1:]
 
-        # log.debug(f'Found {name=!r}')
+        return name
+
+    def _split_name_parts(self, name: str) -> Iterator[Name]:
         try:
             first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         except ValueError:
             # log.debug(f'split_enclosed({name!r}) failed')
-            raw_intro = _intro.raw.string
+            raw_intro = self.raw_intro.raw.string
             if m := next((search(raw_intro) for search in WIKI_STYLE_SEARCHES), None):
                 name = m.group(2)
             name = strip_enclosed(name.replace(' : ', ': '))
             yield Name(name)
         else:
-            while _should_resplit(first_part, paren_part):
-                # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; re-splitting...', extra={'color': 11})
-                try:
-                    first_part, paren_part = split_enclosed(first_part, reverse=True, maxsplit=1)
-                except ValueError:
-                    # log.debug(f'Could not re-split {first_part=}')
-                    break
-                # else:
-                #     log.debug('re-split')
+            yield from self._process_name_parts(name, first_part, paren_part)
 
-            # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')
-            if paren_part.lower() == 'repackage':
-                yield Name.from_enclosed(first_part, extra={'repackage': True})
-            elif '; ' in paren_part:
-                # log.debug('Found ;')
-                yield from _multi_lang_names(first_part, paren_part)
-            elif ', and' in paren_part:
-                # log.debug('Found ", and"')
-                for part in map(str.strip, paren_part.split(', and')):
-                    try:
-                        part = part[:part.rindex(')') + 1]
-                    except ValueError:
-                        log.error(f'Error splitting part={part!r}')
-                        raise
-                    else:
-                        part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
-                        try:
-                            romanized, alias = part_b.split(' or ')
-                        except ValueError:
-                            name_1 = Name.from_parts((first_part, part_a))
-                            name_1.update(romanized=part_b)
-                            yield name_1
-                        else:
-                            name_1 = Name.from_parts((first_part, part_a))
-                            name_2 = Name.from_parts((alias, part_a))
-                            name_2.update(romanized=romanized)
-                            name_1.update(romanized=romanized, versions={name_2})
-                            yield name_1
-            else:
-                # log.debug('No ;/and')
-                if paren_part.startswith('also known as'):
-                    paren_part = paren_part[13:].strip()
-                    if ends_with_enclosed(paren_part):
-                        eng_2, non_eng = split_enclosed(paren_part, reverse=True, maxsplit=1)
-                        yield Name.from_parts((first_part, non_eng))
-                        yield Name.from_parts((eng_2, non_eng))
-                    else:
-                        yield Name.from_parts((first_part, paren_part))
-                elif 'remix' in paren_part.lower():
-                    yield Name(f'{first_part} ({paren_part})')
+    def _process_name_parts(self, name: str, first_part: str, paren_part: str) -> Iterator[Name]:
+        while _should_resplit(first_part, paren_part):
+            # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; re-splitting...', extra={'color': 11})
+            try:
+                first_part, paren_part = split_enclosed(first_part, reverse=True, maxsplit=1)
+            except ValueError:
+                # log.debug(f'Could not re-split {first_part=}')
+                break
+            # else:
+            #     log.debug('re-split')
+
+        # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')
+        if paren_part.lower() == 'repackage':
+            yield Name.from_enclosed(first_part, extra={'repackage': True})
+        elif '; ' in paren_part:
+            # log.debug('Found ;')
+            yield from _multi_lang_names(first_part, paren_part)
+        elif ', and' in paren_part:
+            # log.debug('Found ", and"')
+            yield from self._process_name_list(first_part, paren_part)
+        else:
+            # log.debug('No ;/and')
+            if paren_part.startswith('also known as'):
+                paren_part = paren_part[13:].strip()
+                if ends_with_enclosed(paren_part):
+                    eng_2, non_eng = split_enclosed(paren_part, reverse=True, maxsplit=1)
+                    yield Name.from_parts((first_part, non_eng))
+                    yield Name.from_parts((eng_2, non_eng))
                 else:
-                    if ' is ' in intro and '(' not in name:
-                        paren_part = paren_part.partition(' is ')[0]
-                        yield Name(f'\'{first_part}\' {paren_part}')    # Example: The_ReVe_Festival_Finale
-                    elif LangCat.categorize(first_part) == LangCat.categorize(paren_part):
-                        yield Name.from_enclosed(first_part)
-                    else:
-                        yield Name.from_parts((first_part, paren_part))
+                    yield Name.from_parts((first_part, paren_part))
+            elif 'remix' in paren_part.lower():
+                yield Name(f'{first_part} ({paren_part})')
+            else:
+                if ' is ' in self.intro and '(' not in name:
+                    paren_part = paren_part.partition(' is ')[0]
+                    yield Name(f'\'{first_part}\' {paren_part}')  # Example: The_ReVe_Festival_Finale
+                elif LangCat.categorize(first_part) == LangCat.categorize(paren_part):
+                    yield Name.from_enclosed(first_part)
+                else:
+                    yield Name.from_parts((first_part, paren_part))
+
+    def _process_name_list(self, first_part: str, paren_part: str):
+        for part in map(str.strip, paren_part.split(', and')):
+            try:
+                part = part[:part.rindex(')') + 1]
+            except ValueError:
+                log.error(f'Error splitting part={part!r}')
+                raise
+            else:
+                part_a, part_b = split_enclosed(part, reverse=True, maxsplit=1)
+                try:
+                    romanized, alias = part_b.split(' or ')
+                except ValueError:
+                    name_1 = Name.from_parts((first_part, part_a))
+                    name_1.update(romanized=part_b)
+                    yield name_1
+                else:
+                    name_1 = Name.from_parts((first_part, part_a))
+                    name_2 = Name.from_parts((alias, part_a))
+                    name_2.update(romanized=romanized)
+                    name_1.update(romanized=romanized, versions={name_2})
+                    yield name_1
 
 
 def _should_resplit(first_part, paren_part) -> bool:
@@ -201,7 +222,7 @@ def _multi_lang_names(primary, parts):
     return names
 
 
-def find_language(node: Node, lang: Optional[str], langs: Set[str]) -> Optional[str]:
+def find_language(node: Node, lang: Optional[str], langs: set[str]) -> Optional[str]:
     if lang:
         return lang
     elif node:

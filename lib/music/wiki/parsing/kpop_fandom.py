@@ -22,7 +22,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import name_from_intro, get_artist_title, LANG_ABBREV_MAP, find_language
+from .utils import PageIntro, get_artist_title, LANG_ABBREV_MAP, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -44,7 +44,7 @@ VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECA
 class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        yield from name_from_intro(artist_page)
+        yield from PageIntro(artist_page).names()
         if _infobox := artist_page.infobox:
             # log.debug(f'Found infobox for {artist_page}')
             infobox = _infobox.value
@@ -194,7 +194,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     @classmethod
     def _album_page_name(cls, page: WikiPage) -> Name:
-        if (names := list(name_from_intro(page))) and len(names) > 0:
+        if (names := list(PageIntro(page).names())) and len(names) > 0:
             return names[0]
         else:
             infobox = page.infobox

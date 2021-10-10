@@ -6,11 +6,11 @@ import logging
 import re
 from datetime import datetime, date
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Iterator, Optional, Tuple, Dict, Any, List
+from typing import TYPE_CHECKING, Iterator, Optional, Any
 
 from ds_tools.unicode.languages import LangCat
-from wiki_nodes import WikiPage, Link, String, CompoundNode, MappingNode, Template, ListEntry, List as ListNode
-from wiki_nodes.nodes import N
+from wiki_nodes.nodes import N, Link, String, CompoundNode, MappingNode, Template, ListEntry, List
+from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
 from ...common.disco_entry import DiscoEntryType
 from ...text.extraction import parenthesized, split_enclosed, ends_with_enclosed
@@ -21,7 +21,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import LANG_ABBREV_MAP, name_from_intro, get_artist_title, find_language
+from .utils import LANG_ABBREV_MAP, PageIntro, get_artist_title, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -47,20 +47,20 @@ https://www.generasia.com/wiki/Map_of_the_Soul:_7
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
-        yield from name_from_intro(artist_page)
+        yield from PageIntro(artist_page).names()
         try:
             section = artist_page.sections.find('Profile')
         except KeyError:
             pass
         else:
             profile_content = section.content
-            if isinstance(profile_content, ListNode):
+            if isinstance(profile_content, List):
                 try:
                     profile = profile_content.as_mapping(multiline=False)
                 except Exception as e:
                     log.debug(f'Error processing profile on {artist_page}: {e}')
                     return
-            elif isinstance(profile_content, CompoundNode) and isinstance(profile_content[0], ListNode):
+            elif isinstance(profile_content, CompoundNode) and isinstance(profile_content[0], List):
                 try:
                     profile = profile_content[0].as_mapping(multiline=False)
                 except Exception as e:
@@ -269,7 +269,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     continue
                 de_type = DiscoEntryType.for_name(alb_type)
                 content = alb_type_section.content
-                if not isinstance(content, ListNode):
+                if not isinstance(content, List):
                     log.warning(
                         f'Unexpected {section_prefix} album section content type={type(content)} on {artist_page=}',
                         stack_info=True,
@@ -288,8 +288,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def _process_disco_entry(
-        cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', de_type: DiscoEntryType, entry: CompoundNode,
-        lang: Optional[str]
+        cls,
+        artist_page: WikiPage,
+        finder: 'DiscographyEntryFinder',
+        de_type: DiscoEntryType,
+        entry: CompoundNode,
+        lang: Optional[str],
     ):
         name = cls.parse_album_name(entry)
         log.log(9, f'Processing {name!r}')
@@ -374,7 +378,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     @classmethod
     def _process_album_edition(
-            cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set, repackage=False
+        cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set, repackage: bool = False
     ) -> EditionIterator:
         artist_link = node['Artist'].value
         name_key = list(node.keys())[1]  # Works because of insertion order being maintained
@@ -441,10 +445,8 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             if release_dates_node.children:
                 release_dates = []
                 for r_date in release_dates_node.sub_list.iter_flat():
-                    if isinstance(r_date, String):
-                        release_dates.append(datetime.strptime(r_date.value, '%Y.%m.%d').date())
-                    else:
-                        release_dates.append(datetime.strptime(r_date[0].value, '%Y.%m.%d').date())
+                    r_date_str = r_date.value if isinstance(r_date, String) else r_date[0].value
+                    release_dates.append(datetime.strptime(r_date_str, '%Y.%m.%d').date())
             else:
                 value = release_dates_node.value
                 if isinstance(value, CompoundNode):
@@ -494,7 +496,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             return find_ordinal(info.raw.string)
 
     @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
         try:
             members_section = artist_page.sections.find('Members')
         except (KeyError, AttributeError):
@@ -563,12 +565,12 @@ def is_extra(text: str) -> bool:
 
 
 def _split_name_parts(
-        title: str, node: Optional[N]
-) -> Tuple[str, Optional[str], Optional[str], Dict[str, Any], Optional[str]]:
+    title: str, node: Optional[N]
+) -> tuple[str, Optional[str], Optional[str], dict[str, Any], Optional[str]]:
     """
-    :param str title: The title
-    :param Node|None node: The node to split
-    :return tuple:
+    :param title: The title
+    :param node: The node to split
+    :return:
     """
     # log.debug(f'_split_name_parts({title=!r}, {node=!r})')
     original_title = title
@@ -640,9 +642,9 @@ def process_incomplete_extra(extras: dict, incomplete_extra_type: str, node_iter
 
 def process_extra(extras: dict, extra: str) -> Optional[str]:
     """
-    :param dict extras: The dict of extras in which the provided extra should be stored
-    :param str extra: The extra text to be processed
-    :return str|None: None if the provided extra was complete, or the type of the incomplete extra if it was not
+    :param extras: The dict of extras in which the provided extra should be stored
+    :param extra: The extra text to be processed
+    :return: None if the provided extra was complete, or the type of the incomplete extra if it was not
     """
     if extra.startswith('(') and ')' not in extra:
         extra = extra[1:].strip()
@@ -706,7 +708,7 @@ def classify_extra(text: str) -> Optional[str]:
     return None
 
 
-def no_extra_enclosers(title, opener_closer):
+def no_extra_enclosers(title: str, opener_closer):
     if all(title.count(c) == 1 for c in opener_closer):
         return True
     opener, closer = opener_closer

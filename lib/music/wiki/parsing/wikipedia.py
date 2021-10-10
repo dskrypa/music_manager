@@ -4,18 +4,18 @@
 
 import logging
 from functools import partial
-from typing import TYPE_CHECKING, Iterator, Optional, List, Dict, Sequence, Iterable
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable
 
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes import WikiPage, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
-from wiki_nodes.nodes import N, ContainerNode
+from wiki_nodes.nodes import N, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
+from wiki_nodes.page import WikiPage
 from ...text.name import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
-from .utils import name_from_intro
+from .utils import PageIntro
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -34,7 +34,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
     @classmethod
     def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
         try:
-            yield from name_from_intro(artist_page)
+            yield from PageIntro(artist_page).names()
         except ValueError as e:
             log.debug(e)
         yield Name(artist_page.title)
@@ -103,7 +103,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         raise NotImplementedError
 
     @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> Dict[str, List[str]]:
+    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
         raise NotImplementedError
 
     @classmethod
@@ -115,7 +115,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         cls._parse_disco_page_entries(disco_page, _disco_sections(disco_page.sections), finder)
 
     @classmethod
-    def _parse_disco_page_entries(cls, page: WikiPage, sections: List[Section], finder: 'DiscographyEntryFinder'):
+    def _parse_disco_page_entries(cls, page: WikiPage, sections: list[Section], finder: 'DiscographyEntryFinder'):
         alb_types = []
         last_depth = -1
         for section in sections:
@@ -154,8 +154,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     @classmethod
     def _process_disco_row(
-            cls, page: WikiPage, finder: 'DiscographyEntryFinder', row, alb_types: Sequence[str],
-            lang: Optional[str]
+        cls, page: WikiPage, finder: 'DiscographyEntryFinder', row, alb_types: Sequence[str], lang: Optional[str]
     ) -> None:
         # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
         if not (title := next(filter(None, (row.get(key) for key in ('Title', 'Song', ''))), None)):
@@ -222,7 +221,7 @@ class TitleNotFound(Exception):
     """Exception that indicates a title column could not be found"""
 
 
-def _disco_sections(section_iter: Iterable[Section]) -> List[Section]:
+def _disco_sections(section_iter: Iterable[Section]) -> list[Section]:
     sections = []
     for section in section_iter:
         if section.title.lower() in SECTION_BLACKLIST:
@@ -234,7 +233,7 @@ def _disco_sections(section_iter: Iterable[Section]) -> List[Section]:
     return sections
 
 
-def node_to_link_dict(node: Node) -> Optional[Dict[str, Optional[Node]]]:
+def node_to_link_dict(node: Node) -> Optional[dict[str, Optional[Node]]]:
     if not node:
         return None
     elif not isinstance(node, Node):

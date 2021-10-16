@@ -216,27 +216,41 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     @classmethod
     def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
-        tracks = edition._content
-        if tracks.__class__ is CompoundNode and isinstance(tracks[0], List):
-            if len(tracks) != 1:
-                log.debug(f'Warning: tracks node on {edition.page} may contain additional data - len={len(tracks)}')
-            tracks = tracks[0]
-
-        if isinstance(tracks, List):
-            yield DiscographyEntryPart(None, edition, tracks)
-        elif isinstance(tracks, list):
-            for i, track_node in enumerate(tracks):
+        content = edition._content
+        if content.__class__ is CompoundNode and isinstance(content[0], List):
+            if len(content) % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
+                yield from _init_ost_edition_parts(edition, content)
+            else:
+                raise ValueError(f'Unexpected content for {edition=}')
+            # if len(tracks) != 1:
+            #     log.debug(f'Warning: tracks node on {edition.page} may contain additional data - len={len(tracks)}')
+            # tracks = tracks[0]
+        elif isinstance(content, List):
+            yield DiscographyEntryPart(None, edition, content)
+        elif isinstance(content, list):
+            for i, track_node in enumerate(content):
                 yield DiscographyEntryPart(f'CD{i + 1}', edition, track_node)
-        elif tracks is None:
+        elif isinstance(content, dict):
+            for name, section in content.items():
+                part_content = section.content
+                if part_content.__class__ is CompoundNode:  # May have a String sub-heading - see Start-Up_OST test
+                    for node in part_content:
+                        if isinstance(node, List):
+                            part_content = node
+                            break
+
+                # log.debug(f'Found disco part={name!r} with content={part_content}')
+                yield DiscographyEntryPart(name, edition, part_content)
+        elif content is None:
             if edition.type == DiscoEntryType.Single:
                 yield DiscographyEntryPart(None, edition, None)
             else:
                 log.warning(f'Unexpected type={edition.type} for {edition!r}')
         else:
             try:
-                log.warning(f'Unexpected type for {edition!r}._content: {tracks.pformat()}', extra={'color': 'red'})
+                log.warning(f'Unexpected type for {edition!r}._content: {content.pformat()}', extra={'color': 'red'})
             except AttributeError:
-                log.warning(f'Unexpected type for {edition!r}._content: {tracks!r}')
+                log.warning(f'Unexpected type for {edition!r}._content: {content!r}')
 
     @classmethod
     def parse_track_name(cls, node: N) -> Name:
@@ -529,10 +543,10 @@ class EditionFinder:
         entry_page = self.entry_page
         tl_keys = ('Track list', 'Tracklist')
         if track_list_section := next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None):
-            orig = track_list_section.pformat('content')
             try:
                 track_section_content = track_list_section.processed(False, False, False, False, True)
             except Exception:
+                orig = track_list_section.pformat('content')
                 log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
                 return
 
@@ -541,6 +555,7 @@ class EditionFinder:
 
             discs = []
             for section in track_list_section:
+                log.debug(f'Processing {section=}')
                 title = section.title
                 lc_title = title.lower()
                 if lc_title == 'cd':  # edition or version = None
@@ -549,9 +564,11 @@ class EditionFinder:
                     discs.append((section.content, self.find_language(section.content)))
                 elif not lc_title.startswith('dvd'):
                     edition, lang = _process_album_version(title)
-                    yield self._edition(section.content, edition, self.find_language(section.content, lang))
+                    content = section.content or section.children
+                    yield self._edition(content, edition, self.find_language(section.content, lang))
 
             if discs:
+                # log.debug(f'For {entry_page=} found {discs=}')
                 ed_lang = None
                 if ed_langs := set(filter(None, {disc[1] for disc in discs})):
                     if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
@@ -637,6 +654,26 @@ class EditionFinder:
                         langs.add(lang)
                         break
         return langs
+
+
+def _init_ost_edition_parts(edition: 'DiscographyEntryEdition', list_nodes: list[List]):
+    for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
+        if not isinstance(node, (String, Link)):  # Likely a CompoundNode with ele 0 being a String
+            node = node[0]
+        name = node.show if isinstance(node, Link) else node.value
+        yield DiscographyEntryPart(name, edition, track_list)
+
+
+def _process_ost_part_lists(list_nodes: list[List]):
+    i_list_nodes = iter(list_nodes)
+    for list_node in i_list_nodes:
+        node = list_node[0].value
+        if node.__class__ is CompoundNode:
+            node, *artist_nodes = node
+        else:
+            artist_nodes = None
+
+        yield node, artist_nodes, next(i_list_nodes)
 
 
 def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[WikiPage, N]):

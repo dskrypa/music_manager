@@ -172,4 +172,5 @@ class AlbumDiffView(MainView, view_name='album_diff'):
                                 break
 
         if not dry_run:
+            self.album.clear_cached_properties()
             return AlbumView(self.album, last_view=self)

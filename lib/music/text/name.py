@@ -495,7 +495,7 @@ class Name(ClearableCachedPropertyMixin):
     @cached_property
     def _romanizations(self) -> list[str]:
         if text := self.non_eng_nospace if self.japanese or self.cjk else None:
-            return [j2r.romanize(text) for j2r in J2R.romanizers(False)]
+            return list(J2R().romanize(text))
         return []
 
     @classmethod

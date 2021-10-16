@@ -1,0 +1,43 @@
+{{Infobox album
+| name         = Start-Up OST
+| image        =
+| type         = OST
+| artist       = Various Artists
+| released     = October 17, 2020 {{small|(Part.1)}}<br>October 18, 2020 {{small|(Part.2)}}<br>October 24, 2020 {{small|(Part.3)}}<br>October 25, 2020 {{small|(Part.4)}}<br>October 30, 2020 {{small|(Part.5)}}<br>October 31, 2020 {{small|(Part.6)}}<br>November 1, 2020 {{small|(Part.7)}}<br>November 7, 2020 {{small|(Part.8)}}<br>November 8, 2020 {{small|(Part.9)}}<br>November 14, 2020 {{small|(Part.10)}}<br>November 15, 2020 {{small|(Part.11)}}<br>November 21, 2020 {{small|(Part.12)}}<br>November 22, 2020 {{small|(Part.13)}}<br>November 28, 2020 {{small|(Part.14)}}<br>November 29, 2020 {{small|(Part.15)}}<br>December 5, 2020 {{small|(Part.16)}}<br>December 6, 2020 {{small|(Part.17)}}<br>December 12, 2020 {{small|(Full OST)}}<br>January 28, 2021 {{small|(Physical)}}
+| format       = CD, download, streaming
+| length       = 7:12 {{small|(Part.1)}}<br>8:41 {{small|(Part.2)}}<br>8:05 {{small|(Part.3)}}<br>6:37 {{small|(Part.4)}}<br>7:00 {{small|(Part.5)}}<br>6:06 {{small|(Part.6)}}<br>6:42 {{small|(Part.7)}}<br>7:39 {{small|(Part.8)}}<br>7:33 {{small|(Part.9)}}<br>7:56 {{small|(Part.10)}}<br>8:00 {{small|(Part.11)}}<br>6:20 {{small|(Part.12)}}<br>7:06 {{small|(Part.13)}}<br>8:04 {{small|(Part.14)}}<br>7:12 {{small|(Part.15)}}<br>7:48 {{small|(Part.16)}}<br>6:58 {{small|(Part.17)}}<br>4:02:51 {{small|(Full OST)}}
+| label        = [[Vlending]]<br>[[Music Buddy]]
+| distributor  = [[Vlending]]
+}}
+'''''Start-Up OST''''' (''스타트업 OST'') is the original soundtrack for the drama ''[[wikipedia:Start-Up (South Korean TV series)|Start-Up]]''.
+
+==Track list==
+===Pre-releases===
+;Part.1 {{small|([[Red Velvet]])}}
+#"Future (미래)" - 3:36
+#"Future (미래) (Inst.)" - 3:36
+;Part.2 {{small|([[Jung Seung Hwan]])}}
+#"Day & Night" - 4:21
+#"Day & Night (Inst.)" - 4:21
+;Part.3 {{small|([[Kim Feel]])}}
+#"One Day (어느 날 우리)" - 4:03
+#"One Day (어느 날 우리) (Inst.)" - 4:03
+===Full OST===
+====Disc 1====
+#"Future (미래)" - 3:36
+#"Day & Night" - 4:21
+#"One Day (어느 날 우리)" - 4:03
+====Disc 2====
+Contains the drama's musical score.
+# "Sandbox" - 2:00
+# "Start Up" - 2:31
+# "Love Designer" - 2:44
+====Disc 3====
+# "Love Love Letter" - 1:58
+# "A Cruel First Meeting" - 2:19
+# "Frosty Hill" - 2:11
+
+==Gallery==
+<gallery captionalign="center" hideaddbutton="true" orientation="square" spacing="small" widths="150">
+Start-Up OST Album packaging preview.png|Album packaging preview
+</gallery>

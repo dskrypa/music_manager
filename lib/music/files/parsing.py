@@ -10,7 +10,7 @@ from operator import xor
 from typing import Iterator, Sequence, Union, MutableSequence, Optional, Iterable
 
 from ds_tools.unicode.languages import LangCat
-from ds_tools.unicode.hangul import HANGUL_REGEX_CHAR_CLASS
+from ds_tools.unicode.hangul.constants import HANGUL_REGEX_CHAR_CLASS
 from ..common.disco_entry import DiscoEntryType
 from ..text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, get_unpaired, strip_unpaired
 from ..text.name import Name, sort_name_parts

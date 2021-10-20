@@ -27,9 +27,7 @@ class NameMatchingTest(NameTestCaseBase):
         self.assertTrue(name.matches('SNSD'))
         self.assertTrue(name.matches('s.n.s.d'))
         self.assertTrue(name.matches('So Nyeo Si Dae'))
-
-        # self.assertTrue(name.matches('Shoujo Jidai'))  # TODO: Fix due to Kakasi lib change
-
+        self.assertTrue(name.matches('Shoujo Jidai'))
         self.assertTrue(name.matches('少女時代'))
         self.assertTrue(name.matches('Girls\' Generation (SNSD)'))
         self.assertTrue(name.matches('Girls\' Generation (소녀시대)'))

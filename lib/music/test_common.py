@@ -41,8 +41,8 @@ class NameTestCaseBase(TestCaseBase):
             self.assertEqual(value, expected, msg)
 
     def assertAll(
-            self, name, english=None, _english=None, non_eng=None, korean=None, japanese=None, cjk=None, romanized=None,
-            lit_translation=None, extra=None
+        self, name, english=None, _english=None, non_eng=None, korean=None, japanese=None, cjk=None, romanized=None,
+        lit_translation=None, extra=None
     ):
         if japanese and not cjk:
             cjk = japanese

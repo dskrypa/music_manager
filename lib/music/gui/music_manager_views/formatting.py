@@ -4,6 +4,7 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
+import re
 from collections import defaultdict
 from concurrent import futures
 from functools import cached_property
@@ -30,6 +31,7 @@ from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
 from ..elements import ExtendedImage, ExtInput, SearchMenu, Rating
 from ..popups.simple import popup_ok
+from ..popups.text import popup_error
 from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
 
@@ -305,6 +307,8 @@ def value_ele(
 
 
 class TrackFormatter:
+    _title_pat = re.compile(r'^(?:\d+\S?\s+)?(.*?)\.[a-z]{3,4}$', re.IGNORECASE)
+
     def __init__(
         self,
         album_formatter: AlbumFormatter,
@@ -317,6 +321,10 @@ class TrackFormatter:
         self.cover_size = cover_size
         self._src_info = info
         self._new_info = None
+
+    @property
+    def view(self):
+        return self.album_formatter.view
 
     @property
     def log(self):
@@ -427,7 +435,7 @@ class TrackFormatter:
 
     def get_info_rows(self, editable: bool = True, keys: Collection[str] = None):
         rows = []
-        album_view = self.album_formatter.view.name == 'album'
+        album_view = self.view.name == 'album'
         text_keys = {'title', 'artist', 'name'}
         for key, value in self.info.to_dict().items():
             if keys and key not in keys:
@@ -494,8 +502,13 @@ class TrackFormatter:
     def get_basic_info_row(self):
         track = self.track
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
+        # name_key = self.key_for('val', 'file_name')
+        name_ele = ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str)
+        if self.view.name == 'album':
+            self._add_extract_options(name_ele)
+
         return [
-            Text('File:'), ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str),
+            Text('File:'), name_ele,
             Text('Length:'), ExtInput(track.length_str, size=(6, 1), disabled=True),
             Text('Type:'), ExtInput(tag_version, size=(20, 1), disabled=True),
         ]
@@ -545,3 +558,47 @@ class TrackFormatter:
         yield [HorizontalSeparator()]
         yield self.get_basic_info_row()
         yield from self.get_sync_rows()
+
+    # region Tag Extraction
+
+    def _add_extract_options(self, name_ele: ExtInput):
+        kwargs = {'call_with_kwargs': False, 'event': self.view._edit_event}  # noqa
+        name_ele.right_click_menu.add_option(
+            'Extract Track Number & Title', name_ele, self._extract_track_parts, **kwargs
+        )
+        name_ele.right_click_menu.add_option('Extract Track Number', name_ele, self._extract_track_num, **kwargs)
+        name_ele.right_click_menu.add_option('Extract Track Title', name_ele, self._extract_track_title, **kwargs)
+
+    def _extract_track_parts(self, name_ele: ExtInput):
+        self._extract_track_num(name_ele)
+        self._extract_track_title(name_ele)
+
+    def _extract_track_num(self, name_ele: ExtInput):
+        num_key = self.key_for('val', 'num')
+        try:
+            num = int(re.search(r'\d+', name_ele.value).group(0))
+        except Exception as e:
+            popup_error(f'Unable to find number in value={name_ele.value!r}: {e}')
+        else:
+            self.view.window[num_key].update(str(num))
+
+    def _extract_track_title(self, name_ele: ExtInput):
+        title_key = self.key_for('val', 'title')
+        try:
+            if m := self._title_pat.match(name_ele.value):
+                name = m.group(1).strip()
+                if name.lower().endswith('.com') and ' ' in name:
+                    name = name.rsplit(maxsplit=1)[0].strip()
+                if name.endswith('-'):
+                    name = name[:-1].strip()
+            else:
+                name = None
+        except Exception as e:
+            popup_error(f'Unable to find name in value={name_ele.value!r}: {e}')
+        else:
+            if name:
+                self.view.window[title_key].update(name)
+            else:
+                popup_error(f'Unable to find name in value={name_ele.value!r}')
+
+    # endregion

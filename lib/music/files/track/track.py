@@ -710,43 +710,30 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         except Exception:
             return None
 
-    @cached_property
-    def track_num(self) -> int:
-        # TODO: Do without the cast/parse from string
-        orig = track = self.tag_text('track', default=None)
-        if track:
-            if '/' in track:
-                track = track.split('/', 1)[0].strip()
-            if ',' in track:
-                track = track.split(',', 1)[0].strip()
-            if track.startswith('('):
-                track = track[1:].strip()
+    def _num_tag(self, name: str) -> int:
+        orig = value = self.tag_text(name, default=None)
+        if value:
+            if '/' in value:
+                value = value.split('/', 1)[0].strip()
+            if ',' in value:
+                value = value.split(',', 1)[0].strip()
+            if value.startswith('('):
+                value = value[1:].strip()
 
             try:
-                track = int(track)
+                value = int(value)
             except Exception as e:
-                log.debug(f'{self}: Error converting track num={orig!r} [{track!r}] to int: {e}')
-                track = 0
-        return track or 0
+                log.debug(f'{self}: Error converting {name} num={orig!r} [{value!r}] to int: {e}')
+                value = 0
+        return value or 0
+
+    @cached_property
+    def track_num(self) -> int:
+        return self._num_tag('track')
 
     @cached_property
     def disk_num(self) -> int:
-        # TODO: Do without the cast/parse from string
-        orig = disk = self.tag_text('disk', default=None)
-        if disk:
-            if '/' in disk:
-                disk = disk.split('/')[0].strip()
-            if ',' in disk:
-                disk = disk.split(',')[0].strip()
-            if disk.startswith('('):
-                disk = disk[1:].strip()
-
-            try:
-                disk = int(disk)
-            except Exception as e:
-                log.debug(f'{self}: Error converting disk num={orig!r} [{disk!r}] to int: {e}')
-                disk = 0
-        return disk or 0
+        return self._num_tag('disk')
 
     @property
     def star_rating_10(self) -> Optional[int]:
@@ -907,26 +894,6 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 to_update[tag_name] = (file_val, new_value)
                 if tag_name not in no_log:
                     to_log[tag_name] = (file_val, new_value)
-
-            # if add_genre and tag_name == 'genre':
-            #     # TODO: Check value case?
-            #     new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
-            #     file_vals = set(self.tag_genres)
-            #     if not file_vals.issuperset(new_vals):
-            #         to_update[tag_name] = (file_val, new_value)
-            #         if tag_name not in no_log:
-            #             to_log[tag_name] = (file_val, ';'.join(sorted(file_vals.union(new_vals))))
-            #
-            # elif cmp_val != file_val:
-            #     if tag_name == 'genre':
-            #         new_vals = {new_value} if isinstance(new_value, str) else set(new_value)
-            #         file_vals = set(self.tag_genres)
-            #         if new_vals == file_vals:
-            #             continue
-            #
-            #     to_update[tag_name] = (file_val, new_value)
-            #     if tag_name not in no_log:
-            #         to_log[tag_name] = (file_val, new_value)
 
         if to_update:
             from ..changes import print_tag_changes

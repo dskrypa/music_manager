@@ -51,7 +51,6 @@ class AlbumView(MainView, view_name='album'):
         self.binds['<Control-w>'] = 'wiki_update'
         self.binds['<Control-e>'] = 'edit'
         self._image_path = None
-        self._failed_validation = {}
         self._rating_callback_names = {}
 
     @property
@@ -169,31 +168,7 @@ class AlbumView(MainView, view_name='album'):
         else:
             self.window.TKroot.unbind('<Button-1>')
 
-    def _flip_name_parts(self, key):
-        element = self.window[key]  # type: ExtInput  # noqa
-        try:
-            a, b = split_enclosed(element.value, maxsplit=1)
-        except ValueError:
-            popup_error(f'Unable to split {element.value}')
-        else:
-            element.update(f'{b} ({a})')
-
-    # def _register_validation_failed(self, key: str, element=None):
-    #     element = element or self.window[key]
-    #     self._failed_validation[key] = (element, element.Widget.cget('fg'), element.Widget.cget('bg'))
-    #     if isinstance(element, ExtInput):
-    #         element.validated(False)
-    #     else:
-    #         update_color(element, '#FFFFFF', '#781F1F')
-    #
-    #     element.TKEntry.bind('<Key>', partial(self._edited_field, key))
-    #
-    # def _edited_field(self, key: str, event):
-    #     self.log.debug(f'_edited_field({key=}, {event=})')
-    #     if failed := self._failed_validation.pop(key, None):
-    #         element, orig_fg, orig_bg = failed
-    #         element.TKEntry.unbind('<Key>')
-    #         update_color(element, orig_fg, orig_bg)
+    # region Event Handlers
 
     @event_handler('Add Image')
     def replace_image(self, event: Event, data: EventData):
@@ -263,6 +238,8 @@ class AlbumView(MainView, view_name='album'):
         if not isinstance(self.window.find_element_with_focus(), ExtInput):
             super().ctrl_right(event, data)
 
+    # endregion
+
     # region Switch View Handlers
 
     @event_handler('btn::back')
@@ -318,7 +295,6 @@ class AlbumView(MainView, view_name='album'):
             self.toggle_editing()
             for key, message in failed:
                 self.window[key].validated(False)  # noqa  # only Rating elements are validated right now
-                # self._register_validation_failed(key)
                 popup_error(message, multiline=True, auto_size=True)
             return
 

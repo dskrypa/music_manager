@@ -502,7 +502,7 @@ class TrackFormatter:
     def get_basic_info_row(self):
         track = self.track
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
-        # name_key = self.key_for('val', 'file_name')
+        # no file_name key is intentional - it breaks the save step right now
         name_ele = ExtInput(track.path.name, size=(50, 1), disabled=True, path=self.path_str)
         if self.view.name == 'album':
             self._add_extract_options(name_ele)

@@ -114,7 +114,7 @@ def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating:
 
 def find_dupe_ratings(plex: LocalPlexServer):
     rating_artist_title_map = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
-    for track in plex.query('track', userRating__gte=1).results():
+    for track in plex.query('track', userRating__gte=1, mood__ne='Duplicate Rating').results():
         rating_artist_title_map[track.userRating][track.grandparentTitle][track.title].add(track)
 
     duplicates = []

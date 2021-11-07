@@ -154,7 +154,7 @@ def find_and_print(plex, fmt, obj_type, title, dynamic, escape, allow_inst, full
 def sync_playlists(plex):
     from music.plex.playlist import PlexPlaylist
 
-    kpop_tracks = plex.query('track')
+    kpop_tracks = plex.query('track', mood__ne='Duplicate Rating')
     PlexPlaylist('K-Pop Female Solo Artists 3+ Stars', plex).sync_or_create(query=kpop_tracks.filter(
         userRating__gte=6, grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
     ))

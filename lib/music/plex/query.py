@@ -10,6 +10,7 @@ from operator import eq
 from typing import TYPE_CHECKING, Collection, Optional, Any, Union, Iterator
 from xml.etree.ElementTree import Element
 
+from plexapi.library import LibrarySection
 from plexapi.utils import PLEXOBJECTS
 
 from ds_tools.output import short_repr
@@ -17,7 +18,7 @@ from ..files.track.track import SongFile
 from ..text.name import Name
 from .exceptions import InvalidQueryFilter
 from .filters import check_attrs
-from .typing import PlexObjTypes, PlexObj
+from .typing import PlexObjTypes, PlexObj, LibSection
 
 if TYPE_CHECKING:
     from .server import LocalPlexServer
@@ -41,6 +42,15 @@ class QueryResults:
             self._library_section_id = int(library_section_id)
         else:
             self._library_section_id = None
+
+    @classmethod
+    def new(
+        cls, plex: 'LocalPlexServer', obj_type: PlexObjTypes, section: LibSection = None, **kwargs
+    ) -> 'QueryResults':
+        section = plex.get_lib_section(section, obj_type)
+        params = _resolve_query_filters(obj_type, section, kwargs)
+        data = section._server.query(plex._ekey(obj_type, section), params=params)
+        return cls(plex, obj_type, data, section.key).filter(**kwargs)
 
     def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> 'QueryResults':
         return self.__class__(self.plex, obj_type or self._type, data, self._library_section_id)
@@ -429,6 +439,22 @@ def _resolve_custom_ops(kwargs):
             kwargs[target_key] = filter_val
 
     return kwargs
+
+
+def _resolve_query_filters(obj_type: PlexObjTypes, section: LibrarySection, kwargs):
+    params = {}
+    if mood_filters := _prefixed_filters('mood', kwargs):
+        mood_id_map = {m.title: m.key for m in section.listFilterChoices('mood', obj_type)}
+        for field in mood_filters:
+            if (key := 'mood!' if field == 'mood__ne' else 'mood' if field == 'mood' else None) is None:
+                raise ValueError(f'Invalid mood filter key={field!r}')
+            val = kwargs.pop(field)
+            try:
+                params[f'{obj_type}.{key}'] = mood_id_map[val]
+            except KeyError as e:
+                mood_names = ', '.join(sorted(mood_id_map))
+                raise ValueError(f'Invalid mood filter value={val!r} - must be one of: {mood_names}') from e
+    return params
 
 
 def _merge_filters(kwargs: dict[str, Any], key: str, value: Any, union=False):

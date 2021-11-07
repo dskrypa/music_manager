@@ -25,11 +25,10 @@ from .constants import TYPE_SECTION_MAP
 from .patches import apply_plex_patches
 from .playlist import PlexPlaylist
 from .query import QueryResults
-from .typing import PlexObjTypes, PlexObj
+from .typing import PlexObjTypes, PlexObj, LibSection
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
-LibSection = Union[str, int, LibrarySection]
 
 
 class LocalPlexServer:
@@ -235,9 +234,7 @@ class LocalPlexServer:
         return self.find_objects('track', **kwargs)
 
     def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
-        section = self.get_lib_section(section, obj_type)
-        data = section._server.query(self._ekey(obj_type, section))
-        return QueryResults(self, obj_type, data, section.key).filter(**kwargs)
+        return QueryResults.new(self, obj_type, section, **kwargs)
 
     @property
     def playlists(self) -> dict[str, PlexPlaylist]:

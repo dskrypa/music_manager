@@ -5,6 +5,7 @@ Plex Track rating utilities
 """
 
 import logging
+from collections import defaultdict
 from typing import Union, Iterable
 
 from ..common.ratings import stars
@@ -64,6 +65,7 @@ def sync_ratings_to_files(plex: LocalPlexServer, path_filter: str = None):
         raise ValueError(f'The custom.server_path_root is missing from {plex._config_path} and wasn\'t provided')
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
     kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
+
     for track in plex.find_songs_by_rating_gte(1, **kwargs):
         file = SongFile.for_plex_track(track, plex.server_root)
         file_stars = file.star_rating_10
@@ -108,3 +110,39 @@ def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating:
         log.info(f'{prefix} {obj}\'s rating => {stars(rating)}')
         if not plex.dry_run:
             obj.edit(**{'userRating.value': rating})
+
+
+def find_dupe_ratings(plex: LocalPlexServer):
+    rating_artist_title_map = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
+    for track in plex.query('track', userRating__gte=1).results():
+        rating_artist_title_map[track.userRating][track.grandparentTitle][track.title].add(track)
+
+    duplicates = []
+    for rating, artist_title_maps in rating_artist_title_map.items():
+        for artist, title_maps in artist_title_maps.items():
+            for title, title_tracks in title_maps.items():
+                if len(title_tracks) > 1:
+                    duplicates.append(title_tracks)
+    return duplicates
+
+
+def find_dupe_ratings_by_artist(plex: LocalPlexServer):
+    dupes_by_artist = {}
+    dupes = find_dupe_ratings(plex)
+    for dupe in sorted(dupes, key=lambda g: next(iter(g)).grandparentTitle):
+        artist = next(iter(dupe)).grandparentTitle
+        dupes_by_artist.setdefault(artist, []).append(dupe)
+
+    return dupes_by_artist
+
+
+def print_dupe_ratings_by_artist(plex: LocalPlexServer):
+    all_dupes = find_dupe_ratings_by_artist(plex)
+    total = sum(map(len, all_dupes.values()))
+    print(f'Found a total of {total} sets of duplicate track ratings across {len(all_dupes)} artists')
+    for i, (artist, dupes) in enumerate(all_dupes.items()):
+        if i:
+            print()
+        print(f'{artist}: {len(dupes)}')
+        for dupe in dupes:
+            print('    - {}'.format(', '.join(map(repr, dupe))))

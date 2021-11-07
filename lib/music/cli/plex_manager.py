@@ -68,6 +68,9 @@ def parser():
         with playlist_parser.add_subparser('sub_action', 'list', help='List playlists in a dump') as playlist_list:
             playlist_list.add_argument('path', help='Location of the playlist dump to read')
 
+    parser.add_subparser('action', 'show_dupe_ratings', help='Show duplicate ratings')
+    parser.add_subparser('action', 'fix_blank_titles', help='Fix albums containing tracks with blank titles')
+
     parser.add_common_sp_arg('--server_path_root', '-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
     parser.add_common_sp_arg('--server_url', '-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
     parser.add_common_sp_arg('--username', '-n', help='Plex username (only needed when a token is not already cached)')
@@ -93,7 +96,7 @@ def main():
         args.server_url, args.username, args.server_path_root, args.config_path, args.music_library, args.dry_run
     )
 
-    if args.action == 'sync':
+    if (action := args.action) == 'sync':
         if args.sync_action == 'ratings':
             from music.plex.ratings import sync_ratings
             sync_ratings(plex, args.direction, args.path_filter)
@@ -101,17 +104,17 @@ def main():
             sync_playlists(plex)
         else:
             raise ValueError(f'Invalid sync action={args.sync_action!r}')
-    elif args.action == 'find':
+    elif action == 'find':
         find_and_print(
             plex, args.format, args.obj_type, args.title, dynamic, args.escape, args.allow_inst, args.full_info
         )
-    elif args.action == 'rate':
+    elif action == 'rate':
         from music.plex.ratings import find_and_rate
         find_and_rate(plex, args.rating, args.obj_type, args.title, dynamic, args.escape, args.allow_inst)
-    elif args.action == 'rate_offset':
+    elif action == 'rate_offset':
         from music.plex.ratings import adjust_track_ratings
         adjust_track_ratings(plex, args.min_rating, args.max_rating, args.offset)
-    elif args.action == 'playlist':
+    elif action == 'playlist':
         from music.plex.playlist import dump_playlists, compare_playlists, list_playlists
         if args.sub_action == 'dump':
             dump_playlists(plex, args.path, args.playlist)
@@ -121,6 +124,11 @@ def main():
             list_playlists(plex, args.path)
         else:
             log.error(f'Invalid playlist action={args.sub_action!r}')
+    elif action == 'show_dupe_ratings':
+        from music.plex.ratings import print_dupe_ratings_by_artist
+        print_dupe_ratings_by_artist(plex)
+    elif action == 'fix_blank_titles':
+        fix_blank_titles(plex)
     else:
         log.error(f'Invalid action={args.action!r}')
 
@@ -184,3 +192,11 @@ def sync_playlists(plex):
             duration__gte=60000,
         ).unique()
     )
+
+
+def fix_blank_titles(plex):
+    albums = {track.album() for track in plex.get_tracks() if track.title == ''}
+    log.info(f'Found {len(albums)} albums containing tracks that have blank titles')
+    for album in sorted(albums):
+        log.info(f'  - Refreshing: {album}')
+        album.refresh()

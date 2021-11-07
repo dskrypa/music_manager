@@ -6,6 +6,7 @@ import logging
 from typing import Literal, Union
 
 from plexapi.audio import Audio, Album, Artist, Track
+from plexapi.library import LibrarySection
 from plexapi.playlist import Playlist
 from plexapi.video import Video, Movie, Show, Season, Episode
 
@@ -18,3 +19,4 @@ PlexObjTypes = Literal[     # SEARCHTYPES keys
     'movie', 'show', 'season', 'episode', 'trailer', 'comic', 'person', 'artist', 'album', 'track', 'picture', 'clip',
     'photo', 'photoalbum', 'playlist', 'playlistFolder', 'collection', 'userPlaylistItem'
 ]
+LibSection = Union[str, int, LibrarySection]

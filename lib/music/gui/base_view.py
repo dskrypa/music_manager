@@ -124,6 +124,7 @@ class GuiView(ABC):
     _window_size: tuple[Optional[int], Optional[int]] = (None, None)  # width, height
     _window_pos: tuple[Optional[int], Optional[int]] = (None, None)  # x, y
     _log_clicks: bool = False
+    _motion_end_cb_id = None
 
     # noinspection PyMethodOverriding
     def __init_subclass__(
@@ -307,7 +308,9 @@ class GuiView(ABC):
             get_cfg = self.config.get
             if get_cfg(f'remember_size:{self.name}') and (size := get_cfg(f'popup_size:{self.name}', type=tuple)):
                 kwargs['size'] = size
-            if old_window is not None:  # At least initially place its top-left corner on the same window; center below
+            if get_cfg(f'remember_pos:{self.name}') and (pos := get_cfg(f'popup_pos:{self.name}', type=tuple)):
+                kwargs['location'] = pos
+            elif old_window is not None:  # Initially place its top-left corner on the same window; center below
                 popup_pos = old_window.current_location() or self._window_pos
                 kwargs.setdefault('location', popup_pos)
 
@@ -391,12 +394,9 @@ class GuiView(ABC):
         pass
 
     @event_handler
-    def config_changed(self, event: Event, data: EventData):
-        """
-        Event handler for window configuration changes.
-        Known triggers: resize window, move window, window gains focus, scroll
-        """
-        # self.log.debug(f'Handling config_changed {event=}')
+    def _window_motion_stopped(self, event: Event = None, data: EventData = None):
+        # self.log.debug(f'Handling motion stopped callback for config change {event=} {self._motion_end_cb_id=}')
+        self._motion_end_cb_id = None
         loc = GuiView if self.primary else self
         if (new_pos := loc.window.current_location()) and new_pos != loc._window_pos:
             # self._log_position_and_dimensions('Moved', True)
@@ -404,6 +404,8 @@ class GuiView(ABC):
             loc._window_pos = new_pos
             if self.primary and self.config['remember_pos']:
                 loc.config['window_pos'] = new_pos
+            elif self.config.get(f'remember_pos:{self.name}'):
+                loc.config[f'popup_pos:{self.name}'] = new_pos
 
         old_size = loc._window_size
         new_size = loc.window.size
@@ -416,6 +418,20 @@ class GuiView(ABC):
             # self.log.debug(f'Window for {loc=} size changed: {old_size} -> {new_size}')
             if handler := self.event_handlers.get('window_resized'):
                 handler(self, event, {'old_size': old_size, 'new_size': new_size})  # original data is empty
+
+    @event_handler
+    def config_changed(self, event: Event, data: EventData):
+        """
+        Event handler for window configuration changes.
+        Known triggers: resize window, move window, window gains focus, scroll
+        """
+        # self.log.debug(f'Handling config_changed {event=}')
+        loc = GuiView if self.primary else self
+        root = loc.window.TKroot
+        if self._motion_end_cb_id is not None:
+            root.after_cancel(self._motion_end_cb_id)
+
+        self._motion_end_cb_id = root.after(100, self._window_motion_stopped)
 
     def _log_position_and_dimensions(self, prefix: str = 'Dimensions:', corners: bool = False):
         window = self.window

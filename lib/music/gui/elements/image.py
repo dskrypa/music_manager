@@ -175,15 +175,19 @@ class SpinnerImage(ExtendedImage, animated=True):
 
 
 class ClockImage(ExtendedImage, animated=True):
+    _clock: SevenSegmentDisplay
     _clock_keys = set(Signature.from_callable(SevenSegmentDisplay).parameters.keys())
 
-    def __init__(self, *args, slim: bool = False, **kwargs):
+    def __init__(self, *args, slim: bool = False, img_size: tuple[int, int] = None, **kwargs):
         clock_kwargs = {key: kwargs.pop(key) for key in self._clock_keys if key in kwargs}
         clock_kwargs.setdefault('bar_pct', 0.2)
+        clock_kwargs.setdefault('width', 40)
         self._show_seconds = kwargs.pop('seconds', True)
-        self._clock: SevenSegmentDisplay = SevenSegmentDisplay(**clock_kwargs)
+        self._clock = clock = SevenSegmentDisplay(**clock_kwargs)
+        if img_size is not None:
+            clock.resize(clock.calc_width(calculate_resize(*clock.time_size(self._show_seconds), *img_size)[1]) - 1)
 
-        kwargs.setdefault('size', self._clock.time_size(self._show_seconds))
+        kwargs.setdefault('size', clock.time_size(self._show_seconds))
         kwargs['bind_click'] = False
         kwargs.setdefault('background_color', 'black')
         kwargs.setdefault('pad', (0, 0))
@@ -196,7 +200,7 @@ class ClockImage(ExtendedImage, animated=True):
     def resize(self, width: int, height: int):
         width, height = size = calculate_resize(*self._current_size, width, height)
         self._current_size = size
-        self._clock.resize(self._clock.calc_width(height))
+        self._clock.resize(self._clock.calc_width(height) - 1)
         self._last_time -= timedelta(seconds=1)
         if self._next_id is None:
             if self._bind_click:

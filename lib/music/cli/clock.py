@@ -3,7 +3,7 @@ from ds_tools.core.main import wrap_main
 from ds_tools.logging import init_logging
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
-from ..gui.popups.image import ClockView
+from ..gui.popups.clock import ClockView
 
 
 def parser():

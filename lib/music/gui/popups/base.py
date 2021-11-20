@@ -7,7 +7,7 @@ View: Text Popup
 from abc import ABCMeta
 from concurrent.futures import Future
 from contextlib import contextmanager
-from threading import current_thread
+from threading import current_thread, main_thread
 from typing import Mapping
 
 from PySimpleGUI import Window
@@ -46,7 +46,8 @@ class BasePopup(GuiView, view_name='_base_popup', primary=False, metaclass=ABCMe
         return self.result
 
     def get_result(self):
-        if current_thread().name == 'MainThread':
+        # if current_thread().name == 'MainThread':
+        if current_thread() == main_thread():
             with mainloop_fixer():
                 return self._get_result()
 

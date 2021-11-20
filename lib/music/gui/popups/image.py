@@ -5,7 +5,6 @@ View: Show Image
 """
 
 import sys
-from math import ceil
 from time import monotonic
 from typing import Union
 
@@ -13,13 +12,13 @@ from PIL import Image
 from PySimpleGUI import Image as GuiImage, Button, Column
 
 from ds_tools.images.utils import ImageType, as_image
-from ..elements.image import ExtendedImage, ClockImage
+from ..elements.image import ExtendedImage
 from ..elements.text import ExtText
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..positioning import positioner
 from .base import BasePopup
 
-__all__ = ['ImageView', 'ClockView']
+__all__ = ['ImageView']
 
 
 class ImageView(BasePopup, view_name='show_image', primary=False):
@@ -82,74 +81,6 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         # TODO: Make large images scrollable instead of always shrinking the image; allow zoom without window resize
         kwargs = {'title': self.title, 'resizable': True, 'element_justification': 'center', 'margins': (0, 0)}
         return layout, kwargs
-
-
-class ClockView(ImageView, view_name='clock_view', primary=False):
-    def __init__(self, *args, width: int = 40, seconds: bool = True, slim: bool = False, **kwargs):
-        super().__init__(None, *args, **kwargs)
-        self.gui_img = ClockImage(width=width, seconds=seconds, slim=slim)
-        self.orig_size = self._last_size = self.gui_img.Size
-        self._show_titlebar = False
-
-    @event_handler
-    def window_resized(self, event: Event, data: EventData):
-        if monotonic() - self._last_resize < 0.1:
-            return
-        elif new_size := self._get_new_size(*data['new_size']):
-            self._last_size = new_size
-            self.gui_img.resize(*new_size)
-            self.window.set_title(self.title)
-            self._last_resize = monotonic()
-
-    def get_render_args(self) -> RenderArgs:
-        layout = [[self.gui_img]]
-        kwargs = {
-            'title': self.title,
-            'resizable': True,
-            'element_justification': 'center',
-            'margins': (0, 0),
-            'border_depth': 0,
-            'background_color': 'black',
-            'alpha_channel': 0.8,
-            'grab_anywhere': True,
-            'no_titlebar': True,
-        }
-        return layout, kwargs
-
-    def increase_size(self, event):
-        width, height = self.window.size
-        height += 10
-        clock = self.gui_img._clock
-        new_width, _height = clock.time_size(self.gui_img._show_seconds, clock.calc_width(height))
-        width = max(width, new_width)
-        self.window.size = (width, height)
-
-    def decrease_size(self, event):
-        width, height = self.window.size
-        height -= 10
-        clock = self.gui_img._clock
-        new_width, _height = clock.time_size(self.gui_img._show_seconds, clock.calc_width(height))
-        if (ceil(clock.bar_pct * clock.calc_width(_height - 6)) if clock.bar_pct else clock.bar) < 3:
-            self.log.debug('Unable to decrease clock size further')
-            return
-        width = min(width, new_width)
-        self.window.size = (width, height)
-
-    def show_hide_title(self, event):
-        self.window.TKroot.wm_overrideredirect(self._show_titlebar)
-        self._show_titlebar = not self._show_titlebar
-
-    def toggle_slim(self, event):
-        self.gui_img.toggle_slim()
-
-    def post_render(self):
-        super().post_render()
-        widget = self.gui_img._widget
-        widget.bind('<Button-2>', self.toggle_slim)  # Middle click
-        widget.bind('<Button-3>', self.show_hide_title)  # Right click
-        bind = self.window.TKroot.bind
-        bind('<KeyPress-plus>', self.increase_size)
-        bind('<KeyPress-minus>', self.decrease_size)
 
 
 class ImageView2(ImageView, view_name='show_image_2', primary=False):
@@ -228,7 +159,6 @@ if __name__ == '__main__':
         from ds_tools.logging import init_logging
         init_logging(12, log_path=None, names=None)
         try:
-            ClockView().get_result()
-            # ImageView2(args.image_path[0]).get_result()
+            ImageView2(args.image_path[0]).get_result()
         except Exception as e:
             print(e, file=sys.stderr)

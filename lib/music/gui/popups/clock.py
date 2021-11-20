@@ -25,9 +25,6 @@ class ClockView(ImageView, view_name='clock_view', primary=False):
         cfg = self.config.get
         if width is None and cfg(f'remember_size:{self.name}') and (size := cfg(f'popup_size:{self.name}', type=tuple)):
             self.gui_img = ClockImage(img_size=size, seconds=seconds, slim=slim)
-
-            # self.gui_img._clock.resize(self.gui_img._clock.calc_width(size[1]))
-            # width = self.gui_img._clock.calc_width(size[1])
         else:
             self.gui_img = ClockImage(width=width or 40, seconds=seconds, slim=slim)
         self.orig_size = self._last_size = self.gui_img.Size

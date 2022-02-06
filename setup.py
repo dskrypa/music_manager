@@ -2,7 +2,7 @@
 
 from itertools import chain
 from pathlib import Path
-from setuptools import setup
+from setuptools import setup, find_packages
 
 project_root = Path(__file__).resolve().parent
 
@@ -38,11 +38,12 @@ setup(
     long_description=long_description,
     url=about['__url__'],
     project_urls={'Source': about['__url__']},
-    packages=['music'],
+    packages=find_packages('lib'),
     package_dir={'': 'lib'},
     classifiers=[
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.9',    # Due to use of walrus operator + dict union
+        'Programming Language :: Python :: 3.10',
     ],
     python_requires='~=3.9',
     install_requires=requirements,

@@ -221,7 +221,7 @@ class DiscographyEntry(EntertainmentEntity):
 
 class Album(DiscographyEntry):
     """An album or mini album or EP, or a repackage thereof"""
-    _categories = ('album', 'extended play', '(band) eps', '-language eps', 'mixtape')
+    _categories = ('album', 'extended play', ' eps', '-language eps', 'mixtape')
 
     @classmethod
     def from_name(cls, name: str) -> 'Album':

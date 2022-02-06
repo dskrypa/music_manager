@@ -301,8 +301,11 @@ class QueryResults:
                     except ValueError:
                         title = track.attrib['title']
                         parent = track.attrib['parentTitle']
-                        log.error(f'Error processing track name for {artist_key=} {title=} in {parent=}')
-                        raise
+                        log.error(
+                            f'Error processing track name for {artist_key=} {title=} in {parent=}: {track=}',
+                            extra={'color': 'red'}
+                        )
+                        # raise
 
                     keep = track
                     if match := next(filter(track_name.matches, artist_uniq), None):

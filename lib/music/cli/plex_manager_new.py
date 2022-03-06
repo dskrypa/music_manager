@@ -1,5 +1,3 @@
-# PYTHON_ARGCOMPLETE_OK
-
 import argparse
 import logging
 from functools import cached_property
@@ -108,7 +106,7 @@ class SyncPlaylists(PlexManager):
 
 class Find(PlexManager, help='Find Plex information'):
     obj_type = Positional(choices=OBJ_TYPES, help='Object type')
-    title = Positional(nargs='*', help='Object title (optional)')
+    # title = Positional(nargs='*', help='Object title (optional)')
     escape = Option('-e', default='()', help='Escape the provided regex special characters')
     allow_inst = Flag('-I', help='Allow search results that include instrumental versions of songs')
     full_info = Flag('-F', help='Print all available info about the discovered objects')
@@ -124,11 +122,14 @@ class Find(PlexManager, help='Find Plex information'):
         from music.plex.utils import parse_filters
 
         parser = ArgParser()
-        parser.add_argument('query', nargs=argparse.REMAINDER)
-        args, dynamic = parser.parse_with_dynamic_args('query', args=self.query)
+        find_parser = parser.add_subparser('action', 'find')
+        find_parser.add_argument('x')
+        find_parser.add_argument('query', nargs=argparse.REMAINDER)
+        args, dynamic = parser.parse_with_dynamic_args('query', args=['find', 'x', *self.query])
 
         p = Printer(self.format)
-        obj_type, kwargs = parse_filters(self.obj_type, self.title, dynamic, self.escape, self.allow_inst)
+        # obj_type, kwargs = parse_filters(self.obj_type, self.title, dynamic, self.escape, self.allow_inst)
+        obj_type, kwargs = parse_filters(self.obj_type, '', dynamic, self.escape, self.allow_inst)
         objects = self.plex.find_objects(obj_type, **kwargs)  # type: Iterable[Track]
         if objects:
             if self.full_info:

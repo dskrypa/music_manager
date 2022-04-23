@@ -5,12 +5,8 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 project_root = Path(__file__).resolve().parent
-
-with project_root.joinpath('requirements.txt').open('r', encoding='utf-8') as f:
-    requirements = f.read().splitlines()
-
-with project_root.joinpath('readme.rst').open('r', encoding='utf-8') as f:
-    long_description = f.read()
+requirements = project_root.joinpath('requirements.txt').read_text('utf-8').splitlines()
+long_description = project_root.joinpath('readme.rst').read_text('utf-8')
 
 about = {}
 with project_root.joinpath('lib', 'music', '__version__.py').open('r', encoding='utf-8') as f:
@@ -23,7 +19,7 @@ optional_dependencies = {
         'ffmpeg-python',        # Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
         'numpy',
     ],
-    'ipod': ['pypod@ git+git://github.com/dskrypa/pypod',],
+    'ipod': ['pypod@ git+https://github.com/dskrypa/pypod'],
     'gui': ['filelock', 'psutil', 'pysimplegui', 'screeninfo', 'lark'],
 }
 optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))

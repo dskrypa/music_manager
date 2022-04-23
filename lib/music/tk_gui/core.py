@@ -18,6 +18,7 @@ from tkinter import Tk, Toplevel, Frame, PhotoImage, Widget
 from typing import Optional, Callable, Union, Iterable
 from weakref import finalize
 
+from .assets import PYTHON_LOGO
 from .menu import ContextualMenu
 from .positioning import positioner
 from .style import Style, Font
@@ -25,21 +26,6 @@ from .style import Style, Font
 __all__ = ['RowContainer', 'Window', 'Inheritable', 'Row', 'Element', 'Anchor']
 log = logging.getLogger(__name__)
 XY = tuple[int, int]
-PYTHON_LOGO = (
-    b'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAB2QAAAdkBKBtElgAAABl0RVh0U29mdHdhc'
-    b'mUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAOuSURBVFiFxZdfiBVVHMc/v3P/rHvdtpDdDTZSWXFXQir/7HVZUtAo6EXUuD4kVNZDBRm09lBEdHuQCB'
-    b'J6kHwyTHpYltaMpXxYDUOi9h+ptKVJKVuZGxuxG65eZ+b8epi7c3f1zp3ZvOIXDsyc+Z3f73PO/M6Z38AdlsS2zOdNdrJlNSIbsNwHtlHUa0BJIUy'
-    b'h9rJif/Gsfjmy74WzVQXIdnU/JOJ1q+oKVAELqn5DZ10X+60eyEzXvHzi4M5rUb5NPEx7SKFN4QNgnx+1kj3PTy+8uieW6yiDdbs+qde0mVS0f2jv'
-    b'jscBsl0ff43VDaEr4LfJwabxReTztpL/ZBSAm0nfk3BdRGlbtaunMbngSgKX5WWN567L3e1/NTYNweVbAqhxHXEREBanUtf/wE0CNhU1DsC6ycgVj'
-    b'gRQm3Ix7q9ze4VZ020pWsZhigOg0rn78GIPrwHA4iCw3Y8rfsMBB6xgBAbDnC9IXxcd2bgGHL/DccalY+D3UIDs671b0d73XdUWf0IKaspsNwGjSM'
-    b'Sk60UN2GFU/HEmiQ527udK+hXZeMKFWduw/Y3D21A+JVjS2yV9iUzh1Zk7A5DL9SREZS9xz4Vbh9itPblEAPDbstR6YGmVo0zvz33hhTy7l/svdAQ'
-    b'AFln3f7O4gj5fsrDwaOhTY7JQSsIHqhlZYPCptp/eBo6GGikrSwBCQ4wFGAeOAGMIHnbmLBBQ618rjhh+OPZM36W6xNVulGUVAJoCAAW34pElHMpv'
-    b'Ov3mE0vP54CHUa/W344AHlhAi69bve2otqMRCS2kAwBRnQjDRDh+/NnP3qszOoDSPCdXAgi94T6GlAkoJqEYc6aC6Tt1Cf0QtDm+9xgynAoAPLHfh'
-    b'pjpa+3nRoFHqhocwLPHAoDhPVuGUL1QxszmVp65C0hUOfxp6Rz+PgAAUYzpqnKQcAlvzVwGmTr47tYjwA7gPLfhVCrqEsKLkv2ur8RSRmvyfZnaa1'
-    b'M1ACef7q3HmIv+l3Bmvwell4dqqz+qMNdJAbA6SW3BL8mmHU86BqZujBVZseiP25ZUAKBUB9qb60LrNMvak39W8l/tr99FhLH5DIgGSKcrVrWzNIr'
-    b'7dyuZVCvwMwBu9NhogII3Dtz07spoStaOOLL8aAGRf4F/GFsUcsKWFOvPSM8++RzKgRg50A9eAmUT6E5Z9dXBKN+xckBW9H4EbAbORZg+BtKM0c1x'
-    b'gsN8fk6L0tEtWbDrUR4E24haD2UC9U7h2W9kdf/wfH3eUf0HDEWjDDqa22IAAAAASUVORK5CYII='
-)
 ANCHOR_ALIASES = {
     'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT'
 }
@@ -149,6 +135,8 @@ class RowContainer(ABC):
 
 class Window(RowContainer):
     __hidden_root = None
+    _finalizer: finalize
+    root: Optional[Toplevel] = None
 
     def __init__(
         self,
@@ -196,7 +184,6 @@ class Window(RowContainer):
         )
         self._size = size
         self._position = position
-        self.root = None  # type: Optional[Toplevel]
         self.resizable = resizable
         self.keep_on_top = keep_on_top
         self.can_minimize = can_minimize
@@ -206,7 +193,6 @@ class Window(RowContainer):
         self.modal = modal
         self.no_title_bar = no_title_bar
         self.margins = margins
-        self.__finalizer = finalize(self, self._close)
         if self.rows:
             self.show()
 
@@ -226,6 +212,8 @@ class Window(RowContainer):
             self.root.attributes('-alpha', alpha)
         except Exception:
             log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
+
+    # region Size & Position Methods
 
     @property
     def size(self) -> XY:
@@ -275,21 +263,19 @@ class Window(RowContainer):
 
         self.position = x, y
 
+    # endregion
+
+    # region Show Window Methods
+
     def show(self):
         # PySimpleGUI: StartupTK
         if self.__hidden_root is None:
-            Window.__hidden_root = hidden_root = Tk()
-            hidden_root.attributes('-alpha', 0)  # Hide this window
-            try:
-                hidden_root.wm_overrideredirect(True)
-            except Exception:
-                log.error('Error overriding redirect for hidden root:', exc_info=True)
-            hidden_root.withdraw()
-            Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
+            self._init_hidden_root()
         if self.root is not None:
             log.warning('Attempted to show window after it was already shown', stack_info=True)
             return
         self.root = root = Toplevel()
+        self._finalizer = finalize(self, self._close, root)
         self.set_alpha(0)  # Hide window while building it
         if (bg := self.style.bg.default) is not None:
             root.configure(background=bg)
@@ -327,7 +313,7 @@ class Window(RowContainer):
                 log.warning('Error while disabling title bar:', exc_info=True)
         # endregion
 
-        root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))
+        root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
         self.set_alpha(1 if self.alpha_channel is None else self.alpha_channel)
         if self.no_title_bar:
             root.focus_force()
@@ -343,44 +329,52 @@ class Window(RowContainer):
         root.after(250, self._sigint_fix)
         root.mainloop(1)
 
-    def _close(self):
-        if (root := self.root) is not None:
-            log.debug('  Quitting...')
-            root.quit()
-            log.debug('  Updating...')
-            try:
-                root.update()  # Needed to actually close the window on Linux if user closed with X
-            except Exception:
-                pass
-            log.debug('  Destroying...')
-            try:
-                root.destroy()
-                root.update()
-            except Exception:
-                pass
-            log.debug('  Done')
-            self.root = None
-        else:
-            log.warning('Root not found')
+    @classmethod
+    def _init_hidden_root(cls):
+        Window.__hidden_root = hidden_root = Tk()
+        hidden_root.attributes('-alpha', 0)  # Hide this window
+        try:
+            hidden_root.wm_overrideredirect(True)
+        except Exception:
+            log.error('Error overriding redirect for hidden root:', exc_info=True)
+        hidden_root.withdraw()
+        Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
+
+    # endregion
+
+    @classmethod
+    def _close(cls, root: Toplevel):
+        log.debug('  Quitting...')
+        root.quit()
+        log.debug('  Updating...')
+        try:
+            root.update()  # Needed to actually close the window on Linux if user closed with X
+        except Exception:
+            pass
+        log.debug('  Destroying...')
+        try:
+            root.destroy()
+            root.update()
+        except Exception:
+            pass
+        log.debug('  Done')
 
     def close(self):
-        log.debug('Closing')
         try:
-            finalizer = self.__finalizer
-        except AttributeError:
-            log.warning('Finalizer not found')
-            pass  # This happens if an exception was raised in __init__
+            obj, close_func, args, kwargs = self._finalizer.detach()
+        except (TypeError, AttributeError):
+            pass
         else:
-            log.debug('Found finalizer')
-            if finalizer.detach():
-                self._close()
+            log.debug('Closing')
+            close_func(*args, **kwargs)
+            self.root = None
 
     @classmethod
     def __close_hidden_root(cls):
         try:
-            if cls.__hidden_finalizer.detach():  # noqa
-                cls.__hidden_root.destroy()
-                cls.__hidden_root = None
+            # if cls.__hidden_finalizer.detach():  # noqa
+            cls.__hidden_root.destroy()
+            cls.__hidden_root = None
         except AttributeError:
             pass
 

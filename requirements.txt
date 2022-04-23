@@ -1,6 +1,6 @@
-requests_client@ git+git://github.com/dskrypa/requests_client
-wiki_nodes@ git+git://github.com/dskrypa/wiki_nodes
-ds_tools[images,J2R]@ git+git://github.com/dskrypa/ds_tools
+requests_client@ git+https://github.com/dskrypa/requests_client
+wiki_nodes@ git+https://github.com/dskrypa/wiki_nodes
+ds_tools[images,J2R]@ git+https://github.com/dskrypa/ds_tools
 beautifulsoup4
 cachetools
 fuzzywuzzy

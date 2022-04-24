@@ -359,7 +359,7 @@ def _rm_tag_matcher(tag_type: str, extras: Collection[str] = None) -> Callable:
         matchers = _rm_tag_matcher._matchers = {
             'id3': ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
             'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
-            'vorbis': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*')).match
+            'vorbis': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*', 'UPC', 'TRACKTOTAL')).match
         }
     try:
         matcher = matchers[tag_type]

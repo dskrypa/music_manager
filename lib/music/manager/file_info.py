@@ -8,7 +8,7 @@ from collections import defaultdict, Counter
 from mutagen.id3 import ID3
 
 from ds_tools.core.patterns import FnMatcher
-from ds_tools.fs.paths import Paths
+from ds_tools.fs.paths import Paths, relative_path
 from ds_tools.output.table import Table, SimpleColumn, TableBar
 from ds_tools.output.terminal import uprint
 from ..constants import TYPED_TAG_DISPLAY_NAME_MAP
@@ -67,14 +67,51 @@ def _print_one_or_set(obj, attr: str, singular: str, str_fn=str, only_errors=Fal
                     uprint(f'{prefix}  - {str_fn(obj)} ')
 
 
+def print_meta_table(paths: Paths):
+    rows = []
+    for music_file in iter_music_files(paths):
+        info = music_file.info
+        lossless = ' [lossless]' if info['lossless'] else ''
+        rows.append({
+            'Path': relative_path(music_file.path),
+            'Type': f'{music_file.tag_version}{lossless}',
+            'Bit Rate': info['bitrate_str'],
+            'Sample Rate': f'{music_file.sample_rate / 1000} kHz',
+            'Bits per Sample': music_file.bits_per_sample,
+            'Length': info['length_str'],
+            'Size': info['size_str'],
+        })
+
+    table = Table(
+        SimpleColumn('Path'),
+        SimpleColumn('Type'),
+        SimpleColumn('Bit Rate', align='>'),
+        SimpleColumn('Sample Rate', align='>'),
+        SimpleColumn('Bits per Sample', align='>'),
+        SimpleColumn('Length', align='>'),
+        SimpleColumn('Size', align='>'),
+        update_width=True
+    )
+    table.print_rows(rows)
+
+
 def print_track_info(paths: Paths, tags=None, meta_only=False, trim=True):
+    if meta_only:
+        print_meta_table(paths)
+        return
     tags = {tag.upper() for tag in tags} if tags else None
     suffix = '' if meta_only else ':'
     for i, music_file in enumerate(iter_music_files(paths)):
         if i and not meta_only:
             print()
 
-        uprint(f'{music_file.path.as_posix()} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
+        rel_path = relative_path(music_file.path)
+        if meta_only:
+            uprint(f'{rel_path} {music_file.info_summary()}')
+            continue
+        else:
+            # uprint(f'{music_file.path.as_posix()} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
+            uprint(f'{rel_path} [{music_file.length_str}] ({music_file.tag_version}){suffix}')
         if not meta_only:
             if music_file.tags is None:
                 uprint('[No tags]')

@@ -66,6 +66,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     filename = MusicFileProperty('filename')                            # type: str
     length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
     channels = MusicFileProperty('info.channels')                       # type: int
+    bits_per_sample = MusicFileProperty('info.bits_per_sample')         # type: int
     _bitrate = MusicFileProperty('info.bitrate')                        # type: int
     _sample_rate = MusicFileProperty('info.sample_rate')                # type: int
     tag_artist = TextTagProperty('artist', default=None)                # type: Optional[str]
@@ -298,6 +299,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             'size': size, 'size_str': readable_bytes(size),
             'lossless': self.lossless,
             'channels': file_info.channels,
+            'bits_per_sample': file_info.bits_per_sample,
         }
         if file_type == 'mp3':
             info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'
@@ -314,7 +316,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         info = self.info
         lossless = ' [lossless]' if info['lossless'] else ''
         return (
-            f'{self.tag_version}{lossless} @ {info["bitrate_str"]} ({info["sample_rate_str"]})'
+            f'{self.tag_version}{lossless} @ {info["bitrate_str"]}'
+            f' ({self.sample_rate/1000} kHz @ {self.bits_per_sample}b/sample)'
             f' {info["length_str"]} / {info["size_str"]}'
         )
 
@@ -959,6 +962,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         updates = self.get_tag_updates(tag_ids, value, patterns, partial)
         self.update_tags(updates, dry_run)
 
+    # region Cover Image Methods
+
     def get_cover_tag(self):
         if self.tag_type == 'vorbis':
             try:
@@ -1044,6 +1049,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
         if not dry_run:
             self.save()
+
+    # endregion
 
 
 def iter_music_files(paths: Paths) -> Iterator[SongFile]:

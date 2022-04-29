@@ -261,10 +261,11 @@ class AlbumDir(ClearableCachedPropertyMixin):
         for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
+            music_file.cleanup_title(dry_run)
             music_file.cleanup_lyrics(dry_run)
             tag_type = music_file.tag_type
             if tag_type != 'id3':
-                log.debug(f'Skipping tag fix for non-MP3: {music_file}')
+                # log.debug(f'Skipping tag fix for non-MP3: {music_file}')
                 continue
             elif not isinstance((track_tags := music_file.tags), ID3):
                 log.debug(f'Skipping tag fix due to no tags present in {music_file}')

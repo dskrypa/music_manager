@@ -1,4 +1,6 @@
 """
+Song File / Audio Track
+
 :author: Doug Skrypa
 """
 
@@ -41,7 +43,9 @@ from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueExce
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
-from .patterns import EXTRACT_PART_MATCH, LYRIC_URL_MATCH, compiled_fnmatch_patterns, cleanup_album_name
+from .patterns import (
+    EXTRACT_PART_MATCH, LYRIC_URL_MATCH, SAMPLE_RATE_PAT, compiled_fnmatch_patterns, cleanup_album_name
+)
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
 if TYPE_CHECKING:
@@ -119,11 +123,23 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         self._f = mutagen_file
         self._path = path
 
-    def __getitem__(self, item):
-        return self._f[item]
+    @classmethod
+    def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> 'SongFile':
+        if ON_WINDOWS:
+            if isinstance(root, Path):  # Path does not work for network shares in Windows
+                root = root.as_posix()
+            if root.startswith('/') and not root.startswith('//'):
+                root = '/' + root
 
-    def __repr__(self):
-        return '<{}({!r})>'.format(self.__class__.__name__, self.rel_path)
+        if isinstance(track_or_rel_path, str):
+            rel_path = track_or_rel_path
+        else:
+            rel_path = track_or_rel_path.media[0].parts[0].file
+        path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
+        return cls(path)
+
+    def __getitem__(self, item: str):
+        return self._f[item]
 
     def __getnewargs__(self):
         # noinspection PyRedundantParentheses
@@ -131,6 +147,17 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def __getstate__(self):
         return None  # prevents calling __setstate__ on unpickle; simpler for rebuilt obj to re-calculate cached attrs
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}({self.rel_path!r})>'
+
+    @cached_property
+    def extended_repr(self) -> str:
+        try:
+            info = f'[{self.tag_title!r} by {self.tag_artist}, in {self.album_name_cleaned!r}]'
+        except Exception:
+            info = ''
+        return f'<{self.__class__.__name__}({self.rel_path!r}){info}>'
 
     @property
     def path(self) -> Path:
@@ -181,9 +208,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @cached_property
     def length_str(self) -> str:
-        """
-        :return str: The length of this song in the format (HH:M)M:SS
-        """
+        """The length of this song in the format (HH:M)M:SS"""
         length = format_duration(int(self._f.info.length))  # Most other programs seem to floor the seconds
         if length.startswith('00:'):
             length = length[3:]
@@ -192,7 +217,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return length
 
     @cached_property
-    def file_type(self):
+    def file_type(self) -> Optional[str]:
         file = self._f
         tags = file.tags
         if isinstance(tags, MP4Tags) or isinstance(file, MP4):
@@ -277,6 +302,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return struct.unpack('<I', page.packets[0][12:16])[0]
 
     @cached_property
+    def sample_rate_khz(self) -> float:
+        return self.sample_rate / 1000
+
+    @cached_property
     def lossless(self) -> bool:
         file_type = self.file_type
         if file_type in ('flac', 'wav'):
@@ -288,7 +317,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return False
 
     @cached_property
-    def info(self):
+    def info(self) -> dict[str, Union[str, int, float, bool]]:
         file_info = self._f.info
         file_type = self.file_type
         size = self.path.stat().st_size
@@ -312,7 +341,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             info['codec'] = self.tag_version[4:-1]
         return info
 
-    def info_summary(self):
+    def info_summary(self) -> str:
         info = self.info
         lossless = ' [lossless]' if info['lossless'] else ''
         return (
@@ -324,6 +353,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # endregion
 
     # region Add/Remove/Get Tags
+
     def delete_tag(self, tag_id: str, save: bool = False):
         tag_type = self.tag_type
         if tag_type == 'id3':
@@ -362,7 +392,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
                 return False
 
-    def set_text_tag(self, tag: str, value, by_id=False, replace: bool = True, save: bool = False):
+    def set_text_tag(self, tag: str, value, by_id: bool = False, replace: bool = True, save: bool = False):
         tag_id = tag if by_id else self.normalize_tag_id(tag)
         tag_type = self.tag_type
         if tag_type in ('mp4', 'vorbis'):
@@ -668,6 +698,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # endregion
 
     # region Tag-Related Properties
+
     @cached_property
     def all_artists(self) -> set[Name]:
         return self.album_artists.union(self.artists)
@@ -763,7 +794,18 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def star_rating(self, value: Union[int, float]):
         self.rating = stars_to_256(value, 5)
 
+    @cached_property
+    def album_name_cleaned(self) -> str:
+        return cleanup_album_name(self.tag_album, self.tag_artist) or self.tag_album
+
+    @cached_property
+    def album_name_cleaned_plus_and_part(self) -> tuple[str, Optional[str]]:
+        """Tuple of title, part"""
+        return _extract_album_part(self.album_name_cleaned)
+
     # endregion
+
+    # region Hash / Fingerprint Methods
 
     def tagless_sha256sum(self):
         with self.path.open('rb') as f:
@@ -787,40 +829,28 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     #     """Returns the 2-tuple of this file's (duration, fingerprint)"""
     #     return acoustid.fingerprint_file(self.filename)
 
-    @classmethod
-    def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> 'SongFile':
-        if ON_WINDOWS:
-            if isinstance(root, Path):  # Path does not work for network shares in Windows
-                root = root.as_posix()
-            if root.startswith('/') and not root.startswith('//'):
-                root = '/' + root
+    # endregion
 
-        if isinstance(track_or_rel_path, str):
-            rel_path = track_or_rel_path
-        else:
-            rel_path = track_or_rel_path.media[0].parts[0].file
-        path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
-        return cls(path)
+    # region Tag Cleanup
 
-    @cached_property
-    def extended_repr(self):
-        try:
-            info = '[{!r} by {}, in {!r}]'.format(self.tag_title, self.tag_artist, self.album_name_cleaned)
-        except Exception as e:
-            info = ''
-        return '<{}({!r}){}>'.format(self.__class__.__name__, self.rel_path, info)
-
-    @cached_property
-    def album_name_cleaned(self):
-        return cleanup_album_name(self.tag_album, self.tag_artist) or self.tag_album
-
-    @cached_property
-    def album_name_cleaned_plus_and_part(self):
-        """Tuple of title, part"""
-        return _extract_album_part(self.album_name_cleaned)
-
-    def cleanup_lyrics(self, dry_run=False):
+    def _log_update(self, tag_name: str, orig_val: str, new_val: str, dry_run: bool):
         prefix, upd_msg = ('[DRY RUN] ', 'Would update') if dry_run else ('', 'Updating')
+        log.info(f'{prefix}{upd_msg} {tag_name} for {self} from {tag_repr(orig_val)!r} to {tag_repr(new_val)!r}')
+
+    def cleanup_title(self, dry_run: bool = False, only_matching: bool = False):
+        title = self.tag_title
+        if m := SAMPLE_RATE_PAT.search(title):
+            if only_matching and self.sample_rate_khz != float(m.group(1)):  # title khz
+                log.debug(f'Found sample rate={m.group(0)!r} != {self.sample_rate_khz} in title of {self}')
+                return
+            elif clean_title := SAMPLE_RATE_PAT.sub('', title).strip():
+                self._log_update('title', title, clean_title, dry_run)
+                if not dry_run:
+                    self.set_text_tag('title', clean_title, save=True)
+            else:
+                log.debug(f'Found sample rate={m.group(0)!r} in title of {self}, but it is the full title')
+
+    def cleanup_lyrics(self, dry_run: bool = False):
         changes = 0
         tag_type = self.tag_type
         new_lyrics = []
@@ -828,7 +858,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             lyric = lyric_tag.text if tag_type == 'id3' else lyric_tag
             if m := LYRIC_URL_MATCH(lyric):
                 new_lyric = m.group(1).strip() + '\r\n'
-                log.info(f'{prefix}{upd_msg} lyrics for {self} from {tag_repr(lyric)!r} to {tag_repr(new_lyric)!r}')
+                self._log_update('lyrics', lyric, new_lyric, dry_run)
                 if not dry_run:
                     if tag_type == 'id3':
                         lyric_tag.text = new_lyric
@@ -839,10 +869,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 new_lyrics.append(lyric)
 
         if changes and not dry_run:
-            log.info('Saving changes to lyrics in {}'.format(self))
-            if tag_type == 'mp4':
+            log.info(f'Saving changes to lyrics in {self}')
+            if tag_type != 'id3':
                 self.set_text_tag('lyrics', new_lyrics)
             self.save()
+
+    # endregion
 
     def bpm(self, save: bool = True, calculate: bool = True) -> Optional[int]:
         """
@@ -1064,7 +1096,7 @@ def iter_music_files(paths: Paths) -> Iterator[SongFile]:
                 log.log(5, f'Not a music file: {file_path}')
 
 
-def _extract_album_part(title):
+def _extract_album_part(title: str) -> tuple[str, Optional[str]]:
     part = None
     if m := EXTRACT_PART_MATCH(title):
         title, part = map(str.strip, m.groups())

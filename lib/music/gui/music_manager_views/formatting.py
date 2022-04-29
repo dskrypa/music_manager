@@ -518,6 +518,7 @@ class TrackFormatter:
         row = [
             Text('Bitrate:'), ExtInput(info['bitrate_str'], size=(14, 1), disabled=True),
             Text('Sample Rate:'), ExtInput(info['sample_rate_str'], size=(10, 1), disabled=True),
+            Text('Bit Depth:'), ExtInput(info['bits_per_sample'], size=(10, 1), disabled=True),
         ]
         for key in ('encoder', 'codec'):
             if value := info.get(key):

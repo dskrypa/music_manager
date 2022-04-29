@@ -6,7 +6,7 @@ import re
 from fnmatch import translate as fnmatch_to_regex_str
 
 __all__ = [
-    'ALBUM_CLEANUP_RE_FUNCS', 'EXTRACT_PART_MATCH', 'GROUP_TITLE_MATCH_FUNCS', 'LYRIC_URL_MATCH',
+    'ALBUM_CLEANUP_RE_FUNCS', 'EXTRACT_PART_MATCH', 'GROUP_TITLE_MATCH_FUNCS', 'LYRIC_URL_MATCH', 'SAMPLE_RATE_PAT',
     'compiled_fnmatch_patterns', 'cleanup_album_name'
 ]
 
@@ -30,6 +30,8 @@ GROUP_TITLE_MATCH_FUNCS = [re.compile('^(.*) `(.*)`$').match, re.compile('^(.*) 
 
 LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
 
+SAMPLE_RATE_PAT = re.compile(r'\((\d+(?:\.\d+)?)\s*kHz\)', re.IGNORECASE)
+
 
 def compiled_fnmatch_patterns(patterns):
     if patterns:
@@ -37,7 +39,7 @@ def compiled_fnmatch_patterns(patterns):
     return []
 
 
-def cleanup_album_name(album, artist=None):
+def cleanup_album_name(album: str, artist: str = None) -> str:
     for re_func, on_match_func in ALBUM_CLEANUP_RE_FUNCS:
         if m := re_func(album):
             album = on_match_func(m)

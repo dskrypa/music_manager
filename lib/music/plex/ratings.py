@@ -61,6 +61,11 @@ def sync_ratings_to_files(plex: LocalPlexServer, path_filter: str = None):
     :param plex: A :class:`LocalPlexServer`
     :param path_filter: String that file paths must contain to be sync'd
     """
+    # TODO: Fix:
+    """
+    $ bin/plex_manager.py sync ratings to_files -m 'Music - Other'
+    ANSI("Found music_lib_name='Music - K-Pop' in C:\\Users\\dougs\\.config\\plexapi\\config.ini - overwrite with music_lib_name='Music - Other'? ")n
+    """
     if plex.server_root is None:
         raise ValueError(f'The custom.server_path_root is missing from {plex._config_path} and wasn\'t provided')
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'

@@ -106,7 +106,7 @@ class SyncPlaylists(PlexManager):
 
 class Find(PlexManager, help='Find Plex information'):
     obj_type = Positional(choices=OBJ_TYPES, help='Object type')
-    # title = Positional(nargs='*', help='Object title (optional)')
+    title = Positional(nargs='*', help='Object title (optional)')
     escape = Option('-e', default='()', help='Escape the provided regex special characters')
     allow_inst = Flag('-I', help='Allow search results that include instrumental versions of songs')
     full_info = Flag('-F', help='Print all available info about the discovered objects')

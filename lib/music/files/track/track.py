@@ -328,7 +328,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             'size': size, 'size_str': readable_bytes(size),
             'lossless': self.lossless,
             'channels': file_info.channels,
-            'bits_per_sample': file_info.bits_per_sample,
+            'bits_per_sample': getattr(file_info, 'bits_per_sample', None),
         }
         if file_type == 'mp3':
             info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'

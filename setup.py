@@ -24,6 +24,15 @@ optional_dependencies = {
 }
 optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))
 
+script_entry_points = {
+    'clock': 'main',
+    'gui_music_manager': 'main',
+    'ipod_shell': 'main',
+    'music_manager': 'main',
+    'plex_manager': 'PlexManager.parse_and_run',
+    'plex_manager_gui': 'PlexManagerGui.parse_and_run',
+}
+
 
 setup(
     name=about['__title__'],
@@ -44,10 +53,5 @@ setup(
     python_requires='~=3.9',
     install_requires=requirements,
     extras_require=optional_dependencies,
-    entry_points={
-        'console_scripts': [
-            f'{m}=music.cli.{m}:main'
-            for m in ('clock', 'gui_music_manager', 'ipod_shell', 'music_manager', 'plex_manager', 'plex_manager_gui')
-        ],
-    },
+    entry_points={'console_scripts': [f'{m}=music.cli.{m}:{f}' for m, f in script_entry_points.items()]},
 )

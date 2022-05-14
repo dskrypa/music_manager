@@ -3,6 +3,7 @@ wiki_nodes@ git+https://github.com/dskrypa/wiki_nodes
 ds_tools[images,J2R]@ git+https://github.com/dskrypa/ds_tools
 beautifulsoup4
 cachetools
+cli_command_parser
 fuzzywuzzy
 mutagen
 ordered-set

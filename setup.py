@@ -25,8 +25,8 @@ optional_dependencies = {
 optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))
 
 script_entry_points = {
-    'clock': 'main',
-    'gui_music_manager': 'main',
+    'clock': 'Clock.parse_and_run',
+    'gui_music_manager': 'MusicManagerGui.parse_and_run',
     'ipod_shell': 'main',
     'music_manager': 'main',
     'plex_manager': 'PlexManager.parse_and_run',

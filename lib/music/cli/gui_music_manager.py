@@ -2,76 +2,83 @@ import logging
 import sys
 from pathlib import Path
 
+from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option
+
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
-from ds_tools.argparsing import ArgParser
-from ds_tools.core.main import wrap_main
 
 log = logging.getLogger(__name__)
 
 
-def parser():
-    # fmt: off
-    parser = ArgParser(description='Music Manager GUI')
-    with parser.add_subparser('action', 'open', help='Open directly to the Album view for the given path') as open_parser:
-        open_parser.add_argument('album_path', help='The path to the album to open')
+class MusicManagerGui(Command, description='Music Manager GUI'):
+    sub_cmd = SubCommand(required=False)
+    with ParamGroup('Common') as group:
+        verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
+        match_log = Flag(help='Enable debug logging for the album match processing logger')
 
-    with parser.add_subparser('action', 'clean', help='Open directly to the Clean view for the given path') as clean_parser:
-        clean_parser.add_argument('path', nargs='+', help='The directory containing files to clean')
-        wait_group = clean_parser.add_argument_group('Wait Options').add_mutually_exclusive_group()
-        wait_group.add_argument('--multi_instance_wait', '-w', type=int, default=1, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
-        wait_group.add_argument('--no_wait', '-W', action='store_true', help='Do not wait for other instances')
+    def __init__(self):
+        from ds_tools.logging import init_logging
+        init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
-    with parser.add_subparser('action', 'configure', help='Configure registry entries for right-click actions') as config_parser:
-        config_parser.include_common_args('dry_run')
+    def main(self):
+        self.run_gui()
 
-    parser.include_common_args('verbosity')
-    parser.add_common_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
-    # fmt: on
-    return parser
+    def run_gui(self, init_event=None):
+        from music.gui.music_manager_views.main import MainView
 
+        patch_and_set_mode(self.match_log)
 
-@wrap_main
-def main():
-    args = parser().parse_args(req_subparser_value=False)
-
-    from ds_tools.logging import init_logging
-    init_logging(args.verbose, names=None, millis=True, set_levels={'PIL': 30})
-
-    if args.action == 'configure':
-        configure(args)
-    else:
-        launch_gui(args)
+        MainView.start(
+            title='Music Manager',
+            resizable=True,
+            size=(1700, 750),
+            element_justification='center',
+            init_event=init_event,
+        )
 
 
-def launch_gui(args):
-    if args.action == 'clean':
-        if args.no_wait:
-            clean_paths = args.path
-        elif (clean_paths := get_clean_paths(args.multi_instance_wait, args.path)) is None:
+class Open(MusicManagerGui, help='Open directly to the Album view for the given path'):
+    album_path = Positional(help='The path to the album to open')
+
+    def main(self):
+        self.run_gui(('init_view', {'view': 'album', 'path': self.album_path}))
+
+
+class Clean(MusicManagerGui, help='Open directly to the Clean view for the given path'):
+    path = Positional(nargs='+', help='The directory containing files to clean')
+    with ParamGroup('Wait Options', mutually_exclusive=True):
+        multi_instance_wait: int = Option('-w', default=1, help='Seconds to wait for multiple instances started at the same time to collaborate on paths')
+        no_wait = Flag('-W', help='Do not wait for other instances')
+
+    def main(self):
+        if self.no_wait:
+            clean_paths = self.path
+        elif (clean_paths := get_clean_paths(self.multi_instance_wait, self.path)) is None:
             log.debug('Exiting non-primary clean process')
             return
 
+        log.debug(f'Clean paths={clean_paths}')
+        self.run_gui(('init_view', {'view': 'clean', 'path': clean_paths}))
+
+
+class Configure(MusicManagerGui, help='Configure registry entries for right-click actions'):
+    dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
+
+    def main(self):
+        configure(self.dry_run)
+
+
+def patch_and_set_mode(match_log: bool):
     from music.common.prompts import set_ui_mode, UIMode
     from music.files.patches import apply_mutagen_patches
     from music.gui.patches import patch_all
-    from music.gui.music_manager_views.main import MainView
 
     apply_mutagen_patches()
     patch_all()
     # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
-    if args.match_log:
+    if match_log:
         logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
     set_ui_mode(UIMode.GUI)
-
-    start_kwargs = dict(title='Music Manager', resizable=True, size=(1700, 750), element_justification='center')
-    if args.action == 'open':
-        start_kwargs['init_event'] = ('init_view', {'view': 'album', 'path': args.album_path})
-    elif args.action == 'clean':
-        start_kwargs['init_event'] = ('init_view', {'view': 'clean', 'path': clean_paths})  # noqa
-        log.debug(f'Clean paths={args.path}')
-
-    MainView.start(**start_kwargs)
 
 
 def get_clean_paths(max_wait: int, arg_paths):
@@ -142,14 +149,13 @@ def get_clean_paths(max_wait: int, arg_paths):
     return paths
 
 
-def configure(args):
+def configure(dry_run: bool):
     import platform
     if (system := platform.system()) != 'Windows':
         raise RuntimeError(f'Automatic right-click menu integration is not supported on {system=!r}')
     elif not sys.argv:
         raise RuntimeError(f'Unable to determine arguments used to run this program')
 
-    dry_run = args.dry_run
     command = Path(sys.argv[0]).resolve()
     if not command.exists() and command.with_suffix('.exe').exists():
         command = command.with_suffix('.exe')

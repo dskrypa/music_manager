@@ -48,8 +48,13 @@ class PlexQuery:
         self.escape_tbl = str.maketrans({c: '\\' + c for c in '()[]{}^$+*.?|\\' if c in escape})
 
     @classmethod
-    def parse(cls, query: str, escape: str = '()', allow_inst: bool = False):
-        filters = cls(query, escape).parsed
+    def parse(cls, query: str, escape: str = '()', allow_inst: bool = False, title: str = None):
+        filters = cls(query, escape).parsed if query else {}
+        if title and title != '.*':
+            if not any(c in title for c in '()[]{}^$+*.?' if c not in escape):
+                filters.setdefault('title__icontains', title)
+            else:
+                filters.setdefault('title__like', title)
         if not allow_inst:
             filters.setdefault('title__not_like', r'inst(?:\.?|rumental)')
         return filters

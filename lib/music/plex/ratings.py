@@ -25,24 +25,31 @@ def find_and_rate(
     filters: Union[dict[str, str], str],
     escape: str,
     allow_inst: bool,
+    pre_parsed: bool = False,
 ):
     if rating < 0 or rating > 10:
         raise ValueError(f'Invalid {rating=} - must be between 0 and 10')
-    obj_type, kwargs = parse_filters(obj_type, title, filters, escape, allow_inst)
+
+    if pre_parsed:
+        kwargs = filters
+    else:
+        obj_type, kwargs = parse_filters(obj_type, title, filters, escape, allow_inst)
+
     if len(kwargs) == 1:
         raise ValueError('At least one identifier is required')
-    objects = plex.find_objects(obj_type, **kwargs)
-    if not objects:
+
+    if not (objects := plex.find_objects(obj_type, **kwargs)):
         log.warning('No results.')
-    else:
-        prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
-        for obj in objects:
-            if obj.userRating == rating:
-                log.info(f'No changes necessary for {obj}')
-            else:
-                log.info(f'{prefix} {obj}\'s rating => {stars(rating)}')
-                if not plex.dry_run:
-                    obj.edit(**{'userRating.value': rating})
+        return
+
+    prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
+    for obj in objects:
+        if obj.userRating == rating:
+            log.info(f'No changes necessary for {obj}')
+        else:
+            log.info(f"{prefix} {obj}'s rating => {stars(rating)}")
+            if not plex.dry_run:
+                obj.edit(**{'userRating.value': rating})
 
 
 def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None):

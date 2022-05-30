@@ -27,13 +27,17 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
 
         patch_and_set_mode(self.match_log)
 
-        MainView.start(
-            title='Music Manager',
-            resizable=True,
-            size=(1700, 750),
-            element_justification='center',
-            init_event=init_event,
-        )
+        try:
+            MainView.start(
+                title='Music Manager',
+                resizable=True,
+                size=(1700, 750),
+                element_justification='center',
+                init_event=init_event,
+            )
+        except Exception:
+            log.critical('Exiting run_gui due to unhandled exception', exc_info=True)
+            raise
 
 
 class Open(MusicManagerGui, help='Open directly to the Album view for the given path'):

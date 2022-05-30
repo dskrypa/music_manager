@@ -567,7 +567,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 if self._f.tags is None:
                     return []
                 raise
-        return self._f.tags.get(tag_id, [])                 # MP4Tags doesn't have getall() and always returns a list
+        try:
+            return self._f.tags.get(tag_id, [])                 # MP4Tags doesn't have getall() and always returns a list
+        except AttributeError:
+            log.warning(f'No tags found for {self.path}')
+            raise
 
     def tags_for_name(self, tag_name: str):
         """
@@ -838,7 +842,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         log.info(f'{prefix}{upd_msg} {tag_name} for {self} from {tag_repr(orig_val)!r} to {tag_repr(new_val)!r}')
 
     def cleanup_title(self, dry_run: bool = False, only_matching: bool = False):
-        title = self.tag_title
+        if not (title := self.tag_title):
+            log.debug(f'No title found for {self}')
+            return
+
         if m := SAMPLE_RATE_PAT.search(title):
             if only_matching and self.sample_rate_khz != float(m.group(1)):  # title khz
                 log.debug(f'Found sample rate={m.group(0)!r} != {self.sample_rate_khz} in title of {self}')

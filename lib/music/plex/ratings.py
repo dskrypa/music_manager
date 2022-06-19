@@ -68,13 +68,8 @@ def sync_ratings_to_files(plex: LocalPlexServer, path_filter: str = None):
     :param plex: A :class:`LocalPlexServer`
     :param path_filter: String that file paths must contain to be sync'd
     """
-    # TODO: Fix:
-    """
-    $ bin/plex_manager.py sync ratings to_files -m 'Music - Other'
-    ANSI("Found music_lib_name='Music - K-Pop' in C:\\Users\\dougs\\.config\\plexapi\\config.ini - overwrite with music_lib_name='Music - Other'? ")n
-    """
     if plex.server_root is None:
-        raise ValueError(f'The custom.server_path_root is missing from {plex._config_path} and wasn\'t provided')
+        raise ValueError(f"The custom.server_path_root is missing from {plex._config_path} and wasn't provided")
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
     kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
 
@@ -83,9 +78,9 @@ def sync_ratings_to_files(plex: LocalPlexServer, path_filter: str = None):
         file_stars = file.star_rating_10
         plex_stars = track.userRating
         if file_stars == plex_stars:
-            log.log(9, 'Rating is already correct for {}'.format(file))
+            log.log(9, f'Rating is already correct for {file}')
         else:
-            log.info('{} rating from {} to {} for {}'.format(prefix, file_stars, plex_stars, file))
+            log.info(f'{prefix} rating from {file_stars} to {plex_stars} for {file}')
             if not plex.dry_run:
                 file.star_rating_10 = plex_stars
 
@@ -98,7 +93,7 @@ def sync_ratings_from_files(plex: LocalPlexServer, path_filter: str = None):
     :param path_filter: String that file paths must contain to be sync'd
     """
     if plex.server_root is None:
-        raise ValueError(f'The custom.server_path_root is missing from {plex._config_path} and wasn\'t provided')
+        raise ValueError(f"The custom.server_path_root is missing from {plex._config_path} and wasn't provided")
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
     kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
     for track in plex.get_tracks(**kwargs):
@@ -107,9 +102,9 @@ def sync_ratings_from_files(plex: LocalPlexServer, path_filter: str = None):
         if file_stars is not None:
             plex_stars = track.userRating
             if file_stars == plex_stars:
-                log.log(9, 'Rating is already correct for {}'.format(file))
+                log.log(9, f'Rating is already correct for {file}')
             else:
-                log.info('{} rating from {} to {} for {}'.format(prefix, plex_stars, file_stars, file))
+                log.info(f'{prefix} rating from {plex_stars} to {file_stars} for {file}')
                 if not plex.dry_run:
                     track.edit(**{'userRating.value': file_stars})
 
@@ -117,11 +112,11 @@ def sync_ratings_from_files(plex: LocalPlexServer, path_filter: str = None):
 def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating: int = 10, offset: int = -1):
     from ..common.ratings import stars
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
-    for obj in plex.get_tracks(userRating__gte=min_rating, userRating__lte=max_rating):
-        rating = obj.userRating + offset
-        log.info(f'{prefix} {obj}\'s rating => {stars(rating)}')
+    for track in plex.get_tracks(userRating__gte=min_rating, userRating__lte=max_rating):
+        rating = track.userRating + offset
+        log.info(f"{prefix} {track}'s rating => {stars(rating)}")
         if not plex.dry_run:
-            obj.edit(**{'userRating.value': rating})
+            track.edit(**{'userRating.value': rating})
 
 
 def find_dupe_ratings(plex: LocalPlexServer):

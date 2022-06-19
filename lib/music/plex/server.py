@@ -36,6 +36,7 @@ class LocalPlexServer:
         self,
         url: str = None,
         user: str = None,
+        *,
         server_path_root: str = None,
         config_path: str = DEFAULT_CONFIG_PATH,
         music_library: str = None,

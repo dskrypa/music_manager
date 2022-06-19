@@ -41,12 +41,16 @@ class PlexManager(Command, description=DESCRIPTION):
         from music.plex import LocalPlexServer
 
         return LocalPlexServer(
-            self.server_url, self.username, self.server_path_root, self.config_path, self.music_library, self.dry_run
+            url=self.server_url,
+            user=self.username,
+            server_path_root=self.server_path_root,
+            config_path=self.config_path,
+            music_library=self.music_library,
+            dry_run=self.dry_run,
         )
 
 
-@PlexManager.sub_cmd.register('sync ratings', help='Sync song rating information between Plex and files')
-class SyncRatings(PlexManager):
+class SyncRatings(PlexManager, choice='sync ratings', help='Sync song rating information between Plex and files'):
     direction = Positional(choices=('to_files', 'from_files'), help='Direction to sync information')
     path_filter = Option('-f', help='If specified, paths that will be synced must contain the given text (not case sensitive)')
 
@@ -55,8 +59,7 @@ class SyncRatings(PlexManager):
         sync_ratings(self.plex, self.direction, self.path_filter)
 
 
-@PlexManager.sub_cmd.register('sync playlists', help='Sync playlists with custom filters')
-class SyncPlaylists(PlexManager):
+class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists with custom filters'):
     def main(self, *args, **kwargs):
         from music.plex.playlist import PlexPlaylist
 
@@ -173,6 +176,9 @@ class RateOffset(PlexManager, help='Update all track ratings in Plex with an off
         adjust_track_ratings(self.plex, self.min_rating, self.max_rating, self.offset)
 
 
+# region Playlist Commands
+
+
 class Playlist(PlexManager, help='Save or compare playlists'):
     sub_cmd = SubCommand()
 
@@ -205,6 +211,9 @@ class List(Playlist, help='List playlists in a dump'):
         from music.plex.playlist import list_playlists
 
         list_playlists(self.plex, self.path)
+
+
+# endregion
 
 
 class ShowDupeRatings(PlexManager, help='Show duplicate ratings'):

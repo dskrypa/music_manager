@@ -30,6 +30,8 @@ from .typing import PlexObjTypes, PlexObj, LibSection
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
 
+Section = Union[MusicSection, ShowSection, MovieSection]
+
 
 class LocalPlexServer:
     def __init__(
@@ -150,10 +152,8 @@ class LocalPlexServer:
     def get_lib_section(self, section: LibSection = None, obj_type: PlexObjTypes = None) -> LibrarySection:
         if section is None:
             try:
-                return self.primary_sections[TYPE_SECTION_MAP[obj_type]]
+                return self._get_primary_section(obj_type)
             except KeyError as e:
-                if obj_type is None:
-                    raise ValueError('A section and/or obj_type is required') from None
                 raise ValueError(f'A section is required for {obj_type=}') from e
         elif isinstance(section, LibrarySection):
             return section
@@ -166,6 +166,13 @@ class LocalPlexServer:
             raise ValueError(f'No lib section found for {section=}')
         else:
             raise TypeError(f'Unexpected lib section type={type(section)}')
+
+    def _get_primary_section(self, obj_type: PlexObjTypes = None) -> Section:
+        if not obj_type:
+            raise ValueError('A section and/or obj_type is required')
+
+        section_name = TYPE_SECTION_MAP[_normalize_type(obj_type)]
+        return self.primary_sections[section_name]
 
     @cached_property
     def sections(self) -> dict[str, LibrarySection]:
@@ -181,7 +188,7 @@ class LocalPlexServer:
         return sections
 
     @cached_property
-    def primary_sections(self) -> dict[str, Union[MusicSection, ShowSection, MovieSection]]:
+    def primary_sections(self) -> dict[str, Section]:
         return {key: self.sections[name] for key, name in self.primary_lib_names.items()}
 
     @cached_property
@@ -235,7 +242,7 @@ class LocalPlexServer:
         return self.find_objects('track', **kwargs)
 
     def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
-        return QueryResults.new(self, obj_type, section, **kwargs)
+        return QueryResults.new(self, _normalize_type(obj_type), section, **kwargs)
 
     @property
     def playlists(self) -> dict[str, PlexPlaylist]:
@@ -245,3 +252,14 @@ class LocalPlexServer:
         if (playlist := PlexPlaylist(name, self)).exists:
             return playlist
         raise ValueError(f'Playlist {name!r} does not exist')
+
+
+def _normalize_type(obj_type: PlexObjTypes) -> PlexObjTypes:
+    obj_type = obj_type.lower()
+    if obj_type in TYPE_SECTION_MAP:
+        return obj_type  # noqa
+    if obj_type.endswith('s'):
+        fixed = obj_type[:-1]
+        if fixed in TYPE_SECTION_MAP:
+            return fixed  # noqa
+    raise ValueError(f'Invalid {obj_type=} - expected one of: {", ".join(sorted(TYPE_SECTION_MAP))}')

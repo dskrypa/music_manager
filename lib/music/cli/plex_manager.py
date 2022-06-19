@@ -223,7 +223,7 @@ class ShowDupeRatings(PlexManager, help='Show duplicate ratings'):
         print_dupe_ratings_by_artist(self.plex)
 
 
-class FixBlankTitles(PlexManager, help='Fix albums containing tracks with blank titles'):
+class FixBlankTitles(PlexManager, choice='fix blank titles', help='Fix albums containing tracks with blank titles'):
     def main(self, *args, **kwargs):
         albums = {track.album() for track in self.plex.get_tracks() if track.title == ''}
         log.info(f'Found {len(albums)} albums containing tracks that have blank titles')

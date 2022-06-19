@@ -4,19 +4,20 @@ High level PySimpleGUI elements that represent Plex objects
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
-from base64 import b64encode
 from datetime import datetime
 from functools import cached_property
-from io import BytesIO
 from itertools import count
 from math import ceil
 from operator import itemgetter
 from pathlib import Path
 from tempfile import gettempdir
-from typing import Union, Collection, Optional, Iterable
+from typing import TYPE_CHECKING, Union, Collection, Optional, Iterable
 from urllib.parse import quote
 
+from cachetools import LRUCache
 from plexapi.audio import Track, Album, Artist
 from plexapi.video import Movie, Show, Season, Episode
 from PySimpleGUI import Column, HorizontalSeparator, Image, Button
@@ -29,12 +30,17 @@ from ..elements import ExtendedImage, Rating, ExtText
 from ..popups.text import popup_ok
 from ..progress import Spinner
 
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
+    from requests import Response
+
 __all__ = ['ResultRow', 'ResultTable']
 log = logging.getLogger(__name__)
-ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
-TMP_DIR = Path(gettempdir()).joinpath('plex', 'images')
+
 PlexObj = Union[Track, Album, Artist, Movie, Show, Season, Episode]
-PLAY_ICON = Icons(15).draw('play')
+ImageOrImages = Union[ImageType, tuple[ImageType, ImageType]]
+
+JPEG_RAW_MODES = {'1', 'L', 'RGB', 'RGBX', 'CMYK', 'YCbCr'}
 FIELD_SIZES = {
     'year': (4, 1),
     'artist': (30, 1),
@@ -63,6 +69,56 @@ DEFAULT_SORT_FIELDS = {
     'season': ('show', 'title'),
     'episode': ('show', 'season', 'title'),
 }
+
+
+class ImageCache:
+    def __init__(self, cache_dir: Union[str, Path] = None, size: int = 100):
+        self.icons_dir = Path(__file__).resolve().parents[4].joinpath('icons')
+        if cache_dir is None:
+            self.cache_dir = Path(gettempdir()).joinpath('plex', 'images')
+        else:
+            self.cache_dir = Path(cache_dir).expanduser()
+        self.mem_cache = LRUCache(size)
+
+    def get_images(self, plex_obj: PlexObj, img_size: tuple[int, int]) -> ImageOrImages:
+        full_rel_path: str = plex_obj.thumb[1:]
+        cache_key = (full_rel_path, img_size)
+        try:
+            return self.mem_cache[cache_key]
+        except KeyError:
+            pass
+
+        self.mem_cache[cache_key] = images = self._get_images(plex_obj, full_rel_path, img_size)
+        return images
+
+    def _get_images(self, plex_obj: PlexObj, full_rel_path: str, img_size: tuple[int, int]) -> ImageOrImages:
+        full_size_path = self.cache_dir.joinpath(full_rel_path)
+        thumb_path = full_size_path.with_name('{}__{}x{}'.format(full_size_path.name, *img_size))
+        if self._can_use_thumb_path(thumb_path):
+            return thumb_path, full_size_path
+        elif full_size_path.exists():
+            return convert_and_save_thumbnail(full_size_path, thumb_path, img_size), full_size_path
+
+        server = plex_obj._server
+        try:
+            resp: Response = server._session.get(server.url(plex_obj.thumb), headers=server._headers())
+            resp.raise_for_status()
+        except RequestException as e:
+            log.debug(f'Error retrieving image for {plex_obj}: {e}')
+            return self.icons_dir.joinpath('x.png')
+        else:
+            log.debug(f'Saving image for {plex_obj} to {full_size_path.as_posix()}')
+            save_image(resp.content, full_size_path)
+            return convert_and_save_thumbnail(resp.content, thumb_path, img_size), full_size_path
+
+    @classmethod
+    def _can_use_thumb_path(cls, path: Path) -> bool:
+        if not path.exists():
+            return False
+        if path.stat().st_size == 0:
+            path.unlink()
+            return False
+        return True
 
 
 class Result:
@@ -115,30 +171,6 @@ class Result:
 
         return field_value_map
 
-    def get_images(self, img_size: tuple[int, int]) -> Union[ImageType, tuple[ImageType, ImageType]]:
-        full_size_path = TMP_DIR.joinpath(self.plex_obj.thumb[1:])
-        thumb_path = full_size_path.with_name('{}__{}x{}'.format(full_size_path.name, *img_size))
-        if thumb_path.exists():
-            return thumb_path, full_size_path
-        elif full_size_path.exists():
-            return convert_and_save_thumbnail(full_size_path, thumb_path, img_size), full_size_path
-
-        server = self.plex_obj._server
-        try:
-            resp = server._session.get(server.url(self.plex_obj.thumb), headers=server._headers())
-            resp.raise_for_status()
-        except RequestException as e:
-            log.debug(f'Error retrieving image for {self.plex_obj}: {e}')
-            return ICONS_DIR.joinpath('x.png')
-        else:
-            if not full_size_path.parent.exists():
-                full_size_path.parent.mkdir(parents=True)
-            log.debug(f'Saving image for {self.plex_obj} to {full_size_path.as_posix()}')
-            image_bytes = resp.content
-            with full_size_path.open('wb') as f:
-                f.write(image_bytes)
-            return convert_and_save_thumbnail(image_bytes, thumb_path, img_size), full_size_path
-
     @property
     def rating(self) -> Optional[int]:
         return self.plex_obj.userRating if not isinstance(self.plex_obj, Season) else None
@@ -172,15 +204,14 @@ class Result:
 
 class ResultRow:
     __counter = count()
-    _play_icon = None
+    _img_cache = ImageCache()
+    _play_icon = Icons(15).draw_base64('play')
 
     def __init__(self, img_size: tuple[int, int] = None):
         self.img_size = img_size or (40, 40)
         self._num = next(self.__counter)
         kp = f'result:{self._num}'
         self.image = ExtendedImage(size=self.img_size, key=f'{kp}:cover', pad=((20, 5), 3))
-        if self._play_icon is None:
-            ResultRow._play_icon = img_to_b64(PLAY_ICON)
         self.play_button = Button(image_data=self._play_icon, key=f'{kp}:play')
         self.result_type = None
         self.fields: dict[str, ExtText] = {
@@ -225,7 +256,7 @@ class ResultRow:
             self.fields[field].update(value, link=result.get_link(field))
         if (rating := result.rating) is not None:
             self.rating.update(rating)
-        self.image.image = result.get_images(self.img_size)
+        self.image.image = self._img_cache.get_images(result.plex_obj, self.img_size)
         self.row[0].unhide_row()
         self.visible = True
 
@@ -339,17 +370,23 @@ class ResultTable(Column):
         self.last_page_count = 0
 
 
+def save_image(image: Union[PILImage, bytes], path: Path) -> Union[PILImage, bytes]:
+    if not path.parent.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+    if isinstance(image, bytes):
+        path.write_bytes(image)
+    else:
+        save_fmt = 'png' if image.mode == 'RGBA' else 'jpeg'
+        if save_fmt == 'jpeg' and image.mode not in JPEG_RAW_MODES:
+            image = image.convert('RGB')
+        with path.open('wb') as f:
+            image.save(f, save_fmt)
+
+    return image
+
+
 def convert_and_save_thumbnail(image: ImageType, thumb_path: Path, img_size: tuple[int, int]):
     thumbnail = scale_image(as_image(image), *img_size)
-    if not thumb_path.parent.exists():
-        thumb_path.parent.mkdir(parents=True)
     log.debug(f'Saving image thumbnail to {thumb_path.as_posix()}')
-    with thumb_path.open('wb') as f:
-        thumbnail.save(f, 'png' if thumbnail.mode == 'RGBA' else 'jpeg')
-    return thumbnail
-
-
-def img_to_b64(image) -> bytes:
-    bio = BytesIO()
-    image.save(bio, 'PNG')
-    return b64encode(bio.getvalue())
+    return save_image(thumbnail, thumb_path)

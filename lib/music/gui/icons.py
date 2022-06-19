@@ -5,18 +5,24 @@ bootstrap-icons font.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import json
 import logging
+from base64 import b64encode
+from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from PIL import Image
-from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw, Draw
 from PIL.ImageFont import FreeTypeFont, truetype
 
 from ds_tools.images.colors import Color, color_to_rgb
-from ds_tools.images.utils import Size
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
+    from ds_tools.images.utils import Size
 
 __all__ = ['Icons']
 log = logging.getLogger(__name__)
@@ -67,3 +73,9 @@ class Icons:
         draw = Draw(image)  # type: ImageDraw
         draw.text((0, 0), icon, fill=color_to_rgb(color), font=font)
         return image
+
+    def draw_base64(self, *args, **kwargs) -> bytes:
+        bio = BytesIO()
+        image = self.draw(*args, **kwargs)
+        image.save(bio, 'PNG')
+        return b64encode(bio.getvalue())

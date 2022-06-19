@@ -1,252 +1,298 @@
-# PYTHON_ARGCOMPLETE_OK
-
-import logging
-from datetime import date
+from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, ParamGroup, main
 
 from ..__version__ import __author_email__, __version__  # noqa
-from ds_tools.argparsing import ArgParser
-from ds_tools.core.main import wrap_main
-
-log = logging.getLogger(__name__)
-ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
-DEFAULT_DEST_DIR = './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
-SHOW_ARGS = {
-    'info': 'Show track title, length, tag version, and tags', 'meta': 'Show track title, length, and tag version',
-    'count': 'Count tracks by tag', 'table': 'Show tags in a table', 'unique': 'Count tracks with unique tag values',
-    'processed': 'Show processed album info'
-}
 
 
-def parser():
-    # fmt: off
-    parser = ArgParser(description='Music Manager')
+class MusicManager(Command, description='Music Manager'):
+    sub_cmd = SubCommand()
+    with ParamGroup('Common') as group:
+        verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
+        dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
+        match_log = Flag(help='Enable debug logging for the album match processing logger')
 
-    # region File Actions
-    with parser.add_subparser('action', 'show', help='Show song/tag information') as show_parser:
-        for name, help_text in SHOW_ARGS.items():
-            with show_parser.add_subparser('sub_action', name, help=help_text) as _parser:
-                _parser.add_argument('path', nargs='*', default=['.'], help='Paths for music files or directories containing music files')
-                if name in ('info', 'unique', 'table'):
-                    _parser.add_argument('--tags', '-t', nargs='+', help='The tags to display', required=(name == 'unique'))
-                if name == 'info':
-                    _parser.add_argument('--no_trim', '-T', action='store_true', help='Do not trim tag IDs')
-                if name == 'processed':
-                    _parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
-                    _parser.add_argument('--only_errors', '-E', action='store_true', help='Only print entries with processing errors')
+    def _before_main_(self):
+        super()._before_main_()
+        import logging
+        from ds_tools.logging import init_logging
 
-    with parser.add_subparser('action', 'path2tag', help='Update tags based on the path to each file') as p2t_parser:
-        p2t_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        p2t_parser.add_argument('--title', '-t', action='store_true', help='Update title based on filename')
-        p2t_parser.add_argument('--yes', '-y', action='store_true', help='Skip confirmation prompts')
+        init_logging(self.verbose, log_path=None, names=None)
 
-    with parser.add_subparser('action', 'update', help='Set the value of the given tag on all music files in the given path') as set_parser:
-        set_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        set_parser.add_argument('--no_album_move', '-M', action='store_true', help='Do not rename the album directory (only applies to --load/-L)')
-        set_parser.add_argument('--replace_genre', '-G', action='store_true', help='Replace genre instead of combining genres')
+        from music.files.patches import apply_mutagen_patches
+        apply_mutagen_patches()
 
-        set_from_file = set_parser.add_argument_group('Load File Options', 'Options for loading updates from a file - may notbe combined with arguments from other option groups')
-        set_from_file.add_argument('--load', '-L', metavar='PATH', help='Load updates from a json file (may not be combined with other options)')
-        set_from_file.add_argument('--destination', '-d', metavar='PATH', help=f'Destination base directory for sorted files (default: {DEFAULT_DEST_DIR})')
-
-        set_from_args = set_parser.add_argument_group('Tag Update Options')
-        set_from_args.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to modify (required)')
-        set_from_args.add_argument('--value', '-V', help='Value to replace existing values with (required)')
-        set_from_args.add_argument('--replace', '-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
-        set_from_args.add_argument('--partial', '-p', action='store_true', help='Update only parts of tags that match a pattern specified via --replace/-r')
-
-        set_parser.add_mutually_exclusive_arg_sets(set_from_file, set_from_args)
-
-    with parser.add_subparser('action', 'clean', help='Clean undesirable tags from the specified files') as clean_parser:
-        clean_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        bpm_group = clean_parser.add_mutually_exclusive_group()
-        bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
-        bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
-
-    with parser.add_subparser('action', 'remove', help='Remove the specified tags from the specified files') as rm_parser:
-        rm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        rm_group = rm_parser.add_mutually_exclusive_group()
-        rm_group.add_argument('--tag', '-t', nargs='+', help='Tag ID(s) to remove')
-        rm_group.add_argument('--all', '-A', action='store_true', help='Remove ALL tags')
-
-    with parser.add_subparser('action', 'bpm', help='Add BPM info to the specified files') as bpm_parser:
-        bpm_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-        bpm_parser.include_common_args(parallel=4)
-        # bpm_parser.add_argument('--parallel', '-P', type=int, default=1, help='Maximum number of workers to use in parallel (default: %(default)s)'))
-
-    with parser.add_subparser('action', 'dump', help='Dump tag info about the specified files to json') as dump_parser:
-        dump_parser.add_argument('path', help='A path for a music file or a directory containing music files')
-        dump_parser.add_argument('output', help='The destination file path')
-        dump_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
-
-    with parser.add_subparser('action', 'cover', help='Extract or add cover art') as cover_parser:
-        cover_parser.add_argument('path', help='A path for a music file or a directory containing music files')
-
-        dump_cover_group = cover_parser.add_argument_group('Save Cover Options')
-        dump_cover_group.add_argument('--save', '-s', metavar='PATH', help='Path to save the cover images from the specified file(s)')
-
-        load_cover_group = cover_parser.add_argument_group('Load Cover Options')
-        load_cover_group.add_argument('--load', '-L', metavar='PATH', help='Path to an image file')
-        load_cover_group.add_argument('--max_width', '-w', type=int, default=1200, help='Resize the provided image if it is larger than this value')
-
-        del_cover_group = cover_parser.add_argument_group('Save Cover Options')
-        del_cover_group.add_argument('--remove', '-R', action='store_true', help='Remove all cover images')
-
-        cover_parser.add_mutually_exclusive_arg_sets(dump_cover_group, load_cover_group, del_cover_group)
-    # endregion
-
-    with parser.add_subparser('action', 'wiki', help='Wiki matching / informational functions') as wiki_parser:
-        with wiki_parser.add_subparser('sub_action', 'pprint', help='Pretty-print the parsed page content') as pp_parser:
-            pp_parser.add_argument('url', help='A wiki entity URL')
-            pp_parser.add_argument('--mode', '-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode (default: %(default)s)')
-
-        with wiki_parser.add_subparser('sub_action', 'raw', help='Print the raw page content') as ppr_parser:
-            ppr_parser.add_argument('url', help='A wiki entity URL')
-
-        with wiki_parser.add_subparser('sub_action', 'show', help='Show info about the entity with the given URL') as ws_parser:
-            ws_parser.add_argument('identifier', help='A wiki URL or title/name')
-            ws_parser.add_argument('--expand', '-x', action='count', default=0, help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
-            ws_parser.add_argument('--limit', '-L', type=int, default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
-            ws_parser.add_argument('--types', '-t', nargs='+', help='Filter albums to only those that match the specified types')
-            ws_parser.add_argument('--type', '-T', help='An EntertainmentEntity subclass to require that the given page matches')
-
-        with wiki_parser.add_subparser('sub_action', 'update', help='Update tracks in the given path(s) based on wiki info') as upd_parser:
-            upd_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-            upd_parser.add_argument('--destination', '-d', metavar='PATH', default=DEFAULT_DEST_DIR, help='Destination base directory for sorted files (default: %(default)s)')
-            upd_parser.add_argument('--url', '-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
-            upd_parser.add_argument('--soloist', '-S', action='store_true', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
-            upd_parser.add_argument('--collab_mode', '-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both (default: %(default)s)')
-            upd_parser.add_argument('--hide_edition', '-E', action='store_true', help='Exclude the edition from the album title, if present (default: include it)')
-            upd_parser.add_argument('--title_case', '-T', action='store_true', help='Fix track and album names to use Title Case when they are all caps')
-            upd_parser.add_argument('--artist', '-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
-            upd_parser.add_argument('--update_cover', '-C', action='store_true', help='Update the cover art for the album if it does not match an image in the matched wiki page')
-            upd_parser.add_argument('--no_album_move', '-M', action='store_true', help='Do not rename the album directory')
-            upd_parser.add_argument('--artist_only', '-I', action='store_true', help='Only match the artist / only use the artist URL if provided')
-            upd_parser.add_argument('--replace_genre', '-G', action='store_true', help='Replace genre instead of combining genres')
-
-            upd_sites = upd_parser.add_argument_group('Site Options').add_mutually_exclusive_group()
-            upd_sites.add_argument('--sites', '-s', nargs='+', default=None, help='The wiki sites to search')
-            upd_sites.add_argument('--all', '-A', action='store_const', const=ALL_SITES, dest='sites', help='Search all sites')
-            upd_sites.add_argument('--ost', '-O', action='store_const', const=['wiki.d-addicts.com'], dest='sites', help='Search only wiki.d-addicts.com')
-
-            bpm_group = upd_parser.add_argument_group('BPM Options').add_mutually_exclusive_group()
-            bpm_group.add_argument('--bpm', '-b', action='store_true', default=None, help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
-            bpm_group.add_argument('--no_bpm', '-B', dest='bpm', action='store_false', help='Do not add a BPM tag if it is not already present')
-
-            upd_data = upd_parser.add_argument_group('Track Data Options').add_mutually_exclusive_group()
-            upd_data.add_argument('--dump', '-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
-            upd_data.add_argument('--load', '-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
-
-        with wiki_parser.add_subparser('sub_action', 'match', help='Match tracks in the given path(s) with wiki info') as match_parser:
-            match_parser.add_argument('path', nargs='+', help='One or more paths of music files or directories containing music files')
-
-        with wiki_parser.add_subparser('sub_action', 'test', help='Test matching of tracks in a given path with a given wiki URL') as test_parser:
-            test_parser.add_argument('path', help='One path of music files or directories containing music files')
-            test_parser.add_argument('url', help='A wiki URL for a page to test whether it matches the given files')
-
-    parser.include_common_args('verbosity', 'dry_run')
-    parser.add_common_sp_arg('--match_log', action='store_true', help='Enable debug logging for the album match processing logger')
-    # fmt: on
-    return parser
+        # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
+        if self.match_log:
+            logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
 
-@wrap_main
-def main():
-    args = parser().parse_args()
+# region Show Commands
 
-    from ds_tools.logging import init_logging
-    init_logging(args.verbose, log_path=None, names=None)
 
-    from music.common.utils import can_add_bpm
-    from music.files.patches import apply_mutagen_patches
-    apply_mutagen_patches()
+class Show(MusicManager, help='Show song/tag information'):
+    sub_cmd = SubCommand()
 
-    # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
-    if args.match_log:
-        logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
-    action, sub_action = args.action, getattr(args, 'sub_action', None)
-    if action == 'show':
-        from music.manager.file_info import (
-            print_track_info, table_song_tags, table_tag_type_counts, table_unique_tag_values, print_processed_info
-        )
-        if sub_action == 'info':
-            print_track_info(args.path, args.tags, trim=not args.no_trim)
-        elif sub_action == 'meta':
-            print_track_info(args.path, meta_only=True)
-        elif sub_action == 'count':
-            table_tag_type_counts(args.path)
-        elif sub_action == 'unique':
-            table_unique_tag_values(args.path, args.tags)
-        elif sub_action == 'table':
-            table_song_tags(args.path, args.tags)
-        elif sub_action == 'processed':
-            print_processed_info(args.path, args.expand, args.only_errors)
-        else:
-            raise ValueError(f'Unexpected sub-action: {sub_action!r}')
-    elif action in {'path2tag', 'clean', 'remove', 'bpm'} or (action == 'update' and not args.load):
-        from music.manager.file_update import (
-            path_to_tag, update_tags_with_value, clean_tags, remove_tags, add_track_bpm
-        )
-        if action == 'path2tag':
-            path_to_tag(args.path, args.dry_run, args.yes, args.title)
-        elif action == 'clean':
-            bpm = can_add_bpm() if args.bpm is None else args.bpm
-            clean_tags(args.path, args.dry_run, bpm)
-        elif action == 'remove':
-            if not args.tag and not args.all:
-                raise ValueError('Either --tag/-t or --all/-A must be provided')
-            remove_tags(args.path, args.tag, args.dry_run, args.all)
-        elif action == 'bpm':
-            add_track_bpm(args.path, args.parallel, args.dry_run)
-        elif action == 'update':
-            if not args.tag or not args.value:
-                raise ValueError('Both --tag/-t and --value/-V are required')
-            update_tags_with_value(args.path, args.tag, args.value, args.replace, args.partial, args.dry_run)
-    elif action == 'wiki':
-        if sub_action == 'update':
-            from music.manager.wiki_update import update_tracks
-            bpm = can_add_bpm() if args.bpm is None else args.bpm
-            update_tracks(
-                args.path, args.dry_run, args.soloist, args.hide_edition, args.collab_mode, args.url, bpm,
-                args.destination, args.title_case, args.sites, args.dump, args.load, args.artist, args.update_cover,
-                args.no_album_move, args.artist_only, not args.replace_genre
+class ShowInfo(Show, choice='info', help='Show track title, length, tag version, and tags'):
+    path = Positional(nargs='*', help='Paths for music files or directories containing music files')
+    tags = Option('-t', nargs='+', help='The tags to display')
+    no_trim = Flag('-T', help='Do not trim tag IDs')
+
+    def main(self):
+        from music.manager.file_info import print_track_info
+        print_track_info(self.path or '.', self.tags, trim=not self.no_trim)
+
+
+class ShowMeta(Show, choice='meta', help='Show track title, length, and tag version'):
+    path = Positional(nargs='*', help='Paths for music files or directories containing music files')
+
+    def main(self):
+        from music.manager.file_info import print_track_info
+        print_track_info(self.path or '.', meta_only=True)
+
+
+class ShowCount(Show, choice='count', help='Count tracks by tag'):
+    path = Positional(nargs='*', help='Paths for music files or directories containing music files')
+
+    def main(self):
+        from music.manager.file_info import table_tag_type_counts
+        table_tag_type_counts(self.path or '.')
+
+
+class ShowTable(Show, choice='table', help='Show tags in a table'):
+    path = Positional(nargs='*', help='Paths for music files or directories containing music files')
+    tags = Option('-t', nargs='+', help='The tags to display')
+
+    def main(self):
+        from music.manager.file_info import table_song_tags
+        table_song_tags(self.path or '.', self.tags)
+
+
+class ShowUnique(Show, choice='unique', help='Count tracks with unique tag values'):
+    path = Positional(nargs='*', help='Paths for music files or directories containing music files')
+    tags = Option('-t', nargs='+', help='The tags to display', required=True)
+
+    def main(self):
+        from music.manager.file_info import table_unique_tag_values
+        table_unique_tag_values(self.path or '.', self.tags)
+
+
+class ShowProcessed(Show, choice='processed', help='Show processed album info'):
+    path = Positional(nargs='*', help='Paths for music files or directories containing music files')
+    expand = Counter('-x', help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
+    only_errors = Flag('-E', help='Only print entries with processing errors')
+
+    def main(self):
+        from music.manager.file_info import print_processed_info
+        print_processed_info(self.path or '.', self.expand, self.only_errors)
+
+
+# endregion
+
+
+class Path2Tag(MusicManager, help='Update tags based on the path to each file'):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    title = Flag('-t', help='Update title based on filename')
+    yes = Flag('-y', help='Skip confirmation prompts')
+
+    def main(self):
+        from music.manager.file_update import path_to_tag
+        path_to_tag(self.path, self.dry_run, self.yes, self.title)
+
+
+class Clean(MusicManager, help='Clean undesirable tags from the specified files'):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    with ParamGroup(mutually_exclusive=True):
+        bpm = Flag('-b', help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
+        no_bpm = Flag('-B', default=True, help='Do not add a BPM tag if it is not already present')
+
+    def main(self):
+        from music.manager.file_update import clean_tags
+        from music.common.utils import can_add_bpm
+
+        bpm = can_add_bpm() if not self.bpm and self.no_bpm else self.bpm
+        clean_tags(self.path, self.dry_run, bpm)
+
+
+class Remove(MusicManager, help='Remove the specified tags from the specified files'):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    with ParamGroup(mutually_exclusive=True):
+        tag = Option('-t', nargs='+', help='Tag ID(s) to remove')
+        all = Flag('-A', help='Remove ALL tags')
+
+    def main(self):
+        from music.manager.file_update import remove_tags
+        if not self.tag and not self.all:
+            raise ValueError('Either --tag/-t or --all/-A must be provided')
+        remove_tags(self.path, self.tag, self.dry_run, self.all)
+
+
+class Bpm(MusicManager, help='Add BPM info to the specified files'):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    parallel: int = Option('-P', default=4, help='Maximum number of workers to use in parallel')
+
+    def main(self):
+        from music.manager.file_update import add_track_bpm
+        add_track_bpm(self.path, self.parallel, self.dry_run)
+
+
+class Update(MusicManager, help='Set the value of the given tag on all music files in the given path'):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    no_album_move = Flag('-M', help='Do not rename the album directory (only applies to --load/-L)')
+    replace_genre = Flag('-G', help='Replace genre instead of combining genres')
+
+    with ParamGroup(mutually_exclusive=True):
+        with ParamGroup('Load File'):
+            load = Option('-L', metavar='PATH', required=True, help='Load updates from a json file (may not be combined with other options)')
+            destination = Option('-d', metavar='PATH', help=f"Destination base directory for sorted files (default: based on today's date)")
+        with ParamGroup('Tag Update'):
+            tag = Option('-t', nargs='+', required=True, help='Tag ID(s) to modify (required)')
+            value = Option('-V', required=True, help='Value to replace existing values with (required)')
+            replace = Option('-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
+            partial = Flag('-p', help='Update only parts of tags that match a pattern specified via --replace/-r')
+
+    def main(self):
+        if self.load:
+            from datetime import date
+            from music.manager.update import AlbumInfo
+
+            AlbumInfo.load(self.load).update_and_move(
+                dest_base_dir=self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d')),
+                dry_run=self.dry_run,
+                no_album_move=self.no_album_move,
+                add_genre=not self.replace_genre,
             )
-        elif sub_action in {'match', 'test'}:
-            from music.manager.wiki_match import show_matches, test_match
-            if sub_action == 'match':
-                show_matches(args.path)
-            elif sub_action == 'test':
-                test_match(args.path, args.url)
-        elif sub_action in {'show', 'pprint', 'raw'}:
-            from music.manager.wiki_info import show_wiki_entity, pprint_wiki_page
-            if sub_action == 'show':
-                show_wiki_entity(args.identifier, args.expand, args.limit, args.types, args.type)
-            elif sub_action == 'pprint':
-                pprint_wiki_page(args.url, args.mode)
-            elif sub_action == 'raw':
-                pprint_wiki_page(args.url, 'raw')
         else:
-            raise ValueError(f'Unexpected sub-action: {sub_action!r}')
-    elif action in {'update', 'dump'}:
+            from music.manager.file_update import update_tags_with_value
+
+            update_tags_with_value(self.path, self.tag, self.value, self.replace, self.partial, self.dry_run)
+
+
+class Dump(MusicManager, help='Dump tag info about the specified files to json'):
+    path = Positional(help='A path for a music file or a directory containing music files')
+    output = Positional(help='The destination file path')
+    title_case = Flag('-T', help='Fix track and album names to use Title Case when they are all caps')
+
+    def main(self):
         from music.manager.update import AlbumInfo
-        if action == 'dump':
-            AlbumInfo.from_path(args.path).dump(args.output, args.title_case)
-        elif action == 'update':
-            if not args.load:
-                raise ValueError('--load PATH is required')
-            AlbumInfo.load(args.load).update_and_move(
-                dest_base_dir=args.destination,
-                dry_run=args.dry_run,
-                no_album_move=args.no_album_move,
-                add_genre=not args.replace_genre,
-            )
-    elif action == 'cover':
+
+        AlbumInfo.from_path(self.path).dump(self.output, self.title_case)
+
+
+class Cover(MusicManager, help='Extract or add cover art'):
+    path = Positional(help='A path for a music file or a directory containing music files')
+    with ParamGroup(mutually_exclusive=True):
+        with ParamGroup('Save Cover'):
+            save = Option('-s', metavar='PATH', help='Path to save the cover images from the specified file(s)')
+        with ParamGroup('Load Cover'):
+            load = Option('-L', metavar='PATH', help='Path to an image file')
+            max_width: int = Option('-w', default=1200, help='Resize the provided image if it is larger than this value')
+        with ParamGroup('Remove Cover'):
+            remove = Flag('-R', help='Remove all cover images')
+
+    def main(self):
         from music.manager.images import extract_album_art, set_album_art, del_album_art
-        if args.save:
-            extract_album_art(args.path, args.save)
-        elif args.load:
-            set_album_art(args.path, args.load, args.max_width, args.dry_run)
-        elif args.remove:
-            del_album_art(args.path, args.dry_run)
-    else:
-        raise ValueError(f'Unexpected action: {action!r}')
+
+        if self.save:
+            extract_album_art(self.path, self.save)
+        elif self.load:
+            set_album_art(self.path, self.load, self.max_width, self.dry_run)
+        elif self.remove:
+            del_album_art(self.path, self.dry_run)
+
+
+# region Wiki Commands
+
+
+class Wiki(MusicManager, help='Wiki matching / informational functions'):
+    sub_cmd = SubCommand()
+
+
+class WikiPprint(Wiki, choice='pprint', help=''):
+    url = Positional(help='A wiki entity URL')
+    mode = Option('-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode')
+
+    def main(self):
+        from music.manager.wiki_info import pprint_wiki_page
+        pprint_wiki_page(self.url, self.mode)
+
+
+class WikiRaw(Wiki, choice='raw', help=''):
+    url = Positional(help='A wiki entity URL')
+
+    def main(self):
+        from music.manager.wiki_info import pprint_wiki_page
+        pprint_wiki_page(self.url, 'raw')
+
+
+class WikiShow(Wiki, choice='show', help=''):
+    identifier = Positional(help='A wiki URL or title/name')
+    expand = Counter('-x', help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
+    limit: int = Option('-L', default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
+    types = Option('-t', nargs='+', help='Filter albums to only those that match the specified types')
+    type = Option('-T', help='An EntertainmentEntity subclass to require that the given page matches')
+
+    def main(self):
+        from music.manager.wiki_info import show_wiki_entity
+        show_wiki_entity(self.identifier, self.expand, self.limit, self.types, self.type)
+
+
+class WikiUpdate(Wiki, choice='update', help=''):
+    _ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    destination = Option('-d', metavar='PATH', help=f"Destination base directory for sorted files (default: based on today's date)")
+    url = Option('-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
+    collab_mode = Option('-c', choices=('title', 'artist', 'both'), default='artist', help='List collaborators in the artist tag, the title tag, or both')
+    artist = Option('-a', metavar='URL', help='Force the use of the given artist instead of an automatically discovered one')
+    soloist = Flag('-S', help='For solo artists, use only their name instead of including their group, and do not sort them with their group')
+    hide_edition = Flag('-E', help='Exclude the edition from the album title, if present (default: include it)')
+    title_case = Flag('-T', help='Fix track and album names to use Title Case when they are all caps')
+    update_cover = Flag('-C', help='Update the cover art for the album if it does not match an image in the matched wiki page')
+    no_album_move = Flag('-M', help='Do not rename the album directory')
+    artist_only = Flag('-I', help='Only match the artist / only use the artist URL if provided')
+    replace_genre = Flag('-G', help='Replace genre instead of combining genres')
+
+    with ParamGroup('Site', mutually_exclusive=True):
+        sites = Option('-s', nargs='+', choices=_ALL_SITES, help='The wiki sites to search')
+        all = Flag('-A', help='Search all sites')
+        ost = Flag('-O', help='Search only wiki.d-addicts.com')
+    with ParamGroup('BPM', mutually_exclusive=True):
+        bpm = Flag('-b', help='Add a BPM tag if it is not already present (default: True if aubio is installed)')
+        no_bpm = Flag('-B', default=True, help='Do not add a BPM tag if it is not already present')
+    with ParamGroup('Track Data', mutually_exclusive=True):
+        dump = Option('-P', metavar='PATH', help='Dump track updates to a json file instead of updating the tracks')
+        load = Option('-L', metavar='PATH', help='Load track updates from a json file instead of from a wiki')
+
+    def main(self):
+        from datetime import date
+        from music.manager.wiki_update import update_tracks
+        from music.common.utils import can_add_bpm
+
+        sites = self.sites or ['wiki.d-addicts.com'] if self.ost else self._ALL_SITES
+        destination = self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
+
+        bpm = can_add_bpm() if not self.bpm and self.no_bpm else self.bpm
+        update_tracks(
+            self.path, self.dry_run, self.soloist, self.hide_edition, self.collab_mode, self.url, bpm,
+            destination, self.title_case, sites, self.dump, self.load, self.artist, self.update_cover,
+            self.no_album_move, self.artist_only, not self.replace_genre
+        )
+
+
+class WikiMatch(Wiki, choice='match', help=''):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+
+    def main(self):
+        from music.manager.wiki_match import show_matches
+        show_matches(self.path)
+
+
+class WikiTest(Wiki, choice='test', help=''):
+    path = Positional(help='One path of music files or directories containing music files')
+    url = Positional(help='A wiki URL for a page to test whether it matches the given files')
+
+    def main(self):
+        from music.manager.wiki_match import test_match
+        test_match(self.path, self.url)
+
+
+# endregion

@@ -11,6 +11,8 @@ from weakref import WeakSet
 
 from PySimpleGUI import Window as _Window
 
+from .utils import FinishInitMixin
+
 __all__ = ['Window']
 log = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ class Window(_Window):
 
     def finalize(self):
         super().finalize()
+        FinishInitMixin.finish_init_all()
         self.TKroot.after(250, self._sigint_fix)
         if (callback := self._finalize_callback) is not None:
             callback()

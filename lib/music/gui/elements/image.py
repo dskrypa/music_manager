@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from inspect import Signature
 from itertools import count
 from pathlib import Path
-from tkinter import Label
+from tkinter import Label, TclError
 from typing import Optional, Callable, Union
 
 from PIL import Image
@@ -23,12 +23,13 @@ from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
 from ds_tools.images.lcd import SevenSegmentDisplay
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
+from ..utils import FinishInitMixin, padding
 
 __all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage', 'ClockImage']
 log = logging.getLogger(__name__)
 
 
-class ExtendedImage(ImageElement):
+class ExtendedImage(ImageElement, FinishInitMixin):
     animated: bool = False
 
     def __init_subclass__(cls, animated: bool = False):
@@ -43,25 +44,34 @@ class ExtendedImage(ImageElement):
         click_image: ImageType = None,
         **kwargs
     ):
+        ImageElement.__init__(self, **kwargs)
         self._bind_click = bind_click
         self.click_image = click_image
         self._image = None
-        super().__init__(**kwargs)
         self.image = image
         self._popup_title = popup_title
         self._current_size = self._get_size(*self.Size)
         self._init_callback = init_callback
         self._animation = None  # type: Optional[Animation]
         self._current_image = None
+        FinishInitMixin.__init__(self)
 
     def __repr__(self):
-        if (widget := self._widget) is not None:
-            size = widget.winfo_width(), widget.winfo_height()
-            pos = widget.winfo_x(), widget.winfo_y()
+        if not self.Disabled and (widget := self._widget) is not None:
+            size, pos = self._size_and_pos(widget)
         else:
             size = self.Size
             pos = ('?', '?')
-        return f'<{self.__class__.__qualname__}[key={self.Key!r}, {size=} {pos=}]>'
+        return f'<{self.__class__.__qualname__}[key={self.Key!r}, {size=} {pos=}, {self.Disabled=}, {self.animated=}]>'
+
+    def _size_and_pos(self, widget) -> tuple[tuple[int, int], Union[tuple[int, int], tuple[str, str]]]:
+        try:
+            size = widget.winfo_width(), widget.winfo_height()
+            pos = widget.winfo_x(), widget.winfo_y()
+        except TclError:
+            size = self.Size
+            pos = ('?', '?')
+        return size, pos
 
     @property
     def position(self):
@@ -81,8 +91,6 @@ class ExtendedImage(ImageElement):
     def Widget(self, tktext_label: Label):
         self._widget = tktext_label
         if tktext_label is not None:
-            if self._image or self.animated:
-                self.resize(*self.Size)
             if callback := self._init_callback:
                 callback(self)
 
@@ -102,7 +110,13 @@ class ExtendedImage(ImageElement):
     def current_size(self):
         return self._current_size
 
+    def finish_init(self):
+        if self._image or self.animated:
+            self.resize(*self.Size)
+
     def resize(self, width: int, height: int):
+        if not self._widget_was_created():
+            return
         if image := self._image:
             new_w, new_h = self._get_size(width, height)
             # self.log.log(19, f'Resizing image from {img_w}x{img_h} to {new_w}x{new_h}')
@@ -120,7 +134,10 @@ class ExtendedImage(ImageElement):
                     self._current_size = (new_w, new_h)
                     self._widget.configure(image=tk_image, width=new_w, height=new_h)
                     self._widget.image = tk_image
-                    self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+                    # self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
+                    # self._widget.pack(**padding(self))
+                    self._pack_restore_settings()
+
             if self._bind_click:
                 self._widget.bind('<Button-1>', self.handle_click)
 
@@ -173,6 +190,9 @@ class SpinnerImage(ExtendedImage, animated=True):
         if self._bind_click:
             self._widget.bind('<Button-1>', self.handle_click)
 
+    def finish_init(self):
+        return
+
 
 class ClockImage(ExtendedImage, animated=True):
     _clock: SevenSegmentDisplay
@@ -220,8 +240,10 @@ class ClockImage(ExtendedImage, animated=True):
             widget.image = image = PhotoImage(self._clock.draw_time(now, self._show_seconds))
             width, height = self._current_size
             widget.configure(image=image, width=width, height=height)
-            x, y = self.pad_used
-            widget.pack(padx=x, pady=y)
+            # x, y = self.pad_used
+            # widget.pack(padx=x, pady=y)
+            # self._widget.pack(**padding(self))
+            self._pack_restore_settings()
         self._next_id = widget.after(self._delay, self.next_frame)
 
 
@@ -270,8 +292,10 @@ class Animation:
         self._widget.configure(image=frame, width=width, height=height)
         if init:
             self._widget.image = frame
-            x, y = self._image_ele.pad_used
-            self._widget.pack(padx=x, pady=y)
+            # x, y = self._image_ele.pad_used
+            # self._widget.pack(padx=x, pady=y)
+            self._widget.pack(**padding(self._image_ele))
+
         if self._run:
             self._next_id = self._widget.after(delay, self.next)
 

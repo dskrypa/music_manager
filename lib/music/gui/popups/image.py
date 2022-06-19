@@ -159,6 +159,7 @@ if __name__ == '__main__':
         from ds_tools.logging import init_logging
         init_logging(12, log_path=None, names=None)
         try:
-            ImageView2(args.image_path[0]).get_result()
+            # ImageView2(args.image_path[0]).get_result()
+            ImageView(args.image_path[0]).get_result()
         except Exception as e:
             print(e, file=sys.stderr)

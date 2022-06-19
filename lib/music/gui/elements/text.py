@@ -132,7 +132,8 @@ class ExtText(Text):
             #             parent.remove(col_frame)
             # else:
                 # log.debug(f'Hiding label for {self}')
-            self._tk_label.pack_forget()
+            # self._tk_label.pack_forget()
+            self._pack_forget_save_settings()
 
     def show(self, force: bool = False):
         if force or not self._visible:
@@ -145,9 +146,11 @@ class ExtText(Text):
             #         if parent := pinned.ParentPanedWindow:
             #             parent.add(col_frame)
             # else:
-            x, y = self.pad_used
-            #     # log.debug(f'Showing label for {self} with {x=} {y=}')
-            self._tk_label.pack(padx=x, pady=y)
+            # self._tk_label.pack(**padding(self))
+            self._pack_restore_settings()
+            # x, y = self.pad_used
+            # #     # log.debug(f'Showing label for {self} with {x=} {y=}')
+            # self._tk_label.pack(padx=x, pady=y)
 
     @property
     def value(self):

@@ -211,11 +211,11 @@ class Rating(Column):
     def ClickPosition(self):  # Used to trick PySimpleGUI into returning a value for this element (2/2)
         return self.rating
 
-    def bind(self, bind_string, key_modifier):
+    def bind(self, bind_string, key_modifier, propagate: bool = True):
         if rating_input := self.rating_input:
-            rating_input.bind(bind_string, key_modifier)
+            rating_input.bind(bind_string, key_modifier, propagate=propagate)
         else:
-            super().bind(bind_string, key_modifier)
+            super().bind(bind_string, key_modifier, propagate=propagate)
 
 
 if __name__ == '__main__':

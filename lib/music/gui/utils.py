@@ -4,10 +4,14 @@ Utilities for formatting gui elements.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import sys
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Union
+from typing import Union, Set
+from weakref import WeakSet
 
 from PySimpleGUI import Element, Input, Output, Multiline, Listbox, Checkbox, Text
 
@@ -20,6 +24,8 @@ __all__ = [
     'OutputHandler',
     'output_log_handler',
     'update_color',
+    'padding',
+    'FinishInitMixin',
 ]
 log = logging.getLogger(__name__)
 
@@ -130,3 +136,26 @@ def update_color(ele: Element, fg: str = None, bg: str = None):
         ele.update(background_color=bg, text_color=fg)
     elif isinstance(ele, Listbox):
         ele.TKListbox.configure(bg=bg, fg=fg)
+
+
+def padding(ele: Element) -> dict[str, int]:
+    x, y = ele.Pad if ele.Pad is not None else ele.ParentForm.ElementPadding
+    return {'padx': x, 'pady': y}
+
+
+class FinishInitMixin(ABC):
+    __instances: Set[FinishInitMixin] = WeakSet()
+
+    def __init__(self):
+        # log.debug(f'Registered to re-finalize: {self}')
+        self.__instances.add(self)
+
+    @abstractmethod
+    def finish_init(self):
+        raise NotImplementedError
+
+    @classmethod
+    def finish_init_all(cls):
+        for inst in tuple(cls.__instances):
+            inst.finish_init()
+            cls.__instances.remove(inst)

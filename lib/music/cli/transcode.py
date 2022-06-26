@@ -13,6 +13,7 @@ from cli_command_parser import Command, Counter, Positional, Option, ParamGroup,
 from mutagen import File
 
 from ds_tools.fs.paths import unique_path
+from ..files.track.track import SongFile
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
@@ -34,37 +35,35 @@ class Transcode(Command, description='Transcode FLACs between bit depths and bit
 
     verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
     dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
+    no_check = Flag('-C', name_mode='-', help='Do not check bit depth/rate before transcoding')
 
     def main(self):
         from ds_tools.logging import init_logging
 
         init_logging(self.verbose, log_path=None, names=None, millis=True)
 
-        transcode_prefix = '[DRY RUN] Would transcode' if self.dry_run else 'Transcoding'
-        copy_prefix = '[DRY RUN] Would copy' if self.dry_run else 'Copying'
-
         for src_file, dst_file, is_audio in self.process_albums(self.src_path):
-            log_src = src_file.relative_to(self.src_path).as_posix()
-            if is_audio:
-                log.info(f'{transcode_prefix} {log_src} -> {dst_file.as_posix()}')
-                if not self.dry_run:
-                    command = ['ffmpeg', '-i', src_file.as_posix(), *self.common_args, dst_file.as_posix()]
-                    check_call(command)
+            if is_audio and self._should_transcode(src_file):
+                self._transcode_file(src_file, dst_file)
             else:
-                log.info(f'{copy_prefix} {log_src} -> {dst_file.as_posix()}')
-                if not self.dry_run:
-                    copy(src_file, dst_file)
+                self._copy_file(src_file, dst_file)
 
     def process_albums(self, src_dir: Path) -> Iterator[tuple[Path, Path, bool]]:
         log.debug(f'Processing src_dir={src_dir.as_posix()}')
+        found_album = False
         for path in src_dir.iterdir():
             if path.is_dir():
+                found_album = True
                 if not any(p.is_dir() for p in path.iterdir()):
                     yield from self.process_album(path)
                 else:
                     yield from self.process_albums(path)
 
+        if not found_album:
+            yield from self.process_album(src_dir)
+
     def process_album(self, src_dir: Path) -> Iterator[tuple[Path, Path, bool]]:
+        log.debug(f'Processing album dir={src_dir.as_posix()}')
         dst_dir = self._pick_dst_path(src_dir)
         if not self.dry_run and not dst_dir.exists():
             dst_dir.mkdir(parents=True)
@@ -74,6 +73,31 @@ class Transcode(Command, description='Transcode FLACs between bit depths and bit
             is_audio = File(src_file) is not None
             # log.debug(f'{src_file=} {is_audio=}')
             yield src_file, dst_file, is_audio
+
+    def _should_transcode(self, src_file: Path) -> bool:
+        if self.no_check:
+            return True
+
+        track = SongFile(src_file)
+        src_bits, src_rate = track.bits_per_sample, track.sample_rate
+        dst_bits, dst_rate = self.depth, self.rate
+        skip = (src_bits < dst_bits or src_rate < dst_rate) or (src_bits == dst_bits and src_rate == dst_rate)
+        return not skip
+
+    def _copy_file(self, src_file: Path, dst_file: Path):
+        prefix = '[DRY RUN] Would copy' if self.dry_run else 'Copying'
+        log_src = src_file.relative_to(self.src_path).as_posix()
+        log.info(f'{prefix} {log_src} -> {dst_file.as_posix()}')
+        if not self.dry_run:
+            copy(src_file, dst_file)
+
+    def _transcode_file(self, src_file: Path, dst_file: Path):
+        prefix = '[DRY RUN] Would transcode' if self.dry_run else 'Transcoding'
+        log_src = src_file.relative_to(self.src_path).as_posix()
+        log.info(f'{prefix} {log_src} -> {dst_file.as_posix()}')
+        if not self.dry_run:
+            command = ['ffmpeg', '-i', src_file.as_posix(), *self.common_args, dst_file.as_posix()]
+            check_call(command)
 
     def _pick_dst_path(self, src_path: Path) -> Path:
         if self.dst_path:

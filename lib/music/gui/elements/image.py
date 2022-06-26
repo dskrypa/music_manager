@@ -4,6 +4,8 @@ Extended image elements for PySimpleGUI
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta
 from inspect import Signature
@@ -80,7 +82,7 @@ class ExtendedImage(ImageElement, FinishInitMixin):
         return None
 
     @property
-    def animation(self) -> Optional['Animation']:
+    def animation(self) -> Optional[Animation]:
         return self._animation
 
     @property
@@ -189,9 +191,6 @@ class SpinnerImage(ExtendedImage, animated=True):
         self._animation.next(True)
         if self._bind_click:
             self._widget.bind('<Button-1>', self.handle_click)
-
-    def finish_init(self):
-        return
 
 
 class ClockImage(ExtendedImage, animated=True):

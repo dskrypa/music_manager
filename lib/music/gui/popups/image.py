@@ -66,7 +66,7 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
     def window_resized(self, event: Event, data: EventData):
         if self.pil_img is None:
             return
-        elif monotonic() - self._last_resize < 0.1:
+        elif monotonic() - self._last_resize < 0.15:
             # self.log.debug(f'Refusing resize too soon after last one')
             return
         elif new_size := self._get_new_size(*data['new_size']):

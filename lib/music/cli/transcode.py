@@ -36,6 +36,7 @@ class Transcode(Command, description='Transcode FLACs between bit depths and bit
     verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
     dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
     no_check = Flag('-C', name_mode='-', help='Do not check bit depth/rate before transcoding')
+    out_fmt = Option('-f', choices=('flac', 'mp3', 'wav', 'mp4', 'ogg'), help='Output format (default: same as input)')
 
     def main(self):
         from ds_tools.logging import init_logging
@@ -43,7 +44,7 @@ class Transcode(Command, description='Transcode FLACs between bit depths and bit
         init_logging(self.verbose, log_path=None, names=None, millis=True)
 
         for src_file, dst_file, is_audio in self.process_albums(self.src_path):
-            if is_audio and self._should_transcode(src_file):
+            if is_audio and self._should_transcode(src_file, dst_file):
                 self._transcode_file(src_file, dst_file)
             else:
                 self._copy_file(src_file, dst_file)
@@ -70,19 +71,33 @@ class Transcode(Command, description='Transcode FLACs between bit depths and bit
 
         for src_file in src_dir.iterdir():
             dst_file = dst_dir.joinpath(src_file.name)
+            if self.out_fmt:
+                dst_file = dst_file.with_suffix(f'.{self.out_fmt}')
             is_audio = File(src_file) is not None
             # log.debug(f'{src_file=} {is_audio=}')
             yield src_file, dst_file, is_audio
 
-    def _should_transcode(self, src_file: Path) -> bool:
+    def _should_transcode(self, src_file: Path, dst_file: Path) -> bool:
         if self.no_check:
             return True
 
         track = SongFile(src_file)
         src_bits, src_rate = track.bits_per_sample, track.sample_rate
         dst_bits, dst_rate = self.depth, self.rate
-        skip = (src_bits < dst_bits or src_rate < dst_rate) or (src_bits == dst_bits and src_rate == dst_rate)
-        return not skip
+
+        too_low = src_bits < dst_bits or src_rate < dst_rate
+        if too_low:
+            log.warning(
+                f'Transcoding would result in up-sampling for {src_file.as_posix()}'
+                f' - bits per sample={src_bits}, sample rate={src_rate:,d} Hz',
+                extra={'color': 'red'},
+            )
+            return False
+
+        if src_bits == dst_bits and src_rate == dst_rate:
+            return src_file.suffix != dst_file.suffix
+
+        return True
 
     def _copy_file(self, src_file: Path, dst_file: Path):
         prefix = '[DRY RUN] Would copy' if self.dry_run else 'Copying'

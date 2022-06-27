@@ -4,16 +4,18 @@ Window positioning utilities
 :author: Doug Skrypa
 """
 
-import logging
+# import logging
 from typing import Optional
 
 from screeninfo import get_monitors, Monitor
 
 __all__ = ['WindowPositioner', 'positioner']
-log = logging.getLogger(__name__)
+# log = logging.getLogger(__name__)
 
 
 class WindowPositioner:
+    __slots__ = ('monitors',)
+
     def __init__(self):
         self.monitors = get_monitors()
 

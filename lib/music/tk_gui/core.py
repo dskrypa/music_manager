@@ -4,7 +4,8 @@ Tkinter GUI core
 :author: Doug Skrypa
 """
 
-import inspect
+from __future__ import annotations
+
 import logging
 import sys
 import tkinter.constants as tkc
@@ -12,6 +13,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
 from functools import cached_property
+from inspect import stack
 from itertools import count
 from pathlib import Path
 from tkinter import Tk, Toplevel, Frame, PhotoImage, Widget
@@ -26,9 +28,12 @@ from .style import Style, Font
 __all__ = ['RowContainer', 'Window', 'Inheritable', 'Row', 'Element', 'Anchor']
 log = logging.getLogger(__name__)
 XY = tuple[int, int]
+# fmt: off
 ANCHOR_ALIASES = {
-    'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT'
+    'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT',
+    'c': 'MID_CENTER', 't': 'TOP_CENTER', 'b': 'BOTTOM_CENTER', 'l': 'MID_LEFT', 'r': 'MID_RIGHT',
 }
+# fmt: on
 
 
 class Anchor(Enum):
@@ -57,11 +62,7 @@ class Anchor(Enum):
         try:
             return cls[value.upper().replace(' ', '_')]
         except KeyError:
-            pass
-        if len(value) == 1:
-            for key, val in aliases.items():
-                if key.startswith(value):
-                    return cls[val]
+            return None  # This is what the default implementation does to signal an exception should be raised
 
     def as_justify(self):
         if self.value in (tkc.NW, tkc.W, tkc.SW):
@@ -74,12 +75,14 @@ class Anchor(Enum):
 
 
 class Inheritable:
-    def __init__(self, parent_attr: str = None, default=None, type: Callable = None):  # noqa
+    __slots__ = ('parent_attr', 'default', 'type', 'name')
+
+    def __init__(self, parent_attr: str = None, default: Any = None, type: Callable = None):  # noqa
         self.parent_attr = parent_attr
         self.default = default
         self.type = type
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner, name: str):
         self.name = name
 
     def __get__(self, instance, owner):
@@ -102,7 +105,7 @@ class Inheritable:
 class RowContainer(ABC):
     def __init__(
         self,
-        layout: Iterable[Iterable['Element']] = None,
+        layout: Iterable[Iterable[Element]] = None,
         *,
         style: Style = None,
         element_justification: Union[str, Anchor] = None,
@@ -129,7 +132,7 @@ class RowContainer(ABC):
     def tk_container(self) -> Union[Frame, Toplevel]:
         raise NotImplementedError
 
-    def __getitem__(self, index: int) -> 'Row':
+    def __getitem__(self, index: int) -> Row:
         return self.rows[index]
 
 
@@ -141,7 +144,7 @@ class Window(RowContainer):
     def __init__(
         self,
         title: str = None,
-        layout: Iterable[Iterable['Element']] = None,
+        layout: Iterable[Iterable[Element]] = None,
         *,
         style: Style = None,
         size: XY = None,
@@ -166,8 +169,9 @@ class Window(RowContainer):
     ):
         if title is None:
             try:
-                title = Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem.replace('_', ' ').title()
-            except Exception:
+                # title = Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem.replace('_', ' ').title()
+                title = Path(stack()[-1].filename).stem.replace('_', ' ').title()
+            except Exception:  # noqa
                 title = ''
         self.title = title
         super().__init__(
@@ -210,7 +214,7 @@ class Window(RowContainer):
     def set_alpha(self, alpha: int):
         try:
             self.root.attributes('-alpha', alpha)
-        except Exception:
+        except Exception:  # noqa
             log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
 
     # region Size & Position Methods
@@ -237,7 +241,7 @@ class Window(RowContainer):
         # root.x root.y = pos
         root.update_idletasks()
 
-    def move_to_center(self, other: 'Window' = None):
+    def move_to_center(self, other: Window = None):
         win_w, win_h = self.size
         if not self.no_title_bar:
             win_h += 30  # Title bar size on Windows 10
@@ -309,7 +313,7 @@ class Window(RowContainer):
                     root.wm_attributes('-type', 'dock')
                 else:
                     root.wm_overrideredirect(True)
-            except Exception:
+            except Exception:  # noqa
                 log.warning('Error while disabling title bar:', exc_info=True)
         # endregion
 
@@ -324,7 +328,7 @@ class Window(RowContainer):
                 root.transient()
                 root.grab_set()
                 root.focus_force()
-            except Exception:
+            except Exception:  # noqa
                 log.error('Error configuring window to be modal:', exc_info=True)
         root.after(250, self._sigint_fix)
         root.mainloop(1)
@@ -335,7 +339,7 @@ class Window(RowContainer):
         hidden_root.attributes('-alpha', 0)  # Hide this window
         try:
             hidden_root.wm_overrideredirect(True)
-        except Exception:
+        except Exception:  # noqa
             log.error('Error overriding redirect for hidden root:', exc_info=True)
         hidden_root.withdraw()
         Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
@@ -349,13 +353,13 @@ class Window(RowContainer):
         log.debug('  Updating...')
         try:
             root.update()  # Needed to actually close the window on Linux if user closed with X
-        except Exception:
+        except Exception:  # noqa
             pass
         log.debug('  Destroying...')
         try:
             root.destroy()
             root.update()
-        except Exception:
+        except Exception:  # noqa
             pass
         log.debug('  Done')
 
@@ -388,20 +392,21 @@ class Window(RowContainer):
 
 
 class Row:
+    frame: Optional[Frame]
     element_justification = Inheritable(type=Anchor)    # type: Anchor
     element_padding = Inheritable()                     # type: XY
     element_size = Inheritable()                        # type: XY
     style = Inheritable()                               # type: Style
     auto_size_text = Inheritable()                      # type: bool
 
-    def __init__(self, parent: RowContainer, elements: Iterable['Element']):
-        self.frame = None  # type: Optional[Frame]
+    def __init__(self, parent: RowContainer, elements: Iterable[Element]):
+        self.frame = None
         self.parent = parent
         self.elements = list(elements)
         # for ele in self.elements:
         #     ele.parent = self
-        self.expand = None       # Set to True only for Column elements
-        self.fill = None      # Changes for Column, Separator, StatusBar
+        self.expand = None  # Set to True only for Column elements
+        self.fill = None    # Changes for Column, Separator, StatusBar
 
     def __getitem__(self, index: int):
         return self.elements[index]
@@ -425,6 +430,8 @@ class Row:
 
 class Element:
     _counters = defaultdict(count)
+    parent: Optional[Row]
+    widget: Optional[Widget]
     pad = Inheritable('element_padding')                            # type: XY
     size = Inheritable('element_size')                              # type: XY
     auto_size_text = Inheritable()                                  # type: bool
@@ -449,8 +456,8 @@ class Element:
         right_click_menu: ContextualMenu = None,
     ):
         self.id = next(self._counters[self.__class__])
-        self.parent = None  # type: Optional[Row]
-        self.widget = None  # type: Optional[Widget]
+        self.parent = None
+        self.widget = None
         self._visible = visible
         self.tooltip = tooltip
         self.size = size
@@ -500,4 +507,4 @@ class Element:
 
     def _right_click_callback(self, event):
         if (menu := self.right_click_menu) is not None:
-            menu.show(event, self.widget.master)
+            menu.show(event, self.widget.master)  # noqa

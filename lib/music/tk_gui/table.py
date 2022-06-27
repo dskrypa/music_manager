@@ -4,13 +4,15 @@ Table GUI elements
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import tkinter.constants as tkc
 from functools import cached_property
 from itertools import chain
 from tkinter import Frame, Tcl, Scrollbar
 from tkinter.ttk import Treeview, Style
-from typing import Optional, Callable, Union, Hashable, Literal
+from typing import Optional, Callable, Union, Literal
 from unicodedata import normalize
 
 from wcwidth import wcswidth
@@ -24,7 +26,7 @@ TCL_VERSION = Tcl().eval('info patchlevel')
 
 
 class TableColumn:
-    def __init__(self, key: Hashable, title: str = None, width=None, show: bool = True, fmt_str: str = None):
+    def __init__(self, key: str, title: str = None, width=None, show: bool = True, fmt_str: str = None):
         self.key = key
         self.title = str(title or key)
         self._width = 0
@@ -89,6 +91,8 @@ class TableColumn:
 
 class Table(Element):
     widget: Treeview
+    frame: Optional[Frame]
+    columns: dict[str, TableColumn]
 
     def __init__(
         self,
@@ -109,10 +113,10 @@ class Table(Element):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.frame = None  # type: Optional[Frame]
+        self.frame = None
         if show_row_nums:
             columns = chain((TableColumn('#', width=len(f'{len(data):>,d}'), fmt_str='{:>,d}'),), columns)
-        self.columns = {col.key: col for col in columns}  # type: dict[str, TableColumn]
+        self.columns = {col.key: col for col in columns}
         self.data = data
         self.num_rows = rows
         self.show_row_nums = show_row_nums
@@ -129,7 +133,7 @@ class Table(Element):
         self._tree_ids = []
 
     @classmethod
-    def from_data(cls, data: list[dict[str, Union[str, int]]], **kwargs) -> 'Table':
+    def from_data(cls, data: list[dict[str, Union[str, int]]], **kwargs) -> Table:
         keys = {k: None for k in chain.from_iterable(data)}  # dict retains key order, but set does not
         columns = [TableColumn(key, key.replace('_', ' ').title(), data) for key in keys]
         return cls(*columns, data=data, **kwargs)
@@ -165,7 +169,9 @@ class Table(Element):
             frame,
             columns=[col.key for col in columns.values()],
             displaycolumns=[col.key for col in columns.values() if col.show],
-            height=height, show='headings', selectmode=self.select_mode,
+            height=height,
+            show='headings',
+            selectmode=self.select_mode,
         )
         char_width = self.style.char_width
         for column in columns.values():
@@ -173,7 +179,7 @@ class Table(Element):
             width = column.width * char_width + 10
             log.debug(f'  Adding column with key={column.key!r} title={column.title!r} {width=}')
             # tree_view.column(column.key, width=width, minwidth=10, anchor=self.anchor, stretch=0)
-            tree_view.column(column.key, width=width, minwidth=10, stretch=0)
+            tree_view.column(column.key, width=width, minwidth=10, stretch=False)
 
         for i, row in enumerate(self.data):
             values = (val for key, val in row.items() if columns[key].show)

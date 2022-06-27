@@ -1,3 +1,4 @@
+# need to run as a module
 
 from ds_tools.logging import init_logging
 

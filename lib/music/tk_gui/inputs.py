@@ -4,6 +4,8 @@ Input GUI elements
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import tkinter.constants as tkc
 import webbrowser
@@ -20,6 +22,7 @@ log = logging.getLogger(__name__)
 
 class Input(Element):
     widget: Entry
+    string_var: Optional[StringVar]
 
     def __init__(
         self,
@@ -38,7 +41,7 @@ class Input(Element):
         self._link = link or link is None
         self._path = path
         self.password_char = password_char
-        self.string_var = None  # type: Optional[StringVar]
+        self.string_var = None
         self.disabled = disabled
         self._focus = focus
         self.justify_text = justify_text
@@ -56,8 +59,13 @@ class Input(Element):
         self.string_var.set(self._value)
         style = self.style
         self.widget = entry = Entry(
-            row.frame, width=self.size[0], textvariable=self.string_var, bd=style.border_width, font=style.font,
-            show=self.password_char, justify=self.justify_text
+            row.frame,
+            width=self.size[0],
+            textvariable=self.string_var,
+            bd=style.border_width,
+            font=style.font,
+            show=self.password_char,
+            justify=self.justify_text,  # noqa
         )
         fg, bg = style.get_fg_bg('input', 'disabled' if self.disabled else 'default')
         kwargs = {'highlightthickness': 0}
@@ -117,7 +125,7 @@ class Input(Element):
                 kwargs = {'selected': self.get_selection()}
             except (TclError, NotSelectionOwner):
                 kwargs = {}
-            menu.show(event, self.widget.master, **kwargs)
+            menu.show(event, self.widget.master, **kwargs)  # noqa
 
     def _open_link(self, event):
         if (value := self.value) and value.startswith(('http://', 'https://')):

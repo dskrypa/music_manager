@@ -122,7 +122,7 @@ class MenuOption:
         else:
             return False
 
-    def format_text(self, kwargs: dict):
+    def format_text(self, kwargs: dict) -> str:
         return self.text.format(**kwargs) if self.format else self.text
 
     def prepare_cb(self, kwargs: dict):

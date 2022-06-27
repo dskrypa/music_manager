@@ -4,24 +4,29 @@ GUI styles / themes
 :author: Doug Skrypa
 """
 
-import logging
+from __future__ import annotations
+
+# import logging
 from functools import cached_property
 from itertools import count
 from tkinter.font import Font as _Font
-from typing import Union, Optional, Literal
+from typing import Union, Optional, Literal, Type
 
 __all__ = ['Style', 'StateColors', 'Colors', 'State', 'Font']
-log = logging.getLogger(__name__)
+# log = logging.getLogger(__name__)
+
 Font = Union[str, tuple[str, int]]
 State = Literal['default', 'disabled', 'invalid']
 Colors = Union['StateColors', dict[State, str], tuple[Optional[str], ...], str]
 
 
 class Color:
+    __slots__ = ('name',)
+
     def __set_name__(self, owner, name):
         self.name = name
 
-    def __get__(self, instance: 'StateColors', owner):
+    def __get__(self, instance: StateColors, owner):
         if instance is None:
             return self
         elif (value := instance.__dict__[self.name]) is not None:
@@ -34,7 +39,7 @@ class Color:
             value = getattr(getattr(style, instance.type), self.name)
         return value
 
-    def __set__(self, instance: 'StateColors', value: Optional[str]):
+    def __set__(self, instance: StateColors, value: Optional[str]):
         instance.__dict__[self.name] = value
 
 
@@ -43,7 +48,7 @@ class StateColors:
     disabled = Color()
     invalid = Color()
 
-    def __init__(self, style: 'Style', type: str, default: str = None, disabled: str = None, invalid: str = None):  # noqa
+    def __init__(self, style: Style, type: str, default: str = None, disabled: str = None, invalid: str = None):  # noqa
         self.style = style
         self.type = type
         self.default = default
@@ -55,7 +60,7 @@ class StateColors:
         return self.__class__(self.style, self.type, data['default'], data['disabled'], data['invalid'])
 
     @classmethod
-    def init(cls, style: 'Style', type: str, colors: Colors = None):  # noqa
+    def init(cls, style: Style, type: str, colors: Colors = None):  # noqa
         if colors is None:
             return cls(style, type)
         elif isinstance(colors, cls):
@@ -73,16 +78,53 @@ class StateColors:
             raise TypeError(f'Invalid type={colors.__class__.__name__!r} to initialize {cls.__name__}')
 
 
+class StyleOption:
+    __slots__ = ('name',)
+
+    def __set_name__(self, owner: Type[Style], name: str):
+        self.name = name
+
+    def __get__(self, instance: Optional[Style], owner: Type[Style]):
+        if instance is None:
+            return self
+        try:
+            return instance.__dict__[self.name]
+        except KeyError:
+            pass
+        if parent := instance.parent:
+            return getattr(parent, self.name)
+        elif default := instance.default:
+            return getattr(default, self.name)
+        return None
+
+    def __set__(self, instance: Style, value):
+        if value is None:
+            instance.__dict__.pop(self.name, None)
+        else:
+            instance.__dict__[self.name] = value
+
+    def __delete__(self, instance: Style):
+        try:
+            del instance.__dict__[self.name]
+        except KeyError as e:
+            msg = f'{instance.__class__.__name__} object has no directly assigned value for {self.name!r}'
+            raise AttributeError(msg) from e
+
+
 class Style:
     _count = count()
     _instances = {}
-    default = None  # type: Optional[Style]
+    default: Optional[Style] = None
+    font: Optional[Font] = StyleOption()
+    ttk_theme: Optional[str] = StyleOption()
+    border_width: Optional[int] = StyleOption()
+    insert_bg: Optional[str] = StyleOption()
 
     def __init__(
         self,
         name: str = None,
         *,
-        parent: Union[str, 'Style'] = None,
+        parent: Union[str, Style] = None,
         font: Font = None,
         ttk_theme: str = None,
         border_width: int = None,
@@ -100,10 +142,10 @@ class Style:
             self._instances[name] = self
         self.parent = self.__class__[parent] if isinstance(parent, str) else parent
         self.name = name
-        self._font = font
-        self._ttk_theme = ttk_theme
-        self._border_width = border_width
-        self._insert_bg = insert_bg
+        self.font = font
+        self.ttk_theme = ttk_theme
+        self.border_width = border_width
+        self.insert_bg = insert_bg
         self.fg = self.text = StateColors.init(self, 'fg', text)
         self.bg = StateColors.init(self, 'bg', bg)
         self.button_fg = StateColors.init(self, 'button_fg', button_fg)
@@ -111,36 +153,11 @@ class Style:
         self.input_fg = StateColors.init(self, 'input_fg', input_fg)
         self.input_bg = StateColors.init(self, 'input_bg', input_bg)
 
-    def _get_value(self, attr: str):
-        if (value := getattr(self, f'_{attr}')) is not None:
-            return value
-        elif self.parent is not None:
-            return self.parent._get_value(attr)
-        elif self.default is not None:
-            return self.default._get_value(attr)
-        return None
-
-    @property
-    def font(self) -> Font:
-        return self._get_value('font')
-
-    @property
-    def ttk_theme(self):
-        return self._get_value('ttk_theme')
-
-    @property
-    def border_width(self):
-        return self._get_value('border_width')
-
-    @property
-    def insert_bg(self):
-        return self._get_value('insert_bg')
-
-    def __class_getitem__(cls, name: str) -> 'Style':
+    def __class_getitem__(cls, name: str) -> Style:
         return cls._instances[name]
 
     @classmethod
-    def get(cls, name: Union[str, 'Style', None]) -> 'Style':
+    def get(cls, name: Union[str, Style, None]) -> Style:
         if name is None:
             return cls.default
         elif isinstance(name, cls):
@@ -178,6 +195,13 @@ class Style:
 
 Style('default', font=('Helvetica', 10), ttk_theme='default', border_width=1)
 Style(
-    'DarkGrey10', parent='default', text=('#cccdcf', '#000000', '#FFFFFF'), bg=('#1c1e23', '#a2a2a2', '#781F1F'),
-    insert_bg='#FFFFFF', input_fg='#8b9fde', input_bg='#272a31', button_fg='#f5f5f6', button_bg='#2e3d5a',
+    'DarkGrey10',
+    parent='default',
+    text=('#cccdcf', '#000000', '#FFFFFF'),
+    bg=('#1c1e23', '#a2a2a2', '#781F1F'),
+    insert_bg='#FFFFFF',
+    input_fg='#8b9fde',
+    input_bg='#272a31',
+    button_fg='#f5f5f6',
+    button_bg='#2e3d5a',
 ).make_default()

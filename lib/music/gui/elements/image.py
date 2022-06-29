@@ -14,9 +14,8 @@ from pathlib import Path
 from tkinter import Label, TclError
 from typing import Optional, Callable, Union
 
-from PIL import Image
 from PIL.ImageTk import PhotoImage
-from PIL.Image import Image as PILImage
+from PIL.Image import Image as PILImage, Resampling
 from PySimpleGUI import Image as ImageElement
 
 from ds_tools.images.colors import color_at_pos
@@ -128,7 +127,8 @@ class ExtendedImage(ImageElement, FinishInitMixin):
                 self._animation.next(True)
             else:
                 try:
-                    self._current_image = resized = image.resize((new_w, new_h), Image.ANTIALIAS)
+                    # LANCZOS = ANTIALIAS
+                    self._current_image = resized = image.resize((new_w, new_h), Resampling.LANCZOS)
                     tk_image = PhotoImage(resized)
                 except OSError as e:
                     log.warning(f'Error resizing {image}: {e}')

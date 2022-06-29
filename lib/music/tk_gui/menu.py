@@ -27,6 +27,8 @@ class ShowMode(Enum):
 
 
 class ContextualMenu:
+    __slots__ = ('default_cb', '_options')
+
     def __init__(
         self,
         default_cb: Callable = None,

@@ -16,7 +16,7 @@ from functools import cached_property
 from inspect import stack
 from itertools import count
 from pathlib import Path
-from tkinter import Tk, Toplevel, Frame, PhotoImage, Widget
+from tkinter import Tk, Toplevel, Frame, PhotoImage, Widget, TclError
 from typing import Optional, Callable, Union, Iterable
 from weakref import finalize
 
@@ -27,6 +27,7 @@ from .style import Style, Font
 
 __all__ = ['RowContainer', 'Window', 'Inheritable', 'Row', 'Element', 'Anchor']
 log = logging.getLogger(__name__)
+
 XY = tuple[int, int]
 # fmt: off
 ANCHOR_ALIASES = {
@@ -214,7 +215,7 @@ class Window(RowContainer):
     def set_alpha(self, alpha: int):
         try:
             self.root.attributes('-alpha', alpha)
-        except Exception:  # noqa
+        except (TclError, RuntimeError):
             log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
 
     # region Size & Position Methods
@@ -280,11 +281,14 @@ class Window(RowContainer):
             return
         self.root = root = Toplevel()
         self._finalizer = finalize(self, self._close, root)
+
         self.set_alpha(0)  # Hide window while building it
+
         if (bg := self.style.bg.default) is not None:
             root.configure(background=bg)
         if not self.resizable:
             root.resizable(False, False)
+
         if not self.can_minimize:
             root.attributes('-toolwindow', 1)
         if self.keep_on_top:
@@ -292,35 +296,43 @@ class Window(RowContainer):
         if self.transparent_color is not None:
             try:
                 root.attributes('-transparentcolor', self.transparent_color)
-            except Exception:
+            except (TclError, RuntimeError):
                 log.error('Transparent window color not supported on this platform (Windows only)')
 
         # region PySimpleGUI:_convert_window_to_tk
+
         root.title(self.title)
         # skip: PySimpleGUI:InitializeResults
         for row in self.rows:  # PySimpleGUI: PackFormIntoFrame(window, master, window)
             row.pack()
         root.configure(padx=self.margins[0], pady=self.margins[1])
+
         if self._size:
             self.size = self._size
+
         if self._position:
             self.position = self._position
         else:
             self.move_to_center()
+
         if self.no_title_bar:
             try:
                 if sys.platform.startswith('linux'):
                     root.wm_attributes('-type', 'dock')
                 else:
                     root.wm_overrideredirect(True)
-            except Exception:  # noqa
+            except (TclError, RuntimeError):
                 log.warning('Error while disabling title bar:', exc_info=True)
+
         # endregion
 
         root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
+
         self.set_alpha(1 if self.alpha_channel is None else self.alpha_channel)
+
         if self.no_title_bar:
             root.focus_force()
+
         root.protocol('WM_DESTROY_WINDOW', self.close)
         root.protocol('WM_DELETE_WINDOW', self.close)
         if self.modal:
@@ -328,8 +340,9 @@ class Window(RowContainer):
                 root.transient()
                 root.grab_set()
                 root.focus_force()
-            except Exception:  # noqa
+            except (TclError, RuntimeError):
                 log.error('Error configuring window to be modal:', exc_info=True)
+
         root.after(250, self._sigint_fix)
         root.mainloop(1)
 
@@ -345,6 +358,8 @@ class Window(RowContainer):
         Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
 
     # endregion
+
+    # region Cleanup Methods
 
     @classmethod
     def _close(cls, root: Toplevel):
@@ -381,6 +396,8 @@ class Window(RowContainer):
             cls.__hidden_root = None
         except AttributeError:
             pass
+
+    # endregion
 
     def _sigint_fix(self):
         """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
@@ -430,8 +447,12 @@ class Row:
 
 class Element:
     _counters = defaultdict(count)
-    parent: Optional[Row]
-    widget: Optional[Widget]
+    parent: Optional[Row] = None
+    widget: Optional[Widget] = None
+    tooltip: Optional[str] = None
+    right_click_menu: Optional[ContextualMenu] = None
+    left_click_cb: Optional[Callable] = None
+
     pad = Inheritable('element_padding')                            # type: XY
     size = Inheritable('element_size')                              # type: XY
     auto_size_text = Inheritable()                                  # type: bool
@@ -454,22 +475,30 @@ class Element:
         bg: str = None,
         text_color: str = None,
         right_click_menu: ContextualMenu = None,
+        left_click_cb: Callable = None,
     ):
         self.id = next(self._counters[self.__class__])
-        self.parent = None
-        self.widget = None
         self._visible = visible
-        self.tooltip = tooltip
-        self.size = size
+
+        # Directly stored attrs that override class defaults
+        if tooltip:
+            self.tooltip = tooltip
+        if right_click_menu:
+            self.right_click_menu = right_click_menu
+        if left_click_cb:
+            self.left_click_cb = left_click_cb
+
+        # Inheritable attrs
         self.pad = pad
+        self.size = size
+        self.auto_size_text = auto_size_text
+        self.justify = justify
         self.style = Style.get(style)
-        if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
+        # if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
+        if not (text_color is bg is font is ttk_theme is border_width is None):
             self.style = Style(
                 parent=self.style, font=font, ttk_theme=ttk_theme, text=text_color, bg=bg, border_width=border_width
             )
-        self.auto_size_text = auto_size_text
-        self.justify = justify
-        self.right_click_menu = right_click_menu
 
     @cached_property
     def anchor(self):
@@ -489,7 +518,7 @@ class Element:
 
     def apply_binds(self):
         widget = self.widget
-        widget.bind('<Button-3>', self._right_click_callback)
+        widget.bind('<Button-3>', self.handle_right_click)
 
     def hide(self):
         self.widget.pack_forget()
@@ -499,12 +528,18 @@ class Element:
         self.widget.pack(**self.pad_kw)
         self._visible = True
 
-    def toggle_visibility(self, show: bool):
+    def toggle_visibility(self, show: bool = None):
+        if show is None:
+            show = not self._visible
         if show:
             self.show()
         else:
             self.hide()
 
-    def _right_click_callback(self, event):
+    def handle_left_click(self, event):
+        if (cb := self.left_click_cb) is not None:
+            cb(event)  # TODO: finalize expected args to provide
+
+    def handle_right_click(self, event):
         if (menu := self.right_click_menu) is not None:
             menu.show(event, self.widget.master)  # noqa

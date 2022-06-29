@@ -10,23 +10,26 @@ import logging
 import tkinter.constants as tkc
 import webbrowser
 from functools import partial
-from pathlib import Path
 from tkinter import TclError, Entry, StringVar
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, Any
 
 from .core import Element, Row
 
-__all__ = []
+if TYPE_CHECKING:
+    from pathlib import Path
+
+__all__ = ['Input']
 log = logging.getLogger(__name__)
 
 
 class Input(Element):
     widget: Entry
-    string_var: Optional[StringVar]
+    string_var: Optional[StringVar] = None
+    password_char: Optional[str] = None
 
     def __init__(
         self,
-        value='',
+        value: Any = '',
         link: bool = None,
         path: Union[bool, str, Path] = None,
         password_char: str = None,
@@ -40,8 +43,8 @@ class Input(Element):
         self._valid = True
         self._link = link or link is None
         self._path = path
-        self.password_char = password_char
-        self.string_var = None
+        if password_char:
+            self.password_char = password_char
         self.disabled = disabled
         self._focus = focus
         self.justify_text = justify_text
@@ -119,7 +122,7 @@ class Input(Element):
             self._valid = valid
             self._refresh_colors()
 
-    def _right_click_callback(self, event):
+    def handle_right_click(self, event):
         if (menu := self.right_click_menu) is not None:
             try:
                 kwargs = {'selected': self.get_selection()}

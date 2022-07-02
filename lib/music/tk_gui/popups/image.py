@@ -48,12 +48,12 @@ class ImagePopup:
 
     def _set_image(self, image: ImageType):
         image = as_image(image)
-        self._empty = bool(image)
-        if image:
-            log.debug(f'Displaying {image=} with {image.format=} mime={MIME.get(image.format)!r}')
+        self._empty = image is None
         self.orig_size = image.size if image else (0, 0)
         self._last_size = init_size = self._init_size()
         self.gui_image = Image(image, size=init_size, pad=(2, 2))
+        if image:
+            log.debug(f'{self}: Displaying {image=} with {image.format=} mime={MIME.get(image.format)!r}')
 
     def _init_size(self) -> XY:
         width, height = self.orig_size

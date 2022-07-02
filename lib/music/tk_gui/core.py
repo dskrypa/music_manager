@@ -358,6 +358,7 @@ class Window(RowContainer):
 
     def _sigint_fix(self):
         """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
+        # TODO: This doesn't work anymore...
         self.root.after(250, self._sigint_fix)
 
     @property

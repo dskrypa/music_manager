@@ -14,11 +14,11 @@ from pathlib import Path
 from tkinter import Label, TclError
 from typing import TYPE_CHECKING, Optional, Any, Union
 
-from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage, Resampling
+from PIL.ImageSequence import Iterator as FrameIterator
+from PIL.ImageTk import PhotoImage
 
 from ds_tools.images.animated.cycle import FrameCycle, PhotoImageCycle
-from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
 from ds_tools.images.lcd import SevenSegmentDisplay
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from ..pseudo_elements import Row
     from ..utils import XY
 
-__all__ = ['Image', 'Animation', 'SpinnerImage', 'ClockImage']
+__all__ = ['Image', 'Animation', 'SpinnerImage', 'ClockImage', 'get_size']
 log = logging.getLogger(__name__)
 
 AnimatedType = Union[PILImage, Spinner, Path, str, '_ClockCycle']
@@ -73,6 +73,7 @@ class Image(Element):
         log.debug(f'Packing {image=} into row with {width=}, {height=}')
         style = self.style
         kwargs = {'image': image} if image else {}
+        self.size = (width, height)
         self.widget = label = Label(
             row.frame,
             width=width,
@@ -87,8 +88,10 @@ class Image(Element):
             label.pack_forget()
 
     def _re_pack(self, image: _Image, width: int, height: int):
+        self.size = (width, height)
         widget = self.widget
         widget.configure(image=image, width=width, height=height)
+
         widget.image = image
         widget.pack(**self.pad_kw)
 
@@ -129,6 +132,7 @@ class Animation(Image, animated=True):
 
     def resize(self, width: int, height: int):
         self.size = size = (width, height)
+        # log.debug(f'Attempting resize to {size=}')
         self.image_cycle = image_cycle = normalize_image_cycle(self.__image, size, self.image_cycle.n)
         frame, delay = next(image_cycle)
         self._re_pack(frame, width, height)
@@ -180,6 +184,7 @@ class SpinnerImage(Animation):
 
 
 class _ClockCycle:
+    __slots__ = ('clock', 'show_seconds', 'delay', 'last_time', '_last_frame', 'n')
     SECOND = timedelta(seconds=1)
 
     def __init__(self, clock: SevenSegmentDisplay, seconds: bool = True):
@@ -294,19 +299,57 @@ def normalize_image_cycle(
             clock = frame_cycle.clock
             clock.resize(clock.calc_width(size[1]) - 1)
             frame_cycle.last_time -= frame_cycle.SECOND
-    elif isinstance(image, (Path, str)):
-        frame_cycle = PhotoImageCycle(Path(image).expanduser())
-    else:  # TODO: PhotoImageCycle will not result in expected resize behavior...
-        if path := getattr(image, 'filename', None) or getattr(getattr(image, 'fp', None), 'name', None):
-            frame_cycle = PhotoImageCycle(Path(path))
+    else:
+        try:
+            path = _get_path(image)
+        except ValueError:
+            image = as_image(image)
+            frame_cycle = FrameCycle(tuple(FrameIterator(image)), PhotoImage)
         else:
-            image = AnimatedGif(image)
-            if size:
-                image = image.resize(size, 1)
-            frame_cycle = image.cycle(PhotoImage)
+            frame_cycle = PhotoImageCycle(path)
+
+        # if size and size != get_size(image):
+        #     frame_cycle = frame_cycle.resized(*size)
+
+    # elif isinstance(image, (Path, str)):
+    #     frame_cycle = PhotoImageCycle(Path(image).expanduser())
+    #     if size:
+    #         log.debug(f'Resizing {frame_cycle=} to {size=}')
+    #         frame_cycle = frame_cycle.resized(*size)
+    # else:  # TODO: PhotoImageCycle will not result in expected resize behavior...
+    #     if path := getattr(image, 'filename', None) or getattr(getattr(image, 'fp', None), 'name', None):
+    #         frame_cycle = PhotoImageCycle(Path(path))
+    #         if size:
+    #             log.debug(f'Resizing {frame_cycle=} to {size=}')
+    #             frame_cycle = frame_cycle.resized(*size)
+    #     else:
+    #         raise ValueError(f'Unexpected image type for {image=}')
+    #         # image = AnimatedGif(image)
+    #         # if size:
+    #         #     image = image.resize(size, 1)
+    #         # frame_cycle = image.cycle(PhotoImage)
 
     frame_cycle.n = last_frame_num
     return frame_cycle
+
+
+def _get_path(image: ImageType) -> Path:
+    if isinstance(image, Path):
+        return image
+    elif isinstance(image, str):
+        return Path(image).expanduser()
+    elif path := getattr(image, 'filename', None) or getattr(getattr(image, 'fp', None), 'name', None):
+        return Path(path)
+    raise ValueError(f'Unexpected image type for {image=}')
+
+
+def get_size(image: Union[AnimatedType, SevenSegmentDisplay]) -> XY:
+    if isinstance(image, Spinner):
+        return image.size
+    elif isinstance(image, SevenSegmentDisplay):
+        return image.width, image.height
+    image = as_image(image)
+    return image.size
 
 
 def _extract_kwargs(kwargs: dict[str, Any], keys: set[str], defaults: dict[str, Any]) -> dict[str, Any]:

@@ -26,7 +26,7 @@ __all__ = ['RowContainer', 'Window']
 log = logging.getLogger(__name__)
 
 BindCallback = Callable[[Event], Any]
-BindTarget = Union[BindCallback, BindTargets, str]
+BindTarget = Union[BindCallback, BindTargets, str, None]
 
 
 class RowContainer(ABC):
@@ -127,6 +127,9 @@ class Window(RowContainer):
         except (TclError, RuntimeError):
             log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
 
+    def set_title(self, title: str):
+        self.root.wm_title(title)
+
     # region Size & Position Methods
 
     @property
@@ -220,7 +223,7 @@ class Window(RowContainer):
 
         # region PySimpleGUI:_convert_window_to_tk
 
-        root.title(self.title)
+        root.wm_title(self.title)
         # skip: PySimpleGUI:InitializeResults
         for row in self.rows:  # PySimpleGUI: PackFormIntoFrame(window, master, window)
             row.pack()
@@ -292,6 +295,8 @@ class Window(RowContainer):
             self._bind(event_pat, cb)
 
     def _bind(self, event_pat: str, cb: BindTarget):
+        if cb is None:
+            return
         cb = self._normalize_bind_cb(cb)
         log.debug(f'Binding event={event_pat!r} to {cb=}')
         try:

@@ -28,4 +28,4 @@ class WindowPositioner:
         return None
 
 
-positioner = WindowPositioner()
+positioner: WindowPositioner = WindowPositioner()

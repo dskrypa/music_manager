@@ -3,8 +3,7 @@
 from ds_tools.logging import init_logging
 
 from .core import Window
-from .table import Table
-from .inputs import Input
+from .elements import Table, Input, Image
 
 
 def main():
@@ -13,7 +12,14 @@ def main():
     table1 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
     table2 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
     inpt = Input('test', size=(15, 1))
-    window = Window('Test One', [[table1, table2], [inpt]], size=(600, 600), element_justification='c')
+
+    layout = [
+        [table1, table2],
+        [inpt],
+    ]
+
+    # window = Window('Test One', layout, size=(600, 600), element_justification='c')
+    window = Window('Test One', layout, element_justification='c', binds={'<Escape>': 'exit'})
     window.run()
 
 

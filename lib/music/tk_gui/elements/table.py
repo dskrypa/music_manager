@@ -12,15 +12,19 @@ from functools import cached_property
 from itertools import chain
 from tkinter import Frame, Tcl, Scrollbar
 from tkinter.ttk import Treeview, Style
-from typing import Optional, Callable, Union, Literal
+from typing import TYPE_CHECKING, Optional, Callable, Union, Literal
 from unicodedata import normalize
 
 from wcwidth import wcswidth
 
-from .core import Element, Row
+from .element import Element
+
+if TYPE_CHECKING:
+    from ..pseudo_elements import Row
 
 __all__ = ['TableColumn', 'Table']
 log = logging.getLogger(__name__)
+
 SelectMode = Literal['none', 'browse', 'extended']
 TCL_VERSION = Tcl().eval('info patchlevel')
 
@@ -160,7 +164,6 @@ class Table(Element):
         return name, tk_style
 
     def pack_into(self, row: Row):
-        self.parent = row
         self.frame = frame = Frame(row.frame)
         columns = self.columns
         height = self.num_rows if self.num_rows else self.size[1] if self.size else len(self.data)
@@ -208,9 +211,6 @@ class Table(Element):
         if not self._visible:
             tree_view.pack_forget()
         frame.pack(side=tkc.LEFT, expand=True, **self.pad_kw)
-        # if self.tooltip:
-        #     pass
-        self.apply_binds()
 
 
 def _fixed_style_map(style: Style, style_name: str, option: str, highlight_colors: tuple[str, str] = (None, None)):

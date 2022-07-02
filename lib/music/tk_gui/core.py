@@ -8,99 +8,25 @@ from __future__ import annotations
 
 import logging
 import sys
-import tkinter.constants as tkc
 from abc import ABC, abstractmethod
-from collections import defaultdict
-from enum import Enum
-from functools import cached_property
 from inspect import stack
-from itertools import count
 from pathlib import Path
-from tkinter import Tk, Toplevel, Frame, PhotoImage, Widget, TclError
-from typing import Optional, Callable, Union, Iterable
+from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event
+from typing import Optional, Union, Any, Iterable, MutableMapping, Callable
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
-from .menu import ContextualMenu
 from .positioning import positioner
-from .style import Style, Font
+from .style import Style
+from .utils import BindTargets, Anchor, XY
+from .elements.element import Element
+from .pseudo_elements.row import Row
 
-__all__ = ['RowContainer', 'Window', 'Inheritable', 'Row', 'Element', 'Anchor']
+__all__ = ['RowContainer', 'Window']
 log = logging.getLogger(__name__)
 
-XY = tuple[int, int]
-# fmt: off
-ANCHOR_ALIASES = {
-    'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT',
-    'c': 'MID_CENTER', 't': 'TOP_CENTER', 'b': 'BOTTOM_CENTER', 'l': 'MID_LEFT', 'r': 'MID_RIGHT',
-}
-# fmt: on
-
-
-class Anchor(Enum):
-    # The aliases can be specified as below after Python 3.10
-    # __aliases = {
-    #   'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT'
-    # }
-    TOP_LEFT = tkc.NW
-    TOP_CENTER = tkc.N
-    TOP_RIGHT = tkc.NE
-    MID_LEFT = tkc.W
-    MID_CENTER = tkc.CENTER
-    MID_RIGHT = tkc.E
-    BOTTOM_LEFT = tkc.SW
-    BOTTOM_CENTER = tkc.S
-    BOTTOM_RIGHT = tkc.SE
-
-    @classmethod
-    def _missing_(cls, value: str):
-        # aliases = cls.__aliases
-        aliases = ANCHOR_ALIASES
-        try:
-            return cls[aliases[value.lower()]]
-        except KeyError:
-            pass
-        try:
-            return cls[value.upper().replace(' ', '_')]
-        except KeyError:
-            return None  # This is what the default implementation does to signal an exception should be raised
-
-    def as_justify(self):
-        if self.value in (tkc.NW, tkc.W, tkc.SW):
-            return tkc.LEFT
-        # elif self.value in (tkc.N, tkc.CENTER, tkc.S):
-        #     return tkc.CENTER
-        elif self.value in (tkc.NE, tkc.E, tkc.SE):
-            return tkc.RIGHT
-        return tkc.CENTER
-
-
-class Inheritable:
-    __slots__ = ('parent_attr', 'default', 'type', 'name')
-
-    def __init__(self, parent_attr: str = None, default: Any = None, type: Callable = None):  # noqa
-        self.parent_attr = parent_attr
-        self.default = default
-        self.type = type
-
-    def __set_name__(self, owner, name: str):
-        self.name = name
-
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        try:
-            return instance.__dict__[self.name]
-        except KeyError:
-            if self.default is not None:
-                return self.default
-            return getattr(instance.parent, self.parent_attr or self.name)
-
-    def __set__(self, instance, value):
-        if value is not None:
-            if self.type is not None:
-                value = self.type(value)
-            instance.__dict__[self.name] = value
+BindCallback = Callable[[Event], Any]
+BindTarget = Union[BindCallback, BindTargets, str]
 
 
 class RowContainer(ABC):
@@ -112,17 +38,8 @@ class RowContainer(ABC):
         element_justification: Union[str, Anchor] = None,
         element_padding: XY = None,
         element_size: XY = None,
-        font: Font = None,
-        text_color: str = None,
-        bg: str = None,
-        ttk_theme: str = None,
-        border_width: int = None,
     ):
         self.style = Style.get(style)
-        if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
-            self.style = Style(
-                parent=self.style, font=font, ttk_theme=ttk_theme, text=text_color, bg=bg, border_width=border_width
-            )
         self.element_justification = Anchor(element_justification) if element_justification else Anchor.MID_CENTER
         self.element_padding = element_padding
         self.element_size = element_size
@@ -153,9 +70,6 @@ class Window(RowContainer):
         resizable: bool = True,
         keep_on_top: bool = False,
         can_minimize: bool = True,
-        font: Font = None,
-        text_color: str = None,
-        bg: str = None,
         transparent_color: str = None,
         alpha_channel: int = None,
         icon: bytes = None,
@@ -165,8 +79,7 @@ class Window(RowContainer):
         element_justification: Union[str, Anchor] = None,
         element_padding: XY = None,
         element_size: XY = None,
-        ttk_theme: str = None,
-        border_width: int = None,
+        binds: MutableMapping[str, BindTarget] = None,
     ):
         if title is None:
             try:
@@ -181,11 +94,6 @@ class Window(RowContainer):
             element_justification=element_justification,
             element_padding=element_padding,
             element_size=element_size,
-            font=font,
-            text_color=text_color,
-            bg=bg,
-            ttk_theme=ttk_theme,
-            border_width=border_width,
         )
         self._size = size
         self._position = position
@@ -198,6 +106,7 @@ class Window(RowContainer):
         self.modal = modal
         self.no_title_bar = no_title_bar
         self.margins = margins
+        self.binds = binds or {}
         if self.rows:
             self.show()
 
@@ -242,18 +151,28 @@ class Window(RowContainer):
         # root.x root.y = pos
         root.update_idletasks()
 
-    def move_to_center(self, other: Window = None):
-        win_w, win_h = self.size
+    def _outer_size(self) -> XY:
+        # Outer dimensions of the window, used for calculating relative position
+        width, height = self.size
         if not self.no_title_bar:
-            win_h += 30  # Title bar size on Windows 10
+            height += 30  # Title bar size on Windows 10; more info would be needed for portability
+        return width, height
+
+    def move_to_center(self, other: Window = None):
+        """
+        Move this Window to the center of the monitor on which it is being displayed, or to the center of the specified
+        other Window.
+
+        :param other: A :class:`.Window`
+        """
+        win_w, win_h = self._outer_size()
         if other:
             x, y = other.position
             monitor = positioner.get_monitor(x, y)
-            par_w, par_h = other.size
-            if not other.no_title_bar:
-                par_h += 30
+            par_w, par_h = other._outer_size()
             x += (par_w - win_w) // 2
             y += (par_h - win_h) // 2
+            # If being centered on the window places it in a bad position, center on the monitor instead
             x_min, y_min = monitor.x, monitor.y
             x_max = x_min + monitor.width
             y_max = y_min + monitor.height
@@ -343,6 +262,7 @@ class Window(RowContainer):
             except (TclError, RuntimeError):
                 log.error('Error configuring window to be modal:', exc_info=True)
 
+        self.apply_binds()
         root.after(250, self._sigint_fix)
         root.mainloop(1)
 
@@ -352,10 +272,42 @@ class Window(RowContainer):
         hidden_root.attributes('-alpha', 0)  # Hide this window
         try:
             hidden_root.wm_overrideredirect(True)
-        except Exception:  # noqa
+        except (TclError, RuntimeError):
             log.error('Error overriding redirect for hidden root:', exc_info=True)
         hidden_root.withdraw()
         Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
+
+    # endregion
+
+    # region Bind Methods
+
+    def bind(self, event_pat: str, cb: BindTarget):
+        if self.root:
+            self._bind(event_pat, cb)
+        else:
+            self.binds[event_pat] = cb
+
+    def apply_binds(self):
+        for event_pat, cb in self.binds.items():
+            self._bind(event_pat, cb)
+
+    def _bind(self, event_pat: str, cb: BindTarget):
+        cb = self._normalize_bind_cb(cb)
+        log.debug(f'Binding event={event_pat!r} to {cb=}')
+        try:
+            self.root.bind(event_pat, cb)
+        except (TclError, RuntimeError) as e:
+            log.error(f'Unable to bind event={event_pat!r}: {e}')
+            self.root.unbind_all(event_pat)
+
+    def _normalize_bind_cb(self, cb: BindTargets) -> BindCallback:
+        if isinstance(cb, str):
+            cb = BindTargets(cb)
+        if isinstance(cb, BindTargets):
+            if cb == BindTargets.EXIT:
+                cb = self.close
+
+        return cb
 
     # endregion
 
@@ -378,7 +330,7 @@ class Window(RowContainer):
             pass
         log.debug('  Done')
 
-    def close(self):
+    def close(self, event: Event = None):
         try:
             obj, close_func, args, kwargs = self._finalizer.detach()
         except (TypeError, AttributeError):
@@ -406,140 +358,3 @@ class Window(RowContainer):
     @property
     def is_maximized(self) -> bool:
         return self.root.state() == 'zoomed'
-
-
-class Row:
-    frame: Optional[Frame]
-    element_justification = Inheritable(type=Anchor)    # type: Anchor
-    element_padding = Inheritable()                     # type: XY
-    element_size = Inheritable()                        # type: XY
-    style = Inheritable()                               # type: Style
-    auto_size_text = Inheritable()                      # type: bool
-
-    def __init__(self, parent: RowContainer, elements: Iterable[Element]):
-        self.frame = None
-        self.parent = parent
-        self.elements = list(elements)
-        # for ele in self.elements:
-        #     ele.parent = self
-        self.expand = None  # Set to True only for Column elements
-        self.fill = None    # Changes for Column, Separator, StatusBar
-
-    def __getitem__(self, index: int):
-        return self.elements[index]
-
-    @property
-    def anchor(self):
-        return self.element_justification.value
-
-    def pack(self):
-        self.frame = frame = Frame(self.parent.tk_container)
-        for ele in self.elements:
-            ele.pack_into(self)
-        anchor = self.anchor
-        center = anchor == tkc.CENTER
-        expand = self.expand if self.expand is not None else center
-        fill = self.fill if self.fill is not None else tkc.BOTH if center else tkc.NONE
-        frame.pack(side=tkc.TOP, anchor=anchor, padx=0, pady=0, expand=expand, fill=fill)
-        if (bg := self.style.bg.default) is not None:
-            frame.configure(background=bg)
-
-
-class Element:
-    _counters = defaultdict(count)
-    parent: Optional[Row] = None
-    widget: Optional[Widget] = None
-    tooltip: Optional[str] = None
-    right_click_menu: Optional[ContextualMenu] = None
-    left_click_cb: Optional[Callable] = None
-
-    pad = Inheritable('element_padding')                            # type: XY
-    size = Inheritable('element_size')                              # type: XY
-    auto_size_text = Inheritable()                                  # type: bool
-    justify = Inheritable('element_justification', type=Anchor)     # type: Anchor
-    style = Inheritable()                                           # type: Style
-
-    def __init__(
-        self,
-        *,
-        size: XY = None,
-        pad: XY = None,
-        style: Style = None,
-        font: Font = None,
-        auto_size_text: bool = None,
-        border_width: int = None,
-        justify: Union[str, Anchor] = None,
-        visible: bool = True,
-        tooltip: str = None,
-        ttk_theme: str = None,
-        bg: str = None,
-        text_color: str = None,
-        right_click_menu: ContextualMenu = None,
-        left_click_cb: Callable = None,
-    ):
-        self.id = next(self._counters[self.__class__])
-        self._visible = visible
-
-        # Directly stored attrs that override class defaults
-        if tooltip:
-            self.tooltip = tooltip
-        if right_click_menu:
-            self.right_click_menu = right_click_menu
-        if left_click_cb:
-            self.left_click_cb = left_click_cb
-
-        # Inheritable attrs
-        self.pad = pad
-        self.size = size
-        self.auto_size_text = auto_size_text
-        self.justify = justify
-        self.style = Style.get(style)
-        # if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
-        if not (text_color is bg is font is ttk_theme is border_width is None):
-            self.style = Style(
-                parent=self.style, font=font, ttk_theme=ttk_theme, text=text_color, bg=bg, border_width=border_width
-            )
-
-    @cached_property
-    def anchor(self):
-        return self.justify.value
-
-    @property
-    def pad_kw(self) -> dict[str, int]:
-        try:
-            x, y = self.pad
-        except TypeError:
-            x, y = 5, 3
-        return {'padx': x, 'pady': y}
-
-    def pack_into(self, row: Row):
-        self.parent = row
-        self.apply_binds()
-
-    def apply_binds(self):
-        widget = self.widget
-        widget.bind('<Button-3>', self.handle_right_click)
-
-    def hide(self):
-        self.widget.pack_forget()
-        self._visible = False
-
-    def show(self):
-        self.widget.pack(**self.pad_kw)
-        self._visible = True
-
-    def toggle_visibility(self, show: bool = None):
-        if show is None:
-            show = not self._visible
-        if show:
-            self.show()
-        else:
-            self.hide()
-
-    def handle_left_click(self, event):
-        if (cb := self.left_click_cb) is not None:
-            cb(event)  # TODO: finalize expected args to provide
-
-    def handle_right_click(self, event):
-        if (menu := self.right_click_menu) is not None:
-            menu.show(event, self.widget.master)  # noqa

@@ -13,6 +13,7 @@ from typing import Callable, Mapping, Union, Hashable
 from urllib.parse import quote_plus
 
 __all__ = ['ContextualMenu', 'ShowMode', 'SearchMenu']
+
 CallbackArg = Hashable
 MenuDict = Mapping[CallbackArg, str]
 

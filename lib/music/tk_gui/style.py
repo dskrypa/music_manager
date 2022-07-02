@@ -10,34 +10,61 @@ from __future__ import annotations
 from functools import cached_property
 from itertools import count
 from tkinter.font import Font as _Font
-from typing import Union, Optional, Literal, Type
+from typing import Union, Optional, Literal, Type, Mapping, Sequence, Iterator, overload
 
-__all__ = ['Style', 'StateColors', 'Colors', 'State', 'Font']
+__all__ = ['Style', 'StateColors', 'Colors', 'State', 'Font', 'StyleSpec']
 # log = logging.getLogger(__name__)
 
 Font = Union[str, tuple[str, int]]
 State = Literal['default', 'disabled', 'invalid']
 Colors = Union['StateColors', dict[State, str], tuple[Optional[str], ...], str]
+StyleSpec = Union[str, 'Style', None]
 
 
-class Color:
+class _NamedDescriptor:
     __slots__ = ('name',)
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner, name: str):
         self.name = name
 
-    def __get__(self, instance: StateColors, owner):
+    def __delete__(self, instance):
+        try:
+            del instance.__dict__[self.name]
+        except KeyError as e:
+            msg = f'{instance.__class__.__name__} object has no directly assigned value for {self.name!r}'
+            raise AttributeError(msg) from e
+
+
+class Color(_NamedDescriptor):
+    __slots__ = ()
+
+    def __get__(self, instance: Optional[StateColors], owner: Type[StateColors]):
         if instance is None:
             return self
-        elif (value := instance.__dict__[self.name]) is not None:
-            return value
-        elif '_' in instance.type:
-            value = getattr(getattr(instance, instance.type.rsplit('_', 1)[1]), self.name)
-        elif (parent := instance.style.parent) is not None:
-            value = getattr(getattr(parent, instance.type), self.name)
-        elif (style := Style.default) is not None:
-            value = getattr(getattr(style, instance.type), self.name)
-        return value
+
+        state = self.name
+        for state_colors in self._iter_state_colors(instance):
+            state_color_map = state_colors.__dict__
+            if value := state_color_map[state]:
+                return value
+            elif state != 'default' and (value := state_color_map['default']):
+                return value
+
+        inst_type = instance.type  # <element type>_(fg|bg)
+        try:
+            _, base_type = inst_type.rsplit('_', 1)  # fg / bg
+        except ValueError:
+            return None
+        else:
+            return getattr(getattr(instance.style, base_type), state)
+
+    @classmethod
+    def _iter_state_colors(cls, state_colors: StateColors) -> Iterator[StateColors]:
+        yield state_colors
+        attr = state_colors.type
+        for style in sro(state_colors.style.parent):
+            if attr in style.__dict__:
+                yield getattr(style, attr)
 
     def __set__(self, instance: StateColors, value: Optional[str]):
         instance.__dict__[self.name] = value
@@ -61,40 +88,50 @@ class StateColors:
 
     @classmethod
     def init(cls, style: Style, type: str, colors: Colors = None):  # noqa
-        if colors is None:
+        if not colors:
             return cls(style, type)
         elif isinstance(colors, cls):
             if colors.type != type:
                 colors = colors.copy()
                 colors.type = type
             return colors
-        elif isinstance(colors, tuple):
-            return cls(style, type, *colors)
-        elif isinstance(colors, dict):
-            return cls(style, type, **colors)
         elif isinstance(colors, str):
             return cls(style, type, default=colors)
+        elif isinstance(colors, Mapping):
+            return cls(style, type, **colors)
+        elif isinstance(colors, Sequence):
+            return cls(style, type, *colors)
         else:
             raise TypeError(f'Invalid type={colors.__class__.__name__!r} to initialize {cls.__name__}')
 
 
-class StyleOption:
-    __slots__ = ('name',)
+class StyleOption(_NamedDescriptor):
+    __slots__ = ()
 
     def __set_name__(self, owner: Type[Style], name: str):
         self.name = name
+        owner._fields.add(name)
 
     def __get__(self, instance: Optional[Style], owner: Type[Style]):
         if instance is None:
             return self
+        return self.get_value(instance, owner)
+
+    def get_value(self, instance: Optional[Style], owner: Type[Style]):
+        for style in sro(instance):
+            try:
+                return style.__dict__[self.name]
+            except KeyError:
+                pass
+
         try:
-            return instance.__dict__[self.name]
-        except KeyError:
+            _, base_name = self.name.rsplit('_', 1)
+        except ValueError:
             pass
-        if parent := instance.parent:
-            return getattr(parent, self.name)
-        elif default := instance.default:
-            return getattr(default, self.name)
+        else:
+            if base_name in owner._fields:
+                return getattr(instance, base_name)
+
         return None
 
     def __set__(self, instance: Style, value):
@@ -103,29 +140,69 @@ class StyleOption:
         else:
             instance.__dict__[self.name] = value
 
-    def __delete__(self, instance: Style):
-        try:
-            del instance.__dict__[self.name]
-        except KeyError as e:
-            msg = f'{instance.__class__.__name__} object has no directly assigned value for {self.name!r}'
-            raise AttributeError(msg) from e
+
+class StatefulColor(StyleOption):
+    __slots__ = ()
+
+    def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StatefulColor, StateColors]:
+        if instance is None:
+            return self
+
+        value = self.get_value(instance, owner)
+        if not value:
+            instance.__dict__[self.name] = value = StateColors.init(instance, self.name)
+        return value
+
+    def __set__(self, instance: Style, value: Optional[Colors]):
+        if value is None:
+            instance.__dict__.pop(self.name, None)
+        else:
+            instance.__dict__[self.name] = StateColors.init(instance, self.name, value)
+
+
+def sro(style: Optional[Style]) -> Iterator[Style]:
+    """Style resolution order"""
+    while style:
+        yield style
+        style = style.parent
+
+    if default := Style.default:
+        yield default
 
 
 class Style:
+    _fields: set[str] = set()
     _count = count()
-    _instances = {}
+    _instances: dict[str, Style] = {}
     default: Optional[Style] = None
+
+    name: str
+    parent: Optional[Style]
+
     font: Optional[Font] = StyleOption()
+    tooltip_font: Optional[Font] = StyleOption()
     ttk_theme: Optional[str] = StyleOption()
     border_width: Optional[int] = StyleOption()
     insert_bg: Optional[str] = StyleOption()
 
+    fg = StatefulColor()
+    bg = StatefulColor()
+    text = fg
+    button_fg = StatefulColor()
+    button_bg = StatefulColor()
+    input_fg = StatefulColor()
+    input_bg = StatefulColor()
+    tooltip_fg = StatefulColor()
+    tooltip_bg = StatefulColor()
+
+    @overload
     def __init__(
         self,
         name: str = None,
         *,
         parent: Union[str, Style] = None,
         font: Font = None,
+        tooltip_font: Font = None,
         ttk_theme: str = None,
         border_width: int = None,
         insert_bg: str = None,
@@ -135,23 +212,28 @@ class Style:
         button_bg: Colors = None,
         input_fg: Colors = None,
         input_bg: Colors = None,
+        tooltip_fg: Colors = None,
+        tooltip_bg: Colors = None,
     ):
-        if name is None:
+        ...
+
+    def __init__(self, name: str = None, *, parent: Union[str, Style] = None, **kwargs):
+        if not name:  # Anonymous styles won't be stored
             name = f'{self.__class__.__name__}#{next(self._count)}'
         else:
             self._instances[name] = self
-        self.parent = self.__class__[parent] if isinstance(parent, str) else parent
+        self.parent = self._instances.get(parent, parent)
         self.name = name
-        self.font = font
-        self.ttk_theme = ttk_theme
-        self.border_width = border_width
-        self.insert_bg = insert_bg
-        self.fg = self.text = StateColors.init(self, 'fg', text)
-        self.bg = StateColors.init(self, 'bg', bg)
-        self.button_fg = StateColors.init(self, 'button_fg', button_fg)
-        self.button_bg = StateColors.init(self, 'button_bg', button_bg)
-        self.input_fg = StateColors.init(self, 'input_fg', input_fg)
-        self.input_bg = StateColors.init(self, 'input_bg', input_bg)
+
+        bad = {}
+        for key, val in kwargs.items():
+            if key in self._fields:
+                setattr(self, key, val)
+            else:
+                bad[key] = val
+        if bad:
+            bad_str = ', '.join(sorted(bad))
+            raise ValueError(f'Invalid {self.__class__.__name__} options - unsupported options: {bad_str}')
 
     def __class_getitem__(cls, name: str) -> Style:
         return cls._instances[name]
@@ -204,4 +286,5 @@ Style(
     input_bg='#272a31',
     button_fg='#f5f5f6',
     button_bg='#2e3d5a',
+    tooltip_bg='#ffffe0',
 ).make_default()

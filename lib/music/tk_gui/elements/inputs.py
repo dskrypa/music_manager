@@ -13,10 +13,11 @@ from functools import partial
 from tkinter import TclError, Entry, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any
 
-from .core import Element, Row
+from .element import Element
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from ..pseudo_elements import Row
 
 __all__ = ['Input']
 log = logging.getLogger(__name__)
@@ -57,7 +58,6 @@ class Input(Element):
         return selection
 
     def pack_into(self, row: Row):
-        self.parent = row
         self.string_var = StringVar()
         self.string_var.set(self._value)
         style = self.style
@@ -89,8 +89,6 @@ class Input(Element):
             entry.bind('<Control-Button-1>', self._open_link)
             if (value := self._value) and value.startswith(('http://', 'https://')):
                 entry.configure(cursor='hand2')
-
-        self.apply_binds()
 
     def _refresh_colors(self):
         fg, bg = self.style.get_fg_bg('input', 'default' if self._valid else 'invalid')

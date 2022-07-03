@@ -15,7 +15,7 @@ from PIL.Image import MIME
 from ds_tools.images.utils import ImageType, as_image
 
 from ..core import Window
-from ..elements.image import AnimatedType, Image, Animation, ClockImage, SpinnerImage, get_size
+from ..elements.images import AnimatedType, Image, Animation, ClockImage, SpinnerImage, get_size
 from ..positioning import positioner
 
 if TYPE_CHECKING:
@@ -44,7 +44,6 @@ class ImagePopup:
         self.window = Window(self.title, [[self.gui_image]], **kwargs)
 
     def __repr__(self) -> str:
-
         return f'<{self.__class__.__name__}[title={self.title!r}, orig={self.orig_size}, empty: {self._empty}]>'
 
     def _set_image(self, image: ImageType):

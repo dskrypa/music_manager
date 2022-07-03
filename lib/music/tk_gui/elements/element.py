@@ -11,14 +11,16 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import cached_property
 from itertools import count
-from typing import TYPE_CHECKING, Optional, Callable, Union
+from tkinter import TclError
+from typing import TYPE_CHECKING, Optional, Callable, Union, MutableMapping
 
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, Font, StyleSpec
-from ..utils import Anchor, Inheritable, XY
+from ..utils import Anchor, Inheritable, XY, BindCallback
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
+    from ..core import Window
     from ..pseudo_elements import ContextualMenu, Row
 
 __all__ = ['Element']
@@ -33,6 +35,7 @@ class Element(ABC):
     tooltip_text: Optional[str] = None
     right_click_menu: Optional[ContextualMenu] = None
     left_click_cb: Optional[Callable] = None
+    binds: Optional[MutableMapping[str, BindCallback]] = None
 
     pad = Inheritable('element_padding')                            # type: XY
     size = Inheritable('element_size')                              # type: XY
@@ -57,6 +60,7 @@ class Element(ABC):
         text_color: str = None,
         right_click_menu: ContextualMenu = None,
         left_click_cb: Callable = None,
+        binds: MutableMapping[str, BindCallback] = None,
     ):
         self.id = next(self._counters[self.__class__])
         self._visible = visible
@@ -68,6 +72,8 @@ class Element(ABC):
             self.right_click_menu = right_click_menu
         if left_click_cb:
             self.left_click_cb = left_click_cb
+        if binds:
+            self.binds = binds
 
         # Inheritable attrs
         self.pad = pad
@@ -80,6 +86,27 @@ class Element(ABC):
             self.style = Style(
                 parent=self.style, font=font, ttk_theme=ttk_theme, text=text_color, bg=bg, border_width=border_width
             )
+
+    def __repr__(self) -> str:
+        x, y = self.col_row
+        return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
+
+    # region Introspection
+
+    @property
+    def window(self) -> Window:
+        return self.parent.window
+
+    @property
+    def col_row(self) -> XY:
+        row = self.parent
+        x = row.elements.index(self)
+        y = row.parent.rows.index(row)
+        return x, y
+
+    # endregion
+
+    # region Pack Methods / Attributes
 
     @cached_property
     def anchor(self):
@@ -104,10 +131,16 @@ class Element(ABC):
     def pack_into(self, row: Row):
         raise NotImplementedError
 
-    def apply_binds(self):
-        widget = self.widget
-        widget.bind('<Button-1>', self.handle_left_click)
-        widget.bind('<Button-3>', self.handle_right_click)
+    def add_tooltip(
+        self, text: str, delay: int = ToolTip.DEFAULT_DELAY, style: StyleSpec = None, wrap_len_px: int = None
+    ):
+        if self._tooltip:
+            del self._tooltip
+        self._tooltip = ToolTip(self, text, delay=delay, style=style, wrap_len_px=wrap_len_px)
+
+    # endregion
+
+    # region Visibility Methods
 
     def hide(self):
         self.widget.pack_forget()
@@ -125,6 +158,41 @@ class Element(ABC):
         else:
             self.hide()
 
+    # endregion
+
+    # region Bind Methods
+
+    def apply_binds(self):
+        widget = self.widget
+        widget.bind('<Button-1>', self.handle_left_click)
+        widget.bind('<Button-3>', self.handle_right_click)
+        if self.binds:
+            for event_pat, cb in self.binds.items():
+                self._bind(event_pat, cb)
+
+    def bind(self, event_pat: str, cb: BindCallback):
+        if self.widget:
+            self._bind(event_pat, cb)
+        else:
+            try:
+                self.binds[event_pat] = cb
+            except TypeError:  # self.binds is None
+                self.binds = {event_pat: cb}
+
+    def _bind(self, event_pat: str, cb: BindCallback):
+        if cb is None:
+            return
+        log.debug(f'Binding event={event_pat!r} to {cb=}')
+        try:
+            self.widget.bind(event_pat, cb)
+        except (TclError, RuntimeError) as e:
+            log.error(f'Unable to bind event={event_pat!r}: {e}')
+            self.widget.unbind_all(event_pat)
+
+    # endregion
+
+    # region Event Handlers
+
     def handle_left_click(self, event: Event):
         # log.debug(f'Handling left click')
         if cb := self.left_click_cb:
@@ -135,9 +203,4 @@ class Element(ABC):
         if menu := self.right_click_menu:
             menu.show(event, self.widget.master)  # noqa
 
-    def add_tooltip(
-        self, text: str, delay: int = ToolTip.DEFAULT_DELAY, style: StyleSpec = None, wrap_len_px: int = None
-    ):
-        if self._tooltip:
-            del self._tooltip
-        self._tooltip = ToolTip(self, text, delay=delay, style=style, wrap_len_px=wrap_len_px)
+    # endregion

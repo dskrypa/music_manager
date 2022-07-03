@@ -15,7 +15,7 @@ from ..style import Style
 from ..utils import Anchor, Inheritable, XY
 
 if TYPE_CHECKING:
-    from ..core import RowContainer
+    from ..core import RowContainer, Window
     from ..elements import Element
 
 __all__ = ['Row']
@@ -45,6 +45,10 @@ class Row:
     @property
     def anchor(self):
         return self.element_justification.value
+
+    @property
+    def window(self) -> Window:
+        return self.parent.window
 
     def pack(self):
         self.frame = frame = Frame(self.parent.tk_container)

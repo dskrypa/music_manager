@@ -13,20 +13,19 @@ from inspect import stack
 from os import environ
 from pathlib import Path
 from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper
-from typing import Optional, Union, Any, Iterable, MutableMapping, Callable
+from typing import Optional, Union, Iterable, MutableMapping
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
 from .positioning import positioner
 from .style import Style
-from .utils import BindTargets, Anchor, XY
+from .utils import BindTargets, Anchor, XY, BindCallback
 from .elements.element import Element
 from .pseudo_elements.row import Row
 
 __all__ = ['RowContainer', 'Window']
 log = logging.getLogger(__name__)
 
-BindCallback = Callable[[Event], Any]
 BindTarget = Union[BindCallback, BindTargets, str, None]
 
 
@@ -49,6 +48,11 @@ class RowContainer(ABC):
     @property
     @abstractmethod
     def tk_container(self) -> Union[Frame, Toplevel]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def window(self) -> Window:
         raise NotImplementedError
 
     def __getitem__(self, index: int) -> Row:
@@ -121,6 +125,10 @@ class Window(RowContainer):
     @property
     def tk_container(self) -> Toplevel:
         return self.root
+
+    @property
+    def window(self) -> Window:
+        return self
 
     def set_alpha(self, alpha: int):
         try:

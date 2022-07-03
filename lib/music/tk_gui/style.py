@@ -38,7 +38,7 @@ class _NamedDescriptor:
 class Color(_NamedDescriptor):
     __slots__ = ()
 
-    def __get__(self, instance: Optional[StateColors], owner: Type[StateColors]):
+    def __get__(self, instance: Optional[StateColors], owner: Type[StateColors]) -> Union[Color, str, None]:
         if instance is None:
             return self
 
@@ -104,6 +104,12 @@ class StateColors:
         else:
             raise TypeError(f'Invalid type={colors.__class__.__name__!r} to initialize {cls.__name__}')
 
+    def __getitem__(self, state: str) -> Optional[str]:
+        try:
+            return getattr(self, state)
+        except AttributeError as e:
+            raise KeyError(f'Invalid {self.type} {state=}') from e
+
 
 class StyleOption(_NamedDescriptor):
     __slots__ = ()
@@ -143,6 +149,14 @@ class StyleOption(_NamedDescriptor):
 
 class StatefulColor(StyleOption):
     __slots__ = ()
+
+    @overload
+    def __get__(self, instance: None, owner: Type[Style]) -> StatefulColor:
+        ...
+
+    @overload
+    def __get__(self, instance: Style, owner: Type[Style]) -> StateColors:
+        ...
 
     def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StatefulColor, StateColors]:
         if instance is None:
@@ -194,6 +208,10 @@ class Style:
     input_bg = StatefulColor()
     tooltip_fg = StatefulColor()
     tooltip_bg = StatefulColor()
+    hover_fg = StatefulColor()  # Foreground color when hovering over buttons / links / etc
+    hover_bg = StatefulColor()  # Background color when hovering over buttons / links / etc
+    focus_fg = StatefulColor()  # Foreground color when a button/etc has focus
+    focus_bg = StatefulColor()  # Background color when a button/etc has focus
 
     @overload
     def __init__(
@@ -214,6 +232,10 @@ class Style:
         input_bg: Colors = None,
         tooltip_fg: Colors = None,
         tooltip_bg: Colors = None,
+        hover_fg: Colors = None,
+        hover_bg: Colors = None,
+        focus_fg: Colors = None,
+        focus_bg: Colors = None,
     ):
         ...
 

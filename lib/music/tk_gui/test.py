@@ -5,7 +5,7 @@ from pathlib import Path
 from ds_tools.logging import init_logging
 
 from .core import Window
-from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage
+from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup
 
 
@@ -22,7 +22,7 @@ def main():
 
     layout = [
         [table1, table2],
-        [inpt],
+        [inpt, Button('Submit')],
         [Animation(gif_path), SpinnerImage()],
         [ClockImage()],
         [Image(png_path)]

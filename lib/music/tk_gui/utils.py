@@ -7,11 +7,15 @@ Utils for the Tkinter GUI package.
 import tkinter.constants as tkc
 from abc import abstractmethod
 from enum import Enum
-from typing import Optional, Protocol, TypeVar, Type, Any, Callable, runtime_checkable
+from typing import TYPE_CHECKING, Optional, Protocol, TypeVar, Type, Any, Callable, runtime_checkable
 
-__all__ = ['BindTargets', 'Anchor', 'Inheritable', 'XY']
+if TYPE_CHECKING:
+    from tkinter import Event
+
+__all__ = ['BindTargets', 'Anchor', 'Inheritable', 'XY', 'BindCallback']
 
 T_co = TypeVar('T_co', covariant=True)
+BindCallback = Callable[['Event'], Any]
 XY = tuple[int, int]
 # fmt: off
 ANCHOR_ALIASES = {

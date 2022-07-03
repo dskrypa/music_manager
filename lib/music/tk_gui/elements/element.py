@@ -18,7 +18,7 @@ from ..style import Style, Font, StyleSpec
 from ..utils import Anchor, Inheritable, XY
 
 if TYPE_CHECKING:
-    from tkinter import Widget
+    from tkinter import Widget, Event
     from ..pseudo_elements import ContextualMenu, Row
 
 __all__ = ['Element']
@@ -106,6 +106,7 @@ class Element(ABC):
 
     def apply_binds(self):
         widget = self.widget
+        widget.bind('<Button-1>', self.handle_left_click)
         widget.bind('<Button-3>', self.handle_right_click)
 
     def hide(self):
@@ -124,12 +125,14 @@ class Element(ABC):
         else:
             self.hide()
 
-    def handle_left_click(self, event):
-        if (cb := self.left_click_cb) is not None:
-            cb(event)  # TODO: finalize expected args to provide
+    def handle_left_click(self, event: Event):
+        # log.debug(f'Handling left click')
+        if cb := self.left_click_cb:
+            # log.debug(f'Passing {event=} to {cb=}')
+            cb(event)
 
-    def handle_right_click(self, event):
-        if (menu := self.right_click_menu) is not None:
+    def handle_right_click(self, event: Event):
+        if menu := self.right_click_menu:
             menu.show(event, self.widget.master)  # noqa
 
     def add_tooltip(

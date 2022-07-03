@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from tkinter import Event
     from ..utils import XY
 
-__all__ = ['ImagePopup', 'AnimatedPopup']
+__all__ = ['ImagePopup', 'AnimatedPopup', 'SpinnerPopup', 'ClockPopup']
 log = logging.getLogger(__name__)
 
 
@@ -44,6 +44,7 @@ class ImagePopup:
         self.window = Window(self.title, [[self.gui_image]], **kwargs)
 
     def __repr__(self) -> str:
+
         return f'<{self.__class__.__name__}[title={self.title!r}, orig={self.orig_size}, empty: {self._empty}]>'
 
     def _set_image(self, image: ImageType):
@@ -87,15 +88,18 @@ class ImagePopup:
 
     def handle_config_changed(self, event: Event):
         size = (event.width, event.height)
-        # log.debug(f'Handling config {event=} with type={event.type!r} {size=}')
-        log.debug(f'Handling config {event=} for {self}')
         if self._empty or self._last_size == size or monotonic() - self._last_resize < 0.15:
+            # log.debug(f'Ignoring config {event=} for {self}')
             return
+        # log.debug(f'Handling config {event=} for {self}')
         if new_size := self._get_new_size(*size):
+            # log.debug(f'Resizing from old={self._last_size} to new={new_size} due to {event=} for {self}')
             self._last_size = new_size
             self.gui_image.resize(*new_size)
             self.window.set_title(self.title)
             self._last_resize = monotonic()
+        # else:
+        #     log.debug(f'No size change necessary for {event=} for {self}')
 
     def run(self):
         self.window.run()
@@ -108,3 +112,33 @@ class AnimatedPopup(ImagePopup):
         self._last_size = init_size = self._init_size()
         self.gui_image = animation = Animation(image, size=init_size, pad=(2, 2))
         self._empty = animation.size == (0, 0)
+
+
+class SpinnerPopup(AnimatedPopup):
+    def __init__(self, *args, img_size: XY = None, **kwargs):
+        self._img_size = img_size
+        super().__init__(None, *args, **kwargs)
+
+    def _set_image(self, image: None):
+        self._empty = False
+        self.orig_size = self._img_size or SpinnerImage.DEFAULT_SIZE
+        self._last_size = init_size = self._init_size()
+        self.gui_image = SpinnerImage(size=init_size, pad=(2, 2))
+
+
+class ClockPopup(AnimatedPopup):
+    def __init__(self, *args, img_size: XY = None, toggle_slim_on_click: bool = False, **kwargs):
+        self._img_size = img_size
+        self._toggle_slim_on_click = toggle_slim_on_click
+        super().__init__(None, *args, **kwargs)
+
+    def _set_image(self, image: None):
+        self._empty = False
+        kwargs = {'toggle_slim_on_click': self._toggle_slim_on_click, 'pad': (2, 2)}
+        if img_size := self._img_size:
+            self.orig_size = img_size
+            self._last_size = init_size = self._init_size()
+            self.gui_image = ClockImage(img_size=init_size, **kwargs)
+        else:
+            self.gui_image = ClockImage(**kwargs)
+            self.orig_size = self._last_size = self.gui_image.size

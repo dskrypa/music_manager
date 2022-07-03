@@ -11,7 +11,7 @@ import tkinter.constants as tkc
 from datetime import datetime, timedelta
 from inspect import Signature
 from pathlib import Path
-from tkinter import Label, TclError
+from tkinter import Label, TclError, Event
 from typing import TYPE_CHECKING, Optional, Any, Union
 
 from PIL.Image import Image as PILImage, Resampling
@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 AnimatedType = Union[PILImage, Spinner, Path, str, '_ClockCycle']
 _Image = Optional[Union[PILImage, PhotoImage]]
 ImageAndSize = tuple[_Image, int, int]
+ImageCycle = Union[FrameCycle, '_ClockCycle']
 
 
 class Image(Element):
@@ -48,7 +49,7 @@ class Image(Element):
 
     def __init__(self, image: ImageType = None, **kwargs):
         super().__init__(**kwargs)
-        self._image = GuiImage(image)
+        self._image = _GuiImage(image)
 
     # @property
     # def image(self) -> Optional[PILImage]:
@@ -132,13 +133,15 @@ class Animation(Image, animated=True):
 
     def resize(self, width: int, height: int):
         self.size = size = (width, height)
-        # log.debug(f'Attempting resize to {size=}')
-        self.image_cycle = image_cycle = normalize_image_cycle(self.__image, size, self.image_cycle.n)
+        self.image_cycle = image_cycle = self._resize_cycle(size)
         frame, delay = next(image_cycle)
         self._re_pack(frame, width, height)
         if self._run:
             self._cancel()
             self._next_id = self.widget.after(delay, self.next)
+
+    def _resize_cycle(self, size: XY) -> ImageCycle:
+        return normalize_image_cycle(self.__image, size, self.image_cycle.n)
 
     def next(self):
         frame, delay = next(self.image_cycle)
@@ -173,12 +176,12 @@ class Animation(Image, animated=True):
 
 class SpinnerImage(Animation):
     _spinner_keys = set(Signature.from_callable(Spinner).parameters.keys())
-    _default_size = (200, 200)
-    _default_kwargs = {'frame_fade_pct': 0.01, 'frame_duration_ms': 20, 'frames_per_spoke': 1}
+    DEFAULT_SIZE = (200, 200)
+    DEFAULT_KWARGS = {'frame_fade_pct': 0.01, 'frame_duration_ms': 20, 'frames_per_spoke': 1}
 
     def __init__(self, **kwargs):
-        spinner_kwargs = _extract_kwargs(kwargs, self._spinner_keys, self._default_kwargs)
-        size = spinner_kwargs.setdefault('size', self._default_size)
+        spinner_kwargs = _extract_kwargs(kwargs, self._spinner_keys, self.DEFAULT_KWARGS)
+        size = spinner_kwargs.setdefault('size', self.DEFAULT_SIZE)
         spinner = Spinner(**spinner_kwargs)
         super().__init__(spinner, size=size, **kwargs)
 
@@ -207,34 +210,52 @@ class _ClockCycle:
 
     back = __next__
 
+    @property
+    def size(self) -> XY:
+        clock = self.clock
+        return clock.width, clock.height
+
 
 class ClockImage(Animation):
     image_cycle: _ClockCycle
     _clock_keys = set(Signature.from_callable(SevenSegmentDisplay).parameters.keys())
-    _default_kwargs = {'bar_pct': 0.2, 'width': 40}
+    DEFAULT_KWARGS = {'bar_pct': 0.2, 'width': 40}
 
     def __init__(
-        self, slim: bool = False, img_size: XY = None, seconds: bool = True, style: StyleSpec = None, **kwargs
+        self,
+        slim: bool = False,
+        img_size: XY = None,
+        seconds: bool = True,
+        style: StyleSpec = None,
+        toggle_slim_on_click: bool = False,
+        **kwargs,
     ):
-        clock_kwargs = _extract_kwargs(kwargs, self._clock_keys, self._default_kwargs)
+        clock_kwargs = _extract_kwargs(kwargs, self._clock_keys, self.DEFAULT_KWARGS)
         self._slim = slim
         self.clock = clock = SevenSegmentDisplay(**clock_kwargs)
         if img_size is not None:
             clock.resize(clock.calc_width(calculate_resize(*clock.time_size(seconds), *img_size)[1]) - 1)
-
+        if toggle_slim_on_click:
+            kwargs['left_click_cb'] = self.toggle_slim
         kwargs.setdefault('pad', (0, 0))
         kwargs.setdefault('size', clock.time_size(seconds))
         super().__init__(_ClockCycle(clock, seconds), style=style or Style(bg='black'), **kwargs)
 
-    def toggle_slim(self):
-        clock = self.clock
+    def toggle_slim(self, event: Event = None):
         slim = self._slim
+        clock = self.clock
         clock.resize(bar_pct=(clock.bar_pct * (2 if slim else 0.5)), preserve_height=True)
         self._slim = not slim
         self.image_cycle.last_time -= _ClockCycle.SECOND
 
+    def _resize_cycle(self, size: XY) -> ImageCycle:
+        clock = self.clock
+        image_cycle = self.image_cycle
+        clock.resize(clock.calc_width(calculate_resize(*clock.time_size(image_cycle.show_seconds), *size)[1]) - 1)
+        return image_cycle
 
-class GuiImage:
+
+class _GuiImage:
     __slots__ = ('src_image', 'current', 'current_tk', 'src_size', 'size')
 
     def __init__(self, image: ImageType):
@@ -286,9 +307,7 @@ class GuiImage:
             return tk_image, dst_width, dst_height
 
 
-def normalize_image_cycle(
-    image: AnimatedType, size: Size = None, last_frame_num: int = 0
-) -> Union[FrameCycle, _ClockCycle]:
+def normalize_image_cycle(image: AnimatedType, size: Size = None, last_frame_num: int = 0) -> ImageCycle:
     if isinstance(image, Spinner):
         if size:
             image.resize(size)
@@ -308,6 +327,7 @@ def normalize_image_cycle(
         else:
             frame_cycle = PhotoImageCycle(path)
 
+        # TODO: Likely need a different lib for gif resize
         # if size and size != get_size(image):
         #     frame_cycle = frame_cycle.resized(*size)
 

@@ -1,1 +1,1 @@
-from .image import ImagePopup, AnimatedPopup
+from .image import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup

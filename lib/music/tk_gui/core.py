@@ -10,8 +10,9 @@ import logging
 import sys
 from abc import ABC, abstractmethod
 from inspect import stack
+from os import environ
 from pathlib import Path
-from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event
+from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper
 from typing import Optional, Union, Any, Iterable, MutableMapping, Callable
 from weakref import finalize
 
@@ -266,7 +267,7 @@ class Window(RowContainer):
                 log.error('Error configuring window to be modal:', exc_info=True)
 
         self.apply_binds()
-        root.after(250, self._sigint_fix)
+        # root.after(250, self._sigint_fix)
         root.mainloop(1)
 
     @classmethod
@@ -356,11 +357,28 @@ class Window(RowContainer):
 
     # endregion
 
-    def _sigint_fix(self):
-        """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
-        # TODO: This doesn't work anymore...
-        self.root.after(250, self._sigint_fix)
+    # def _sigint_fix(self):
+    #     """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
+    #     self.root.after(250, self._sigint_fix)
 
     @property
     def is_maximized(self) -> bool:
         return self.root.state() == 'zoomed'
+
+
+def patch_call_wrapper():
+    """Patch CallWrapper.__call__ to prevent it from suppressing KeyboardInterrupt"""
+
+    def _cw_call(self, *args):
+        try:
+            if self.subst:
+                args = self.subst(*args)
+            return self.func(*args)
+        except Exception:  # noqa
+            self.widget._report_exception()
+
+    CallWrapper.__call__ = _cw_call
+
+
+if environ.get('TK_GUI_NO_CALL_WRAPPER_PATCH', '0') != '1':
+    patch_call_wrapper()

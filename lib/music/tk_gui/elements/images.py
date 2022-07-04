@@ -96,6 +96,9 @@ class Image(Element):
         widget.image = image
         widget.pack(**self.pad_kw)
 
+    def target_size(self, width: int, height: int) -> Size:
+        return self._image.target_size(width, height)
+
     def resize(self, width: int, height: int):
         image, width, height = self._image.as_size(width, height)
         self._re_pack(image, width, height)
@@ -131,9 +134,23 @@ class Animation(Image, animated=True):
         if self._run:
             self._next_id = self.widget.after(delay, self.next)
 
+    def target_size(self, width: int, height: int) -> Size:
+        try:
+            size = self.__image.size
+        except AttributeError:
+            size = self.size
+        return calculate_resize(*size, width, height)
+
     def resize(self, width: int, height: int):
-        self.size = size = (width, height)
-        self.image_cycle = image_cycle = self._resize_cycle(size)
+        # self.size = size = (width, height)
+        self.image_cycle = image_cycle = self._resize_cycle((width, height))
+        image = self.__image
+        try:
+            width, height = size = image.size
+        except AttributeError:
+            width, height = size = image.width, image.height
+
+        # self.size = size
         frame, delay = next(image_cycle)
         self._re_pack(frame, width, height)
         if self._run:
@@ -184,6 +201,9 @@ class SpinnerImage(Animation):
         size = spinner_kwargs.setdefault('size', self.DEFAULT_SIZE)
         spinner = Spinner(**spinner_kwargs)
         super().__init__(spinner, size=size, **kwargs)
+
+    def target_size(self, width: int, height: int) -> Size:
+        return width, height
 
 
 class _ClockCycle:
@@ -249,10 +269,19 @@ class ClockImage(Animation):
         self.image_cycle.last_time -= _ClockCycle.SECOND
 
     def _resize_cycle(self, size: XY) -> ImageCycle:
+        # clock = self.clock
+        # image_cycle = self.image_cycle
+        self.clock.resize(self.target_size(*size)[0])
+        return self.image_cycle
+        # clock.resize(clock.calc_width(calculate_resize(*clock.time_size(image_cycle.show_seconds), *size)[1]) - 1)
+        # return image_cycle
+
+    def target_size(self, width: int, height: int) -> Size:
         clock = self.clock
         image_cycle = self.image_cycle
-        clock.resize(clock.calc_width(calculate_resize(*clock.time_size(image_cycle.show_seconds), *size)[1]) - 1)
-        return image_cycle
+        width = clock.calc_width(calculate_resize(*clock.time_size(image_cycle.show_seconds), width, height)[1]) - 1
+        height = 2 * width - clock.bar
+        return width, height
 
 
 class _GuiImage:
@@ -277,6 +306,16 @@ class _GuiImage:
         if height is None:
             height = self.size[1]
         return width, height
+
+    def target_size(self, width: Optional[int], height: Optional[int]) -> Size:
+        width, height = self._normalize(width, height)
+        cur_width, cur_height = self.size
+        if self.current is None or (cur_width == width and cur_height == height):
+            return width, height
+        # elif cur_width >= width and cur_height >= height:
+        #     return calculate_resize(cur_width, cur_height, width, height)
+        else:
+            return calculate_resize(*self.src_size, width, height)
 
     def as_size(self, width: Optional[int], height: Optional[int]) -> ImageAndSize:
         width, height = self._normalize(width, height)

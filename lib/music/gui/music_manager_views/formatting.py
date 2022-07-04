@@ -4,29 +4,27 @@ Album / track formatting helper functions.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import re
 from collections import defaultdict
-from concurrent import futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import cached_property
 from io import BytesIO
 from itertools import count
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Any, Iterator, Collection
 
-from PIL import Image as ImageModule
-from PIL.Image import Image as PILImage
+from PIL.Image import Image as PILImage, open as open_image
 from PySimpleGUI import Text, Image, Multiline, Column, Element, Checkbox, Listbox, Button, Combo
 from PySimpleGUI import HorizontalSeparator, WRITE_ONLY_KEY
 from requests import RequestException
 
 from ds_tools.fs.paths import get_user_cache_dir
-from ds_tools.images.utils import ImageType
 from wiki_nodes.http import MediaWikiClient
 from ...common.disco_entry import DiscoEntryType
 from ...common.ratings import stars_from_256
-from ...files.album import AlbumDir
 from ...files.exceptions import TagNotFound
-from ...files.track.track import SongFile
 from ...manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
 from ..elements import ExtendedImage, ExtInput, SearchMenu, Rating
@@ -36,21 +34,26 @@ from ..utils import resize_text_column
 from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
 
 if TYPE_CHECKING:
+    from ds_tools.images.utils import ImageType
+    from ...files.album import AlbumDir
+    from ...files.track.track import SongFile
     from .album import AlbumView
 
 __all__ = ['TrackFormatter', 'AlbumFormatter']
+
 _multiple_covers_warned = set()
 ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 class AlbumFormatter:
-    def __init__(self, view: 'GuiView', album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
+    def __init__(self, view: GuiView, album_dir: AlbumDir, cover_size: tuple[int, int] = (250, 250)):
         self.view = view
         self.album_dir = album_dir
         self._src_album_info = AlbumInfo.from_album_dir(album_dir)
         self._new_album_info = None
         self.cover_size = cover_size
         self._images = None  # type: Optional[dict[str, bytes]]
+        self._got_all_images = False
 
     @property
     def log(self):
@@ -78,7 +81,7 @@ class AlbumFormatter:
             track._new_info = None
 
     @cached_property
-    def track_formatters(self) -> dict[str, 'TrackFormatter']:
+    def track_formatters(self) -> dict[str, TrackFormatter]:
         formatters = {}
         for track in self.album_dir:
             path = track.path.as_posix()
@@ -86,7 +89,7 @@ class AlbumFormatter:
             formatters[path] = TrackFormatter(self, track, info, self.cover_size)
         return formatters
 
-    def __iter__(self) -> Iterator['TrackFormatter']:
+    def __iter__(self) -> Iterator[TrackFormatter]:
         yield from self.track_formatters.values()
 
     # region Wiki methods
@@ -113,27 +116,34 @@ class AlbumFormatter:
                     return client.get_image_urls(image_titles)
         return None
 
-    def _get_wiki_cover_images(self):
+    def _get_wiki_cover_images(self, dl_all: bool = False):
         urls = self.wiki_image_urls
+        if not dl_all:
+            orig_len = len(urls)
+            urls = {title: url for title, url in urls.items() if 'cover' in title.lower()}
+            self.log.debug(f'Filtered image URLs from old={orig_len} to new={len(urls)} with "cover" in the title')
+
         self._images = {}
-        with futures.ThreadPoolExecutor(max_workers=4) as executor:
-            future_objs = {executor.submit(self.wiki_client.get_image, title): title for title in urls}
-            for future in futures.as_completed(future_objs):
-                title = future_objs[future]
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(self.wiki_client.get_image, title): title for title in urls}
+            for future in as_completed(futures):
+                title = futures[future]
                 try:
                     self._images[title] = future.result()
                 except Exception as e:
                     self.log.error(f'Error retrieving image={title!r}: {e}')
 
-    def get_wiki_cover_images(self):
-        if self._images is None:
-            GuiView.start_task(self._get_wiki_cover_images, message='Downloading images...')
+    def get_wiki_cover_images(self, dl_all: bool = False):
+        if self._images is None or (dl_all and not self._got_all_images):
+            GuiView.start_task(self._get_wiki_cover_images, args=(dl_all,), message='Downloading images...')
+            if dl_all:
+                self._got_all_images = True
         return self._images
 
-    def get_wiki_cover_choice(self) -> Optional[Path]:
+    def get_wiki_cover_choice(self, dl_all: bool = False) -> Optional[Path]:
         from ..popups.choose_image import choose_image
 
-        if images := self.get_wiki_cover_images():
+        if images := self.get_wiki_cover_images(dl_all):
             if title := choose_image(images):
                 cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
                 name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
@@ -260,7 +270,7 @@ class MultipleCoversFound(Exception):
         self.n = n
 
 
-def add_right_click_text_options(val_ele: ExtInput, val_key: str, view: 'AlbumView'):
+def add_right_click_text_options(val_ele: ExtInput, val_key: str, view: AlbumView):
     val_ele.right_click_menu.add_option(
         'Flip name parts', val_key, val_ele.flip_name_content_parts, call_with_kwargs=False, event=view._edit_event
     )
@@ -349,14 +359,14 @@ class TrackFormatter:
         except TagNotFound as e:
             self.log.warning(e)
             return None
-        except Exception:
+        except Exception:  # noqa
             self.log.error(f'Unable to load cover image for {self.track}', exc_info=True)
             return None
 
     @cached_property
-    def cover_image_obj(self) -> Optional['PILImage']:
+    def cover_image_obj(self) -> Optional[PILImage]:
         if (data := self._cover_image_raw) is not None:
-            return ImageModule.open(BytesIO(data))
+            return open_image(BytesIO(data))
         return None
 
     @property

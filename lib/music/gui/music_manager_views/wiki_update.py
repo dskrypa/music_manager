@@ -54,6 +54,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 options.add_bool('replace_genre', 'Replace Genre', tooltip='Replace genre instead of combining genres')
                 options.add_bool('title_case', 'Title Case', tooltip='Fix track and album names to use Title Case when they are all caps')
             with self.options.row(5) as options:
+                options.add_bool('all_images', 'DL All Images', tooltip='When updating the cover, download all images (default: only those with "cover" in the title)')
                 options.add_bool('no_album_move', 'Do Not Move Album', tooltip='Do not rename the album directory')
 
             with self.options.column(1) as options:

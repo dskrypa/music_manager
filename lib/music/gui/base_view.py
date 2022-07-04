@@ -20,11 +20,13 @@ event handler loop control is transferred to that view until it is closed, and t
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from fnmatch import _compile_pattern
+from fnmatch import _compile_pattern  # noqa
 from functools import partial, update_wrapper, cached_property
 from itertools import count
 from queue import Queue, Empty
@@ -78,7 +80,7 @@ class _EventHandler:
         self.default = default
         update_wrapper(self, func)
 
-    def __set_name__(self, owner: Type['GuiView'], name: str):
+    def __set_name__(self, owner: Type[GuiView], name: str):
         if handlers := owner._event_handlers:
             # print(f'{owner.__name__} already has handlers: {", ".join(sorted(handlers))}')
             if (handler_cls := next(iter(handlers.values()))[1]) is not owner:
@@ -110,7 +112,7 @@ class GuiView(ABC):
     log = logging.getLogger(__name__)
     permissive_handler_names: bool = True
     allow_no_handler: bool = True
-    active_view: Optional['GuiView'] = None
+    active_view: Optional[GuiView] = None
     window: Optional[Window] = None
     pending_prompts = Queue()
     config = GuiConfig(auto_save=True, defaults=DEFAULT_SETTINGS)
@@ -134,7 +136,7 @@ class GuiView(ABC):
         defaults: Mapping[str, Any] = None,
         permissive_handler_names: bool = None,
         allow_no_handler: bool = None,
-        config_path: Union[str, 'Path'] = None,
+        config_path: Union[str, Path] = None,
     ):
         cls.name = view_name
         cls.log = ViewLoggerAdapter(cls)

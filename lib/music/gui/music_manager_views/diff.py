@@ -42,13 +42,13 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         self.album_formatter.view = self
         self.album_formatter.album_info = album_info
 
-        self.options = GuiOptions(self, disable_on_parsed=False, submit=None)
-        self.options.add_bool('dry_run', 'Dry Run', default=False)
-        self.options.add_bool('add_genre', 'Add Genre', default=True, enable_events=True, tooltip='Add any specified genres instead of replacing them')
-        self.options.add_bool('title_case', 'Title Case', enable_events=True)
-        self.options.add_bool('no_album_move', 'Do Not Move Album', enable_events=True)
-        self.options.add_bool('rename_in_place', 'Rename Album In-Place', enable_events=True)
-        self.options.update(options)
+        self.options = gui_options = GuiOptions(self, disable_on_parsed=False, submit=None)
+        gui_options.add_bool('dry_run', 'Dry Run', default=False)
+        gui_options.add_bool('add_genre', 'Add Genre', default=True, enable_events=True, tooltip='Add any specified genres instead of replacing them')
+        gui_options.add_bool('title_case', 'Title Case', enable_events=True)
+        gui_options.add_bool('no_album_move', 'Do Not Move Album', enable_events=True)
+        gui_options.add_bool('rename_in_place', 'Rename Album In-Place', enable_events=True)
+        gui_options.update(options)
 
     @cached_property
     def file_info_map(self):

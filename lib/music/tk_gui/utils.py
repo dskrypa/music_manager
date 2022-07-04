@@ -4,20 +4,17 @@ Utils for the Tkinter GUI package.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import tkinter.constants as tkc
-from abc import abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Optional, Protocol, TypeVar, Type, Any, Callable, runtime_checkable
+from typing import TYPE_CHECKING, Optional, Type, Any, Callable
 
 if TYPE_CHECKING:
-    from tkinter import Event
+    from .typing import HasParent
 
-__all__ = ['BindTargets', 'Anchor', 'Inheritable', 'XY', 'BindCallback', 'BindEvent', 'EventCallback']
+__all__ = ['BindTargets', 'Anchor', 'Inheritable', 'BindEvent', 'Justify', 'Side']
 
-T_co = TypeVar('T_co', covariant=True)
-BindCallback = Callable[['Event'], Any]
-EventCallback = Callable[['Event', ...], Any]
-XY = tuple[int, int]
 # fmt: off
 ANCHOR_ALIASES = {
     'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT',
@@ -26,7 +23,26 @@ ANCHOR_ALIASES = {
 # fmt: on
 
 
-class BindEvent(Enum):
+class MissingMixin:
+    __aliases = None
+
+    def __init_subclass__(cls, aliases: dict[str, str] = None):
+        cls.__aliases = aliases
+
+    @classmethod
+    def _missing_(cls: Type[Enum], value: str):
+        if aliases := cls.__aliases:  # noqa
+            try:
+                return cls[aliases[value.lower()]]
+            except KeyError:
+                pass
+        try:
+            return cls[value.upper().replace(' ', '_')]
+        except KeyError:
+            return None  # This is what the default implementation does to signal an exception should be raised
+
+
+class BindEvent(MissingMixin, Enum):
     def __new__(cls, tk_event: str):
         # Defined __new__ to avoid juggling dicts for the event names, and to avoid conflicting event names from being
         # used to initialize incorrect BindEvents
@@ -38,26 +54,28 @@ class BindEvent(Enum):
     POSITION_CHANGED = '<Configure>'
     SIZE_CHANGED = '<Configure>'
 
-    @classmethod
-    def _missing_(cls, value: str):
-        try:
-            return cls[value.upper()]
-        except KeyError:
-            return None
 
-
-class BindTargets(Enum):
+class BindTargets(MissingMixin, Enum):
     EXIT = 'exit'
 
-    @classmethod
-    def _missing_(cls, value: str):
-        try:
-            return cls[value.upper()]
-        except KeyError:
-            return None
+
+class Side(MissingMixin, Enum, aliases={'l': 'LEFT', 'r': 'RIGHT', 't': 'TOP', 'b': 'BOTTOM'}):
+    NONE = None
+    LEFT = tkc.LEFT
+    RIGHT = tkc.RIGHT
+    TOP = tkc.TOP
+    BOTTOM = tkc.BOTTOM
 
 
-class Anchor(Enum):
+class Justify(MissingMixin, Enum, aliases={'c': 'CENTER', 'l': 'LEFT', 'r': 'RIGHT'}):
+    NONE = None
+    LEFT = tkc.LEFT
+    CENTER = tkc.CENTER
+    RIGHT = tkc.RIGHT
+
+
+class Anchor(MissingMixin, Enum, aliases=ANCHOR_ALIASES):
+    NONE = None
     TOP_LEFT = tkc.NW
     TOP_CENTER = tkc.N
     TOP_RIGHT = tkc.NE
@@ -68,20 +86,10 @@ class Anchor(Enum):
     BOTTOM_CENTER = tkc.S
     BOTTOM_RIGHT = tkc.SE
 
-    @classmethod
-    def _missing_(cls, value: str):
-        aliases = ANCHOR_ALIASES
-        try:
-            return cls[aliases[value.lower()]]
-        except KeyError:
-            pass
-        try:
-            return cls[value.upper().replace(' ', '_')]
-        except KeyError:
-            return None  # This is what the default implementation does to signal an exception should be raised
-
     def as_justify(self):
-        if self.value in (tkc.NW, tkc.W, tkc.SW):
+        if self.value is None:
+            return None
+        elif self.value in (tkc.NW, tkc.W, tkc.SW):
             return tkc.LEFT
         # elif self.value in (tkc.N, tkc.CENTER, tkc.S):
         #     return tkc.CENTER
@@ -89,15 +97,16 @@ class Anchor(Enum):
             return tkc.RIGHT
         return tkc.CENTER
 
-
-@runtime_checkable
-class HasParent(Protocol[T_co]):
-    __slots__ = ()
-
-    @property
-    @abstractmethod
-    def parent(self) -> T_co:
-        pass
+    def as_side(self):
+        if self.value == tkc.N:
+            return tkc.TOP
+        elif self.value == tkc.S:
+            return tkc.BOTTOM
+        elif self.value in (tkc.NW, tkc.W, tkc.SW):
+            return tkc.LEFT
+        elif self.value in (tkc.NE, tkc.E, tkc.SE):
+            return tkc.RIGHT
+        return None  # None or CENTER
 
 
 class Inheritable:

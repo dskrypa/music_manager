@@ -9,14 +9,15 @@ from __future__ import annotations
 import logging
 import tkinter.constants as tkc
 from tkinter import Frame
-from typing import TYPE_CHECKING, Optional, Iterable
+from typing import TYPE_CHECKING, Optional, Union, Iterable
 
 from ..style import Style
-from ..utils import Anchor, Inheritable, XY
+from ..utils import Anchor, Justify, Side, Inheritable
 
 if TYPE_CHECKING:
     from ..core import RowContainer, Window
     from ..elements import Element
+    from ..typing import XY
 
 __all__ = ['Row']
 log = logging.getLogger(__name__)
@@ -27,24 +28,35 @@ class Row:
     expand: Optional[bool] = None   # Set to True only for Column elements
     fill: Optional[bool] = None     # Changes for Column, Separator, StatusBar
 
-    element_justification = Inheritable(type=Anchor)    # type: Anchor
-    element_padding = Inheritable()                     # type: XY
-    element_size = Inheritable()                        # type: XY
-    style = Inheritable()                               # type: Style
-    auto_size_text = Inheritable()                      # type: bool
+    anchor_elements: Anchor = Inheritable(type=Anchor)
+    text_justification: Justify = Inheritable(type=Justify)
+    element_side: Side = Inheritable(type=Side)
+    element_padding: XY = Inheritable()
+    element_size: XY = Inheritable()
+    style: Style = Inheritable()
+    auto_size_text: bool = Inheritable()
 
     def __init__(self, parent: RowContainer, elements: Iterable[Element]):
         self.parent = parent
-        self.elements = list(elements)
+        self.elements = tuple(elements)
+        self.id_ele_map = {ele.id: ele for ele in self.elements}
         # for ele in self.elements:
         #     ele.parent = self
 
-    def __getitem__(self, index: int):
-        return self.elements[index]
+    def __getitem__(self, index_or_id: Union[int, str]):
+        try:
+            return self.id_ele_map[index_or_id]
+        except KeyError:
+            pass
+        try:
+            return self.elements[index_or_id]
+        except (IndexError, TypeError):
+            pass
+        raise KeyError(f'Invalid column / index / element ID: {index_or_id!r}')
 
     @property
     def anchor(self):
-        return self.element_justification.value
+        return self.anchor_elements.value
 
     @property
     def window(self) -> Window:

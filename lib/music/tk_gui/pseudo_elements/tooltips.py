@@ -15,7 +15,7 @@ from ..style import Style, StyleSpec
 
 if TYPE_CHECKING:
     from ..core import Element
-    from ..utils import XY
+    from ..typing import XY
 
 __all__ = ['ToolTip']
 log = logging.getLogger(__name__)

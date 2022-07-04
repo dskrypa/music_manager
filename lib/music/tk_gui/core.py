@@ -9,26 +9,27 @@ from __future__ import annotations
 import logging
 import sys
 from abc import ABC, abstractmethod
-from functools import partial
+from functools import partial, cached_property
 from inspect import stack
 from os import environ
 from pathlib import Path
 from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper
-from typing import Optional, Union, Iterable, Type, MutableMapping
+from typing import TYPE_CHECKING, Optional, Union, Iterable, Type, Any
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
-from .positioning import positioner
-from .style import Style
-from .utils import BindTargets, Anchor, XY, BindCallback, BindEvent, EventCallback
 from .elements.element import Element
+from .exceptions import DuplicateKeyError
+from .positioning import positioner
 from .pseudo_elements.row import Row
+from .style import Style
+from .utils import BindTargets, Anchor, Justify, Side, BindEvent
+
+if TYPE_CHECKING:
+    from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout
 
 __all__ = ['RowContainer', 'Window']
 log = logging.getLogger(__name__)
-
-Bindable = Union[BindEvent, str]
-BindTarget = Union[BindCallback, EventCallback, BindTargets, str, None]
 
 
 class RowContainer(ABC):
@@ -37,12 +38,16 @@ class RowContainer(ABC):
         layout: Iterable[Iterable[Element]] = None,
         *,
         style: Style = None,
-        element_justification: Union[str, Anchor] = None,
+        anchor_elements: Union[str, Anchor] = None,
+        text_justification: Union[str, Justify] = None,
+        element_side: Union[str, Side] = None,
         element_padding: XY = None,
         element_size: XY = None,
     ):
         self.style = Style.get(style)
-        self.element_justification = Anchor(element_justification) if element_justification else Anchor.MID_CENTER
+        self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
+        self.text_justification = Justify(text_justification)
+        self.element_side = Side(element_side) if element_side else Side.LEFT
         self.element_padding = element_padding
         self.element_size = element_size
         self.rows = [Row(self, row) for row in layout] if layout else []
@@ -57,8 +62,24 @@ class RowContainer(ABC):
     def window(self) -> Window:
         raise NotImplementedError
 
-    def __getitem__(self, index: int) -> Row:
-        return self.rows[index]
+    def __getitem__(self, item: Union[str, tuple[int, int]]) -> Element:
+        if isinstance(item, str) and '#' in item:
+            for row in self.rows:
+                try:
+                    return row[item]
+                except KeyError:
+                    pass
+        else:
+            try:
+                row, column = item
+            except (ValueError, TypeError):
+                pass
+            else:
+                try:
+                    return self.rows[row][column]
+                except (IndexError, TypeError, ValueError):
+                    pass
+        raise KeyError(f'Invalid element ID / (row, column) index: {item!r}')
 
 
 def _tk_event_handler(tk_event: str):
@@ -82,11 +103,12 @@ class Window(RowContainer):
     _tk_event_handlers: dict[str, str] = {}
     _finalizer: finalize
     root: Optional[Toplevel] = None
+    element_map: dict[Key, Element]
 
     def __init__(
         self,
         title: str = None,
-        layout: Iterable[Iterable[Element]] = None,
+        layout: Layout = None,
         *,
         style: Style = None,
         size: XY = None,
@@ -100,10 +122,12 @@ class Window(RowContainer):
         modal: bool = False,
         no_title_bar: bool = False,
         margins: XY = (10, 5),  # x, y
-        element_justification: Union[str, Anchor] = None,
+        anchor_elements: Union[str, Anchor] = None,
+        text_justification: Union[str, Justify] = None,
+        element_side: Union[str, Side] = None,
         element_padding: XY = None,
         element_size: XY = None,
-        binds: MutableMapping[str, BindTarget] = None,
+        binds: BindMap = None,
     ):
         if title is None:
             try:
@@ -115,7 +139,9 @@ class Window(RowContainer):
         super().__init__(
             layout,
             style=style,
-            element_justification=element_justification,
+            anchor_elements=anchor_elements,
+            text_justification=text_justification,
+            element_side=element_side,
             element_padding=element_padding,
             element_size=element_size,
         )
@@ -126,6 +152,7 @@ class Window(RowContainer):
         self._motion_end_cb_id = None
         self._last_known_pos: Optional[XY] = None
         self._last_known_size: Optional[XY] = None
+        self.element_map = {}
         self.resizable = resizable
         self.keep_on_top = keep_on_top
         self.can_minimize = can_minimize
@@ -154,14 +181,36 @@ class Window(RowContainer):
     def window(self) -> Window:
         return self
 
-    def set_alpha(self, alpha: int):
-        try:
-            self.root.attributes('-alpha', alpha)
-        except (TclError, RuntimeError):
-            log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
+    # region Results
 
-    def set_title(self, title: str):
-        self.root.wm_title(title)
+    def __getitem__(self, item: Union[Key, str, tuple[int, int]]) -> Element:
+        try:
+            return self.element_map[item]
+        except KeyError:
+            pass
+        try:
+            return super().__getitem__(item)
+        except KeyError:
+            pass
+        raise KeyError(f'Invalid element key/ID / (row, column) index: {item!r}')
+
+    @cached_property
+    def results(self) -> dict[Key, Any]:
+        return {key: ele.value for key, ele in self.element_map.items()}
+
+    def get_result(self, key: Key) -> Any:
+        return self.element_map[key].value
+
+    def register_element(self, key: Key, element: Element):
+        ele_map = self.element_map
+        try:
+            old = ele_map[key]
+        except KeyError:
+            ele_map[key] = element
+        else:
+            raise DuplicateKeyError(key, old, element, self)
+
+    # endregion
 
     # region Size & Position Methods
 
@@ -247,6 +296,23 @@ class Window(RowContainer):
             y = monitor.y + (monitor.height - win_h) // 2
 
         self.position = x, y
+
+    @property
+    def is_maximized(self) -> bool:
+        return self.root.state() == 'zoomed'
+
+    # endregion
+
+    # region Config / Update Methods
+
+    def set_alpha(self, alpha: int):
+        try:
+            self.root.attributes('-alpha', alpha)
+        except (TclError, RuntimeError):
+            log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
+
+    def set_title(self, title: str):
+        self.root.wm_title(title)
 
     # endregion
 
@@ -461,10 +527,6 @@ class Window(RowContainer):
     # def _sigint_fix(self):
     #     """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
     #     self.root.after(250, self._sigint_fix)
-
-    @property
-    def is_maximized(self) -> bool:
-        return self.root.state() == 'zoomed'
 
 
 def _normalize_bind_event(event_pat: Bindable) -> Bindable:

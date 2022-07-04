@@ -14,6 +14,7 @@ from tkinter import TclError, Entry, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any
 
 from .element import Element
+from ..utils import Justify
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
 
 __all__ = ['Input']
 log = logging.getLogger(__name__)
+
+STYLE_KEY_MAP = {'fg': 'fg', 'bg': 'bg'}
 
 
 class Input(Element):
@@ -34,12 +37,12 @@ class Input(Element):
         link: bool = None,
         path: Union[bool, str, Path] = None,
         password_char: str = None,
-        justify_text: str = tkc.LEFT,
+        justify_text: Union[str, Justify, None] = Justify.LEFT,
         disabled: bool = False,
         focus: bool = False,
         **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__(justify_text=justify_text, **kwargs)
         self._value = str(value)
         self._valid = True
         self._link = link or link is None
@@ -48,7 +51,6 @@ class Input(Element):
             self.password_char = password_char
         self.disabled = disabled
         self._focus = focus
-        self.justify_text = justify_text
 
     def get_selection(self):
         entry = self.widget
@@ -61,28 +63,25 @@ class Input(Element):
         self.string_var = StringVar()
         self.string_var.set(self._value)
         style = self.style
-        self.widget = entry = Entry(
-            row.frame,
-            width=self.size[0],
-            textvariable=self.string_var,
-            bd=style.border_width,
-            font=style.font,
-            show=self.password_char,
-            justify=self.justify_text,  # noqa
-        )
-        fg, bg = style.get_fg_bg('input', 'disabled' if self.disabled else 'default')
-        kwargs = {'highlightthickness': 0}
-        kwargs.update(
-            (k, v) for k, v in zip(('fg', 'bg', 'insertbackground'), (fg, bg, style.insert_bg)) if v is not None
-        )
-        entry.configure(**kwargs)
-        entry.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
-        if not self._visible:
-            entry.pack_forget()
-        if self._focus:
-            entry.focus_set()
-        if self.disabled:
-            entry['state'] = 'readonly'
+        kwargs = {
+            'highlightthickness': 0,
+            'textvariable': self.string_var,
+            'bd': style.border_width,
+            'font': style.font,
+            'show': self.password_char,
+            'justify': self.justify_text.value,
+        }
+        try:
+            kwargs['width'] = self.size[0]
+        except TypeError:
+            pass
+        if insert_bg := style.insert_bg:
+            kwargs['insertbackground'] = insert_bg  # No states for it
+
+        style.update_kwargs(kwargs, STYLE_KEY_MAP, self.disabled)
+        self.widget = entry = Entry(row.frame, **kwargs)
+        # entry.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
+        self.pack_widget(focus=self._focus, disabled=self.disabled)
 
         entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
         if self._link:

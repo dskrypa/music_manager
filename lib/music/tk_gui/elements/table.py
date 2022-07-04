@@ -207,10 +207,10 @@ class Table(Element):
             scroll_bar_x.configure(command=tree_view.xview)
             tree_view.configure(xscrollcommand=scroll_bar_x.set)
 
-        tree_view.pack(side=tkc.LEFT, expand=True, padx=0, pady=0, fill='both')
-        if not self._visible:
-            tree_view.pack_forget()
-        frame.pack(side=tkc.LEFT, expand=True, **self.pad_kw)
+        # tree_view.pack(side=tkc.LEFT, expand=True, padx=0, pady=0, fill='both')
+        self.pack_widget(expand=True, fill='both', padx=0, pady=0)
+        # frame.pack(side=tkc.LEFT, expand=True, **self.pad_kw)
+        frame.pack(anchor=self.anchor.value, side=self.side.value, expand=True, **self.pad_kw)
 
 
 def _fixed_style_map(style: Style, style_name: str, option: str, highlight_colors: tuple[str, str] = (None, None)):

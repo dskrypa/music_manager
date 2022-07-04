@@ -10,7 +10,8 @@ import logging
 import tkinter.constants as tkc
 from enum import Enum
 from math import ceil
-from tkinter import TclError, Event, StringVar, Button as _Button
+from time import monotonic
+from tkinter import Event, Button as _Button
 from typing import TYPE_CHECKING, Union, MutableMapping
 
 from PIL.ImageTk import PhotoImage
@@ -18,10 +19,11 @@ from PIL.ImageTk import PhotoImage
 from ds_tools.images.utils import ImageType, as_image
 
 from .element import Element
+from ..utils import Justify
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..utils import XY, BindCallback
+    from ..typing import XY, BindCallback, Bool
 
 __all__ = ['Button']
 log = logging.getLogger(__name__)
@@ -48,36 +50,50 @@ class ButtonAction(Enum):
 
 class Button(Element):
     widget: _Button
+    separate: bool = False
+    bind_enter: bool = False
 
     def __init__(
         self,
         text: str = '',
         image: ImageType = None,
         *,
-        disabled: bool = False,
-        focus: bool = False,
+        disabled: Bool = False,
+        focus: Bool = False,
         shortcut: str = None,
+        justify_text: Union[str, Justify, None] = Justify.CENTER,
         action: Union[ButtonAction, str] = ButtonAction.SUBMIT,
         binds: MutableMapping[str, BindCallback] = None,
+        bind_enter: Bool = False,
+        separate: Bool = False,
         **kwargs,
     ):
         if not binds:
             binds = {}
-        binds.setdefault('<ButtonPress-1>', self.handle_press)
-        binds.setdefault('<ButtonRelease-1>', self.handle_release)
+        if separate:
+            self.separate = True
+            binds.setdefault('<ButtonPress-1>', self.handle_press)
+            binds.setdefault('<ButtonRelease-1>', self.handle_release)
         if shortcut:
             if not shortcut.startswith('<') or not shortcut.endswith('>'):
                 raise ValueError(f'Invalid keyboard {shortcut=}')
             binds[shortcut] = self.handle_activated
-        super().__init__(binds=binds, **kwargs)
+        if bind_enter:
+            self.bind_enter = True
+            binds['<Return>'] = self.handle_activated
+        super().__init__(binds=binds, justify_text=justify_text, **kwargs)
         self.text = text
         self.image = as_image(image)
         self.disabled = disabled
         self._focus = focus
-        self._action = ButtonAction(action)
+        self.action = ButtonAction(action)
+        self._last_press = 0
+        self._last_release = 0
+        self._last_activated = 0
 
     def _pack_size(self) -> XY:
         # Width is measured in pixels, but height is measured in characters
+        # TODO: Width may not be correct yet
         try:
             width, height = self.size
         except TypeError:
@@ -92,19 +108,23 @@ class Button(Element):
         style = self.style
         if text and image:
             if not width:
+                # width = int(ceil(image.width / style.char_width)) + len(text)
                 width = style.char_width * len(text) + image.width
             if not height:
                 height = int(ceil(image.height / style.char_height))
                 # height = style.char_height + image.height
         elif text:
             if not width:
-                width = style.char_width * len(text)
+                # pass
+                width = len(text) + 1
+                # width = style.char_width * len(text)
             if not height:
                 height = 1
                 # height = style.char_height
         else:
             if not width:
-                width = image.width
+                width = int(ceil(image.width / style.char_width))
+                # width = image.width
             if not height:
                 height = 1
                 # height = image.height
@@ -116,7 +136,15 @@ class Button(Element):
         # self.string_var.set(self._value)
         style = self.style
         width, height = self._pack_size()
-        kwargs = {'width': width, 'height': height, 'font': style.font, 'bd': style.border_width, 'justify': tkc.CENTER}
+        kwargs = {
+            'width': width,
+            'height': height,
+            'font': style.font,
+            'bd': style.border_width,
+            'justify': self.justify_text.value,
+        }
+        if not self.separate:
+            kwargs['command'] = self.handle_activated
         if self.text:
             kwargs['text'] = self.text
         if image := self.image:
@@ -130,27 +158,37 @@ class Button(Element):
         if style.border_width == 0:
             kwargs['relief'] = tkc.FLAT  # May not work on mac
 
-        state = 'disabled' if self.disabled else 'default'
-        for attr, key in STYLE_KEY_MAP.items():
-            if value := getattr(style, attr)[state]:
-                kwargs[key] = value
-
+        style.update_kwargs(kwargs, STYLE_KEY_MAP, self.disabled)
         self.widget = button = _Button(row.frame, **kwargs)
         if image:
             button.image = image
-        button.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
-        if not self._visible:
-            button.pack_forget()
-        if self._focus:
-            button.focus_set()
-        if self.disabled:
-            button['state'] = 'readonly'
+
+        # button.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
+        self.pack_widget(focus=self._focus, disabled=self.disabled)
+
+    def _bind(self, event_pat: str, cb: BindCallback):
+        super()._bind(event_pat, cb)
+        if self.bind_enter and event_pat == '<Return>' and event_pat not in self.window._bound_for_events:
+            self.window.bind(event_pat, cb)
+            self.window._bound_for_events.add(event_pat)
+
+    @property
+    def value(self) -> bool:
+        return bool(self._last_activated)
 
     def handle_press(self, event: Event):
-        log.info(f'handle_press: {event=}')
+        self._last_press = monotonic()
+        # log.info(f'handle_press: {event=}')
 
     def handle_release(self, event: Event):
-        log.info(f'handle_release: {event=}')
+        self._last_release = monotonic()
+        # log.info(f'handle_release: {event=}')
+        self.handle_activated(event)
 
-    def handle_activated(self, event: Event):
+    def handle_activated(self, event: Event = None):
+        self._last_activated = monotonic()
         log.info(f'handle_activated: {event=}')
+        if self.action == ButtonAction.SUBMIT:
+            self.window.root.quit()  # exit the TK main loop
+        else:
+            log.warning(f'No action configured for button={self}')

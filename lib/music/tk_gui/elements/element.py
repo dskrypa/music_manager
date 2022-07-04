@@ -7,21 +7,22 @@ Tkinter GUI core Row and Element classes
 from __future__ import annotations
 
 import logging
+import tkinter.constants as tkc
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import cached_property
 from itertools import count
 from tkinter import TclError
-from typing import TYPE_CHECKING, Optional, Callable, Union, MutableMapping
+from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, Font, StyleSpec
-from ..utils import Anchor, Inheritable, XY, BindCallback
+from ..utils import Anchor, Justify, Side, Inheritable
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
     from ..core import Window
     from ..pseudo_elements import ContextualMenu, Row
+    from ..typing import XY, BindCallback, Key, TkFill
 
 __all__ = ['Element']
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ log = logging.getLogger(__name__)
 
 class Element(ABC):
     _counters = defaultdict(count)
+    _key: Optional[Key] = None
     _tooltip: Optional[ToolTip] = None
     parent: Optional[Row] = None
     widget: Optional[Widget] = None
@@ -37,22 +39,27 @@ class Element(ABC):
     left_click_cb: Optional[Callable] = None
     binds: Optional[MutableMapping[str, BindCallback]] = None
 
-    pad = Inheritable('element_padding')                            # type: XY
-    size = Inheritable('element_size')                              # type: XY
-    auto_size_text = Inheritable()                                  # type: bool
-    justify = Inheritable('element_justification', type=Anchor)     # type: Anchor
-    style = Inheritable()                                           # type: Style
+    pad: XY = Inheritable('element_padding')
+    size: XY = Inheritable('element_size')
+    auto_size_text: bool = Inheritable()
+    anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
+    justify_text: Justify = Inheritable('text_justification', type=Justify)
+    side: Side = Inheritable('element_side', type=Side)
+    style: Style = Inheritable()
 
     def __init__(
         self,
         *,
+        key: Key = None,
         size: XY = None,
         pad: XY = None,
         style: StyleSpec = None,
         font: Font = None,
         auto_size_text: bool = None,
         border_width: int = None,
-        justify: Union[str, Anchor] = None,
+        anchor: Union[str, Anchor] = None,
+        side: Union[str, Side] = Side.LEFT,
+        justify_text: Union[str, Justify] = None,
         visible: bool = True,
         tooltip: str = None,
         ttk_theme: str = None,
@@ -62,7 +69,10 @@ class Element(ABC):
         left_click_cb: Callable = None,
         binds: MutableMapping[str, BindCallback] = None,
     ):
-        self.id = next(self._counters[self.__class__])
+        cls = self.__class__
+        self.id = f'{cls.__name__}#{next(self._counters[cls])}'
+        if key:
+            self.key = key
         self._visible = visible
 
         # Directly stored attrs that override class defaults
@@ -79,7 +89,9 @@ class Element(ABC):
         self.pad = pad
         self.size = size
         self.auto_size_text = auto_size_text
-        self.justify = justify
+        self.side = side
+        self.anchor = anchor
+        self.justify_text = justify_text
         self.style = Style.get(style)
         # if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
         if not (text_color is bg is font is ttk_theme is border_width is None):
@@ -90,6 +102,22 @@ class Element(ABC):
     def __repr__(self) -> str:
         x, y = self.col_row
         return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
+
+    @property
+    def key(self) -> Key:
+        if key := self._key:
+            return key
+        return self.id
+
+    @key.setter
+    def key(self, value: Key):
+        self._key = value
+        if parent := self.parent:
+            parent.window.register_element(value, self)
+
+    @property
+    def value(self) -> Any:
+        return None
 
     # region Introspection
 
@@ -108,10 +136,6 @@ class Element(ABC):
 
     # region Pack Methods / Attributes
 
-    @cached_property
-    def anchor(self):
-        return self.justify.value
-
     @property
     def pad_kw(self) -> dict[str, int]:
         try:
@@ -122,6 +146,8 @@ class Element(ABC):
 
     def pack_into_row(self, row: Row):
         self.parent = row
+        if key := self._key:
+            row.window.register_element(key, self)
         self.pack_into(row)
         self.apply_binds()
         if tooltip := self.tooltip_text:
@@ -130,6 +156,26 @@ class Element(ABC):
     @abstractmethod
     def pack_into(self, row: Row):
         raise NotImplementedError
+
+    def pack_widget(
+        self, *, expand: bool = False, fill: TkFill = tkc.NONE, focus: bool = False, disabled: bool = False, **kwargs
+    ):
+        widget = self.widget
+        pack_kwargs = {
+            'anchor': self.anchor.value,
+            'side': self.side.value,
+            'expand': expand,
+            'fill': fill,
+            **self.pad_kw,
+            **kwargs,
+        }
+        widget.pack(**pack_kwargs)
+        if not self._visible:
+            widget.pack_forget()
+        if focus:
+            widget.focus_set()
+        if disabled:
+            widget['state'] = 'readonly'
 
     def add_tooltip(
         self, text: str, delay: int = ToolTip.DEFAULT_DELAY, style: StyleSpec = None, wrap_len_px: int = None

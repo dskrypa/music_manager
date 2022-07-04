@@ -28,7 +28,7 @@ from .element import Element
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..utils import XY
+    from ..typing import XY
 
 __all__ = ['Image', 'Animation', 'SpinnerImage', 'ClockImage', 'get_size']
 log = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class Image(Element):
         self._pack_into(row, image, width, height)
 
     def _pack_into(self, row: Row, image: _Image, width: int, height: int):
-        log.debug(f'Packing {image=} into row with {width=}, {height=}')
+        # log.debug(f'Packing {image=} into row with {width=}, {height=}')
         style = self.style
         kwargs = {'image': image} if image else {}
         self.size = (width, height)
@@ -84,9 +84,8 @@ class Image(Element):
             **kwargs
         )
         label.image = image
-        label.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
-        if not self._visible:
-            label.pack_forget()
+        # label.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
+        self.pack_widget()
 
     def _re_pack(self, image: _Image, width: int, height: int):
         self.size = (width, height)
@@ -203,6 +202,7 @@ class SpinnerImage(Animation):
         super().__init__(spinner, size=size, **kwargs)
 
     def target_size(self, width: int, height: int) -> Size:
+        # TODO: Add support for keeping aspect ratio
         return width, height
 
 

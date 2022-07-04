@@ -19,7 +19,7 @@ from ..positioning import positioner
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from ..utils import XY
+    from ..typing import XY
 
 __all__ = ['ImagePopup', 'AnimatedPopup', 'SpinnerPopup', 'ClockPopup']
 log = logging.getLogger(__name__)

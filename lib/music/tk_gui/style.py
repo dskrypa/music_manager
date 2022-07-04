@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import cached_property
 from itertools import count
 from tkinter.font import Font as _Font
-from typing import Union, Optional, Literal, Type, Mapping, Sequence, Iterator, overload
+from typing import Union, Optional, Literal, Type, Mapping, Sequence, Iterator, Any, overload
 
 __all__ = ['Style', 'StateColors', 'Colors', 'State', 'Font', 'StyleSpec']
 # log = logging.getLogger(__name__)
@@ -295,6 +295,12 @@ class Style:
         fg, bg = f'{type}_fg', f'{type}_bg'
         state = state or 'default'
         return getattr(getattr(self, fg), state), getattr(getattr(self, bg), state)
+
+    def update_kwargs(self, kwargs: dict[str, Any], style_key_map: Mapping[str, str], disabled: bool = False):
+        state = 'disabled' if disabled else 'default'
+        for attr, key in style_key_map.items():
+            if value := getattr(self, attr)[state]:
+                kwargs[key] = value
 
 
 Style('default', font=('Helvetica', 10), ttk_theme='default', border_width=1)

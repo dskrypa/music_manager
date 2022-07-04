@@ -7,7 +7,6 @@ Tkinter GUI image popups
 from __future__ import annotations
 
 import logging
-from time import monotonic
 from typing import TYPE_CHECKING, Optional, Union
 
 from PIL.Image import MIME
@@ -36,10 +35,9 @@ class ImagePopup:
         self.parent = parent
         self._title = title or 'Image'
         self._set_image(image)
-        self._last_resize = 0
         binds = kwargs.setdefault('binds', {})
         binds.setdefault('<Escape>', 'exit')
-        binds['<Configure>'] = self.handle_config_changed
+        binds['SIZE_CHANGED'] = self.handle_size_changed
         kwargs.setdefault('margins', (0, 0))
         self.window = Window(self.title, [[self.gui_image]], **kwargs)
 
@@ -77,28 +75,31 @@ class ImagePopup:
         self._title = value
 
     def _get_new_size(self, new_w: int, new_h: int) -> Optional[XY]:
-        last_w, last_h = self._last_size
-        target_w = new_w - 4
-        target_h = new_h - 6
-        # log.debug(f'{last_w=} {last_h=}  |  {target_w=} {target_h=}')
-        if not ((last_h == new_h and target_w < new_w) or (last_w == new_w and target_h < new_h)):
-            return target_w, target_h
+        image = self.gui_image
+        px, py = image.pad
+        new_size = (new_w - px * 2 - 2, new_h - py * 2 - 2)
+        new_img = image.target_size(*new_size)
+        if new_img != image.size:
+            # log.debug(
+            #     f'Resizing from old_win={self._last_size} to new_win={(new_w, new_h)},'
+            #     f' old_img={image.size} to {new_img=}, using {new_size=} due to event for {self}'
+            # )
+            return new_size
+        # log.debug(
+        #     f'Not resizing: old_win={self._last_size}, new_win={(new_w, new_h)},'
+        #     f' old_img={image.size} == {new_img=}, using {new_size=} for {self}'
+        # )
         return None
 
-    def handle_config_changed(self, event: Event):
-        size = (event.width, event.height)
-        if self._empty or self._last_size == size or monotonic() - self._last_resize < 0.15:
-            # log.debug(f'Ignoring config {event=} for {self}')
+    def handle_size_changed(self, event: Event, size: XY):
+        if self._empty or self._last_size == size:
+            # log.debug(f'Ignoring config {event=} for {self} @ {monotonic()}')
             return
         # log.debug(f'Handling config {event=} for {self}')
         if new_size := self._get_new_size(*size):
-            # log.debug(f'Resizing from old={self._last_size} to new={new_size} due to {event=} for {self}')
-            self._last_size = new_size
+            self._last_size = size
             self.gui_image.resize(*new_size)
             self.window.set_title(self.title)
-            self._last_resize = monotonic()
-        # else:
-        #     log.debug(f'No size change necessary for {event=} for {self}')
 
     def run(self):
         self.window.run()

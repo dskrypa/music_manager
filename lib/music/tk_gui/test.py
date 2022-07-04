@@ -10,7 +10,7 @@ from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup
 
 
 def main():
-    init_logging(2, log_path=None, names=None)
+    init_logging(2, log_path=None, names=None, set_levels={'PIL.PngImagePlugin': 50})
 
     table1 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
     table2 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
@@ -28,14 +28,13 @@ def main():
         [Image(png_path)]
     ]
 
-    # ImagePopup(png_path).run()
+    ImagePopup(png_path).run()
     # AnimatedPopup(gif_path).run()
     # SpinnerPopup(img_size=(400, 400)).run()
     # ClockPopup(toggle_slim_on_click=True).run()
 
-    # window = Window('Test One', layout, size=(600, 600), element_justification='c')
-    window = Window('Test One', layout, element_justification='c', binds={'<Escape>': 'exit'})
-    window.run()
+    # Window('Test One', layout, size=(600, 600), element_justification='c').run()
+    # Window('Test One', layout, element_justification='c', binds={'<Escape>': 'exit'}).run()
 
 
 if __name__ == '__main__':

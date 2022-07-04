@@ -16,6 +16,7 @@ from ds_tools.images.utils import ImageType, as_image
 from ..core import Window
 from ..elements.images import AnimatedType, Image, Animation, ClockImage, SpinnerImage, get_size
 from ..positioning import positioner
+from .base import Popup
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -25,21 +26,24 @@ __all__ = ['ImagePopup', 'AnimatedPopup', 'SpinnerPopup', 'ClockPopup']
 log = logging.getLogger(__name__)
 
 
-class ImagePopup:
+class ImagePopup(Popup):
     _empty: bool = True
     orig_size: XY
     _last_size: XY
     gui_image: Image
 
-    def __init__(self, image: Union[ImageType, AnimatedType], title: str = None, parent: Window = None, **kwargs):
-        self.parent = parent
-        self._title = title or 'Image'
-        self._set_image(image)
+    def __init__(self, image: Union[ImageType, AnimatedType], title: str = None, **kwargs):
         binds = kwargs.setdefault('binds', {})
-        binds.setdefault('<Escape>', 'exit')
         binds['SIZE_CHANGED'] = self.handle_size_changed
         kwargs.setdefault('margins', (0, 0))
-        self.window = Window(self.title, [[self.gui_image]], **kwargs)
+        kwargs.setdefault('bind_esc', True)
+        kwargs.setdefault('keep_on_top', False)
+        kwargs.setdefault('can_minimize', True)
+        super().__init__(title or 'Image', **kwargs)
+        self._set_image(image)
+
+    def prepare_window(self) -> Window:
+        return Window(self.title, [[self.gui_image]], **self.window_kwargs)
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[title={self.title!r}, orig={self.orig_size}, empty: {self._empty}]>'
@@ -100,9 +104,6 @@ class ImagePopup:
             self._last_size = size
             self.gui_image.resize(*new_size)
             self.window.set_title(self.title)
-
-    def run(self):
-        self.window.run()
 
 
 class AnimatedPopup(ImagePopup):

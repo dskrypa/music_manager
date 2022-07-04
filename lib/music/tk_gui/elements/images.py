@@ -7,7 +7,6 @@ Tkinter GUI images
 from __future__ import annotations
 
 import logging
-import tkinter.constants as tkc
 from datetime import datetime, timedelta
 from inspect import Signature
 from pathlib import Path
@@ -28,7 +27,7 @@ from .element import Element
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..typing import XY
+    from ..typing import XY, Bool
 
 __all__ = ['Image', 'Animation', 'SpinnerImage', 'ClockImage', 'get_size']
 log = logging.getLogger(__name__)
@@ -47,7 +46,9 @@ class Image(Element):
         if animated is not None:
             cls.animated = animated
 
-    def __init__(self, image: ImageType = None, **kwargs):
+    def __init__(self, image: ImageType = None, popup_on_click: Bool = False, **kwargs):
+        if popup_on_click:
+            kwargs['left_click_cb'] = self.open_popup
         super().__init__(**kwargs)
         self._image = _GuiImage(image)
 
@@ -101,6 +102,12 @@ class Image(Element):
     def resize(self, width: int, height: int):
         image, width, height = self._image.as_size(width, height)
         self._re_pack(image, width, height)
+
+    def open_popup(self, event: Event = None):
+        from ..popups.image import ImagePopup
+
+        img = self._image
+        ImagePopup(img.src_image, img.path.name if img.path else None, parent=self.window).run()
 
 
 class Animation(Image, animated=True):
@@ -285,9 +292,13 @@ class ClockImage(Animation):
 
 
 class _GuiImage:
-    __slots__ = ('src_image', 'current', 'current_tk', 'src_size', 'size')
+    __slots__ = ('src_image', 'current', 'current_tk', 'src_size', 'size', 'path')
 
     def __init__(self, image: ImageType):
+        try:
+            self.path = _get_path(image)
+        except ValueError:
+            self.path = None
         image = as_image(image)
         # log.debug(f'Loaded image={image!r}')
         self.src_image: Optional[PILImage] = image

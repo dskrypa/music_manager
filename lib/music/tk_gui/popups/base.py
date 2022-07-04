@@ -35,11 +35,15 @@ class Popup:
         *,
         parent: Window = None,
         bind_esc: Bool = False,
+        keep_on_top: Bool = True,
+        can_minimize: Bool = False,
         **kwargs
     ):
         self.title = title
         self.layout = layout
         self.parent = parent
+        kwargs['keep_on_top'] = keep_on_top
+        kwargs['can_minimize'] = can_minimize
         binds = kwargs.setdefault('binds', {})
         if bind_esc:
             binds['<Escape>'] = 'exit'
@@ -56,6 +60,7 @@ class Popup:
         return window
 
     def _run(self):
+        self.window.take_focus()
         self.window.run()
         return self.window.results
 

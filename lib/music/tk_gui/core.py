@@ -7,13 +7,15 @@ Tkinter GUI core
 from __future__ import annotations
 
 import logging
+import platform
 import sys
 from abc import ABC, abstractmethod
 from functools import partial, cached_property
 from inspect import stack
+from itertools import count
 from os import environ
 from pathlib import Path
-from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper
+from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper, Widget
 from typing import TYPE_CHECKING, Optional, Union, Iterable, Type, Any
 from weakref import finalize
 
@@ -26,13 +28,19 @@ from .style import Style
 from .utils import BindTargets, Anchor, Justify, Side, BindEvent
 
 if TYPE_CHECKING:
-    from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout
+    from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool
 
 __all__ = ['RowContainer', 'Window']
 log = logging.getLogger(__name__)
 
+_OS = platform.system().lower()
+ON_WINDOWS = _OS == 'windows'
+ON_LINUX = _OS == 'linux'
+
 
 class RowContainer(ABC):
+    _counter = count()
+
     def __init__(
         self,
         layout: Iterable[Iterable[Element]] = None,
@@ -44,6 +52,7 @@ class RowContainer(ABC):
         element_padding: XY = None,
         element_size: XY = None,
     ):
+        self._id = next(self._counter)
         self.style = Style.get(style)
         self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
         self.text_justification = Justify(text_justification)
@@ -61,6 +70,9 @@ class RowContainer(ABC):
     @abstractmethod
     def window(self) -> Window:
         raise NotImplementedError
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}[{self._id}]>'
 
     def __getitem__(self, item: Union[str, tuple[int, int]]) -> Element:
         if isinstance(item, str) and '#' in item:
@@ -80,6 +92,11 @@ class RowContainer(ABC):
                 except (IndexError, TypeError, ValueError):
                     pass
         raise KeyError(f'Invalid element ID / (row, column) index: {item!r}')
+
+    def __contains__(self, item: Union[Element, Widget]) -> bool:
+        if item is self.tk_container:
+            return True
+        return any(item in row for row in self.rows)
 
 
 def _tk_event_handler(tk_event: str):
@@ -113,14 +130,14 @@ class Window(RowContainer):
         style: Style = None,
         size: XY = None,
         position: XY = None,
-        resizable: bool = True,
-        keep_on_top: bool = False,
-        can_minimize: bool = True,
+        resizable: Bool = True,
+        keep_on_top: Bool = False,
+        can_minimize: Bool = True,
         transparent_color: str = None,
         alpha_channel: int = None,
         icon: bytes = None,
-        modal: bool = False,
-        no_title_bar: bool = False,
+        modal: Bool = False,
+        no_title_bar: Bool = False,
         margins: XY = (10, 5),  # x, y
         anchor_elements: Union[str, Anchor] = None,
         text_justification: Union[str, Justify] = None,
@@ -128,6 +145,7 @@ class Window(RowContainer):
         element_padding: XY = None,
         element_size: XY = None,
         binds: BindMap = None,
+        # kill_others_on_close: Bool = False,
     ):
         if title is None:
             try:
@@ -163,6 +181,7 @@ class Window(RowContainer):
         self.no_title_bar = no_title_bar
         self.margins = margins
         self.binds = binds or {}
+        # self.kill_others_on_close = kill_others_on_close
         if self.rows:
             self.show()
 
@@ -180,6 +199,17 @@ class Window(RowContainer):
     @property
     def window(self) -> Window:
         return self
+
+    def __repr__(self) -> str:
+        modal, title, title_bar = self.modal, self.title, not self.no_title_bar
+        try:
+            size, pos = self.true_size_and_pos
+            has_focus = self.has_focus
+        except AttributeError:  # No root
+            size = pos = has_focus = None
+        return (
+            f'<{self.__class__.__name__}[{self._id}][{pos=}, {size=}, {has_focus=}, {modal=}, {title_bar=}, {title=}]>'
+        )
 
     # region Results
 
@@ -297,9 +327,37 @@ class Window(RowContainer):
 
         self.position = x, y
 
+    def minimize(self):
+        self.root.iconify()
+
+    def maximize(self):
+        self.root.state('zoomed')
+        # self.root.attributes('-fullscreen', True)  # May be needed on Windows
+
+    def normal(self):
+        root = self.root
+        if (state := root.state()) == 'iconic':
+            root.deiconify()
+        elif state == 'zoomed':
+            root.state('normal')
+            # self.root.attributes('-fullscreen', False)
+
     @property
     def is_maximized(self) -> bool:
         return self.root.state() == 'zoomed'
+
+    def bring_to_front(self):
+        root = self.root
+        if ON_WINDOWS:
+            root.wm_attributes('-topmost', 0)
+            root.wm_attributes('-topmost', 1)
+            if not self.keep_on_top:
+                root.wm_attributes('-topmost', 0)
+        else:
+            root.lift()
+
+    def send_to_back(self):
+        self.root.lower()
 
     # endregion
 
@@ -404,6 +462,12 @@ class Window(RowContainer):
         hidden_root.withdraw()
         Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
 
+    def hide(self):
+        self.root.withdraw()
+
+    def un_hide(self):
+        self.root.deiconify()
+
     # endregion
 
     # region Bind Methods
@@ -504,6 +568,10 @@ class Window(RowContainer):
         log.debug('  Done')
 
     def close(self, event: Event = None):
+        # if event and not self.has_focus:
+        #     log.debug(f'Ignoring {event=} for window={self}')
+        #     return
+        # log.debug(f'Closing window={self} due to {event=}')
         try:
             obj, close_func, args, kwargs = self._finalizer.detach()
         except (TypeError, AttributeError):
@@ -512,6 +580,8 @@ class Window(RowContainer):
             log.debug('Closing')
             close_func(*args, **kwargs)
             self.root = None
+            # if self.kill_others_on_close:
+            #     self.close_all()
 
     @classmethod
     def __close_hidden_root(cls):
@@ -522,7 +592,36 @@ class Window(RowContainer):
         except AttributeError:
             pass
 
+    # @classmethod
+    # def close_all(cls):
+    #     instances = tuple(cls.__instances)
+    #     for window in instances:
+    #         window.kill_others_on_close = False  # prevent recursive calls of this method
+    #         window.close()
+    #     # while cls.__instances:
+    #     #     log.debug(f'Windows to close: {len(cls.__instances)}')
+    #     #     try:
+    #     #         window = cls.__instances.pop()
+    #     #     except KeyError:
+    #     #         pass
+    #     #     else:
+    #     #         window.kill_others_on_close = False  # prevent recursive calls of this method
+    #     #         window.close()
+
     # endregion
+
+    def disable(self):
+        self.root.attributes('-disabled', 1)
+
+    def enable(self):
+        self.root.attributes('-disabled', 0)
+
+    def take_focus(self):
+        self.root.focus_force()
+
+    @property
+    def has_focus(self) -> bool:
+        return self.root.focus_get() in self  # noqa
 
     # def _sigint_fix(self):
     #     """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""

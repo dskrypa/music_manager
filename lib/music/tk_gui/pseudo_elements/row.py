@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import tkinter.constants as tkc
-from tkinter import Frame
+from tkinter import Frame, Widget
 from typing import TYPE_CHECKING, Optional, Union, Iterable
 
 from ..style import Style
@@ -53,6 +53,17 @@ class Row:
         except (IndexError, TypeError):
             pass
         raise KeyError(f'Invalid column / index / element ID: {index_or_id!r}')
+
+    def __contains__(self, item: Union[Element, Widget]) -> bool:
+        if isinstance(item, Widget):
+            if self.frame is item:
+                return True
+            for element in self.elements:
+                if element.widget is item:
+                    return True
+            return False
+        else:
+            return item in self.elements
 
     @property
     def anchor(self):

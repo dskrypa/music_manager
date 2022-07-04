@@ -60,10 +60,11 @@ class GuiTest(Command):
             [inpt, Button('Submit', bind_enter=True)],
             [Animation(gif_path), SpinnerImage()],
             [ClockImage()],
-            [Image(png_path)]
+            [Image(png_path, popup_on_click=True)]
         ]
 
         # Window('Test One', layout, size=(600, 600), anchor_elements='c').run()
+        # Window('Test One', layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
         Window('Test One', layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run()
 
 

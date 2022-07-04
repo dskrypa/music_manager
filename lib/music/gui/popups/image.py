@@ -5,10 +5,9 @@ View: Show Image
 """
 
 import sys
-from time import monotonic
 from typing import Union
 
-from PIL import Image
+from PIL.Image import MIME
 from PySimpleGUI import Image as GuiImage, Button, Column
 
 from ds_tools.images.utils import ImageType, as_image
@@ -28,11 +27,10 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
         self._title = title or 'Image'
         self.img_key = img_key or f'img::{id(image)}'
         if image:
-            self.log.debug(f'Displaying {image=} with {image.format=} mime={Image.MIME.get(image.format)!r}')
+            self.log.debug(f'Displaying {image=} with {image.format=} mime={MIME.get(image.format)!r}')
         self.orig_size = image.size if image else (0, 0)
         self._last_size = init_size = self._init_size()
         self.gui_img = ExtendedImage(image, size=init_size, key=self.img_key, pad=(2, 2), bind_click=False)
-        self._last_resize = 0
 
     def _init_size(self):
         monitor = positioner.get_monitor_for_window(self.window)
@@ -55,8 +53,9 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
 
     def _get_new_size(self, new_w: int, new_h: int):
         last_w, last_h = self._last_size
-        target_w = new_w - 4
-        target_h = new_h - 6
+        px, py = self.gui_img.Pad
+        target_w = new_w - (px * 2)
+        target_h = new_h - (py * 2)
         # self.log.debug(f'{last_w=} {last_h=}  |  {target_w=} {target_h=}')
         if not ((last_h == new_h and target_w < new_w) or (last_w == new_w and target_h < new_h)):
             return target_w, target_h
@@ -64,17 +63,16 @@ class ImageView(BasePopup, view_name='show_image', primary=False):
 
     @event_handler
     def window_resized(self, event: Event, data: EventData):
-        if self.pil_img is None:
-            return
-        elif monotonic() - self._last_resize < 0.15:
+        size = data['new_size']
+        # if self.pil_img is None or self._last_size == size or monotonic() - self._last_resize < 0.15:
+        if self.pil_img is None or self._last_size == size:
             # self.log.debug(f'Refusing resize too soon after last one')
             return
-        elif new_size := self._get_new_size(*data['new_size']):
-            # self.log.debug(f'Resizing image from {self._last_size} to {new_size}')
-            self._last_size = new_size
+        elif new_size := self._get_new_size(*size):
+            self._last_size = size
             self.gui_img.resize(*new_size)
             self.window.set_title(self.title)
-            self._last_resize = monotonic()
+            # self._last_resize = monotonic()
 
     def get_render_args(self) -> RenderArgs:
         layout = [[self.gui_img]]

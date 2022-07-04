@@ -9,24 +9,26 @@ from __future__ import annotations
 import logging
 import sys
 from abc import ABC, abstractmethod
+from functools import partial
 from inspect import stack
 from os import environ
 from pathlib import Path
 from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper
-from typing import Optional, Union, Iterable, MutableMapping
+from typing import Optional, Union, Iterable, Type, MutableMapping
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
 from .positioning import positioner
 from .style import Style
-from .utils import BindTargets, Anchor, XY, BindCallback
+from .utils import BindTargets, Anchor, XY, BindCallback, BindEvent, EventCallback
 from .elements.element import Element
 from .pseudo_elements.row import Row
 
 __all__ = ['RowContainer', 'Window']
 log = logging.getLogger(__name__)
 
-BindTarget = Union[BindCallback, BindTargets, str, None]
+Bindable = Union[BindEvent, str]
+BindTarget = Union[BindCallback, EventCallback, BindTargets, str, None]
 
 
 class RowContainer(ABC):
@@ -59,8 +61,25 @@ class RowContainer(ABC):
         return self.rows[index]
 
 
+def _tk_event_handler(tk_event: str):
+    return partial(_TkEventHandler, tk_event)
+
+
+class _TkEventHandler:
+    __slots__ = ('tk_event', 'func')
+
+    def __init__(self, tk_event: str, func: BindCallback):
+        self.tk_event = tk_event
+        self.func = func
+
+    def __set_name__(self, owner: Type[Window], name: str):
+        owner._tk_event_handlers[self.tk_event] = name
+        setattr(owner, name, self.func)  # replace wrapper with the original function
+
+
 class Window(RowContainer):
     __hidden_root = None
+    _tk_event_handlers: dict[str, str] = {}
     _finalizer: finalize
     root: Optional[Toplevel] = None
 
@@ -102,6 +121,11 @@ class Window(RowContainer):
         )
         self._size = size
         self._position = position
+        self._event_cbs: dict[BindEvent, EventCallback] = {}
+        self._bound_for_events: set[str] = set()
+        self._motion_end_cb_id = None
+        self._last_known_pos: Optional[XY] = None
+        self._last_known_size: Optional[XY] = None
         self.resizable = resizable
         self.keep_on_top = keep_on_top
         self.can_minimize = can_minimize
@@ -152,8 +176,19 @@ class Window(RowContainer):
         self.root.geometry('{}x{}'.format(*size))
 
     @property
+    def true_size(self) -> XY:
+        x, y = self.root.geometry().split('+', 1)[0].split('x', 1)
+        return int(x), int(y)
+
+    def set_min_size(self, width: int, height: int):
+        root = self.root
+        root.minsize(width, height)
+        root.update_idletasks()
+
+    @property
     def position(self) -> XY:
         root = self.root
+        # root.update_idletasks()
         return root.winfo_x(), root.winfo_y()
 
     @position.setter
@@ -162,6 +197,20 @@ class Window(RowContainer):
         root.geometry('+{}+{}'.format(*pos))
         # root.x root.y = pos
         root.update_idletasks()
+
+    @property
+    def true_position(self) -> XY:
+        x, y = self.root.geometry().rsplit('+', 2)[1:]
+        return int(x), int(y)
+
+    @property
+    def true_size_and_pos(self) -> tuple[XY, XY]:
+        root = self.root
+        root.update_idletasks()
+        size, pos = root.geometry().split('+', 1)
+        w, h = size.split('x', 1)
+        x, y = pos.split('+', 1)
+        return (int(w), int(h)), (int(x), int(y))
 
     def _outer_size(self) -> XY:
         # Outer dimensions of the window, used for calculating relative position
@@ -293,7 +342,7 @@ class Window(RowContainer):
 
     # region Bind Methods
 
-    def bind(self, event_pat: str, cb: BindTarget):
+    def bind(self, event_pat: Bindable, cb: BindTarget):
         if self.root:
             self._bind(event_pat, cb)
         else:
@@ -303,16 +352,21 @@ class Window(RowContainer):
         for event_pat, cb in self.binds.items():
             self._bind(event_pat, cb)
 
-    def _bind(self, event_pat: str, cb: BindTarget):
+    def _bind(self, event_pat: Bindable, cb: BindTarget):
         if cb is None:
             return
-        cb = self._normalize_bind_cb(cb)
-        log.debug(f'Binding event={event_pat!r} to {cb=}')
-        try:
-            self.root.bind(event_pat, cb)
-        except (TclError, RuntimeError) as e:
-            log.error(f'Unable to bind event={event_pat!r}: {e}')
-            self.root.unbind_all(event_pat)
+
+        bind_event = _normalize_bind_event(event_pat)
+        if isinstance(bind_event, BindEvent):
+            self._bind_event(bind_event, cb)
+        else:
+            cb = self._normalize_bind_cb(cb)
+            log.debug(f'Binding event={bind_event!r} to {cb=}')
+            try:
+                self.root.bind(bind_event, cb)
+            except (TclError, RuntimeError) as e:
+                log.error(f'Unable to bind event={bind_event!r}: {e}')
+                self.root.unbind_all(bind_event)
 
     def _normalize_bind_cb(self, cb: BindTargets) -> BindCallback:
         if isinstance(cb, str):
@@ -322,6 +376,45 @@ class Window(RowContainer):
                 cb = self.close
 
         return cb
+
+    def _bind_event(self, bind_event: BindEvent, cb: EventCallback):
+        self._event_cbs[bind_event] = cb
+        if (tk_event := bind_event.event) not in self._bound_for_events:
+            method = getattr(self, self._tk_event_handlers[tk_event])
+            self.root.bind(tk_event, method)
+            self._bound_for_events.add(tk_event)
+
+    # endregion
+
+    # region Event Handling
+
+    @_tk_event_handler('<Configure>')
+    def handle_config_changed(self, event: Event):
+        root = self.root
+        if self._motion_end_cb_id:
+            root.after_cancel(self._motion_end_cb_id)
+
+        self._motion_end_cb_id = root.after(100, self._handle_motion_stopped, event)
+
+    def _handle_motion_stopped(self, event: Event):
+        # log.debug(f'Motion stopped: {event=}')
+        self._motion_end_cb_id = None
+        new_size, new_pos = self.true_size_and_pos  # The event x/y/size are not the final pos/size
+        if new_pos != self._last_known_pos:
+            # log.debug(f'  Position changed: old={self._last_known_pos}, new={new_pos}')
+            self._last_known_pos = new_pos
+            if cb := self._event_cbs.get(BindEvent.POSITION_CHANGED):
+                cb(event, new_pos)
+        # else:
+        #     log.debug(f'  Position did not change: old={self._last_known_pos}, new={new_pos}')
+
+        if new_size != self._last_known_size:
+            # log.debug(f'  Size changed: old={self._last_known_size}, new={new_size}')
+            self._last_known_size = new_size
+            if cb := self._event_cbs.get(BindEvent.SIZE_CHANGED):
+                cb(event, new_size)
+        # else:
+        #     log.debug(f'  Size did not change: old={self._last_known_size}, new={new_size}')
 
     # endregion
 
@@ -372,6 +465,13 @@ class Window(RowContainer):
     @property
     def is_maximized(self) -> bool:
         return self.root.state() == 'zoomed'
+
+
+def _normalize_bind_event(event_pat: Bindable) -> Bindable:
+    try:
+        return BindEvent(event_pat)
+    except ValueError:
+        return event_pat
 
 
 def patch_call_wrapper():

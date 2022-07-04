@@ -12,10 +12,11 @@ from typing import TYPE_CHECKING, Optional, Protocol, TypeVar, Type, Any, Callab
 if TYPE_CHECKING:
     from tkinter import Event
 
-__all__ = ['BindTargets', 'Anchor', 'Inheritable', 'XY', 'BindCallback']
+__all__ = ['BindTargets', 'Anchor', 'Inheritable', 'XY', 'BindCallback', 'BindEvent', 'EventCallback']
 
 T_co = TypeVar('T_co', covariant=True)
 BindCallback = Callable[['Event'], Any]
+EventCallback = Callable[['Event', ...], Any]
 XY = tuple[int, int]
 # fmt: off
 ANCHOR_ALIASES = {
@@ -23,6 +24,26 @@ ANCHOR_ALIASES = {
     'c': 'MID_CENTER', 't': 'TOP_CENTER', 'b': 'BOTTOM_CENTER', 'l': 'MID_LEFT', 'r': 'MID_RIGHT',
 }
 # fmt: on
+
+
+class BindEvent(Enum):
+    def __new__(cls, tk_event: str):
+        # Defined __new__ to avoid juggling dicts for the event names, and to avoid conflicting event names from being
+        # used to initialize incorrect BindEvents
+        obj = object.__new__(cls)
+        obj.event = tk_event
+        obj._value_ = 2 ** len(cls.__members__)
+        return obj
+
+    POSITION_CHANGED = '<Configure>'
+    SIZE_CHANGED = '<Configure>'
+
+    @classmethod
+    def _missing_(cls, value: str):
+        try:
+            return cls[value.upper()]
+        except KeyError:
+            return None
 
 
 class BindTargets(Enum):

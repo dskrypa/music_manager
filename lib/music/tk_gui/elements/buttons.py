@@ -189,6 +189,6 @@ class Button(Element):
         self._last_activated = monotonic()
         log.info(f'handle_activated: {event=}')
         if self.action == ButtonAction.SUBMIT:
-            self.window.root.quit()  # exit the TK main loop
+            self.window.interrupt()
         else:
             log.warning(f'No action configured for button={self}')

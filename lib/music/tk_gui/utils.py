@@ -57,6 +57,7 @@ class BindEvent(MissingMixin, Enum):
 
 class BindTargets(MissingMixin, Enum):
     EXIT = 'exit'
+    INTERRUPT = 'interrupt'
 
 
 class Side(MissingMixin, Enum, aliases={'l': 'LEFT', 'r': 'RIGHT', 't': 'TOP', 'b': 'BOTTOM'}):

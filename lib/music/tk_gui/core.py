@@ -185,13 +185,6 @@ class Window(RowContainer):
         if self.rows:
             self.show()
 
-    def run(self, n: int = 0):
-        try:
-            self.root.mainloop(n)
-        except AttributeError:
-            self.show()
-            self.root.mainloop(n)
-
     @property
     def tk_container(self) -> Toplevel:
         return self.root
@@ -210,6 +203,24 @@ class Window(RowContainer):
         return (
             f'<{self.__class__.__name__}[{self._id}][{pos=}, {size=}, {has_focus=}, {modal=}, {title_bar=}, {title=}]>'
         )
+
+    # region Run / Event Loop
+
+    # TODO: Queue for higher level events, with an iterator method that yields them?  Different bind target to generate
+    #  a high level event for window close / exit?  Subclass that uses that instead of the more direct exit, leaving
+    #  this one without that or the higher level loop?
+
+    def run(self, n: int = 0):
+        try:
+            self.root.mainloop(n)
+        except AttributeError:
+            self.show()
+            self.root.mainloop(n)
+
+    def interrupt(self, event: Event = None):
+        self.root.quit()  # exit the TK main loop, but leave the window open
+
+    # endregion
 
     # region Results
 
@@ -504,6 +515,8 @@ class Window(RowContainer):
         if isinstance(cb, BindTargets):
             if cb == BindTargets.EXIT:
                 cb = self.close
+            elif cb == BindTargets.INTERRUPT:
+                cb = self.interrupt
 
         return cb
 

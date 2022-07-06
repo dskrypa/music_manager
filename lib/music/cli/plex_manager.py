@@ -66,7 +66,8 @@ class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists w
         kpop_tracks = self.plex.query('track', mood__ne='Duplicate Rating')
         PlexPlaylist('K-Pop Female Solo Artists 3+ Stars', self.plex).sync_or_create(
             query=kpop_tracks.filter(
-                userRating__gte=6, grandparentTitle__like='taeyeon|chungha|younha|heize|rothy|sunmi|ailee'
+                userRating__gte=6,
+                grandparentTitle__like=r'taeyeon|chungha|younha|heize|rothy|sunmi|ailee|lee hi|jo yuri|seori|\biu\b|choi ye.?na|yuju|baek ji young|gummy|yuqi|hong jin young|bibi|hyori|hyolyn|yourbeagle|wendy|whee in|hwa sa|minnie|joy|seulgi|siyeon',
             )
         )
         PlexPlaylist('K-Pop ALL', self.plex).sync_or_create(query=kpop_tracks)

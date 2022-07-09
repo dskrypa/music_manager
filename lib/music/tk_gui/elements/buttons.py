@@ -12,29 +12,22 @@ from enum import Enum
 from math import ceil
 from time import monotonic
 from tkinter import Event, Button as _Button
-from typing import TYPE_CHECKING, Union, MutableMapping
+from typing import TYPE_CHECKING, Union, Optional, MutableMapping
 
 from PIL.ImageTk import PhotoImage
 
-from ds_tools.images.utils import ImageType, as_image
+from ds_tools.images.utils import ImageType, as_image, calculate_resize, scale_image
 
-from .element import Element
+from .element import Element, Interactive
 from ..utils import Justify
 
 if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
     from ..pseudo_elements import Row
     from ..typing import XY, BindCallback, Bool
 
 __all__ = ['Button']
 log = logging.getLogger(__name__)
-
-# fmt: off
-STYLE_KEY_MAP = {
-    'button_fg': 'foreground', 'button_bg': 'background',
-    'hover_fg': 'activeforeground', 'hover_bg': 'activebackground',
-    'focus_fg': 'highlightcolor', 'focus_bg': 'highlightbackground',
-}
-# fmt: on
 
 
 class ButtonAction(Enum):
@@ -48,7 +41,7 @@ class ButtonAction(Enum):
             return None
 
 
-class Button(Element):
+class Button(Interactive):
     widget: _Button
     separate: bool = False
     bind_enter: bool = False
@@ -58,8 +51,6 @@ class Button(Element):
         text: str = '',
         image: ImageType = None,
         *,
-        disabled: Bool = False,
-        focus: Bool = False,
         shortcut: str = None,
         justify_text: Union[str, Justify, None] = Justify.CENTER,
         action: Union[ButtonAction, str] = ButtonAction.SUBMIT,
@@ -74,7 +65,9 @@ class Button(Element):
             self.separate = True
             binds.setdefault('<ButtonPress-1>', self.handle_press)
             binds.setdefault('<ButtonRelease-1>', self.handle_release)
-        if shortcut:
+        if shortcut:  # TODO: This does not activate (without focus?)
+            if len(shortcut) == 1:
+                shortcut = f'<{shortcut}>'
             if not shortcut.startswith('<') or not shortcut.endswith('>'):
                 raise ValueError(f'Invalid keyboard {shortcut=}')
             binds[shortcut] = self.handle_activated
@@ -83,13 +76,31 @@ class Button(Element):
             binds['<Return>'] = self.handle_activated
         super().__init__(binds=binds, justify_text=justify_text, **kwargs)
         self.text = text
-        self.image = as_image(image)
-        self.disabled = disabled
-        self._focus = focus
+        self.image = image
         self.action = ButtonAction(action)
         self._last_press = 0
         self._last_release = 0
         self._last_activated = 0
+
+    @property
+    def image(self) -> Optional[PILImage]:
+        return self._image
+
+    @image.setter
+    def image(self, value: ImageType):
+        self._image = image = as_image(value)
+        if not image or not self.size:
+            return
+
+        iw, ih = image.size
+        width, height = self.size
+        if ih > height or iw > width:
+            self._image = scale_image(image, width - 1, height - 1)
+        # if text := self.text:
+        #     style = self.style
+        #     state = self.style_state
+        #     tw, th = style.text_size(text, layer='button', state=state)
+        #     if th <= height and tw < width:
 
     def _pack_size(self) -> XY:
         # Width is measured in pixels, but height is measured in characters
@@ -108,26 +119,26 @@ class Button(Element):
         style = self.style
         if text and image:
             if not width:
-                # width = int(ceil(image.width / style.char_width)) + len(text)
-                width = style.char_width * len(text) + image.width
+                # width = int(ceil(image.width / style.char_width())) + len(text)
+                width = style.char_width('button') * len(text) + image.width
             if not height:
-                height = int(ceil(image.height / style.char_height))
-                # height = style.char_height + image.height
+                height = int(ceil(image.height / style.char_height('button')))
+                # height = style.char_height() + image.height
         elif text:
             if not width:
                 # pass
                 width = len(text) + 1
-                # width = style.char_width * len(text)
+                # width = style.char_width() * len(text)
             if not height:
                 height = 1
-                # height = style.char_height
+                # height = style.char_height()
         else:
             if not width:
-                width = int(ceil(image.width / style.char_width))
-                # width = image.width
+                # width = int(ceil(image.width / style.char_width()))
+                width = image.width
             if not height:
-                height = 1
-                # height = image.height
+                # height = 1
+                height = image.height
 
         return width, height
 
@@ -135,12 +146,13 @@ class Button(Element):
         # self.string_var = StringVar()
         # self.string_var.set(self._value)
         style = self.style
+        state = self.style_state
         width, height = self._pack_size()
         kwargs = {
             'width': width,
             'height': height,
-            'font': style.font,
-            'bd': style.border_width,
+            'font': style.button.font[state],
+            'bd': style.button.border_width[state],
             'justify': self.justify_text.value,
         }
         if not self.separate:
@@ -154,17 +166,19 @@ class Button(Element):
         elif not self.pad or 0 in self.pad:
             kwargs['highlightthickness'] = 0
         if width:
-            kwargs['wraplength'] = width * style.char_width
-        if style.border_width == 0:
+            kwargs['wraplength'] = width * style.char_width('button', state)
+        if style.button.border_width[state] == 0:
             kwargs['relief'] = tkc.FLAT  # May not work on mac
 
-        style.update_kwargs(kwargs, STYLE_KEY_MAP, self.disabled)
+        kwargs.update(style.get(layer='button', state=state, fg='foreground', bg='background'))
+        kwargs.update(style.get(layer='hover', state=state, fg='activeforeground', bg='activebackground'))
+        kwargs.update(style.get(layer='focus', state=state, fg='highlightcolor', bg='highlightbackground'))
         self.widget = button = _Button(row.frame, **kwargs)
         if image:
             button.image = image
 
         # button.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
-        self.pack_widget(focus=self._focus, disabled=self.disabled)
+        self.pack_widget()
 
     def _bind(self, event_pat: str, cb: BindCallback):
         super()._bind(event_pat, cb)

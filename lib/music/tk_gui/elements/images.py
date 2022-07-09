@@ -80,8 +80,8 @@ class Image(Element):
             row.frame,
             width=width,
             height=height,
-            bd=style.border_width,
-            background=style.bg.default,
+            bd=style.image.border_width.default,
+            background=style.image.bg.default,
             **kwargs
         )
         label.image = image

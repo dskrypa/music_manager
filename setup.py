@@ -47,10 +47,9 @@ setup(
     package_dir={'': 'lib'},
     classifiers=[
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.9',    # Due to use of walrus operator + dict union
-        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.10',  # Due to use of match/case
     ],
-    python_requires='~=3.9',
+    python_requires='~=3.10',
     install_requires=requirements,
     extras_require=optional_dependencies,
     entry_points={'console_scripts': [f'{m}=music.cli.{m}:{f}' for m, f in script_entry_points.items()]},

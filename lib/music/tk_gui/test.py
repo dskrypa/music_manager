@@ -54,10 +54,11 @@ class GuiTest(Command):
 
         gif_path = ICONS_DIR.joinpath('spinners', 'ring_gray_segments.gif')
         png_path = ICONS_DIR.joinpath('exclamation-triangle-yellow.png')
+        search_path = ICONS_DIR.joinpath('search.png')
 
         layout = [
             [table1, table2],
-            [inpt, Button('Submit', bind_enter=True)],
+            [inpt, Button('Submit', bind_enter=True), Button(image=search_path, shortcut='s', size=(30, 30))],
             [Animation(gif_path), SpinnerImage()],
             [ClockImage()],
             [Image(png_path, popup_on_click=True)]

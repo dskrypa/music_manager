@@ -40,8 +40,6 @@ class Row:
         self.parent = parent
         self.elements = tuple(elements)
         self.id_ele_map = {ele.id: ele for ele in self.elements}
-        # for ele in self.elements:
-        #     ele.parent = self
 
     def __getitem__(self, index_or_id: Union[int, str]):
         try:
@@ -73,10 +71,9 @@ class Row:
     def window(self) -> Window:
         return self.parent.window
 
-    def pack(self):
+    def pack(self, debug: bool = False):
         self.frame = frame = Frame(self.parent.tk_container)
-        for ele in self.elements:
-            ele.pack_into_row(self)
+        self.pack_elements(debug)
         anchor = self.anchor
         center = anchor == tkc.CENTER
         if (expand := self.expand) is None:
@@ -85,5 +82,19 @@ class Row:
             fill = tkc.BOTH if center else tkc.NONE
         # log.debug(f'Packing row with {center=}, {expand=}, {fill=}')
         frame.pack(side=tkc.TOP, anchor=anchor, padx=0, pady=0, expand=expand, fill=fill)
-        if bg := self.style.bg.default:
+        if bg := self.style.base.bg.default:
             frame.configure(background=bg)
+
+    def pack_elements(self, debug: bool = False):
+        if debug:
+            n_eles = len(self.elements)
+            for i, ele in enumerate(self.elements):
+                log.debug(f' > Packing element {i} / {n_eles}')
+                try:
+                    ele.pack_into_row(self)
+                except Exception:
+                    log.error(f'Encountered unexpected error packing element={ele} into row={self}', exc_info=True)
+                    raise
+        else:
+            for ele in self.elements:
+                ele.pack_into_row(self)

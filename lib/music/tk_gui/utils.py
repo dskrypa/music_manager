@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import tkinter.constants as tkc
 from enum import Enum
-from typing import TYPE_CHECKING, Optional, Type, Any, Callable
+from functools import cached_property
+from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection
 
 if TYPE_CHECKING:
     from .typing import HasParent
@@ -145,3 +146,31 @@ class Inheritable:
             if self.type is not None:
                 value = self.type(value)
             instance.__dict__[self.name] = value
+
+
+class ClearableCachedPropertyMixin:
+    @classmethod
+    def __cached_properties(cls) -> dict[str, cached_property]:
+        cached_properties = {}
+        for clz in cls.mro():
+            if clz == cls:
+                for k, v in cls.__dict__.items():
+                    if isinstance(v, cached_property):
+                        cached_properties[k] = v
+            else:
+                try:
+                    cached_properties.update(clz.__cached_properties())  # noqa
+                except AttributeError:
+                    pass
+        return cached_properties
+
+    def clear_cached_properties(self, *names: str, skip: Collection[str] = None):
+        if not names:
+            names = self.__cached_properties()
+        if skip:
+            names = (name for name in names if name not in skip)
+        for name in names:
+            try:
+                del self.__dict__[name]
+            except KeyError:
+                pass

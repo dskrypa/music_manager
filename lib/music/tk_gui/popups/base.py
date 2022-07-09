@@ -92,7 +92,7 @@ class BasicPopup(Popup):
         self.text = text
         self.buttons = (button,) if button else buttons
         self.multiline = multiline
-        self.style = Style.get(style)
+        self.style = Style.get_style(style)
 
     @cached_property
     def lines(self) -> list[str]:
@@ -112,7 +112,8 @@ class BasicPopup(Popup):
                 monitor = positioner.get_monitor(*parent.position)
             else:
                 monitor = positioner.get_monitor(0, 0)
-            lines_to_show = max(1, min(monitor.height // self.style.char_height, n_lines) + 1)
+
+            lines_to_show = max(1, min(monitor.height // self.style.char_height(), n_lines) + 1)
         else:
             lines_to_show = 1
 

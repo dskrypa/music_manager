@@ -7,300 +7,467 @@ GUI styles / themes
 from __future__ import annotations
 
 # import logging
-from functools import cached_property
+from collections import namedtuple
+from enum import IntEnum
 from itertools import count
-from tkinter.font import Font as _Font
-from typing import Union, Optional, Literal, Type, Mapping, Sequence, Iterator, Any, overload
+from tkinter.font import Font as TkFont
+from typing import TYPE_CHECKING, Union, Optional, Literal, Type, Mapping, Iterator, Any, Generic, TypeVar, overload
 
-__all__ = ['Style', 'StateColors', 'Colors', 'State', 'Font', 'StyleSpec']
+from .utils import ClearableCachedPropertyMixin, MissingMixin, Inheritable
+
+if TYPE_CHECKING:
+    from .typing import XY
+
+__all__ = ['Style', 'StyleSpec']
 # log = logging.getLogger(__name__)
 
-Font = Union[str, tuple[str, int]]
-State = Literal['default', 'disabled', 'invalid']
-Colors = Union['StateColors', dict[State, str], tuple[Optional[str], ...], str]
 StyleSpec = Union[str, 'Style', None]
 
 
-class _NamedDescriptor:
+class State(MissingMixin, IntEnum):
+    DEFAULT = 0
+    DISABLED = 1
+    INVALID = 2
+
+
+T_co = TypeVar('T_co', covariant=True)
+
+StyleAttr = Literal['font', 'tk_font', 'fg', 'bg', 'border_width']
+StateName = Literal['default', 'disabled', 'invalid']
+StyleState = Union[State, StateName, Literal[0, 1, 2]]
+
+OptStr = Optional[str]
+_OptStrTuple = Union[tuple[OptStr], tuple[OptStr, OptStr], tuple[OptStr, OptStr, OptStr]]
+OptStrVals = SV = Union[OptStr, Mapping[StyleState, OptStr], _OptStrTuple]
+
+OptInt = Optional[int]
+_OptIntTuple = Union[tuple[OptInt], tuple[OptInt, OptInt], tuple[OptInt, OptInt, OptInt]]
+OptIntVals = IV = Union[OptInt, Mapping[StyleState, OptInt], _OptIntTuple]
+
+Font = Union[str, tuple[str, int], None]
+_FontValsTuple = Union[tuple[Font], tuple[Font, Font], tuple[Font, Font, Font]]
+FontValues = FV = Union[Font, Mapping[StyleState, Font], _FontValsTuple]
+
+StyleValue = Union[OptStr, OptInt, Font]
+FinalValue = Union[StyleValue, TkFont]
+RawStateValues = Union[OptStrVals, OptIntVals, FontValues]
+
+_PartValsTuple = Union[tuple[FV], tuple[FV, SV], tuple[FV, SV, SV], tuple[FV, SV, SV, IV]]
+PartValues = Union[FontValues, _PartValsTuple, Mapping[StyleState, StyleValue]]
+
+
+StateValueTuple = namedtuple('StateValueTuple', ('default', 'disabled', 'invalid'))
+
+
+class StateValue(Generic[T_co]):
+    """Allows state-based component values to be accessed by name"""
+
     __slots__ = ('name',)
 
-    def __set_name__(self, owner, name: str):
+    def __set_name__(self, owner: Type[StateValues], name: StateName):
         self.name = name
 
-    def __delete__(self, instance):
-        try:
-            del instance.__dict__[self.name]
-        except KeyError as e:
-            msg = f'{instance.__class__.__name__} object has no directly assigned value for {self.name!r}'
-            raise AttributeError(msg) from e
-
-
-class Color(_NamedDescriptor):
-    __slots__ = ()
-
-    def __get__(self, instance: Optional[StateColors], owner: Type[StateColors]) -> Union[Color, str, None]:
+    def __get__(self, instance: Optional[StateValues], owner: Type[StateValues]) -> Union[StateValue, Optional[T_co]]:
         if instance is None:
             return self
+        return instance[self.name]
 
-        state = self.name
-        for state_colors in self._iter_state_colors(instance):
-            state_color_map = state_colors.__dict__
-            if value := state_color_map[state]:
-                return value
-            elif state != 'default' and (value := state_color_map['default']):
-                return value
-
-        inst_type = instance.type  # <element type>_(fg|bg)
-        try:
-            _, base_type = inst_type.rsplit('_', 1)  # fg / bg
-        except ValueError:
-            return None
-        else:
-            return getattr(getattr(instance.style, base_type), state)
-
-    @classmethod
-    def _iter_state_colors(cls, state_colors: StateColors) -> Iterator[StateColors]:
-        yield state_colors
-        attr = state_colors.type
-        for style in sro(state_colors.style.parent):
-            if attr in style.__dict__:
-                yield getattr(style, attr)
-
-    def __set__(self, instance: StateColors, value: Optional[str]):
-        instance.__dict__[self.name] = value
+    def __set__(self, instance: StateValues, value: Optional[T_co]):
+        instance[self.name] = value
 
 
-class StateColors:
-    default = Color()
-    disabled = Color()
-    invalid = Color()
+class StateValues(Generic[T_co]):
+    __slots__ = ('values', 'part', 'name')
 
-    def __init__(self, style: Style, type: str, default: str = None, disabled: str = None, invalid: str = None):  # noqa
-        self.style = style
-        self.type = type
-        self.default = default
-        self.disabled = disabled
-        self.invalid = invalid
+    default = StateValue()
+    disabled = StateValue()
+    invalid = StateValue()
 
-    def copy(self):
-        data = self.__dict__
-        return self.__class__(self.style, self.type, data['default'], data['disabled'], data['invalid'])
-
-    @classmethod
-    def init(cls, style: Style, type: str, colors: Colors = None):  # noqa
-        if not colors:
-            return cls(style, type)
-        elif isinstance(colors, cls):
-            if colors.type != type:
-                colors = colors.copy()
-                colors.type = type
-            return colors
-        elif isinstance(colors, str):
-            return cls(style, type, default=colors)
-        elif isinstance(colors, Mapping):
-            return cls(style, type, **colors)
-        elif isinstance(colors, Sequence):
-            return cls(style, type, *colors)
-        else:
-            raise TypeError(f'Invalid type={colors.__class__.__name__!r} to initialize {cls.__name__}')
-
-    def __getitem__(self, state: str) -> Optional[str]:
-        try:
-            return getattr(self, state)
-        except AttributeError as e:
-            raise KeyError(f'Invalid {self.type} {state=}') from e
-
-
-class StyleOption(_NamedDescriptor):
-    __slots__ = ()
-
-    def __set_name__(self, owner: Type[Style], name: str):
+    def __init__(
+        self,
+        part: StylePart,
+        name: str,
+        default: Optional[T_co] = None,
+        disabled: Optional[T_co] = None,
+        invalid: Optional[T_co] = None,
+    ):
         self.name = name
-        owner._fields.add(name)
+        self.part = part
+        self.values = StateValueTuple(default, disabled, invalid)
 
-    def __get__(self, instance: Optional[Style], owner: Type[Style]):
-        if instance is None:
-            return self
-        return self.get_value(instance, owner)
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}[{self.part.layer.name}.{self.name}: {self.values}]>'
 
-    def get_value(self, instance: Optional[Style], owner: Type[Style]):
-        for style in sro(instance):
-            try:
-                return style.__dict__[self.name]
-            except KeyError:
-                pass
+    # region Overloads
 
+    @classmethod
+    @overload
+    def new(cls, part: StylePart, name: str, values: FontValues) -> StateValues[Font]:
+        ...
+
+    @classmethod
+    @overload
+    def new(cls, part: StylePart, name: str, values: OptStrVals) -> StateValues[OptStr]:
+        ...
+
+    @classmethod
+    @overload
+    def new(cls, part: StylePart, name: str, values: OptIntVals) -> StateValues[OptInt]:
+        ...
+
+    # endregion
+
+    @classmethod
+    def new(
+        cls, part: StylePart, name: str, values: Union[RawStateValues, StateValues[T_co]] = None
+    ) -> StateValues[T_co]:
+        if not values:
+            return cls(part, name)
+        elif isinstance(values, cls):
+            return values.copy(part, name)
+        elif isinstance(values, (str, int)):
+            return cls(part, name, values)
         try:
-            _, base_name = self.name.rsplit('_', 1)
-        except ValueError:
+            return cls(part, name, **values)
+        except TypeError:
             pass
-        else:
-            if base_name in owner._fields:
-                return getattr(instance, base_name)
+        try:
+            return cls(part, name, *values)
+        except TypeError:
+            pass
+        raise TypeError(f'Invalid type={values.__class__.__name__!r} to initialize {cls.__name__}')
+
+    def copy(self: StateValues[T_co], part: StylePart = None, name: str = None) -> StateValues[T_co]:
+        return self.__class__(part or self.part, name or self.name, *self.values)
+
+    def __call__(self, state: StyleState = State.DEFAULT) -> Optional[T_co]:
+        state = State(state)
+        value = self.values[state]
+        if not value and state != State.DEFAULT:
+            return self.values[State.DEFAULT]
+        return value
+
+    def __getitem__(self, state: StyleState) -> Optional[T_co]:
+        state = State(state)
+        value = self.values[state]
+        if not value and state != State.DEFAULT:
+            return self.values[State.DEFAULT]
+        return value
+
+    def __setitem__(self, state: StyleState, value: Optional[T_co]):
+        state = State(state)
+        self.values = StateValues(*(value if i == state else v for i, v in enumerate(self.values)))
+
+    def __iter__(self) -> Iterator[Optional[T_co]]:
+        yield from self.values
+
+
+class PartStateValues(Generic[T_co]):
+    __slots__ = ('name', 'priv_name')
+
+    def __set_name__(self, owner: Type[StylePart], name: str):
+        self.name = name
+        self.priv_name = f'_{name}'
+
+    def get_values(self, style: Optional[Style], layer_name: str) -> Optional[StateValues[T_co]]:
+        if layer := style.__dict__.get(layer_name):  # type: StylePart
+            return getattr(layer, self.name)
+        return None
+
+    def get_parent_values(self, style: Optional[Style], layer_name: str) -> Optional[StateValues[T_co]]:
+        while style:
+            if state_values := self.get_values(style, layer_name):
+                return state_values
+
+            style = style.parent
 
         return None
 
-    def __set__(self, instance: Style, value):
-        if value is None:
-            instance.__dict__.pop(self.name, None)
-        else:
-            instance.__dict__[self.name] = value
-
-
-class StatefulColor(StyleOption):
-    __slots__ = ()
-
-    @overload
-    def __get__(self, instance: None, owner: Type[Style]) -> StatefulColor:
-        ...
-
-    @overload
-    def __get__(self, instance: Style, owner: Type[Style]) -> StateColors:
-        ...
-
-    def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StatefulColor, StateColors]:
+    def __get__(
+        self, instance: Optional[StylePart], owner: Type[StylePart]
+    ) -> Union[PartStateValues, Optional[StateValues[T_co]]]:
         if instance is None:
             return self
 
-        value = self.get_value(instance, owner)
-        if not value:
-            instance.__dict__[self.name] = value = StateColors.init(instance, self.name)
-        return value
+        # print(f'{instance.style}.{instance.layer.name}.{self.name}...')
+        if state_values := getattr(instance, self.priv_name):
+            return state_values
 
-    def __set__(self, instance: Style, value: Optional[Colors]):
+        layer_name = instance.layer.name
+        style = instance.style
+        if state_values := self.get_parent_values(style.parent, layer_name):
+            return state_values
+        elif (default_style := Style.default_style) and default_style is not style:
+            if state_values := self.get_values(default_style, layer_name):
+                return state_values
+
+        if layer_parent := instance.layer.parent:
+            return getattr(getattr(style, layer_parent), self.name)
+        elif not style.parent or style is default_style:
+            state_values = StateValues(instance, self.name)
+            setattr(instance, self.priv_name, state_values)
+            return state_values
+
+        return None
+
+    def __set__(self, instance: StylePart, value: RawStateValues):
         if value is None:
-            instance.__dict__.pop(self.name, None)
+            setattr(instance, self.priv_name, None)
         else:
-            instance.__dict__[self.name] = StateColors.init(instance, self.name, value)
+            setattr(instance, self.priv_name, StateValues.new(instance, self.name, value))
 
 
-def sro(style: Optional[Style]) -> Iterator[Style]:
-    """Style resolution order"""
-    while style:
-        yield style
-        style = style.parent
+class FontStateValues(PartStateValues):
+    __slots__ = ()
 
-    if default := Style.default:
-        yield default
+    def __set__(self, instance: StylePart, value: FontValues):
+        match value:  # noqa
+            case None:
+                setattr(instance, self.priv_name, None)
+            case (str(_name), int(_size)):
+                setattr(instance, self.priv_name, StateValues(instance, self.name, value))
+            case _:
+                setattr(instance, self.priv_name, StateValues.new(instance, self.name, value))
+
+        try:
+            del instance._tk_font
+        except AttributeError:
+            pass
 
 
-class Style:
-    _fields: set[str] = set()
+class StylePart:
+    __slots__ = ('style', 'layer', '_tk_font', '_font', '_fg', '_bg', '_border_width')
+
+    font: StateValues[Font] = FontStateValues()
+    fg: StateValues[OptStr] = PartStateValues()
+    bg: StateValues[OptStr] = PartStateValues()
+    border_width: StateValues[OptInt] = PartStateValues()
+
+    def __init__(
+        self,
+        style: Style,
+        layer: StyleLayer,
+        font: FontValues = None,
+        fg: OptStrVals = None,
+        bg: OptStrVals = None,
+        border_width: OptIntVals = None,
+    ):
+        self.style = style
+        self.layer = layer
+        self.font = font  # noqa
+        self.fg = fg  # noqa
+        self.bg = bg  # noqa
+        self.border_width = border_width  # noqa
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}[{self.style.name}: {self.layer.name}]>'
+
+    @classmethod
+    def new(cls, style: Style, layer: StyleLayer, values: PartValues = None) -> StylePart:
+        if not values:
+            return cls(style, layer)
+        elif isinstance(values, (str, int)):
+            return cls(style, layer, values)
+        try:
+            return cls(style, layer, **values)
+        except TypeError:
+            pass
+        try:
+            return cls(style, layer, *values)
+        except TypeError:
+            pass
+        raise TypeError(f'Invalid type={values.__class__.__name__!r} to initialize {cls.__name__}')
+
+    @property
+    def tk_font(self) -> StateValues[Optional[TkFont]]:
+        try:
+            return self._tk_font
+        except AttributeError:
+            parts = (TkFont(font=font) if font else None for font in self.font)
+            self._tk_font = tk_font = StateValues(self, 'tk_font', *parts)  # noqa
+            return tk_font
+
+    def as_dict(self) -> dict[str, StateValues]:
+        parts = ((attr[1:], getattr(self, attr)) for attr in self.__slots__[3:])
+        return {key: getattr(val, 'values', None) for key, val in parts}
+
+
+class StyleLayer:
+    __slots__ = ('name', 'parent')
+
+    def __init__(self, parent: str = None):
+        self.parent = parent
+
+    def __set_name__(self, owner: Type[Style], name: str):
+        self.name = name
+        owner._layers.add(name)
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}[{self.name}]>'
+
+    def get_parent_part(self, style: Optional[Style]) -> Optional[StylePart]:
+        while style:
+            if part := style.__dict__.get(self.name):
+                return part
+
+            style = style.parent
+
+        return None
+
+    def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StyleLayer, StylePart, None]:
+        if instance is None:
+            return self
+        elif part := self.get_parent_part(instance):
+            return part
+        elif (default := owner.default_style) and default is not instance:
+            if part := default.__dict__.get(self.name):
+                return part
+
+        if not instance.parent or not default or instance is default:
+            instance.__dict__[self.name] = part = StylePart(instance, self)
+            return part
+
+        return None
+
+    def __set__(self, instance: Style, value: PartValues):
+        instance.__dict__[self.name] = StylePart.new(instance, self, value)
+
+
+Layer = Literal['base', 'insert', 'hover', 'focus', 'tooltip', 'image', 'button', 'input', 'table', 'table_header']
+
+
+class Style(ClearableCachedPropertyMixin):
     _count = count()
+    _layers: set[str] = set()
     _instances: dict[str, Style] = {}
-    default: Optional[Style] = None
+    default_style: Optional[Style] = None
 
     name: str
     parent: Optional[Style]
 
-    font: Optional[Font] = StyleOption()
-    tooltip_font: Optional[Font] = StyleOption()
-    ttk_theme: Optional[str] = StyleOption()
-    border_width: Optional[int] = StyleOption()
-    insert_bg: Optional[str] = StyleOption()
+    ttk_theme: Optional[str] = Inheritable()
 
-    fg = StatefulColor()
-    bg = StatefulColor()
-    text = fg
-    button_fg = StatefulColor()
-    button_bg = StatefulColor()
-    input_fg = StatefulColor()
-    input_bg = StatefulColor()
-    tooltip_fg = StatefulColor()
-    tooltip_bg = StatefulColor()
-    hover_fg = StatefulColor()  # Foreground color when hovering over buttons / links / etc
-    hover_bg = StatefulColor()  # Background color when hovering over buttons / links / etc
-    focus_fg = StatefulColor()  # Foreground color when a button/etc has focus
-    focus_bg = StatefulColor()  # Background color when a button/etc has focus
+    base = StyleLayer()
+    insert = StyleLayer()
+    hover = StyleLayer()
+    focus = StyleLayer()
+    tooltip = StyleLayer('base')
+    image = StyleLayer('base')
+    button = StyleLayer('base')
+    input = StyleLayer('base')
+    table = StyleLayer('base')
+    table_header = StyleLayer('table')
 
-    @overload
-    def __init__(
-        self,
-        name: str = None,
-        *,
-        parent: Union[str, Style] = None,
-        font: Font = None,
-        tooltip_font: Font = None,
-        ttk_theme: str = None,
-        border_width: int = None,
-        insert_bg: str = None,
-        text: Colors = None,
-        bg: Colors = None,
-        button_fg: Colors = None,
-        button_bg: Colors = None,
-        input_fg: Colors = None,
-        input_bg: Colors = None,
-        tooltip_fg: Colors = None,
-        tooltip_bg: Colors = None,
-        hover_fg: Colors = None,
-        hover_bg: Colors = None,
-        focus_fg: Colors = None,
-        focus_bg: Colors = None,
-    ):
-        ...
-
-    def __init__(self, name: str = None, *, parent: Union[str, Style] = None, **kwargs):
+    def __init__(self, name: str = None, *, parent: Union[str, Style] = None, ttk_theme: str = None, **kwargs):
         if not name:  # Anonymous styles won't be stored
             name = f'{self.__class__.__name__}#{next(self._count)}'
         else:
             self._instances[name] = self
-        self.parent = self._instances.get(parent, parent)
-        self.name = name
 
-        bad = {}
+        self.name = name
+        self.parent = self._instances.get(parent, parent)
+        self.ttk_theme = ttk_theme
+        self._configure(kwargs)
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
+
+    def _configure(self, kwargs: dict[str, Any]):
+        attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width', 'text': 'fg'}
+
+        layers = {}
+
         for key, val in kwargs.items():
-            if key in self._fields:
+            if key in self._layers:
+                # log.info(f'{self}: Full layer config provided: {key}={val!r}', extra={'color': 11})
                 setattr(self, key, val)
+            elif dst_key := attrs.get(key):
+                layers.setdefault('base', {})[dst_key] = val
             else:
-                bad[key] = val
-        if bad:
-            bad_str = ', '.join(sorted(bad))
-            raise ValueError(f'Invalid {self.__class__.__name__} options - unsupported options: {bad_str}')
+                for delim in ('_', '.'):
+                    try:
+                        layer, attr = key.rsplit(delim, 1)
+                    except ValueError:
+                        continue
+                    if layer in self._layers and (dst_key := attrs.get(attr)):
+                        layers.setdefault(layer, {})[dst_key] = val
+                        break
+                else:
+                    raise KeyError(f'Invalid style option: {key!r}')
+
+        # log.info(f'{self}: Built layers: {layers!r}', extra={'color': 11})
+
+        for name, layer in layers.items():
+            setattr(self, name, layer)
+
+    @classmethod
+    def get_style(cls, style: StyleSpec) -> Style:
+        if not style:
+            return cls.default_style
+        elif isinstance(style, cls):
+            return style
+        return cls._instances[style]
 
     def __class_getitem__(cls, name: str) -> Style:
         return cls._instances[name]
 
-    @classmethod
-    def get(cls, name: Union[str, Style, None]) -> Style:
-        if name is None:
-            return cls.default
-        elif isinstance(name, cls):
-            return name
-        return cls[name]  # noqa
-
-    def __getitem__(self, type: str) -> StateColors:  # noqa
-        try:
-            value = getattr(self, type)
-        except AttributeError:
-            raise KeyError(type) from None
-        if not isinstance(value, StateColors):
-            raise KeyError(type)
-        return value
+    def as_dict(self) -> dict[str, Union[str, None, dict[str, StateValues]]]:
+        get = self.__dict__.get
+        style = {'name': self.name, 'parent': self.parent.name if self.parent else None, 'ttk_theme': get('ttk_theme')}
+        for name in self._layers:
+            if layer := get(name):
+                style[name] = layer.as_dict()
+            else:
+                style[name] = None
+        return style
 
     def make_default(self):
-        Style.default = self
+        self.__class__.default_style = self
 
-    @cached_property
-    def char_width(self) -> int:
-        return _Font(font=self.font).measure('A')
+    def get(
+        self, *attrs: StyleAttr, layer: Layer = 'base', state: StyleState = State.DEFAULT, **kwattrs: str
+    ) -> dict[str, FinalValue]:
+        found = {}
 
-    @cached_property
-    def char_height(self) -> int:
-        return _Font(font=self.font).measure('linespace')
+        if layer != 'base' and (layer_obj := getattr(self, layer)):
+            layers = (layer_obj, self.base)
+        else:
+            layers = (self.base,)
 
-    def measure(self, text: str) -> int:
-        return _Font(font=self.font).measure(text)
+        for attr in attrs:
+            kwattrs.setdefault(attr, attr)
 
-    def get_fg_bg(self, type: str, state: str = None) -> tuple[Optional[str], Optional[str]]:  # noqa
-        fg, bg = f'{type}_fg', f'{type}_bg'
-        state = state or 'default'
-        return getattr(getattr(self, fg), state), getattr(getattr(self, bg), state)
+        for attr, key in kwattrs.items():
+            for layer in layers:
+                if value := getattr(layer, attr)[state]:
+                    found[key] = value
+                    break
+            else:
+                found[key] = None
 
-    def update_kwargs(self, kwargs: dict[str, Any], style_key_map: Mapping[str, str], disabled: bool = False):
-        state = 'disabled' if disabled else 'default'
-        for attr, key in style_key_map.items():
-            if value := getattr(self, attr)[state]:
-                kwargs[key] = value
+        return found
+
+    # region Font Methods
+
+    def char_height(self, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> int:
+        tk_font: TkFont = getattr(self, layer).tk_font[state]
+        return tk_font.metrics('linespace')
+
+    def char_width(self, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> int:
+        tk_font: TkFont = getattr(self, layer).tk_font[state]
+        return tk_font.measure('A')
+
+    def measure(self, text: str, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> int:
+        tk_font: TkFont = getattr(self, layer).tk_font[state]
+        return tk_font.measure(text)
+
+    def text_size(self, text: str, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> XY:
+        tk_font: TkFont = getattr(self, layer).tk_font[state]
+        width = tk_font.measure(text)
+        height = tk_font.metrics('linespace')
+        return width, height
+
+    # endregion
 
 
 Style('default', font=('Helvetica', 10), ttk_theme='default', border_width=1)

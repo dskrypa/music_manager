@@ -41,7 +41,7 @@ class ToolTip:
         self.text = text
         self.delay = delay
         self.wrap_len_px = wrap_len_px
-        self.style = Style.get(style) if style else None
+        self.style = Style.get_style(style) if style else None
         self._schedule_id: Optional[str] = None
         self._tip_window: Optional[Toplevel] = None
         widget = element.widget
@@ -78,6 +78,7 @@ class ToolTip:
         tip_window.wm_attributes('-topmost', 1)
 
         style = self.style or self.parent.style
+        kwargs = style.get('font', layer='tooltip', fg='foreground', bg='background')  # noqa
         label = Label(
             tip_window,
             text=self.text,
@@ -85,9 +86,7 @@ class ToolTip:
             relief=tkc.SOLID,
             borderwidth=1,
             wraplength=self.wrap_len_px,
-            foreground=style.tooltip_fg.default,
-            background=style.tooltip_bg.default,
-            font=style.tooltip_font,
+            **kwargs,
         )
         label.pack()
 

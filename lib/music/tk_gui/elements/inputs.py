@@ -13,7 +13,7 @@ from functools import partial
 from tkinter import TclError, Entry, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any
 
-from .element import Element
+from .element import Interactive
 from ..utils import Justify
 
 if TYPE_CHECKING:
@@ -23,10 +23,8 @@ if TYPE_CHECKING:
 __all__ = ['Input']
 log = logging.getLogger(__name__)
 
-STYLE_KEY_MAP = {'fg': 'fg', 'bg': 'bg'}
 
-
-class Input(Element):
+class Input(Interactive):
     widget: Entry
     string_var: Optional[StringVar] = None
     password_char: Optional[str] = None
@@ -38,19 +36,14 @@ class Input(Element):
         path: Union[bool, str, Path] = None,
         password_char: str = None,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
-        disabled: bool = False,
-        focus: bool = False,
         **kwargs
     ):
         super().__init__(justify_text=justify_text, **kwargs)
         self._value = str(value)
-        self._valid = True
         self._link = link or link is None
         self._path = path
         if password_char:
             self.password_char = password_char
-        self.disabled = disabled
-        self._focus = focus
 
     def get_selection(self):
         entry = self.widget
@@ -63,11 +56,10 @@ class Input(Element):
         self.string_var = StringVar()
         self.string_var.set(self._value)
         style = self.style
+        state = self.style_state
         kwargs = {
             'highlightthickness': 0,
             'textvariable': self.string_var,
-            'bd': style.border_width,
-            'font': style.font,
             'show': self.password_char,
             'justify': self.justify_text.value,
         }
@@ -75,13 +67,14 @@ class Input(Element):
             kwargs['width'] = self.size[0]
         except TypeError:
             pass
-        if insert_bg := style.insert_bg:
-            kwargs['insertbackground'] = insert_bg  # No states for it
+        if insert_bg := style.insert.bg[state]:
+            kwargs['insertbackground'] = insert_bg
 
-        style.update_kwargs(kwargs, STYLE_KEY_MAP, self.disabled)
+        kwargs.update(style.get('fg', 'bg', 'font', layer='input', state=state, border_width='bd'))  # noqa
+
         self.widget = entry = Entry(row.frame, **kwargs)
         # entry.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
-        self.pack_widget(focus=self._focus, disabled=self.disabled)
+        self.pack_widget()
 
         entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
         if self._link:
@@ -90,8 +83,10 @@ class Input(Element):
                 entry.configure(cursor='hand2')
 
     def _refresh_colors(self):
-        fg, bg = self.style.get_fg_bg('input', 'default' if self._valid else 'invalid')
-        self.widget.configure(**{'fg': fg, 'readonlybackground' if self.disabled else 'bg': bg})
+        kwargs = self.style.get(
+            'fg', layer='input', state=self.style_state, bg='readonlybackground' if self.disabled else 'bg'  # noqa
+        )
+        self.widget.configure(**kwargs)
 
     def update(self, value=None, disabled: bool = None, password_char: str = None):
         entry = self.widget
@@ -115,8 +110,8 @@ class Input(Element):
         return self.string_var.get()
 
     def validated(self, valid: bool):
-        if self._valid != valid:
-            self._valid = valid
+        if self.valid != valid:
+            self.valid = valid
             self._refresh_colors()
 
     def handle_right_click(self, event):

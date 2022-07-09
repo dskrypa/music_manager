@@ -15,7 +15,7 @@ from tkinter import TclError
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 
 from ..pseudo_elements.tooltips import ToolTip
-from ..style import Style, Font, StyleSpec
+from ..style import Style, Font, StyleSpec, State
 from ..utils import Anchor, Justify, Side, Inheritable
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ..pseudo_elements import ContextualMenu, Row
     from ..typing import XY, BindCallback, Key, TkFill
 
-__all__ = ['Element']
+__all__ = ['Element', 'Interactive']
 log = logging.getLogger(__name__)
 
 
@@ -92,7 +92,7 @@ class Element(ABC):
         self.side = side
         self.anchor = anchor
         self.justify_text = justify_text
-        self.style = Style.get(style)
+        self.style = Style.get_style(style)
         # if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
         if not (text_color is bg is font is ttk_theme is border_width is None):
             self.style = Style(
@@ -250,3 +250,22 @@ class Element(ABC):
             menu.show(event, self.widget.master)  # noqa
 
     # endregion
+
+
+class Interactive(Element, ABC):
+    def __init__(self, disabled: bool = False, focus: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self.disabled = disabled
+        self.focus = focus
+        self.valid = True
+
+    @property
+    def style_state(self) -> State:
+        if self.disabled:
+            return State.DISABLED
+        elif not self.valid:
+            return State.INVALID
+        return State.DEFAULT
+
+    def pack_widget(self, *, expand: bool = False, fill: TkFill = tkc.NONE, **kwargs):
+        super().pack_widget(expand=expand, fill=fill, focus=self.focus, disabled=self.disabled, **kwargs)

@@ -53,7 +53,7 @@ class RowContainer(ABC):
         element_size: XY = None,
     ):
         self._id = next(self._counter)
-        self.style = Style.get(style)
+        self.style = Style.get_style(style)
         self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
         self.text_justification = Justify(text_justification)
         self.element_side = Side(element_side) if element_side else Side.LEFT
@@ -399,7 +399,7 @@ class Window(RowContainer):
 
         self.set_alpha(0)  # Hide window while building it
 
-        if (bg := self.style.bg.default) is not None:
+        if bg := self.style.base.bg.default:
             root.configure(background=bg)
         if not self.resizable:
             root.resizable(False, False)
@@ -418,8 +418,7 @@ class Window(RowContainer):
 
         root.wm_title(self.title)
         # skip: PySimpleGUI:InitializeResults
-        for row in self.rows:  # PySimpleGUI: PackFormIntoFrame(window, master, window)
-            row.pack()
+        self.pack_rows()
         root.configure(padx=self.margins[0], pady=self.margins[1])
 
         if self._size:
@@ -442,7 +441,6 @@ class Window(RowContainer):
         # endregion
 
         root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
-
         self.set_alpha(1 if self.alpha_channel is None else self.alpha_channel)
 
         if self.no_title_bar:
@@ -451,16 +449,31 @@ class Window(RowContainer):
         root.protocol('WM_DESTROY_WINDOW', self.close)
         root.protocol('WM_DELETE_WINDOW', self.close)
         if self.modal:
-            try:  # Apparently this does not work on macs...
-                root.transient()
-                root.grab_set()
-                root.focus_force()
-            except (TclError, RuntimeError):
-                log.error('Error configuring window to be modal:', exc_info=True)
+            self.make_modal()
 
         self.apply_binds()
         # root.after(250, self._sigint_fix)
         root.mainloop(1)
+
+    def pack_rows(self, debug: bool = False):
+        # PySimpleGUI: PackFormIntoFrame(window, master, window)
+        if debug:
+            n_rows = len(self.rows)
+            for i, row in enumerate(self.rows):
+                log.debug(f'Packing row {i} / {n_rows}')
+                row.pack(debug)
+        else:
+            for row in self.rows:
+                row.pack()
+
+    def make_modal(self):
+        root = self.root
+        try:  # Apparently this does not work on macs...
+            root.transient()
+            root.grab_set()
+            root.focus_force()
+        except (TclError, RuntimeError):
+            log.error('Error configuring window to be modal:', exc_info=True)
 
     @classmethod
     def _init_hidden_root(cls):
@@ -657,6 +670,7 @@ def patch_call_wrapper():
                 args = self.subst(*args)
             return self.func(*args)
         except Exception:  # noqa
+            # log.error('Error encountered during tkinter call:', exc_info=True)
             self.widget._report_exception()
 
     CallWrapper.__call__ = _cw_call

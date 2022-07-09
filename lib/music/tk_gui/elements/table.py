@@ -11,7 +11,7 @@ import tkinter.constants as tkc
 from functools import cached_property
 from itertools import chain
 from tkinter import Frame, Tcl, Scrollbar
-from tkinter.ttk import Treeview, Style
+from tkinter.ttk import Treeview, Style as TkStyle
 from typing import TYPE_CHECKING, Optional, Callable, Union, Literal
 from unicodedata import normalize
 
@@ -21,12 +21,14 @@ from .element import Element
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
+    from ..style import Font, Layer
 
 __all__ = ['TableColumn', 'Table']
 log = logging.getLogger(__name__)
 
 SelectMode = Literal['none', 'browse', 'extended']
 TCL_VERSION = Tcl().eval('info patchlevel')
+XGROUND_DEFAULT_HIGHLIGHT_COLOR_MAP = {'foreground': 'SystemHighlightText', 'background': 'SystemHighlight'}
 
 
 class TableColumn:
@@ -142,26 +144,43 @@ class Table(Element):
         columns = [TableColumn(key, key.replace('_', ' ').title(), data) for key in keys]
         return cls(*columns, data=data, **kwargs)
 
-    def _style(self) -> tuple[str, Style]:
+    def _style(self) -> tuple[str, TkStyle]:
         name = f'{self.id}.customtable.Treeview'
-        tk_style = Style()
+        tk_style = TkStyle()
         style = self.style
         tk_style.theme_use(style.ttk_theme)
-        font = style.font
-        tk_style.configure(name, rowheight=self.row_height or style.char_height)
-        cfg_keys = ('font', 'foreground', 'background', 'fieldbackground')
-        bg = style.bg.default
-        if base := {k: v for k, v in zip(cfg_keys, (font, style.fg.default, bg, bg)) if v is not None}:
-            tk_style.configure(name, **base)
-            if (selected_row_color := self.selected_row_color) and ('foreground' in base or 'background' in base):
-                for i, color in enumerate(('foreground', 'background')):
-                    if color in base and selected_row_color[i] is not None:
-                        tk_style.map(name, **{color: _fixed_style_map(tk_style, name, color, selected_row_color)})
+        tk_style.configure(name, rowheight=self.row_height or style.char_height('table'))
 
-        header_vals = (self.header_font or font, self.header_text_color, self.header_bg)
-        if header_kwargs := {k: v for k, v in zip(cfg_keys, header_vals) if v is not None}:
-            tk_style.configure(f'{name}.Heading', **header_kwargs)
+        # font = style.table.font.default
+        # cfg_keys = ('font', 'foreground', 'background', 'fieldbackground')
+        # bg = style.table.bg.default
+        # if base := {k: v for k, v in zip(cfg_keys, (font, style.fg.default, bg, bg)) if v is not None}:
+        #     tk_style.configure(name, **base)
+
+        if base := self._tk_style_config(tk_style, name, 'table'):
+            if (selected_row_color := self.selected_row_color) and ('foreground' in base or 'background' in base):
+                for i, (xground, default) in enumerate(XGROUND_DEFAULT_HIGHLIGHT_COLOR_MAP.items()):
+                    if xground in base and (selected := selected_row_color[i]) is not None:
+                        tk_style.map(name, **{xground: _style_map_data(tk_style, name, xground, selected or default)})
+
+                # for i, color in enumerate(('foreground', 'background')):
+                #     if color in base and selected_row_color[i] is not None:
+                #         tk_style.map(name, **{color: _fixed_style_map(tk_style, name, color, selected_row_color)})
+
+        self._tk_style_config(tk_style, f'{name}.Heading', 'table_header')
+        # header_vals = (self.header_font or font, self.header_text_color, self.header_bg)
+        # if header_kwargs := {k: v for k, v in zip(cfg_keys, header_vals) if v is not None}:
+        #     tk_style.configure(f'{name}.Heading', **header_kwargs)
+
         return name, tk_style
+
+    def _tk_style_config(self, tk_style: TkStyle, name: str, layer: Layer) -> dict[str, Union[Font, str, None]]:
+        config = self.style.get('font', layer=layer, fg='foreground', bg='background')  # noqa
+        config = {k: v for k, v in config.items() if v is not None}
+        if layer == 'table' and (bg := config.get('background')):
+            config['fieldbackground'] = bg
+        tk_style.configure(name, **config)
+        return config
 
     def pack_into(self, row: Row):
         self.frame = frame = Frame(row.frame)
@@ -176,7 +195,9 @@ class Table(Element):
             show='headings',
             selectmode=self.select_mode,
         )
-        char_width = self.style.char_width
+        log.debug(f'Getting char_width from {self.style=}')
+        char_width = self.style.char_width('table')
+        log.debug(f'Processing columns; {char_width=}')
         for column in columns.values():
             tree_view.heading(column.key, text=column.title)
             width = column.width * char_width + 10
@@ -213,18 +234,27 @@ class Table(Element):
         frame.pack(anchor=self.anchor.value, side=self.side.value, expand=True, **self.pad_kw)
 
 
-def _fixed_style_map(style: Style, style_name: str, option: str, highlight_colors: tuple[str, str] = (None, None)):
-    # Fix for setting text color for Tkinter 8.6.9
-    # From: https://core.tcl.tk/tk/info/509cafafae
-    default_map = [elm for elm in style.map('Treeview', query_opt=option) if '!' not in elm[0]]
-    custom_map = [elm for elm in style.map(style_name, query_opt=option) if '!' not in elm[0]]
+def _style_map_data(style: TkStyle, name: str, query_opt: str, selected_color: str = None):
+    # Based on the fix for setting text color for Tkinter 8.6.9 from: https://core.tcl.tk/tk/info/509cafafae
+    base = [ele for ele in style.map('Treeview', query_opt=query_opt) if '!' not in ele[0]]
+    rows = [ele for ele in style.map(name, query_opt=query_opt) if '!' not in ele[0]]
+    if selected_color:
+        rows.append(('selected', selected_color))
+    return rows + base
 
-    if option == 'background':
-        custom_map.append(('selected', highlight_colors[1] or 'SystemHighlight'))
-    elif option == 'foreground':
-        custom_map.append(('selected', highlight_colors[0] or 'SystemHighlightText'))
 
-    return custom_map + default_map
+# def _fixed_style_map(style: TkStyle, style_name: str, option: str, highlight_colors: tuple[str, str] = (None, None)):
+#     # Fix for setting text color for Tkinter 8.6.9
+#     # From: https://core.tcl.tk/tk/info/509cafafae
+#     default_map = [elm for elm in style.map('Treeview', query_opt=option) if '!' not in elm[0]]
+#     custom_map = [elm for elm in style.map(style_name, query_opt=option) if '!' not in elm[0]]
+#
+#     if option == 'background':
+#         custom_map.append(('selected', highlight_colors[1] or 'SystemHighlight'))
+#     elif option == 'foreground':
+#         custom_map.append(('selected', highlight_colors[0] or 'SystemHighlightText'))
+#
+#     return custom_map + default_map
 
 
 def mono_width(text: str) -> int:

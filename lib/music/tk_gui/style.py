@@ -52,8 +52,9 @@ StyleValue = Union[OptStr, OptInt, Font]
 FinalValue = Union[StyleValue, TkFont]
 RawStateValues = Union[OptStrVals, OptIntVals, FontValues]
 
-_PartValsTuple = Union[tuple[FV], tuple[FV, SV], tuple[FV, SV, SV], tuple[FV, SV, SV, IV]]
-PartValues = Union[FontValues, _PartValsTuple, Mapping[StyleState, StyleValue]]
+# _PartValsTuple = Union[tuple[FV], tuple[FV, SV], tuple[FV, SV, SV], tuple[FV, SV, SV, IV]]
+# PartValues = Union[FontValues, _PartValsTuple, Mapping[StyleState, StyleValue]]
+PartValues = Union[FontValues, Mapping[StyleState, StyleValue]]
 
 
 StateValueTuple = namedtuple('StateValueTuple', ('default', 'disabled', 'invalid'))
@@ -163,11 +164,10 @@ class StateValues(Generic[T_co]):
 
 
 class PartStateValues(Generic[T_co]):
-    __slots__ = ('name', 'priv_name')
+    __slots__ = ('name',)
 
     def __set_name__(self, owner: Type[StylePart], name: str):
         self.name = name
-        self.priv_name = f'_{name}'
 
     def get_values(self, style: Optional[Style], layer_name: str) -> Optional[StateValues[T_co]]:
         if layer := style.__dict__.get(layer_name):  # type: StylePart
@@ -190,7 +190,7 @@ class PartStateValues(Generic[T_co]):
             return self
 
         # print(f'{instance.style}.{instance.layer.name}.{self.name}...')
-        if state_values := getattr(instance, self.priv_name):
+        if state_values := instance.__dict__.get(self.name):
             return state_values
 
         layer_name = instance.layer.name
@@ -204,17 +204,16 @@ class PartStateValues(Generic[T_co]):
         if layer_parent := instance.layer.parent:
             return getattr(getattr(style, layer_parent), self.name)
         elif not style.parent or style is default_style:
-            state_values = StateValues(instance, self.name)
-            setattr(instance, self.priv_name, state_values)
+            instance.__dict__[self.name] = state_values = StateValues(instance, self.name)
             return state_values
 
         return None
 
     def __set__(self, instance: StylePart, value: RawStateValues):
         if value is None:
-            setattr(instance, self.priv_name, None)
+            instance.__dict__[self.name] = None
         else:
-            setattr(instance, self.priv_name, StateValues.new(instance, self.name, value))
+            instance.__dict__[self.name] = StateValues.new(instance, self.name, value)
 
 
 class FontStateValues(PartStateValues):
@@ -223,11 +222,11 @@ class FontStateValues(PartStateValues):
     def __set__(self, instance: StylePart, value: FontValues):
         match value:  # noqa
             case None:
-                setattr(instance, self.priv_name, None)
+                instance.__dict__[self.name] = None
             case (str(_name), int(_size)):
-                setattr(instance, self.priv_name, StateValues(instance, self.name, value))
+                instance.__dict__[self.name] = StateValues(instance, self.name, value)
             case _:
-                setattr(instance, self.priv_name, StateValues.new(instance, self.name, value))
+                instance.__dict__[self.name] = StateValues.new(instance, self.name, value)
 
         try:
             del instance._tk_font
@@ -236,21 +235,33 @@ class FontStateValues(PartStateValues):
 
 
 class StylePart:
-    __slots__ = ('style', 'layer', '_tk_font', '_font', '_fg', '_bg', '_border_width')
-
     font: StateValues[Font] = FontStateValues()
     fg: StateValues[OptStr] = PartStateValues()
     bg: StateValues[OptStr] = PartStateValues()
     border_width: StateValues[OptInt] = PartStateValues()
+    # Scroll bar options
+    frame_color: StateValues[OptStr] = PartStateValues()
+    trough_color: StateValues[OptStr] = PartStateValues()
+    arrow_color: StateValues[OptStr] = PartStateValues()
+    arrow_width: StateValues[OptInt] = PartStateValues()
+    bar_width: StateValues[OptInt] = PartStateValues()
+    relief: StateValues[OptStr] = PartStateValues()
 
     def __init__(
         self,
         style: Style,
         layer: StyleLayer,
+        *,
         font: FontValues = None,
         fg: OptStrVals = None,
         bg: OptStrVals = None,
         border_width: OptIntVals = None,
+        frame_color: OptStrVals = None,
+        trough_color: OptStrVals = None,
+        arrow_color: OptStrVals = None,
+        arrow_width: OptIntVals = None,
+        bar_width: OptIntVals = None,
+        relief: OptStrVals = None,
     ):
         self.style = style
         self.layer = layer
@@ -258,6 +269,12 @@ class StylePart:
         self.fg = fg  # noqa
         self.bg = bg  # noqa
         self.border_width = border_width  # noqa
+        self.frame_color = frame_color  # noqa
+        self.trough_color = trough_color  # noqa
+        self.arrow_color = arrow_color  # noqa
+        self.arrow_width = arrow_width  # noqa
+        self.bar_width = bar_width  # noqa
+        self.relief = relief  # noqa
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.style.name}: {self.layer.name}]>'
@@ -266,14 +283,8 @@ class StylePart:
     def new(cls, style: Style, layer: StyleLayer, values: PartValues = None) -> StylePart:
         if not values:
             return cls(style, layer)
-        elif isinstance(values, (str, int)):
-            return cls(style, layer, values)
         try:
             return cls(style, layer, **values)
-        except TypeError:
-            pass
-        try:
-            return cls(style, layer, *values)
         except TypeError:
             pass
         raise TypeError(f'Invalid type={values.__class__.__name__!r} to initialize {cls.__name__}')
@@ -281,7 +292,7 @@ class StylePart:
     @property
     def tk_font(self) -> StateValues[Optional[TkFont]]:
         try:
-            return self._tk_font
+            return self._tk_font  # noqa
         except AttributeError:
             parts = (TkFont(font=font) if font else None for font in self.font)
             self._tk_font = tk_font = StateValues(self, 'tk_font', *parts)  # noqa
@@ -334,7 +345,8 @@ class StyleLayer:
 
 
 Layer = Literal[
-    'base', 'insert', 'hover', 'focus', 'tooltip', 'image', 'button', 'text', 'input', 'table', 'table_header',
+    'base', 'insert', 'hover', 'focus', 'scroll',
+    'tooltip', 'image', 'button', 'text', 'input', 'table', 'table_header',
 ]
 
 
@@ -353,6 +365,7 @@ class Style(ClearableCachedPropertyMixin):
     insert = StyleLayer()
     hover = StyleLayer()
     focus = StyleLayer()
+    scroll = StyleLayer()
     tooltip = StyleLayer('base')
     image = StyleLayer('base')
     button = StyleLayer('base')
@@ -376,7 +389,6 @@ class Style(ClearableCachedPropertyMixin):
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
 
     def _configure(self, kwargs: dict[str, Any]):
-        # attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width', 'text': 'fg'}
         attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width'}
 
         layers = {}
@@ -429,7 +441,12 @@ class Style(ClearableCachedPropertyMixin):
         self.__class__.default_style = self
 
     def get(
-        self, *attrs: StyleAttr, layer: Layer = 'base', state: StyleState = State.DEFAULT, **kwattrs: str
+        self,
+        *attrs: StyleAttr,
+        layer: Layer = 'base',
+        state: StyleState = State.DEFAULT,
+        truthy: bool = True,
+        **kwattrs: str,
     ) -> dict[str, FinalValue]:
         found = {}
 
@@ -447,7 +464,8 @@ class Style(ClearableCachedPropertyMixin):
                     found[key] = value
                     break
             else:
-                found[key] = None
+                if not truthy:
+                    found[key] = None
 
         return found
 

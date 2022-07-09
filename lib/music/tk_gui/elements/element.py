@@ -11,7 +11,8 @@ import tkinter.constants as tkc
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from itertools import count
-from tkinter import TclError
+from tkinter import TclError, Frame, Text
+from tkinter.ttk import Style as TtkStyle, Scrollbar
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 
 from ..pseudo_elements.tooltips import ToolTip
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
     from ..pseudo_elements import ContextualMenu, Row
     from ..typing import XY, BindCallback, Key, TkFill
 
-__all__ = ['Element', 'Interactive']
+__all__ = ['Element', 'Interactive', 'ScrollableMixin']
 log = logging.getLogger(__name__)
 
 
@@ -38,6 +39,7 @@ class Element(ClearableCachedPropertyMixin, ABC):
     right_click_menu: Optional[ContextualMenu] = None
     left_click_cb: Optional[Callable] = None
     binds: Optional[MutableMapping[str, BindCallback]] = None
+    ttk_styles: dict[str, TtkStyle]
 
     pad: XY = Inheritable('element_padding')
     size: XY = Inheritable('element_size')
@@ -93,6 +95,7 @@ class Element(ClearableCachedPropertyMixin, ABC):
         self.anchor = anchor
         self.justify_text = justify_text
         self.style = Style.get_style(style)
+        self.ttk_styles = {}
         # if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
         if not (text_color is bg is font is ttk_theme is border_width is None):
             self.style = Style(
@@ -118,6 +121,9 @@ class Element(ClearableCachedPropertyMixin, ABC):
     @property
     def value(self) -> Any:
         return None
+
+    def ttk_style_name(self, suffix: str) -> str:
+        return f'{self.id}.{suffix}'
 
     # region Introspection
 
@@ -158,9 +164,17 @@ class Element(ClearableCachedPropertyMixin, ABC):
         raise NotImplementedError
 
     def pack_widget(
-        self, *, expand: bool = False, fill: TkFill = tkc.NONE, focus: bool = False, disabled: bool = False, **kwargs
+        self,
+        *,
+        expand: bool = False,
+        fill: TkFill = tkc.NONE,
+        focus: bool = False,
+        disabled: bool = False,
+        widget: Widget = None,
+        **kwargs,
     ):
-        widget = self.widget
+        if not widget:
+            widget = self.widget
         pack_kwargs = {
             'anchor': self.anchor.value,
             'side': self.side.value,
@@ -269,3 +283,53 @@ class Interactive(Element, ABC):
 
     def pack_widget(self, *, expand: bool = False, fill: TkFill = tkc.NONE, **kwargs):
         super().pack_widget(expand=expand, fill=fill, focus=self.focus, disabled=self.disabled, **kwargs)
+
+
+class ScrollableMixin:
+    frame: Frame
+    widget: Text
+    id: str
+    style: Style
+    ttk_styles: dict[str, TtkStyle]
+    ttk_style_name: Callable[[str], str]
+
+    scroll_bar_vertical: Optional[Scrollbar] = None
+    scroll_bar_horizontal: Optional[Scrollbar] = None
+
+    def _add_scroll_bar(self, vertical: bool = True):
+        direction = 'vertical' if vertical else 'horizontal'
+        name = self.ttk_style_name(f'scroll_bar.{direction.title()}.TScrollbar')
+        log.debug(f'Adding {vertical=} scroll bar to {self} with {name=}')
+        self.ttk_styles[name] = ttk_style = TtkStyle()
+        ttk_style.theme_use(self.style.ttk_theme)
+        scroll_bar = Scrollbar(
+            self.frame,
+            orient=direction,  # noqa
+            command=self.widget.yview if vertical else self.widget.xview,
+            style=name,
+        )
+        setattr(self, f'scroll_bar_{direction}', scroll_bar)
+
+        scroll_style = self.style.scroll
+        kwargs = {
+            'troughcolor': scroll_style.trough_color.default,
+            'framecolor': scroll_style.frame_color.default,
+            'bordercolor': scroll_style.frame_color.default,
+            'width': scroll_style.bar_width.default,
+            'arrowsize': scroll_style.arrow_width.default,
+            'relief': scroll_style.relief.default,
+        }
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        ttk_style.configure(name, **kwargs)
+
+        if (bg := scroll_style.bg.default) and (ac := scroll_style.arrow_color.default):
+            bg_list = [('selected', bg), ('active', ac), ('background', bg), ('!focus', bg)]
+            ac_list = [('selected', ac), ('active', bg), ('background', bg), ('!focus', ac)]
+            ttk_style.map(name, background=bg_list, arrowcolor=ac_list)
+
+        if vertical:
+            self.widget.configure(yscrollcommand=scroll_bar.set)
+            scroll_bar.pack(side=tkc.RIGHT, fill='y')
+        else:
+            self.widget.configure(xscrollcommand=scroll_bar.set)
+            scroll_bar.pack(side=tkc.BOTTOM, fill='x')

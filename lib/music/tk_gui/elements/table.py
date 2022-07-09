@@ -11,7 +11,7 @@ import tkinter.constants as tkc
 from functools import cached_property
 from itertools import chain
 from tkinter import Frame, Tcl, Scrollbar
-from tkinter.ttk import Treeview, Style as TkStyle
+from tkinter.ttk import Treeview, Style as TtkStyle
 from typing import TYPE_CHECKING, Optional, Callable, Union, Literal
 from unicodedata import normalize
 
@@ -144,12 +144,12 @@ class Table(Element):
         columns = [TableColumn(key, key.replace('_', ' ').title(), data) for key in keys]
         return cls(*columns, data=data, **kwargs)
 
-    def _style(self) -> tuple[str, TkStyle]:
+    def _style(self) -> tuple[str, TtkStyle]:
         name = f'{self.id}.customtable.Treeview'
-        tk_style = TkStyle()
+        self.ttk_styles[name] = ttk_style = TtkStyle()
         style = self.style
-        tk_style.theme_use(style.ttk_theme)
-        tk_style.configure(name, rowheight=self.row_height or style.char_height('table'))
+        ttk_style.theme_use(style.ttk_theme)
+        ttk_style.configure(name, rowheight=self.row_height or style.char_height('table'))
 
         # font = style.table.font.default
         # cfg_keys = ('font', 'foreground', 'background', 'fieldbackground')
@@ -157,29 +157,29 @@ class Table(Element):
         # if base := {k: v for k, v in zip(cfg_keys, (font, style.fg.default, bg, bg)) if v is not None}:
         #     tk_style.configure(name, **base)
 
-        if base := self._tk_style_config(tk_style, name, 'table'):
+        if base := self._tk_style_config(ttk_style, name, 'table'):
             if (selected_row_color := self.selected_row_color) and ('foreground' in base or 'background' in base):
                 for i, (xground, default) in enumerate(XGROUND_DEFAULT_HIGHLIGHT_COLOR_MAP.items()):
                     if xground in base and (selected := selected_row_color[i]) is not None:
-                        tk_style.map(name, **{xground: _style_map_data(tk_style, name, xground, selected or default)})
+                        ttk_style.map(name, **{xground: _style_map_data(ttk_style, name, xground, selected or default)})
 
                 # for i, color in enumerate(('foreground', 'background')):
                 #     if color in base and selected_row_color[i] is not None:
                 #         tk_style.map(name, **{color: _fixed_style_map(tk_style, name, color, selected_row_color)})
 
-        self._tk_style_config(tk_style, f'{name}.Heading', 'table_header')
+        self._tk_style_config(ttk_style, f'{name}.Heading', 'table_header')
         # header_vals = (self.header_font or font, self.header_text_color, self.header_bg)
         # if header_kwargs := {k: v for k, v in zip(cfg_keys, header_vals) if v is not None}:
         #     tk_style.configure(f'{name}.Heading', **header_kwargs)
 
-        return name, tk_style
+        return name, ttk_style
 
-    def _tk_style_config(self, tk_style: TkStyle, name: str, layer: Layer) -> dict[str, Union[Font, str, None]]:
+    def _tk_style_config(self, ttk_style: TtkStyle, name: str, layer: Layer) -> dict[str, Union[Font, str, None]]:
         config = self.style.get('font', layer=layer, fg='foreground', bg='background')  # noqa
         config = {k: v for k, v in config.items() if v is not None}
         if layer == 'table' and (bg := config.get('background')):
             config['fieldbackground'] = bg
-        tk_style.configure(name, **config)
+        ttk_style.configure(name, **config)
         return config
 
     def pack_into(self, row: Row):
@@ -234,7 +234,7 @@ class Table(Element):
         frame.pack(anchor=self.anchor.value, side=self.side.value, expand=True, **self.pad_kw)
 
 
-def _style_map_data(style: TkStyle, name: str, query_opt: str, selected_color: str = None):
+def _style_map_data(style: TtkStyle, name: str, query_opt: str, selected_color: str = None):
     # Based on the fix for setting text color for Tkinter 8.6.9 from: https://core.tcl.tk/tk/info/509cafafae
     base = [ele for ele in style.map('Treeview', query_opt=query_opt) if '!' not in ele[0]]
     rows = [ele for ele in style.map(name, query_opt=query_opt) if '!' not in ele[0]]

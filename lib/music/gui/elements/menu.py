@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from threading import Event
-from tkinter import Tk, Menu, Event as TkEvent
+from tkinter import Tk, Menu, Misc, Event as TkEvent
 from typing import Callable, Mapping, Union, Hashable
 from urllib.parse import quote_plus
 
@@ -83,7 +83,7 @@ class ContextualMenu:
             raise ValueError(f'{show=} is invalid when event is None')
         self._options.append(MenuOption(text, cb_arg, show, format, keyword, cb, call_with_kwargs, event))
 
-    def show(self, event: TkEvent, parent: Tk = None, **kwargs) -> bool:
+    def show(self, event: TkEvent, parent: Union[Tk, Misc] = None, **kwargs) -> bool:
         menu = Menu(parent, tearoff=0)
         added_any = False
         for option in self._options:

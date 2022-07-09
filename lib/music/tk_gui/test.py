@@ -7,7 +7,7 @@ from cli_command_parser import Command, Action, Counter, main
 from ds_tools.logging import init_logging
 
 from .core import Window
-from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button
+from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 
 
@@ -61,6 +61,7 @@ class GuiTest(Command):
             [inpt, Button('Submit', bind_enter=True), Button(image=search_path, shortcut='s', size=(30, 30))],
             [Animation(gif_path), SpinnerImage()],
             [ClockImage()],
+            [Text('test'), Text('link test', link='https://google.com')],
             [Image(png_path, popup_on_click=True)]
         ]
 

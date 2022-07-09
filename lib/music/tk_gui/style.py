@@ -197,7 +197,7 @@ class PartStateValues(Generic[T_co]):
         style = instance.style
         if state_values := self.get_parent_values(style.parent, layer_name):
             return state_values
-        elif (default_style := Style.default_style) and default_style is not style:
+        elif (default_style := Style.default_style) and style not in (default_style, default_style.parent):
             if state_values := self.get_values(default_style, layer_name):
                 return state_values
 
@@ -333,7 +333,9 @@ class StyleLayer:
         instance.__dict__[self.name] = StylePart.new(instance, self, value)
 
 
-Layer = Literal['base', 'insert', 'hover', 'focus', 'tooltip', 'image', 'button', 'input', 'table', 'table_header']
+Layer = Literal[
+    'base', 'insert', 'hover', 'focus', 'tooltip', 'image', 'button', 'text', 'input', 'table', 'table_header',
+]
 
 
 class Style(ClearableCachedPropertyMixin):
@@ -354,7 +356,8 @@ class Style(ClearableCachedPropertyMixin):
     tooltip = StyleLayer('base')
     image = StyleLayer('base')
     button = StyleLayer('base')
-    input = StyleLayer('base')
+    text = StyleLayer('base')
+    input = StyleLayer('text')
     table = StyleLayer('base')
     table_header = StyleLayer('table')
 
@@ -373,7 +376,8 @@ class Style(ClearableCachedPropertyMixin):
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
 
     def _configure(self, kwargs: dict[str, Any]):
-        attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width', 'text': 'fg'}
+        # attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width', 'text': 'fg'}
+        attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width'}
 
         layers = {}
 
@@ -474,12 +478,13 @@ Style('default', font=('Helvetica', 10), ttk_theme='default', border_width=1)
 Style(
     'DarkGrey10',
     parent='default',
-    text=('#cccdcf', '#000000', '#FFFFFF'),
+    fg=('#cccdcf', '#000000', '#FFFFFF'),
     bg=('#1c1e23', '#a2a2a2', '#781F1F'),
     insert_bg='#FFFFFF',
     input_fg='#8b9fde',
     input_bg='#272a31',
     button_fg='#f5f5f6',
     button_bg='#2e3d5a',
+    tooltip_fg='#000000',
     tooltip_bg='#ffffe0',
 ).make_default()

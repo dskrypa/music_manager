@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, Font, StyleSpec, State
-from ..utils import Anchor, Justify, Side, Inheritable
+from ..utils import Anchor, Justify, Side, Inheritable, ClearableCachedPropertyMixin
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
@@ -28,7 +28,7 @@ __all__ = ['Element', 'Interactive']
 log = logging.getLogger(__name__)
 
 
-class Element(ABC):
+class Element(ClearableCachedPropertyMixin, ABC):
     _counters = defaultdict(count)
     _key: Optional[Key] = None
     _tooltip: Optional[ToolTip] = None

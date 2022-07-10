@@ -11,7 +11,8 @@ from collections import namedtuple
 from enum import IntEnum
 from itertools import count
 from tkinter.font import Font as TkFont
-from typing import TYPE_CHECKING, Union, Optional, Literal, Type, Mapping, Iterator, Any, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Union, Optional, Literal, Type, Mapping, Iterator, Any, Generic, TypeVar, Iterable
+from typing import overload
 
 from .utils import ClearableCachedPropertyMixin, MissingMixin, Inheritable
 
@@ -32,7 +33,11 @@ class State(MissingMixin, IntEnum):
 
 T_co = TypeVar('T_co', covariant=True)
 
-StyleAttr = Literal['font', 'tk_font', 'fg', 'bg', 'border_width']
+StyleAttr = Literal[
+    'font', 'tk_font', 'fg', 'bg', 'border_width', 'relief',
+    'frame_color', 'trough_color', 'arrow_color', 'arrow_width', 'bar_width',
+]
+Relief = Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']
 StateName = Literal['default', 'disabled', 'invalid']
 StyleState = Union[State, StateName, Literal[0, 1, 2]]
 
@@ -56,6 +61,7 @@ RawStateValues = Union[OptStrVals, OptIntVals, FontValues]
 # PartValues = Union[FontValues, _PartValsTuple, Mapping[StyleState, StyleValue]]
 PartValues = Union[FontValues, Mapping[StyleState, StyleValue]]
 
+# region State Values
 
 StateValueTuple = namedtuple('StateValueTuple', ('default', 'disabled', 'invalid'))
 
@@ -168,6 +174,7 @@ class PartStateValues(Generic[T_co]):
 
     def __set_name__(self, owner: Type[StylePart], name: str):
         self.name = name
+        owner._fields.add(name)
 
     def get_values(self, style: Optional[Style], layer_name: str) -> Optional[StateValues[T_co]]:
         if layer := style.__dict__.get(layer_name):  # type: StylePart
@@ -234,19 +241,24 @@ class FontStateValues(PartStateValues):
             pass
 
 
-class StylePart:
-    font: StateValues[Font] = FontStateValues()
-    fg: StateValues[OptStr] = PartStateValues()
-    bg: StateValues[OptStr] = PartStateValues()
-    border_width: StateValues[OptInt] = PartStateValues()
-    # Scroll bar options
-    frame_color: StateValues[OptStr] = PartStateValues()
-    trough_color: StateValues[OptStr] = PartStateValues()
-    arrow_color: StateValues[OptStr] = PartStateValues()
-    arrow_width: StateValues[OptInt] = PartStateValues()
-    bar_width: StateValues[OptInt] = PartStateValues()
-    relief: StateValues[OptStr] = PartStateValues()
+# endregion
 
+
+class StylePart:
+    _fields: set[str] = set()
+    font: StateValues[Font] = FontStateValues()             # Font to use
+    fg: StateValues[OptStr] = PartStateValues()             # Foreground / text color
+    bg: StateValues[OptStr] = PartStateValues()             # Background color
+    border_width: StateValues[OptInt] = PartStateValues()   # Border width
+    relief: StateValues[OptStr] = PartStateValues()         # Visually differentiate the edges of some elements
+    # Scroll bar options
+    frame_color: StateValues[OptStr] = PartStateValues()    # Frame color
+    trough_color: StateValues[OptStr] = PartStateValues()   # Trough (area where scroll bars can travel) color
+    arrow_color: StateValues[OptStr] = PartStateValues()    # Color for the arrows at either end of scroll bars
+    arrow_width: StateValues[OptInt] = PartStateValues()    # Width of scroll bar arrows in px
+    bar_width: StateValues[OptInt] = PartStateValues()      # Width of scroll bars in px
+
+    @overload
     def __init__(
         self,
         style: Style,
@@ -263,18 +275,19 @@ class StylePart:
         bar_width: OptIntVals = None,
         relief: OptStrVals = None,
     ):
+        ...
+
+    def __init__(self, style: Style, layer: StyleLayer, **kwargs):
         self.style = style
         self.layer = layer
-        self.font = font  # noqa
-        self.fg = fg  # noqa
-        self.bg = bg  # noqa
-        self.border_width = border_width  # noqa
-        self.frame_color = frame_color  # noqa
-        self.trough_color = trough_color  # noqa
-        self.arrow_color = arrow_color  # noqa
-        self.arrow_width = arrow_width  # noqa
-        self.bar_width = bar_width  # noqa
-        self.relief = relief  # noqa
+        bad = {}
+        for key, val in kwargs.items():
+            if key in self._fields:
+                setattr(self, key, val)
+            else:
+                bad[key] = val
+        if bad:
+            raise ValueError(f'Invalid style layer options: {bad}')
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.style.name}: {self.layer.name}]>'
@@ -346,7 +359,7 @@ class StyleLayer:
 
 Layer = Literal[
     'base', 'insert', 'hover', 'focus', 'scroll',
-    'tooltip', 'image', 'button', 'text', 'input', 'table', 'table_header',
+    'tooltip', 'image', 'button', 'text', 'selected', 'input', 'table', 'table_header', 'table_alt',
 ]
 
 
@@ -370,9 +383,11 @@ class Style(ClearableCachedPropertyMixin):
     image = StyleLayer('base')
     button = StyleLayer('base')
     text = StyleLayer('base')
+    selected = StyleLayer('text')           # Selected text
     input = StyleLayer('text')
-    table = StyleLayer('base')
-    table_header = StyleLayer('table')
+    table = StyleLayer('base')              # Table elements
+    table_header = StyleLayer('table')      # Table headers
+    table_alt = StyleLayer('table')         # Alternate / even rows in tables
 
     def __init__(self, name: str = None, *, parent: Union[str, Style] = None, ttk_theme: str = None, **kwargs):
         if not name:  # Anonymous styles won't be stored
@@ -389,32 +404,38 @@ class Style(ClearableCachedPropertyMixin):
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
 
     def _configure(self, kwargs: dict[str, Any]):
-        attrs = {'font': 'font', 'fg': 'fg', 'bg': 'bg', 'border_width': 'border_width'}
-
         layers = {}
-
         for key, val in kwargs.items():
             if key in self._layers:
                 # log.info(f'{self}: Full layer config provided: {key}={val!r}', extra={'color': 11})
                 setattr(self, key, val)
-            elif dst_key := attrs.get(key):
-                layers.setdefault('base', {})[dst_key] = val
+            elif key in StylePart._fields:
+                layers.setdefault('base', {})[key] = val
             else:
-                for delim in ('_', '.'):
-                    try:
-                        layer, attr = key.rsplit(delim, 1)
-                    except ValueError:
-                        continue
-                    if layer in self._layers and (dst_key := attrs.get(attr)):
-                        layers.setdefault(layer, {})[dst_key] = val
-                        break
-                else:
-                    raise KeyError(f'Invalid style option: {key!r}')
+                layer, attr = self._split_config_key(key)
+                layers.setdefault(layer, {})[attr] = val
 
         # log.info(f'{self}: Built layers: {layers!r}', extra={'color': 11})
-
         for name, layer in layers.items():
             setattr(self, name, layer)
+
+    def _split_config_key(self, key: str) -> tuple[str, str]:
+        for delim in '_.':
+            try:
+                layer, attr = key.split(delim, 1)
+            except ValueError:
+                continue
+
+            if layer in self._layers and attr in StylePart._fields:
+                return layer, attr
+
+        for layer in ('table_header', 'table_alt'):
+            n = len(layer) + 1
+            if key.startswith(layer) and len(key) > n and key[n - 1] in '_.':
+                if (attr := key[n:]) in StylePart._fields:
+                    return layer, attr
+
+        raise KeyError(f'Invalid style option: {key!r}')
 
     @classmethod
     def get_style(cls, style: StyleSpec) -> Style:
@@ -440,32 +461,23 @@ class Style(ClearableCachedPropertyMixin):
     def make_default(self):
         self.__class__.default_style = self
 
-    def get(
+    def get_map(
         self,
-        *attrs: StyleAttr,
         layer: Layer = 'base',
         state: StyleState = State.DEFAULT,
-        truthy: bool = True,
-        **kwattrs: str,
+        attrs: Iterable[StyleAttr] = None,  # Note: PyCharm doesn't handle this Literal well
+        include_none: bool = False,
+        **dst_src_map
     ) -> dict[str, FinalValue]:
+        layer: StylePart = getattr(self, layer)
+        if attrs is not None:
+            dst_src_map.update((a, a) for a in attrs)
+
         found = {}
-
-        if layer != 'base' and (layer_obj := getattr(self, layer)):
-            layers = (layer_obj, self.base)
-        else:
-            layers = (self.base,)
-
-        for attr in attrs:
-            kwattrs.setdefault(attr, attr)
-
-        for attr, key in kwattrs.items():
-            for layer in layers:
-                if value := getattr(layer, attr)[state]:
-                    found[key] = value
-                    break
-            else:
-                if not truthy:
-                    found[key] = None
+        for dst, src in dst_src_map.items():
+            value = getattr(layer, src)[state]
+            if include_none or value is not None:
+                found[dst] = value
 
         return found
 
@@ -498,6 +510,8 @@ Style(
     parent='default',
     fg=('#cccdcf', '#000000', '#FFFFFF'),
     bg=('#1c1e23', '#a2a2a2', '#781F1F'),
+    selected_fg=('#1c1e23', '#a2a2a2', '#781F1F'),  # Inverse of non-selected
+    selected_bg=('#cccdcf', '#000000', '#FFFFFF'),
     insert_bg='#FFFFFF',
     input_fg='#8b9fde',
     input_bg='#272a31',
@@ -505,4 +519,6 @@ Style(
     button_bg='#2e3d5a',
     tooltip_fg='#000000',
     tooltip_bg='#ffffe0',
+    table_alt_fg='#8b9fde',
+    table_alt_bg='#272a31',
 ).make_default()

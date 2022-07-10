@@ -7,7 +7,6 @@ Input GUI elements
 from __future__ import annotations
 
 import logging
-import tkinter.constants as tkc
 import webbrowser
 from functools import cached_property
 from tkinter import StringVar, Label, Event, Frame, Text as TkText
@@ -22,16 +21,6 @@ if TYPE_CHECKING:
 
 __all__ = ['Text', 'Multiline']
 log = logging.getLogger(__name__)
-
-
-"""
-RELIEF_RAISED = 'raised'
-RELIEF_SUNKEN = 'sunken'
-RELIEF_FLAT = 'flat'
-RELIEF_RIDGE = 'ridge'
-RELIEF_GROOVE = 'groove'
-RELIEF_SOLID = 'solid'
-"""
 
 
 class Text(Element):
@@ -55,12 +44,16 @@ class Text(Element):
     def pack_into(self, row: Row):
         self.string_var = StringVar()
         self.string_var.set(self._value)
-        kwargs = {'textvariable': self.string_var, 'justify': self.justify_text.value}
+        style = self.style
+        kwargs = {
+            'textvariable': self.string_var,
+            'justify': self.justify_text.value,
+            **style.get_map('text', bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
+        }
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
             pass
-        kwargs.update(self.style.get('fg', 'bg', 'font', 'relief', layer='text', border_width='bd'))  # noqa
         self.widget = label = Label(row.frame, **kwargs)
         # if kwargs.get('height') != 1:
         #     wrap_len = label.winfo_reqwidth()  # width in pixels
@@ -130,8 +123,8 @@ class Multiline(Element, ScrollableMixin):
         self,
         value: Any = '',
         *,
-        scroll_vertical: bool = True,
-        scroll_horizontal: bool = False,
+        scroll_y: bool = True,
+        scroll_x: bool = False,
         auto_scroll: bool = False,
         rstrip: bool = True,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
@@ -139,43 +132,34 @@ class Multiline(Element, ScrollableMixin):
     ):
         super().__init__(justify_text=justify_text, **kwargs)
         self._value = str(value)
-        self.scroll_vertical = scroll_vertical
-        self.scroll_horizontal = scroll_horizontal
+        self.scroll_y = scroll_y
+        self.scroll_x = scroll_x
         self.auto_scroll = auto_scroll
         self.rstrip = rstrip
 
     def pack_into(self, row: Row):
         self.frame = frame = Frame(row.frame)
-
-        # kwargs = {'justify': self.justify_text.value, 'highlightthickness': 0}
-        kwargs = {'highlightthickness': 0}
+        style = self.style
+        kwargs = {
+            'highlightthickness': 0,
+            **style.get_map('text', attrs=('fg', 'bg', 'font', 'relief'), bd='border_width'),  # noqa
+            **style.get_map('selected', selectforeground='fg', selectbackground='bg'),
+            **style.get_map('insert', insertbackground='bg'),
+        }
+        kwargs.setdefault('relief', 'sunken')  # noqa
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
-            print('Bad multiline size')
             pass
-        kwargs.update(self.style.get('fg', 'bg', 'font', 'relief', layer='text', border_width='bd'))  # noqa
-        kwargs.setdefault('relief', 'sunken')
-        if bg := kwargs.get('bg'):
-            kwargs['selectforeground'] = bg
-        if fg := kwargs.get('fg'):
-            kwargs['selectbackground'] = fg
-        if insert_bg := self.style.insert.bg.default:
-            kwargs['insertbackground'] = insert_bg
 
-        print(f'Initializing Text ele with {kwargs=}')
         self.widget = text = TkText(frame, **kwargs)
-        if self.scroll_vertical:
-            self._add_scroll_bar()
-        if self.scroll_horizontal:
+        if self.scroll_y:
+            self.add_scroll_bar()
+        if self.scroll_x:
             text.config(wrap='none')
-            self._add_scroll_bar(False)
+            self.add_scroll_bar(False)
         else:
             text.config(wrap='word')
-
-        # if not element.no_scrollbar or element.HorizontalScroll:
-        #     element.TKText.bind('<Enter>', lambda event, em=element: testMouseHook(em))
-        #     element.TKText.bind('<Leave>', lambda event, em=element: testMouseUnhook(em))
 
         if value := self._value:
             text.insert(1.0, value)

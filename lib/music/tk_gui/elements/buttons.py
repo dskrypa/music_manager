@@ -151,9 +151,10 @@ class Button(Interactive):
         kwargs = {
             'width': width,
             'height': height,
-            'font': style.button.font[state],
-            'bd': style.button.border_width[state],
             'justify': self.justify_text.value,
+            **style.get_map('button', state, bd='border_width', font='font', foreground='fg', background='bg'),
+            **style.get_map('hover', state, activeforeground='fg', activebackground='bg'),
+            **style.get_map('focus', state, highlightcolor='fg', highlightbackground='bg'),
         }
         if not self.separate:
             kwargs['command'] = self.handle_activated
@@ -170,14 +171,10 @@ class Button(Interactive):
         if style.button.border_width[state] == 0:
             kwargs['relief'] = tkc.FLAT  # May not work on mac
 
-        kwargs.update(style.get(layer='button', state=state, fg='foreground', bg='background'))
-        kwargs.update(style.get(layer='hover', state=state, fg='activeforeground', bg='activebackground'))
-        kwargs.update(style.get(layer='focus', state=state, fg='highlightcolor', bg='highlightbackground'))
         self.widget = button = _Button(row.frame, **kwargs)
         if image:
             button.image = image
 
-        # button.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
         self.pack_widget()
 
     def _bind(self, event_pat: str, cb: BindCallback):

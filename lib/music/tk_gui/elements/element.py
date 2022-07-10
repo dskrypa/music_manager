@@ -125,6 +125,12 @@ class Element(ClearableCachedPropertyMixin, ABC):
     def ttk_style_name(self, suffix: str) -> str:
         return f'{self.id}.{suffix}'
 
+    def prepare_ttk_style(self, name_suffix: str) -> tuple[str, TtkStyle]:
+        name = self.ttk_style_name(name_suffix)
+        self.ttk_styles[name] = ttk_style = TtkStyle()
+        ttk_style.theme_use(self.style.ttk_theme)
+        return name, ttk_style
+
     # region Introspection
 
     @property
@@ -292,44 +298,41 @@ class ScrollableMixin:
     style: Style
     ttk_styles: dict[str, TtkStyle]
     ttk_style_name: Callable[[str], str]
+    prepare_ttk_style: Callable[[str], tuple[str, TtkStyle]]
 
-    scroll_bar_vertical: Optional[Scrollbar] = None
-    scroll_bar_horizontal: Optional[Scrollbar] = None
+    scroll_bar_y: Optional[Scrollbar] = None
+    scroll_bar_x: Optional[Scrollbar] = None
 
-    def _add_scroll_bar(self, vertical: bool = True):
-        direction = 'vertical' if vertical else 'horizontal'
-        name = self.ttk_style_name(f'scroll_bar.{direction.title()}.TScrollbar')
-        log.debug(f'Adding {vertical=} scroll bar to {self} with {name=}')
-        self.ttk_styles[name] = ttk_style = TtkStyle()
-        ttk_style.theme_use(self.style.ttk_theme)
-        scroll_bar = Scrollbar(
-            self.frame,
-            orient=direction,  # noqa
-            command=self.widget.yview if vertical else self.widget.xview,
-            style=name,
+    def add_scroll_bars(self, vertical: bool = True, horizontal: bool = False):
+        if vertical:
+            self.add_scroll_bar(True)
+        if horizontal:
+            self.add_scroll_bar(False)
+
+    def add_scroll_bar(self, vertical: bool = True):
+        if vertical:
+            direction, axis, side = tkc.VERTICAL, 'y', tkc.RIGHT
+            cmd = self.widget.yview
+        else:
+            direction, axis, side = tkc.HORIZONTAL, 'x', tkc.BOTTOM
+            cmd = self.widget.xview
+
+        name, ttk_style = self.prepare_ttk_style(f'scroll_bar.{direction.title()}.TScrollbar')
+        # log.debug(f'Adding {vertical=} scroll bar to {self} with {name=}')
+        scroll_bar = Scrollbar(self.frame, orient=direction, command=cmd, style=name)  # noqa
+        setattr(self, f'scroll_bar_{axis}', scroll_bar)
+
+        style = self.style
+        kwargs = style.get_map(
+            'scroll',
+            troughcolor='trough_color', framecolor='frame_color', bordercolor='frame_color',
+            width='bar_width', arrowsize='arrow_width', relief='relief',
         )
-        setattr(self, f'scroll_bar_{direction}', scroll_bar)
-
-        scroll_style = self.style.scroll
-        kwargs = {
-            'troughcolor': scroll_style.trough_color.default,
-            'framecolor': scroll_style.frame_color.default,
-            'bordercolor': scroll_style.frame_color.default,
-            'width': scroll_style.bar_width.default,
-            'arrowsize': scroll_style.arrow_width.default,
-            'relief': scroll_style.relief.default,
-        }
-        kwargs = {k: v for k, v in kwargs.items() if v is not None}
         ttk_style.configure(name, **kwargs)
-
-        if (bg := scroll_style.bg.default) and (ac := scroll_style.arrow_color.default):
+        if (bg := style.scroll.bg.default) and (ac := style.scroll.arrow_color.default):
             bg_list = [('selected', bg), ('active', ac), ('background', bg), ('!focus', bg)]
             ac_list = [('selected', ac), ('active', bg), ('background', bg), ('!focus', ac)]
             ttk_style.map(name, background=bg_list, arrowcolor=ac_list)
 
-        if vertical:
-            self.widget.configure(yscrollcommand=scroll_bar.set)
-            scroll_bar.pack(side=tkc.RIGHT, fill='y')
-        else:
-            self.widget.configure(xscrollcommand=scroll_bar.set)
-            scroll_bar.pack(side=tkc.BOTTOM, fill='x')
+        self.widget.configure(**{f'{axis}scrollcommand': scroll_bar.set})
+        scroll_bar.pack(side=side, fill=axis)  # noqa

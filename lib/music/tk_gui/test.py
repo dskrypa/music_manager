@@ -49,7 +49,9 @@ class GuiTest(Command):
     @action(default=True)
     def window(self):
         table1 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
-        table2 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
+        table2 = Table.from_data(
+            [{'a': n, 'b': n + 1, 'c': n + 2} for n in range(1, 21, 3)], show_row_nums=True, size=(4, 4)
+        )
         inpt = Input('test', size=(15, 1))
 
         gif_path = ICONS_DIR.joinpath('spinners', 'ring_gray_segments.gif')

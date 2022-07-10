@@ -62,18 +62,15 @@ class Input(Interactive):
             'textvariable': self.string_var,
             'show': self.password_char,
             'justify': self.justify_text.value,
+            **style.get_map('input', state, bd='border_width', fg='fg', bg='bg', font='font'),
+            **style.get_map('insert', state, insertbackground='bg'),
         }
         try:
             kwargs['width'] = self.size[0]
         except TypeError:
             pass
-        if insert_bg := style.insert.bg[state]:
-            kwargs['insertbackground'] = insert_bg
-
-        kwargs.update(style.get('fg', 'bg', 'font', layer='input', state=state, border_width='bd'))  # noqa
 
         self.widget = entry = Entry(row.frame, **kwargs)
-        # entry.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
         self.pack_widget()
 
         entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
@@ -83,9 +80,8 @@ class Input(Interactive):
                 entry.configure(cursor='hand2')
 
     def _refresh_colors(self):
-        kwargs = self.style.get(
-            'fg', layer='input', state=self.style_state, bg='readonlybackground' if self.disabled else 'bg'  # noqa
-        )
+        bg_key = 'readonlybackground' if self.disabled else 'bg'
+        kwargs = self.style.get_map('input', self.style_state, fg='fg', **{bg_key: 'bg'})
         self.widget.configure(**kwargs)
 
     def update(self, value=None, disabled: bool = None, password_char: str = None):

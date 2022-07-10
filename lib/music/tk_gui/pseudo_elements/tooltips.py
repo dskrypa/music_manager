@@ -1,5 +1,5 @@
 """
-Tkinter GUI core
+Tkinter GUI Tooltips
 
 :author: Doug Skrypa
 """
@@ -78,7 +78,7 @@ class ToolTip:
         tip_window.wm_attributes('-topmost', 1)
 
         style = self.style or self.parent.style
-        kwargs = style.get('font', layer='tooltip', fg='foreground', bg='background')  # noqa
+        kwargs = style.get_map('tooltip', foreground='fg', background='bg', font='font')
         label = Label(
             tip_window,
             text=self.text,

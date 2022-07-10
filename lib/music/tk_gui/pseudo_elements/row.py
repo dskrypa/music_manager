@@ -34,9 +34,11 @@ class Row:
     element_padding: XY = Inheritable()
     element_size: XY = Inheritable()
     style: Style = Inheritable()
+    grid: bool = Inheritable()
     auto_size_text: bool = Inheritable()
 
-    def __init__(self, parent: RowContainer, elements: Iterable[Element]):
+    def __init__(self, parent: RowContainer, elements: Iterable[Element], num: int):
+        self.num = num
         self.parent = parent
         self.elements = tuple(elements)
         self.id_ele_map = {ele.id: ele for ele in self.elements}
@@ -91,10 +93,10 @@ class Row:
             for i, ele in enumerate(self.elements):
                 log.debug(f' > Packing element {i} / {n_eles}')
                 try:
-                    ele.pack_into_row(self)
+                    ele.pack_into_row(self, i)
                 except Exception:
                     log.error(f'Encountered unexpected error packing element={ele} into row={self}', exc_info=True)
                     raise
         else:
-            for ele in self.elements:
-                ele.pack_into_row(self)
+            for i, ele in enumerate(self.elements):
+                ele.pack_into_row(self, i)

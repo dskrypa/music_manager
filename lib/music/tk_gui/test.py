@@ -6,10 +6,12 @@ from cli_command_parser import Command, Action, Counter, main
 
 from ds_tools.logging import init_logging
 
+from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
+
 from .core import Window
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
-
+from .popups.about import AboutPopup
 
 ICONS_DIR = Path(__file__).resolve().parents[3].joinpath('icons')
 
@@ -20,6 +22,10 @@ class GuiTest(Command):
 
     def __init__(self):
         init_logging(self.verbose, log_path=None, names=None, set_levels={'PIL.PngImagePlugin': 50})
+
+    @action
+    def about(self):
+        AboutPopup().run()
 
     @action
     def spinner(self):

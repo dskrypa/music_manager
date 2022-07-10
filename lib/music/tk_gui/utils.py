@@ -21,6 +21,7 @@ ANCHOR_ALIASES = {
     'center': 'MID_CENTER', 'top': 'TOP_CENTER', 'bottom': 'BOTTOM_CENTER', 'left': 'MID_LEFT', 'right': 'MID_RIGHT',
     'c': 'MID_CENTER', 't': 'TOP_CENTER', 'b': 'BOTTOM_CENTER', 'l': 'MID_LEFT', 'r': 'MID_RIGHT',
 }
+SIDE_STICKY_MAP = {tkc.LEFT: tkc.W, tkc.RIGHT: tkc.E, tkc.TOP: tkc.N, tkc.BOTTOM: tkc.S}
 # fmt: on
 
 
@@ -68,6 +69,9 @@ class Side(MissingMixin, Enum, aliases={'l': 'LEFT', 'r': 'RIGHT', 't': 'TOP', '
     TOP = tkc.TOP
     BOTTOM = tkc.BOTTOM
 
+    def as_sticky(self):
+        return SIDE_STICKY_MAP.get(self.value)
+
 
 class Justify(MissingMixin, Enum, aliases={'c': 'CENTER', 'l': 'LEFT', 'r': 'RIGHT'}):
     NONE = None
@@ -109,6 +113,9 @@ class Anchor(MissingMixin, Enum, aliases=ANCHOR_ALIASES):
         elif self.value in (tkc.NE, tkc.E, tkc.SE):
             return tkc.RIGHT
         return None  # None or CENTER
+
+    def as_sticky(self):
+        return SIDE_STICKY_MAP.get(self.as_side())
 
 
 class Inheritable:

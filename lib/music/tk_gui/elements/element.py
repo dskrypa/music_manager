@@ -16,7 +16,7 @@ from tkinter.ttk import Style as TtkStyle, Scrollbar
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 
 from ..pseudo_elements.tooltips import ToolTip
-from ..style import Style, Font, StyleSpec, State
+from ..style import Style, StyleSpec, State
 from ..utils import Anchor, Justify, Side, Inheritable, ClearableCachedPropertyMixin
 
 if TYPE_CHECKING:
@@ -34,6 +34,7 @@ class Element(ClearableCachedPropertyMixin, ABC):
     _key: Optional[Key] = None
     _tooltip: Optional[ToolTip] = None
     parent: Optional[Row] = None
+    column: Optional[int] = None
     widget: Optional[Widget] = None
     tooltip_text: Optional[str] = None
     right_click_menu: Optional[ContextualMenu] = None
@@ -43,6 +44,7 @@ class Element(ClearableCachedPropertyMixin, ABC):
 
     pad: XY = Inheritable('element_padding')
     size: XY = Inheritable('element_size')
+    grid: bool = Inheritable()
     auto_size_text: bool = Inheritable()
     anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
     justify_text: Justify = Inheritable('text_justification', type=Justify)
@@ -56,17 +58,15 @@ class Element(ClearableCachedPropertyMixin, ABC):
         size: XY = None,
         pad: XY = None,
         style: StyleSpec = None,
-        font: Font = None,
         auto_size_text: bool = None,
-        border_width: int = None,
         anchor: Union[str, Anchor] = None,
         side: Union[str, Side] = Side.LEFT,
         justify_text: Union[str, Justify] = None,
+        grid: bool = None,
+        expand: bool = None,
+        fill: TkFill = None,
         visible: bool = True,
         tooltip: str = None,
-        ttk_theme: str = None,
-        bg: str = None,
-        text_color: str = None,
         right_click_menu: ContextualMenu = None,
         left_click_cb: Callable = None,
         binds: MutableMapping[str, BindCallback] = None,
@@ -91,16 +91,14 @@ class Element(ClearableCachedPropertyMixin, ABC):
         self.pad = pad
         self.size = size
         self.auto_size_text = auto_size_text
+        self.grid = grid
         self.side = side
         self.anchor = anchor
         self.justify_text = justify_text
+        self.expand = expand
+        self.fill = fill
         self.style = Style.get_style(style)
         self.ttk_styles = {}
-        # if any(val is not None for val in (text_color, bg, font, ttk_theme, border_width)):
-        if not (text_color is bg is font is ttk_theme is border_width is None):
-            self.style = Style(
-                parent=self.style, font=font, ttk_theme=ttk_theme, text=text_color, bg=bg, border_width=border_width
-            )
 
     def __repr__(self) -> str:
         x, y = self.col_row
@@ -122,6 +120,8 @@ class Element(ClearableCachedPropertyMixin, ABC):
     def value(self) -> Any:
         return None
 
+    # region TTK Styles
+
     def ttk_style_name(self, suffix: str) -> str:
         return f'{self.id}.{suffix}'
 
@@ -130,6 +130,8 @@ class Element(ClearableCachedPropertyMixin, ABC):
         self.ttk_styles[name] = ttk_style = TtkStyle()
         ttk_style.theme_use(self.style.ttk_theme)
         return name, ttk_style
+
+    # endregion
 
     # region Introspection
 
@@ -144,6 +146,14 @@ class Element(ClearableCachedPropertyMixin, ABC):
         y = row.parent.rows.index(row)
         return x, y
 
+    @property
+    def size_and_pos(self) -> tuple[XY, XY]:
+        widget = self.widget
+        size, pos = widget.winfo_geometry().split('+', 1)
+        w, h = size.split('x', 1)
+        x, y = pos.split('+', 1)
+        return (int(w), int(h)), (int(x), int(y))
+
     # endregion
 
     # region Pack Methods / Attributes
@@ -156,24 +166,25 @@ class Element(ClearableCachedPropertyMixin, ABC):
             x, y = 5, 3
         return {'padx': x, 'pady': y}
 
-    def pack_into_row(self, row: Row):
+    def pack_into_row(self, row: Row, column: int):
         self.parent = row
+        self.column = column
         if key := self._key:
             row.window.register_element(key, self)
-        self.pack_into(row)
+        self.pack_into(row, column)
         self.apply_binds()
         if tooltip := self.tooltip_text:
             self.add_tooltip(tooltip)
 
     @abstractmethod
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         raise NotImplementedError
 
     def pack_widget(
         self,
         *,
-        expand: bool = False,
-        fill: TkFill = tkc.NONE,
+        expand: bool = None,
+        fill: TkFill = None,
         focus: bool = False,
         disabled: bool = False,
         widget: Widget = None,
@@ -181,21 +192,44 @@ class Element(ClearableCachedPropertyMixin, ABC):
     ):
         if not widget:
             widget = self.widget
-        pack_kwargs = {
+
+        if self.grid:
+            self._grid_widget(widget, kwargs)
+        else:
+            self._pack_widget(widget, expand, fill, kwargs)
+
+        if focus:
+            widget.focus_set()
+        if disabled:
+            widget['state'] = 'readonly'
+
+    def _pack_widget(self, widget: Widget, expand: bool, fill: TkFill, kwargs: dict[str, Any]):
+        if expand is None:
+            expand = self.expand
+        if fill is None:
+            fill = self.fill
+        pack_kwargs = {  # Note: using pack_kwargs to allow things like padding overrides
             'anchor': self.anchor.value,
             'side': self.side.value,
-            'expand': expand,
-            'fill': fill,
+            'expand': False if expand is None else expand,
+            'fill': tkc.NONE if not fill else tkc.BOTH if fill is True else fill,
             **self.pad_kw,
             **kwargs,
         }
         widget.pack(**pack_kwargs)
         if not self._visible:
             widget.pack_forget()
-        if focus:
-            widget.focus_set()
-        if disabled:
-            widget['state'] = 'readonly'
+
+    def _grid_widget(self, widget: Widget, kwargs: dict[str, Any]):
+        widget.grid_configure(
+            row=self.parent.num,
+            column=self.column,
+            sticky=self.anchor.as_sticky(),
+            **self.pad_kw,
+            **kwargs
+        )
+        if not self._visible:
+            widget.grid_forget()
 
     def add_tooltip(
         self, text: str, delay: int = ToolTip.DEFAULT_DELAY, style: StyleSpec = None, wrap_len_px: int = None
@@ -209,11 +243,17 @@ class Element(ClearableCachedPropertyMixin, ABC):
     # region Visibility Methods
 
     def hide(self):
-        self.widget.pack_forget()
+        if self.grid:
+            self.widget.grid_forget()
+        else:
+            self.widget.pack_forget()
         self._visible = False
 
     def show(self):
-        self.widget.pack(**self.pad_kw)
+        if self.grid:
+            self.widget.grid_configure(row=self.parent.num, column=self.column, **self.pad_kw)
+        else:
+            self.widget.pack(**self.pad_kw)
         self._visible = True
 
     def toggle_visibility(self, show: bool = None):

@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING, Union, Optional, MutableMapping
 
 from PIL.ImageTk import PhotoImage
 
-from ds_tools.images.utils import ImageType, as_image, calculate_resize, scale_image
+from ds_tools.images.utils import ImageType, as_image, scale_image
 
-from .element import Element, Interactive
+from .element import Interactive
 from ..utils import Justify
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from ..pseudo_elements import Row
     from ..typing import XY, BindCallback, Bool
 
-__all__ = ['Button']
+__all__ = ['Button', 'OK', 'Cancel', 'Yes', 'No']
 log = logging.getLogger(__name__)
 
 
@@ -142,7 +142,7 @@ class Button(Interactive):
 
         return width, height
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         # self.string_var = StringVar()
         # self.string_var.set(self._value)
         style = self.style
@@ -203,3 +203,19 @@ class Button(Interactive):
             self.window.interrupt()
         else:
             log.warning(f'No action configured for button={self}')
+
+
+def OK(text: str = 'OK', bind_enter: Bool = True, **kwargs) -> Button:
+    return Button(text, bind_enter=bind_enter, **kwargs)
+
+
+def Cancel(text: str = 'Cancel', **kwargs) -> Button:
+    return Button(text, **kwargs)
+
+
+def Yes(text: str = 'Yes', bind_enter: Bool = True, **kwargs) -> Button:
+    return Button(text, bind_enter=bind_enter, **kwargs)
+
+
+def No(text: str = 'No', **kwargs) -> Button:
+    return Button(text, **kwargs)

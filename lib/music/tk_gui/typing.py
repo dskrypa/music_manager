@@ -33,7 +33,7 @@ Bool = Union[bool, Any]
 XY = tuple[int, int]
 Layout = Iterable[Iterable['Element']]
 
-TkFill = Literal['none', 'x', 'y', 'both']
+TkFill = Union[Literal['none', 'x', 'y', 'both'], None, bool]
 TkSide = Literal['left', 'right', 'top', 'bottom']
 TkJustify = Literal['left', 'center', 'right']
 

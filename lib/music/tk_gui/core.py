@@ -16,7 +16,7 @@ from itertools import count
 from os import environ
 from pathlib import Path
 from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper, Widget
-from typing import TYPE_CHECKING, Optional, Union, Iterable, Type, Any
+from typing import TYPE_CHECKING, Optional, Union, Iterable, Type, Any, overload
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
@@ -46,6 +46,7 @@ class RowContainer(ABC):
         layout: Iterable[Iterable[Element]] = None,
         *,
         style: Style = None,
+        grid: bool = False,
         anchor_elements: Union[str, Anchor] = None,
         text_justification: Union[str, Justify] = None,
         element_side: Union[str, Side] = None,
@@ -54,12 +55,13 @@ class RowContainer(ABC):
     ):
         self._id = next(self._counter)
         self.style = Style.get_style(style)
+        self.grid = grid
         self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
         self.text_justification = Justify(text_justification)
         self.element_side = Side(element_side) if element_side else Side.LEFT
         self.element_padding = element_padding
         self.element_size = element_size
-        self.rows = [Row(self, row) for row in layout] if layout else []
+        self.rows = [Row(self, row, i) for i, row in enumerate(layout)] if layout else []
 
     @property
     @abstractmethod
@@ -122,12 +124,16 @@ class Window(RowContainer):
     root: Optional[Toplevel] = None
     element_map: dict[Key, Element]
 
+    # region Init Overload
+
+    @overload
     def __init__(
         self,
         title: str = None,
         layout: Layout = None,
         *,
         style: Style = None,
+        grid: bool = False,
         size: XY = None,
         position: XY = None,
         resizable: Bool = True,
@@ -147,6 +153,30 @@ class Window(RowContainer):
         binds: BindMap = None,
         # kill_others_on_close: Bool = False,
     ):
+        ...
+
+    # endregion
+
+    def __init__(
+        self,
+        title: str = None,
+        layout: Layout = None,
+        *,
+        size: XY = None,
+        position: XY = None,
+        resizable: Bool = True,
+        keep_on_top: Bool = False,
+        can_minimize: Bool = True,
+        transparent_color: str = None,
+        alpha_channel: int = None,
+        icon: bytes = None,
+        modal: Bool = False,
+        no_title_bar: Bool = False,
+        margins: XY = (10, 5),  # x, y
+        binds: BindMap = None,
+        **kwargs,
+        # kill_others_on_close: Bool = False,
+    ):
         if title is None:
             try:
                 # title = Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem.replace('_', ' ').title()
@@ -154,15 +184,7 @@ class Window(RowContainer):
             except Exception:  # noqa
                 title = ''
         self.title = title
-        super().__init__(
-            layout,
-            style=style,
-            anchor_elements=anchor_elements,
-            text_justification=text_justification,
-            element_side=element_side,
-            element_padding=element_padding,
-            element_size=element_size,
-        )
+        super().__init__(layout, **kwargs)
         self._size = size
         self._position = position
         self._event_cbs: dict[BindEvent, EventCallback] = {}

@@ -52,7 +52,7 @@ class Input(Interactive):
             raise NotSelectionOwner
         return selection
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         self.string_var = StringVar()
         self.string_var.set(self._value)
         style = self.style

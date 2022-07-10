@@ -155,7 +155,7 @@ class Table(Element, ScrollableMixin):
         ttk_style.configure(name, **config)
         return config
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         self.frame = frame = Frame(row.frame)
         columns = self.columns
         height = self.num_rows if self.num_rows else self.size[1] if self.size else len(self.data)

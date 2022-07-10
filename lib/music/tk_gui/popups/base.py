@@ -49,8 +49,11 @@ class Popup:
             binds['<Escape>'] = 'exit'
         self.window_kwargs = kwargs
 
+    def get_layout(self) -> Layout:
+        return self.layout
+
     def prepare_window(self) -> Window:
-        return Window(self.title, self.layout, **self.window_kwargs)
+        return Window(self.title, self.get_layout(), **self.window_kwargs)
 
     @cached_property
     def window(self) -> Window:
@@ -145,6 +148,5 @@ class BasicPopup(Popup):
 
         return buttons
 
-    def prepare_window(self) -> Window:
-        layout = [[Input(self.text, disabled=True)], self.prepare_buttons()]
-        return Window(self.title, layout, **self.window_kwargs)
+    def get_layout(self) -> Layout:
+        return [[Input(self.text, disabled=True)], self.prepare_buttons()]

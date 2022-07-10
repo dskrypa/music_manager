@@ -13,14 +13,13 @@ from PIL.Image import MIME
 
 from ds_tools.images.utils import ImageType, as_image
 
-from ..core import Window
 from ..elements.images import AnimatedType, Image, Animation, ClockImage, SpinnerImage, get_size
 from ..positioning import positioner
 from .base import Popup
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from ..typing import XY
+    from ..typing import XY, Layout
 
 __all__ = ['ImagePopup', 'AnimatedPopup', 'SpinnerPopup', 'ClockPopup']
 log = logging.getLogger(__name__)
@@ -42,8 +41,8 @@ class ImagePopup(Popup):
         super().__init__(title or 'Image', **kwargs)
         self._set_image(image)
 
-    def prepare_window(self) -> Window:
-        return Window(self.title, [[self.gui_image]], **self.window_kwargs)
+    def get_layout(self) -> Layout:
+        return [[self.gui_image]]
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[title={self.title!r}, orig={self.orig_size}, empty: {self._empty}]>'

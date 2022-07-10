@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 __all__ = ['Style', 'StyleSpec']
 # log = logging.getLogger(__name__)
 
-StyleSpec = Union[str, 'Style', None]
+StyleOptions = Mapping[str, Any]
+StyleSpec = Union[str, 'Style', StyleOptions, tuple[str, StyleOptions], None]
 
 
 class State(MissingMixin, IntEnum):
@@ -356,7 +357,7 @@ class StyleLayerProperty:
 
 Layer = Literal[
     'base', 'insert', 'hover', 'focus', 'scroll',
-    'tooltip', 'image', 'button', 'text', 'selected', 'input', 'table', 'table_header', 'table_alt',
+    'tooltip', 'image', 'button', 'text', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt',
 ]
 
 
@@ -380,6 +381,7 @@ class Style(ClearableCachedPropertyMixin):
     image = StyleLayerProperty('base')
     button = StyleLayerProperty('base')
     text = StyleLayerProperty('base')
+    link = StyleLayerProperty('text')               # Hyperlinks
     selected = StyleLayerProperty('text')           # Selected text
     input = StyleLayerProperty('text')
     table = StyleLayerProperty('base')              # Table elements
@@ -400,7 +402,7 @@ class Style(ClearableCachedPropertyMixin):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
 
-    def _configure(self, kwargs: dict[str, Any]):
+    def _configure(self, kwargs: StyleOptions):
         layers = {}
         for key, val in kwargs.items():
             if key in self._layers:
@@ -440,7 +442,17 @@ class Style(ClearableCachedPropertyMixin):
             return cls.default_style
         elif isinstance(style, cls):
             return style
-        return cls._instances[style]
+        elif isinstance(style, str):
+            return cls._instances[style]
+        try:
+            return cls(**style)
+        except TypeError:
+            pass
+        try:
+            name, kwargs = style
+        except (ValueError, TypeError):
+            raise TypeError(f'Invalid {style=}') from None
+        return cls(name, **kwargs)
 
     def __class_getitem__(cls, name: str) -> Style:
         return cls._instances[name]
@@ -507,6 +519,7 @@ Style(
     parent='default',
     fg=('#cccdcf', '#000000', '#FFFFFF'),
     bg=('#1c1e23', '#a2a2a2', '#781F1F'),
+    link_fg='#3a78f2',
     selected_fg=('#1c1e23', '#a2a2a2', '#781F1F'),  # Inverse of non-selected
     selected_bg=('#cccdcf', '#000000', '#FFFFFF'),
     insert_bg='#FFFFFF',

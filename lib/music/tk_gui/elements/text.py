@@ -16,11 +16,13 @@ from .element import Element, ScrollableMixin
 from ..utils import Justify
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    # from pathlib import Path
     from ..pseudo_elements import Row
 
-__all__ = ['Text', 'Multiline']
+__all__ = ['Text', 'Link', 'Multiline']
 log = logging.getLogger(__name__)
+
+LINK_BIND_DEFAULT = '<Control-ButtonRelease-1>'
 
 
 class Text(Element):
@@ -31,17 +33,20 @@ class Text(Element):
         self,
         value: Any = '',
         link: Union[bool, str] = None,
-        path: Union[bool, str, Path] = None,
+        # path: Union[bool, str, Path] = None,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
-        **kwargs
+        *,
+        link_bind: str = LINK_BIND_DEFAULT,
+        **kwargs,
     ):
         self._tooltip_text = kwargs.pop('tooltip', None)
         super().__init__(justify_text=justify_text, **kwargs)
+        self._link_bind = link_bind
         self._value = str(value)
         self._link = link or link is None
-        self._path = path
+        # self._path = path
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         self.string_var = StringVar()
         self.string_var.set(self._value)
         style = self.style
@@ -59,19 +64,8 @@ class Text(Element):
         #     wrap_len = label.winfo_reqwidth()  # width in pixels
         #     label.configure(wraplength=wrap_len)
         self.pack_widget()
-        if self._link:
+        if self.url:
             self._enable_link()
-
-    def _enable_link(self):
-        label = self.widget
-        label.bind('<Control-Button-1>', self._open_link)
-        if (value := self._value) and value.startswith(('http://', 'https://')):
-            label.configure(cursor='hand2')
-
-    def _disable_link(self):
-        label = self.widget
-        label.unbind('<Control-Button-1>')
-        label.configure(cursor='')
 
     def update(self, value: Any = None, link: Union[bool, str] = None):
         if value is not None:
@@ -85,24 +79,24 @@ class Text(Element):
         return self.string_var.get()
 
     @cached_property
+    def tooltip_text(self) -> str:
+        tooltip = self._tooltip_text
+        if not (url := self.url):
+            return tooltip
+
+        link_text = 'link' if self._link is True else url
+        prefix = f'{tooltip}; open' if tooltip else 'Open'
+        suffix = ' with ctrl + click' if self._link_bind == LINK_BIND_DEFAULT else ''
+        return f'{prefix} {link_text} in a browser{suffix}'
+
+    # region Link Handling
+
+    @cached_property
     def url(self) -> Optional[str]:
         if link := self._link:
             url = link if isinstance(link, str) else self._value
             return url if url.startswith(('http://', 'https://')) else None
         return None
-
-    @cached_property
-    def tooltip_text(self) -> str:
-        if url := self.url:
-            link_text = 'link' if self._link is True else url
-            if tooltip := self._tooltip_text:
-                return f'{tooltip}; open {link_text} in browser with ctrl + click'
-            return f'Open {link_text} in browser with ctrl + click'
-        return self._tooltip_text
-
-    def _open_link(self, event: Event = None):
-        if url := self.url:
-            webbrowser.open(url)
 
     def update_link(self, link: Union[bool, str]):
         old = self._link
@@ -113,6 +107,30 @@ class Text(Element):
             self._enable_link()
         elif old and not link:
             self._disable_link()
+
+    def _enable_link(self):
+        label = self.widget
+        label.bind(self._link_bind, self._open_link)
+        label.configure(cursor='hand2', fg=self.style.link.fg.default)
+
+    def _disable_link(self):
+        label = self.widget
+        label.unbind(self._link_bind)
+        label.configure(cursor='', fg=self.style.text.fg.default)
+
+    def _open_link(self, event: Event = None):
+        if not (url := self.url):
+            return
+        width, height = self.size_and_pos[0]
+        if 0 <= event.x <= width and 0 <= event.y <= height:
+            webbrowser.open(url)
+
+    # endregion
+
+
+class Link(Text):
+    def __init__(self, value: Any = '', link: Union[bool, str] = True, link_bind: str = '<ButtonRelease-1>', **kwargs):
+        super().__init__(value, link=link, link_bind=link_bind, **kwargs)
 
 
 class Multiline(Element, ScrollableMixin):
@@ -137,7 +155,7 @@ class Multiline(Element, ScrollableMixin):
         self.auto_scroll = auto_scroll
         self.rstrip = rstrip
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         self.frame = frame = Frame(row.frame)
         style = self.style
         kwargs = {

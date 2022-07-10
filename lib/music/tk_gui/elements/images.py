@@ -62,7 +62,7 @@ class Image(Element):
     #     # if self.widget is not None:
     #     #     self.resize()
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         try:
             width, height = self.size
         except TypeError:
@@ -124,7 +124,7 @@ class Animation(Image, animated=True):
     def paused(self):
         return not self._run
 
-    def pack_into(self, row: Row):
+    def pack_into(self, row: Row, column: int):
         # log.debug(f'pack_into: {self.size=}')
         self.image_cycle = image_cycle = normalize_image_cycle(self.__image, self.size, self._last_frame_num)
         # log.debug(f'Prepared {len(image_cycle)} frames')

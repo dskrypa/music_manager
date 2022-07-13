@@ -11,6 +11,7 @@ from collections import namedtuple
 from enum import IntEnum
 from itertools import count
 from tkinter.font import Font as TkFont
+from tkinter.ttk import Style as TtkStyle
 from typing import TYPE_CHECKING, Union, Optional, Literal, Type, Mapping, Iterator, Any, Generic, TypeVar, Iterable
 from typing import overload
 
@@ -38,7 +39,7 @@ StyleAttr = Literal[
     'font', 'tk_font', 'fg', 'bg', 'border_width', 'relief',
     'frame_color', 'trough_color', 'arrow_color', 'arrow_width', 'bar_width',
 ]
-Relief = Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']
+Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
 StateName = Literal['default', 'disabled', 'invalid']
 StyleState = Union[State, StateName, Literal[0, 1, 2]]
 
@@ -356,13 +357,14 @@ class StyleLayerProperty:
 
 
 Layer = Literal[
-    'base', 'insert', 'hover', 'focus', 'scroll',
+    'base', 'insert', 'hover', 'focus', 'scroll', 'radio', 'frame',
     'tooltip', 'image', 'button', 'text', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt',
 ]
 
 
 class Style(ClearableCachedPropertyMixin):
     _count = count()
+    _ttk_count = count()
     _layers: set[str] = set()
     _instances: dict[str, Style] = {}
     default_style: Optional[Style] = None
@@ -382,11 +384,13 @@ class Style(ClearableCachedPropertyMixin):
     button = StyleLayerProperty('base')
     text = StyleLayerProperty('base')
     link = StyleLayerProperty('text')               # Hyperlinks
-    selected = StyleLayerProperty('text')           # Selected text
+    selected = StyleLayerProperty('base')           # Selected text / radio buttons / etc
     input = StyleLayerProperty('text')
     table = StyleLayerProperty('base')              # Table elements
     table_header = StyleLayerProperty('table')      # Table headers
     table_alt = StyleLayerProperty('table')         # Alternate / even rows in tables
+    radio = StyleLayerProperty('base')
+    frame = StyleLayerProperty('base')
 
     def __init__(self, name: str = None, *, parent: Union[str, Style] = None, ttk_theme: str = None, **kwargs):
         if not name:  # Anonymous styles won't be stored
@@ -401,6 +405,8 @@ class Style(ClearableCachedPropertyMixin):
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
+
+    # region Configuration / Init
 
     def _configure(self, kwargs: StyleOptions):
         layers = {}
@@ -428,13 +434,21 @@ class Style(ClearableCachedPropertyMixin):
             if layer in self._layers and attr in StyleLayer._fields:
                 return layer, attr
 
-        for layer in ('table_header', 'table_alt'):
+        for layer in self._compound_layer_names():
             n = len(layer) + 1
             if key.startswith(layer) and len(key) > n and key[n - 1] in '_.':
                 if (attr := key[n:]) in StyleLayer._fields:
                     return layer, attr
 
         raise KeyError(f'Invalid style option: {key!r}')
+
+    @classmethod
+    def _compound_layer_names(cls) -> set[str]:
+        try:
+            return cls.__compound_layer_names  # noqa
+        except AttributeError:
+            cls.__compound_layer_names = names = {name for name in cls._layers if '_' in name}
+            return names
 
     @classmethod
     def get_style(cls, style: StyleSpec) -> Style:
@@ -457,6 +471,11 @@ class Style(ClearableCachedPropertyMixin):
     def __class_getitem__(cls, name: str) -> Style:
         return cls._instances[name]
 
+    def make_default(self):
+        self.__class__.default_style = self
+
+    # endregion
+
     def as_dict(self) -> dict[str, Union[str, None, dict[str, StateValues]]]:
         get = self.__dict__.get
         style = {'name': self.name, 'parent': self.parent.name if self.parent else None, 'ttk_theme': get('ttk_theme')}
@@ -466,9 +485,6 @@ class Style(ClearableCachedPropertyMixin):
             else:
                 style[name] = None
         return style
-
-    def make_default(self):
-        self.__class__.default_style = self
 
     def get_map(
         self,
@@ -489,6 +505,12 @@ class Style(ClearableCachedPropertyMixin):
                 found[dst] = value
 
         return found
+
+    def make_ttk_style(self, name_suffix: str) -> tuple[str, TtkStyle]:
+        name = f'{next(self._ttk_count)}__{name_suffix}'
+        ttk_style = TtkStyle()
+        ttk_style.theme_use(self.ttk_theme)
+        return name, ttk_style
 
     # region Font Methods
 

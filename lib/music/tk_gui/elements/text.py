@@ -1,5 +1,5 @@
 """
-Input GUI elements
+Text GUI elements
 
 :author: Doug Skrypa
 """
@@ -171,14 +171,8 @@ class Multiline(Element, ScrollableMixin):
             pass
 
         self.widget = text = TkText(frame, **kwargs)
-        if self.scroll_y:
-            self.add_scroll_bar()
-        if self.scroll_x:
-            text.config(wrap='none')
-            self.add_scroll_bar(False)
-        else:
-            text.config(wrap='word')
-
+        self.add_scroll_bars(self.scroll_y, self.scroll_x)
+        text.config(wrap='none' if self.scroll_x else 'word')  # noqa
         if value := self._value:
             text.insert(1.0, value)
 

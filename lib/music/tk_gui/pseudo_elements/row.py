@@ -1,5 +1,5 @@
 """
-Tkinter GUI core Row and Element classes
+Tkinter GUI core Row class
 
 :author: Doug Skrypa
 """
@@ -74,6 +74,7 @@ class Row:
         return self.parent.window
 
     def pack(self, debug: bool = False):
+        # log.debug(f'Packing row {self.num} in {self.parent=} {self.parent.tk_container=}')
         self.frame = frame = Frame(self.parent.tk_container)
         self.pack_elements(debug)
         anchor = self.anchor

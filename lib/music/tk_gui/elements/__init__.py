@@ -1,4 +1,5 @@
 from .element import Element
+from .frame import Frame
 from .buttons import Button
 from .images import Image, Animation, SpinnerImage, ClockImage
 from .inputs import Input

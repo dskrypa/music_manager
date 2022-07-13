@@ -13,8 +13,9 @@ from collections import defaultdict
 from itertools import count
 from tkinter import TclError, Frame, Text
 from tkinter.ttk import Style as TtkStyle, Scrollbar
-from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
+from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping, overload
 
+from ..pseudo_elements.scroll import add_scroll_bar
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec, State
 from ..utils import Anchor, Justify, Side, Inheritable, ClearableCachedPropertyMixin
@@ -28,19 +29,53 @@ if TYPE_CHECKING:
 __all__ = ['Element', 'Interactive', 'ScrollableMixin']
 log = logging.getLogger(__name__)
 
+_DIRECT_ATTRS = {'key', 'tooltip', 'right_click_menu', 'left_click_cb', 'binds', 'expand', 'fill', 'data'}
+_INHERITABLES = {'pad', 'size', 'auto_size_text', 'grid', 'side', 'anchor', 'justify_text', 'style'}
 
-class Element(ClearableCachedPropertyMixin, ABC):
+
+class ElementBase(ClearableCachedPropertyMixin, ABC):
     _counters = defaultdict(count)
+    _id: int
+    id: str
+    ttk_styles: dict[str, TtkStyle]
+    widget: Optional[Widget] = None
+    style: Style = Inheritable(type=Style.get_style)
+
+    def __init__(self, style: StyleSpec = None):
+        cls = self.__class__
+        self._id = _id = next(self._counters[cls])
+        self.id = f'{cls.__name__}#{_id}'
+        self.ttk_styles = {}
+        if style:
+            self.style = style
+
+    # region TTK Styles
+
+    def ttk_style_name(self, suffix: str) -> str:
+        return f'{self.id}.{suffix}'
+
+    def prepare_ttk_style(self, name_suffix: str) -> tuple[str, TtkStyle]:
+        name = self.ttk_style_name(name_suffix)
+        self.ttk_styles[name] = ttk_style = TtkStyle()
+        ttk_style.theme_use(self.style.ttk_theme)
+        return name, ttk_style
+
+    # endregion
+
+
+class Element(ElementBase, ABC):
     _key: Optional[Key] = None
     _tooltip: Optional[ToolTip] = None
+    _pack_settings: dict[str, Any] = None
     parent: Optional[Row] = None
     column: Optional[int] = None
-    widget: Optional[Widget] = None
     tooltip_text: Optional[str] = None
     right_click_menu: Optional[ContextualMenu] = None
     left_click_cb: Optional[Callable] = None
     binds: Optional[MutableMapping[str, BindCallback]] = None
-    ttk_styles: dict[str, TtkStyle]
+    data: Any = None                                            # Any data that needs to be stored with the element
+    expand: bool = None
+    fill: TkFill = None
 
     pad: XY = Inheritable('element_padding')
     size: XY = Inheritable('element_size')
@@ -49,8 +84,8 @@ class Element(ClearableCachedPropertyMixin, ABC):
     anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
     justify_text: Justify = Inheritable('text_justification', type=Justify)
     side: Side = Inheritable('element_side', type=Side)
-    style: Style = Inheritable()
 
+    @overload
     def __init__(
         self,
         *,
@@ -70,35 +105,25 @@ class Element(ClearableCachedPropertyMixin, ABC):
         right_click_menu: ContextualMenu = None,
         left_click_cb: Callable = None,
         binds: MutableMapping[str, BindCallback] = None,
+        data: Any = None,
     ):
-        cls = self.__class__
-        self.id = f'{cls.__name__}#{next(self._counters[cls])}'
-        if key:
-            self.key = key
+        ...
+
+    def __init__(self, *, visible: bool = True, style: StyleSpec = None, **kwargs):
+        super().__init__(style)
         self._visible = visible
 
-        # Directly stored attrs that override class defaults
-        if tooltip:
-            self.tooltip_text = tooltip
-        if right_click_menu:
-            self.right_click_menu = right_click_menu
-        if left_click_cb:
-            self.left_click_cb = left_click_cb
-        if binds:
-            self.binds = binds
-
-        # Inheritable attrs
-        self.pad = pad
-        self.size = size
-        self.auto_size_text = auto_size_text
-        self.grid = grid
-        self.side = side
-        self.anchor = anchor
-        self.justify_text = justify_text
-        self.expand = expand
-        self.fill = fill
-        self.style = Style.get_style(style)
-        self.ttk_styles = {}
+        bad = {}
+        for key, val in kwargs.items():
+            if key in _DIRECT_ATTRS:
+                if val is not None:
+                    setattr(self, key, val)
+            elif key in _INHERITABLES:
+                setattr(self, key, val)
+            else:
+                bad[key] = val
+        if bad:
+            raise ValueError(f'Invalid options for {self.__class__.__name__}: {bad}')
 
     def __repr__(self) -> str:
         x, y = self.col_row
@@ -119,19 +144,6 @@ class Element(ClearableCachedPropertyMixin, ABC):
     @property
     def value(self) -> Any:
         return None
-
-    # region TTK Styles
-
-    def ttk_style_name(self, suffix: str) -> str:
-        return f'{self.id}.{suffix}'
-
-    def prepare_ttk_style(self, name_suffix: str) -> tuple[str, TtkStyle]:
-        name = self.ttk_style_name(name_suffix)
-        self.ttk_styles[name] = ttk_style = TtkStyle()
-        ttk_style.theme_use(self.style.ttk_theme)
-        return name, ttk_style
-
-    # endregion
 
     # region Introspection
 
@@ -201,7 +213,7 @@ class Element(ClearableCachedPropertyMixin, ABC):
         if focus:
             widget.focus_set()
         if disabled:
-            widget['state'] = 'readonly'
+            widget['state'] = 'readonly' if disabled is True else disabled
 
     def _pack_widget(self, widget: Widget, expand: bool, fill: TkFill, kwargs: dict[str, Any]):
         if expand is None:
@@ -243,17 +255,24 @@ class Element(ClearableCachedPropertyMixin, ABC):
     # region Visibility Methods
 
     def hide(self):
+        widget = self.widget
         if self.grid:
-            self.widget.grid_forget()
+            self._pack_settings = widget.grid_info()
+            widget.grid_forget()
         else:
-            self.widget.pack_forget()
+            self._pack_settings = widget.pack_info()
+            widget.pack_forget()
         self._visible = False
 
     def show(self):
+        widget = self.widget
+        settings = self._pack_settings or {}
         if self.grid:
-            self.widget.grid_configure(row=self.parent.num, column=self.column, **self.pad_kw)
+            widget.grid_configure(**settings)
+            # widget.grid_configure(row=self.parent.num, column=self.column, **self.pad_kw)
         else:
-            self.widget.pack(**self.pad_kw)
+            widget.pack(**settings)
+            # widget.pack(**self.pad_kw)
         self._visible = True
 
     def toggle_visibility(self, show: bool = None):
@@ -334,12 +353,7 @@ class Interactive(Element, ABC):
 class ScrollableMixin:
     frame: Frame
     widget: Text
-    id: str
     style: Style
-    ttk_styles: dict[str, TtkStyle]
-    ttk_style_name: Callable[[str], str]
-    prepare_ttk_style: Callable[[str], tuple[str, TtkStyle]]
-
     scroll_bar_y: Optional[Scrollbar] = None
     scroll_bar_x: Optional[Scrollbar] = None
 
@@ -350,29 +364,6 @@ class ScrollableMixin:
             self.add_scroll_bar(False)
 
     def add_scroll_bar(self, vertical: bool = True):
-        if vertical:
-            direction, axis, side = tkc.VERTICAL, 'y', tkc.RIGHT
-            cmd = self.widget.yview
-        else:
-            direction, axis, side = tkc.HORIZONTAL, 'x', tkc.BOTTOM
-            cmd = self.widget.xview
-
-        name, ttk_style = self.prepare_ttk_style(f'scroll_bar.{direction.title()}.TScrollbar')
-        # log.debug(f'Adding {vertical=} scroll bar to {self} with {name=}')
-        scroll_bar = Scrollbar(self.frame, orient=direction, command=cmd, style=name)  # noqa
+        axis = 'y' if vertical else 'x'
+        scroll_bar = add_scroll_bar(self.frame, self.widget, axis, self.style)  # noqa
         setattr(self, f'scroll_bar_{axis}', scroll_bar)
-
-        style = self.style
-        kwargs = style.get_map(
-            'scroll',
-            troughcolor='trough_color', framecolor='frame_color', bordercolor='frame_color',
-            width='bar_width', arrowsize='arrow_width', relief='relief',
-        )
-        ttk_style.configure(name, **kwargs)
-        if (bg := style.scroll.bg.default) and (ac := style.scroll.arrow_color.default):
-            bg_list = [('selected', bg), ('active', ac), ('background', bg), ('!focus', bg)]
-            ac_list = [('selected', ac), ('active', bg), ('background', bg), ('!focus', ac)]
-            ttk_style.map(name, background=bg_list, arrowcolor=ac_list)
-
-        self.widget.configure(**{f'{axis}scrollcommand': scroll_bar.set})
-        scroll_bar.pack(side=side, fill=axis)  # noqa

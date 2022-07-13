@@ -16,11 +16,10 @@ from itertools import count
 from os import environ
 from pathlib import Path
 from tkinter import Tk, Toplevel, Frame, PhotoImage, TclError, Event, CallWrapper, Widget
-from typing import TYPE_CHECKING, Optional, Union, Iterable, Type, Any, overload
+from typing import TYPE_CHECKING, Optional, Union, Type, Any, overload
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
-from .elements.element import Element
 from .exceptions import DuplicateKeyError
 from .positioning import positioner
 from .pseudo_elements.row import Row
@@ -28,6 +27,7 @@ from .style import Style
 from .utils import BindTargets, Anchor, Justify, Side, BindEvent
 
 if TYPE_CHECKING:
+    from .elements.element import Element
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool
 
 __all__ = ['RowContainer', 'Window']
@@ -36,14 +36,21 @@ log = logging.getLogger(__name__)
 _OS = platform.system().lower()
 ON_WINDOWS = _OS == 'windows'
 ON_LINUX = _OS == 'linux'
+CONTAINER_PARAMS = {'anchor_elements', 'text_justification', 'element_side', 'element_padding', 'element_size'}
 
 
 class RowContainer(ABC):
     _counter = count()
+    anchor_elements: Anchor
+    text_justification: Justify
+    element_side: Side
+    element_padding: Optional[XY]
+    element_size: Optional[XY]
+    rows: list[Row]
 
     def __init__(
         self,
-        layout: Iterable[Iterable[Element]] = None,
+        layout: Layout = None,
         *,
         style: Style = None,
         grid: bool = False,
@@ -56,6 +63,17 @@ class RowContainer(ABC):
         self._id = next(self._counter)
         self.style = Style.get_style(style)
         self.grid = grid
+        self.init_container(layout, anchor_elements, text_justification, element_side, element_padding, element_size)
+
+    def init_container(
+        self,
+        layout: Layout = None,
+        anchor_elements: Union[str, Anchor] = None,
+        text_justification: Union[str, Justify] = None,
+        element_side: Union[str, Side] = None,
+        element_padding: XY = None,
+        element_size: XY = None,
+    ):
         self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
         self.text_justification = Justify(text_justification)
         self.element_side = Side(element_side) if element_side else Side.LEFT
@@ -99,6 +117,17 @@ class RowContainer(ABC):
         if item is self.tk_container:
             return True
         return any(item in row for row in self.rows)
+
+    def pack_rows(self, debug: bool = False):
+        # PySimpleGUI: PackFormIntoFrame(window, master, window)
+        if debug:
+            n_rows = len(self.rows)
+            for i, row in enumerate(self.rows):
+                log.debug(f'Packing row {i} / {n_rows}')
+                row.pack(debug)
+        else:
+            for row in self.rows:
+                row.pack()
 
 
 def _tk_event_handler(tk_event: str):
@@ -476,17 +505,6 @@ class Window(RowContainer):
         self.apply_binds()
         # root.after(250, self._sigint_fix)
         root.mainloop(1)
-
-    def pack_rows(self, debug: bool = False):
-        # PySimpleGUI: PackFormIntoFrame(window, master, window)
-        if debug:
-            n_rows = len(self.rows)
-            for i, row in enumerate(self.rows):
-                log.debug(f'Packing row {i} / {n_rows}')
-                row.pack(debug)
-        else:
-            for row in self.rows:
-                row.pack()
 
     def make_modal(self):
         root = self.root

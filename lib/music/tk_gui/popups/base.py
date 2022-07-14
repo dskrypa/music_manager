@@ -13,10 +13,10 @@ from queue import Queue
 from threading import current_thread, main_thread
 from typing import TYPE_CHECKING, Union, Collection, Mapping
 
-from ..core import Window
 from ..elements import Input, Button
 from ..positioning import positioner
 from ..style import Style, StyleSpec
+from ..window import Window
 
 if TYPE_CHECKING:
     from ..typing import XY, Layout, Bool

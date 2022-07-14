@@ -22,9 +22,9 @@ from ..utils import Anchor, Justify, Side, Inheritable, ClearableCachedPropertyM
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
-    from ..core import Window
     from ..pseudo_elements import ContextualMenu, Row
     from ..typing import XY, BindCallback, Key, TkFill
+    from ..window import Window
 
 __all__ = ['Element', 'Interactive', 'ScrollableMixin']
 log = logging.getLogger(__name__)

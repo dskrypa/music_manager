@@ -15,9 +15,10 @@ from ..style import Style
 from ..utils import Anchor, Justify, Side, Inheritable
 
 if TYPE_CHECKING:
-    from ..core import RowContainer, Window
     from ..elements import Element
     from ..typing import XY
+    from ..window import Window
+    from .row_container import RowContainer
 
 __all__ = ['Row']
 log = logging.getLogger(__name__)

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Optional
 from ..style import Style, StyleSpec
 
 if TYPE_CHECKING:
-    from ..core import Element
+    from ..elements.element import Element
     from ..typing import XY
 
 __all__ = ['ToolTip']

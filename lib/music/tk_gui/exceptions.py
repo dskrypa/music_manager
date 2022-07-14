@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .core import Window
     from .elements import Element
     from .typing import Key
+    from .window import Window
 
 __all__ = ['TkGuiException', 'DuplicateKeyError']
 

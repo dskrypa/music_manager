@@ -8,10 +8,10 @@ from ds_tools.logging import init_logging
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
-from .core import Window
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
+from .window import Window
 
 ICONS_DIR = Path(__file__).resolve().parents[3].joinpath('icons')
 

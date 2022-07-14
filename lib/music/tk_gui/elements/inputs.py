@@ -13,8 +13,8 @@ from functools import partial
 from tkinter import TclError, Entry, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any
 
+from ..enums import Justify
 from .element import Interactive
-from ..utils import Justify
 
 if TYPE_CHECKING:
     from pathlib import Path

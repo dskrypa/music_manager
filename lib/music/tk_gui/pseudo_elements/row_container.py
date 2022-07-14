@@ -1,5 +1,5 @@
 """
-Tkinter GUI core
+Tkinter GUI row container
 
 :author: Doug Skrypa
 """
@@ -12,8 +12,8 @@ from itertools import count
 from tkinter import Toplevel, Frame, Widget
 from typing import TYPE_CHECKING, Optional, Union
 
+from ..enums import Anchor, Justify, Side
 from ..style import Style
-from ..utils import Anchor, Justify, Side
 from .row import Row
 
 if TYPE_CHECKING:

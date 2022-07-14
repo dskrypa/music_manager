@@ -18,8 +18,8 @@ from PIL.ImageTk import PhotoImage
 
 from ds_tools.images.utils import ImageType, as_image, scale_image
 
+from ..enums import Justify
 from .element import Interactive
-from ..utils import Justify
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage

@@ -64,7 +64,12 @@ class GuiTest(Command):
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
 
-        Window('Test One', layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
+        Window(layout, 'Scroll Test', anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
+
+    @action
+    def max_size(self):
+        layout = [[Text(f'test_{i:03d}')] for i in range(100)]
+        Window(layout, 'Auto Max Size Test', anchor_elements='c', exit_on_esc=True, handle_configure=True).run()
 
     @action(default=True)
     def window(self):
@@ -102,11 +107,12 @@ class GuiTest(Command):
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
 
-        # Window('Test One', layout, size=(600, 600), anchor_elements='c').run()
-        # Window('Test One', layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
-        # Window('Test One', layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
+        # Window(layout, size=(600, 600), anchor_elements='c').run()
+        # Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
+        # Window(layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
         # TODO: If window is too small for layout, add scroll bar?  Right now the remainder is silently hidden
-        Window('Test One', layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run()
+        # Window(layout, 'Test One', anchor_elements='c', binds={'<Escape>': 'exit'}).run()
+        Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run()
 
 
 if __name__ == '__main__':

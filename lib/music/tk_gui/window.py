@@ -1,5 +1,5 @@
 """
-Tkinter GUI core
+Tkinter GUI Window
 
 :author: Doug Skrypa
 """
@@ -7,22 +7,19 @@ Tkinter GUI core
 from __future__ import annotations
 
 import logging
-import platform
-import sys
 from functools import partial, cached_property
-from inspect import stack
 from os import environ
-from pathlib import Path
 from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, overload
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
+from .enums import BindTargets, Anchor, Justify, Side, BindEvent
 from .exceptions import DuplicateKeyError
 from .positioning import positioner
 from .pseudo_elements.row_container import RowContainer
 from .style import Style
-from .utils import BindTargets, Anchor, Justify, Side, BindEvent
+from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 
 if TYPE_CHECKING:
     from .elements.element import Element
@@ -31,9 +28,6 @@ if TYPE_CHECKING:
 __all__ = ['Window']
 log = logging.getLogger(__name__)
 
-_OS = platform.system().lower()
-ON_WINDOWS = _OS == 'windows'
-ON_LINUX = _OS == 'linux'
 CONTAINER_PARAMS = {'anchor_elements', 'text_justification', 'element_side', 'element_padding', 'element_size'}
 
 
@@ -65,12 +59,13 @@ class Window(RowContainer):
     @overload
     def __init__(
         self,
-        title: str = None,
         layout: Layout = None,
+        title: str = None,
         *,
         style: Style = None,
         grid: bool = False,
         size: XY = None,
+        min_size: XY = (200, 50),
         position: XY = None,
         resizable: Bool = True,
         keep_on_top: Bool = False,
@@ -87,6 +82,8 @@ class Window(RowContainer):
         element_padding: XY = None,
         element_size: XY = None,
         binds: BindMap = None,
+        handle_configure: Bool = False,
+        exit_on_esc: Bool = False,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -95,10 +92,11 @@ class Window(RowContainer):
 
     def __init__(
         self,
-        title: str = None,
         layout: Layout = None,
+        title: str = None,
         *,
         size: XY = None,
+        min_size: XY = (200, 50),
         position: XY = None,
         resizable: Bool = True,
         keep_on_top: Bool = False,
@@ -110,18 +108,15 @@ class Window(RowContainer):
         no_title_bar: Bool = False,
         margins: XY = (10, 5),  # x, y
         binds: BindMap = None,
+        handle_configure: Bool = False,
+        exit_on_esc: Bool = False,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
-        if title is None:
-            try:
-                # title = Path(inspect.getsourcefile(inspect.stack()[-1][0])).stem.replace('_', ' ').title()
-                title = Path(stack()[-1].filename).stem.replace('_', ' ').title()
-            except Exception:  # noqa
-                title = ''
-        self.title = title
+        self.title = title or ProgramMetadata('').name.replace('_', ' ').title()
         super().__init__(layout, **kwargs)
         self._size = size
+        self._min_size = min_size
         self._position = position
         self._event_cbs: dict[BindEvent, EventCallback] = {}
         self._bound_for_events: set[str] = set()
@@ -139,6 +134,10 @@ class Window(RowContainer):
         self.no_title_bar = no_title_bar
         self.margins = margins
         self.binds = binds or {}
+        if handle_configure:
+            self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
+        if exit_on_esc:
+            self.binds.setdefault('<Escape>', BindTargets.EXIT)
         # self.kill_others_on_close = kill_others_on_close
         if self.rows:
             self.show()
@@ -212,6 +211,7 @@ class Window(RowContainer):
     # endregion
 
     # region Size & Position Methods
+    # region Size
 
     @property
     def size(self) -> XY:
@@ -233,6 +233,61 @@ class Window(RowContainer):
         root.minsize(width, height)
         root.update_idletasks()
 
+    def set_max_size(self, width: int, height: int):
+        root = self.root
+        root.maxsize(width, height)
+        root.update_idletasks()
+
+    def _outer_size(self) -> XY:
+        # Outer dimensions of the window, used for calculating relative position
+        width, height = self.size
+        if not self.no_title_bar:
+            height += 30  # Title bar size on Windows 10; more info would be needed for portability
+        return width, height
+
+    def _set_init_size(self):
+        if min_size := self._min_size:
+            self.set_min_size(*min_size)
+        if self._size:
+            self.size = self._size
+            return
+
+        try:
+            x, y = self._position
+        except TypeError:
+            x, y = self.position
+
+        if not (monitor := positioner.get_monitor(x, y)):
+            log.debug(f'Could not find monitor for pos={x, y}')
+            return
+
+        root = self.root
+        root.update_idletasks()
+        width, height = root.winfo_reqwidth(), root.winfo_reqheight()
+        max_width = monitor.width - 100
+        max_height = monitor.height - 130
+        if width < max_width and height < max_height:
+            return
+
+        if width > max_width:
+            width = max_width
+        if height > max_height:
+            height = max_height
+        self.size = (width, height)
+
+    # endregion
+
+    @property
+    def true_size_and_pos(self) -> tuple[XY, XY]:
+        root = self.root
+        root.update_idletasks()
+        size, pos = root.geometry().split('+', 1)
+        w, h = size.split('x', 1)
+        x, y = pos.split('+', 1)
+        return (int(w), int(h)), (int(x), int(y))
+
+    # region Position
+
     @property
     def position(self) -> XY:
         root = self.root
@@ -251,22 +306,6 @@ class Window(RowContainer):
         x, y = self.root.geometry().rsplit('+', 2)[1:]
         return int(x), int(y)
 
-    @property
-    def true_size_and_pos(self) -> tuple[XY, XY]:
-        root = self.root
-        root.update_idletasks()
-        size, pos = root.geometry().split('+', 1)
-        w, h = size.split('x', 1)
-        x, y = pos.split('+', 1)
-        return (int(w), int(h)), (int(x), int(y))
-
-    def _outer_size(self) -> XY:
-        # Outer dimensions of the window, used for calculating relative position
-        width, height = self.size
-        if not self.no_title_bar:
-            height += 30  # Title bar size on Windows 10; more info would be needed for portability
-        return width, height
-
     def move_to_center(self, other: Window = None):
         """
         Move this Window to the center of the monitor on which it is being displayed, or to the center of the specified
@@ -275,9 +314,13 @@ class Window(RowContainer):
         :param other: A :class:`.Window`
         """
         win_w, win_h = self._outer_size()
-        if other:
+        try:
             x, y = other.position
-            monitor = positioner.get_monitor(x, y)
+        except (TypeError, AttributeError):
+            x, y = self.position
+        if not (monitor := positioner.get_monitor(x, y)):
+            return
+        elif other:
             par_w, par_h = other._outer_size()
             x += (par_w - win_w) // 2
             y += (par_h - win_h) // 2
@@ -290,11 +333,15 @@ class Window(RowContainer):
             if y < y_min or (y + win_h) > y_max:
                 y = y_min + (monitor.height - win_h) // 2
         else:
-            monitor = positioner.get_monitor(*self.position)
             x = monitor.x + (monitor.width - win_w) // 2
             y = monitor.y + (monitor.height - win_h) // 2
 
         self.position = x, y
+
+    # endregion
+    # endregion
+
+    # region Window State Methods
 
     def minimize(self):
         self.root.iconify()
@@ -309,7 +356,7 @@ class Window(RowContainer):
             root.deiconify()
         elif state == 'zoomed':
             root.state('normal')
-            # self.root.attributes('-fullscreen', False)
+            # root.attributes('-fullscreen', False)
 
     @property
     def is_maximized(self) -> bool:
@@ -328,6 +375,19 @@ class Window(RowContainer):
     def send_to_back(self):
         self.root.lower()
 
+    def disable(self):
+        self.root.attributes('-disabled', 1)
+
+    def enable(self):
+        self.root.attributes('-disabled', 0)
+
+    def take_focus(self):
+        self.root.focus_force()
+
+    @property
+    def has_focus(self) -> bool:
+        return self.root.focus_get() in self  # noqa
+
     # endregion
 
     # region Config / Update Methods
@@ -340,6 +400,24 @@ class Window(RowContainer):
 
     def set_title(self, title: str):
         self.root.wm_title(title)
+
+    def disable_title_bar(self):
+        try:
+            if ON_LINUX:
+                self.root.wm_attributes('-type', 'dock')
+            else:
+                self.root.wm_overrideredirect(True)
+        except (TclError, RuntimeError):
+            log.warning('Error while disabling title bar:', exc_info=True)
+
+    def make_modal(self):
+        root = self.root
+        try:  # Apparently this does not work on macs...
+            root.transient()
+            root.grab_set()
+            root.focus_force()
+        except (TclError, RuntimeError):
+            log.error('Error configuring window to be modal:', exc_info=True)
 
     # endregion
 
@@ -354,14 +432,12 @@ class Window(RowContainer):
             return
         self.root = root = Toplevel()
         self._finalizer = finalize(self, self._close, root)
-
         self.set_alpha(0)  # Hide window while building it
 
         if bg := self.style.base.bg.default:
             root.configure(background=bg)
         if not self.resizable:
             root.resizable(False, False)
-
         if not self.can_minimize:
             root.attributes('-toolwindow', 1)
         if self.keep_on_top:
@@ -372,55 +448,33 @@ class Window(RowContainer):
             except (TclError, RuntimeError):
                 log.error('Transparent window color not supported on this platform (Windows only)')
 
-        # region PySimpleGUI:_convert_window_to_tk
-
-        root.wm_title(self.title)
-        # skip: PySimpleGUI:InitializeResults
+        # PySimpleGUI:_convert_window_to_tk
         self.pack_rows()
         root.configure(padx=self.margins[0], pady=self.margins[1])
 
-        if self._size:
-            self.size = self._size
-
+        self._set_init_size()
         if self._position:
             self.position = self._position
         else:
             self.move_to_center()
 
         if self.no_title_bar:
-            try:
-                if sys.platform.startswith('linux'):
-                    root.wm_attributes('-type', 'dock')
-                else:
-                    root.wm_overrideredirect(True)
-            except (TclError, RuntimeError):
-                log.warning('Error while disabling title bar:', exc_info=True)
+            self.disable_title_bar()
+        else:
+            root.wm_title(self.title)
+            root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
 
-        # endregion
-
-        root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
         self.set_alpha(1 if self.alpha_channel is None else self.alpha_channel)
-
         if self.no_title_bar:
             root.focus_force()
-
-        root.protocol('WM_DESTROY_WINDOW', self.close)
-        root.protocol('WM_DELETE_WINDOW', self.close)
         if self.modal:
             self.make_modal()
 
+        root.protocol('WM_DESTROY_WINDOW', self.close)
+        root.protocol('WM_DELETE_WINDOW', self.close)
         self.apply_binds()
         # root.after(250, self._sigint_fix)
-        root.mainloop(1)
-
-    def make_modal(self):
-        root = self.root
-        try:  # Apparently this does not work on macs...
-            root.transient()
-            root.grab_set()
-            root.focus_force()
-        except (TclError, RuntimeError):
-            log.error('Error configuring window to be modal:', exc_info=True)
+        root.update_idletasks()
 
     @classmethod
     def _init_hidden_root(cls):
@@ -454,12 +508,11 @@ class Window(RowContainer):
             self._bind(event_pat, cb)
 
     def _bind(self, event_pat: Bindable, cb: BindTarget):
-        if cb is None:
-            return
-
         bind_event = _normalize_bind_event(event_pat)
         if isinstance(bind_event, BindEvent):
             self._bind_event(bind_event, cb)
+        elif cb is None:
+            return
         else:
             cb = self._normalize_bind_cb(cb)
             log.debug(f'Binding event={bind_event!r} to {cb=}')
@@ -481,7 +534,8 @@ class Window(RowContainer):
         return cb
 
     def _bind_event(self, bind_event: BindEvent, cb: EventCallback):
-        self._event_cbs[bind_event] = cb
+        if cb is not None:
+            self._event_cbs[bind_event] = cb
         if (tk_event := bind_event.event) not in self._bound_for_events:
             method = getattr(self, self._tk_event_handlers[tk_event])
             self.root.bind(tk_event, method)
@@ -493,6 +547,7 @@ class Window(RowContainer):
 
     @_tk_event_handler('<Configure>')
     def handle_config_changed(self, event: Event):
+        # log.debug(f'Config changed: {event=}')
         root = self.root
         if self._motion_end_cb_id:
             root.after_cancel(self._motion_end_cb_id)
@@ -582,19 +637,6 @@ class Window(RowContainer):
     #     #         window.close()
 
     # endregion
-
-    def disable(self):
-        self.root.attributes('-disabled', 1)
-
-    def enable(self):
-        self.root.attributes('-disabled', 0)
-
-    def take_focus(self):
-        self.root.focus_force()
-
-    @property
-    def has_focus(self) -> bool:
-        return self.root.focus_get() in self  # noqa
 
     # def _sigint_fix(self):
     #     """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 # import logging
 from collections import namedtuple
-from enum import IntEnum
 from itertools import count
 from tkinter.font import Font as TkFont
 from tkinter.ttk import Style as TtkStyle
 from typing import TYPE_CHECKING, Union, Optional, Literal, Type, Mapping, Iterator, Any, Generic, TypeVar, Iterable
 from typing import overload
 
-from .utils import ClearableCachedPropertyMixin, MissingMixin, Inheritable
+from .enums import StyleState
+from .utils import ClearableCachedPropertyMixin, Inheritable
 
 if TYPE_CHECKING:
     from .typing import XY
@@ -26,13 +26,6 @@ __all__ = ['Style', 'StyleSpec']
 StyleOptions = Mapping[str, Any]
 StyleSpec = Union[str, 'Style', StyleOptions, tuple[str, StyleOptions], None]
 
-
-class State(MissingMixin, IntEnum):
-    DEFAULT = 0
-    DISABLED = 1
-    INVALID = 2
-
-
 T_co = TypeVar('T_co', covariant=True)
 
 StyleAttr = Literal[
@@ -41,25 +34,25 @@ StyleAttr = Literal[
 ]
 Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
 StateName = Literal['default', 'disabled', 'invalid']
-StyleState = Union[State, StateName, Literal[0, 1, 2]]
+StyleStateVal = Union[StyleState, StateName, Literal[0, 1, 2]]
 
 OptStr = Optional[str]
 _OptStrTuple = Union[tuple[OptStr], tuple[OptStr, OptStr], tuple[OptStr, OptStr, OptStr]]
-OptStrVals = Union[OptStr, Mapping[StyleState, OptStr], _OptStrTuple]
+OptStrVals = Union[OptStr, Mapping[StyleStateVal, OptStr], _OptStrTuple]
 
 OptInt = Optional[int]
 _OptIntTuple = Union[tuple[OptInt], tuple[OptInt, OptInt], tuple[OptInt, OptInt, OptInt]]
-OptIntVals = Union[OptInt, Mapping[StyleState, OptInt], _OptIntTuple]
+OptIntVals = Union[OptInt, Mapping[StyleStateVal, OptInt], _OptIntTuple]
 
 Font = Union[str, tuple[str, int], None]
 _FontValsTuple = Union[tuple[Font], tuple[Font, Font], tuple[Font, Font, Font]]
-FontValues = Union[Font, Mapping[StyleState, Font], _FontValsTuple]
+FontValues = Union[Font, Mapping[StyleStateVal, Font], _FontValsTuple]
 
 StyleValue = Union[OptStr, OptInt, Font]
 FinalValue = Union[StyleValue, TkFont]
 RawStateValues = Union[OptStrVals, OptIntVals, FontValues]
 
-LayerValues = Union[FontValues, Mapping[StyleState, StyleValue]]
+LayerValues = Union[FontValues, Mapping[StyleStateVal, StyleValue]]
 
 # region State Values
 
@@ -147,22 +140,22 @@ class StateValues(Generic[T_co]):
     def copy(self: StateValues[T_co], layer: StyleLayer = None, name: str = None) -> StateValues[T_co]:
         return self.__class__(layer or self.layer, name or self.name, *self.values)
 
-    def __call__(self, state: StyleState = State.DEFAULT) -> Optional[T_co]:
-        state = State(state)
+    def __call__(self, state: StyleStateVal = StyleState.DEFAULT) -> Optional[T_co]:
+        state = StyleState(state)
         value = self.values[state]
-        if not value and state != State.DEFAULT:
-            return self.values[State.DEFAULT]
+        if not value and state != StyleState.DEFAULT:
+            return self.values[StyleState.DEFAULT]
         return value
 
-    def __getitem__(self, state: StyleState) -> Optional[T_co]:
-        state = State(state)
+    def __getitem__(self, state: StyleStateVal) -> Optional[T_co]:
+        state = StyleState(state)
         value = self.values[state]
-        if not value and state != State.DEFAULT:
-            return self.values[State.DEFAULT]
+        if not value and state != StyleState.DEFAULT:
+            return self.values[StyleState.DEFAULT]
         return value
 
-    def __setitem__(self, state: StyleState, value: Optional[T_co]):
-        state = State(state)
+    def __setitem__(self, state: StyleStateVal, value: Optional[T_co]):
+        state = StyleState(state)
         self.values = StateValues(*(value if i == state else v for i, v in enumerate(self.values)))
 
     def __iter__(self) -> Iterator[Optional[T_co]]:
@@ -489,7 +482,7 @@ class Style(ClearableCachedPropertyMixin):
     def get_map(
         self,
         layer: Layer = 'base',
-        state: StyleState = State.DEFAULT,
+        state: StyleStateVal = StyleState.DEFAULT,
         attrs: Iterable[StyleAttr] = None,  # Note: PyCharm doesn't handle this Literal well
         include_none: bool = False,
         **dst_src_map
@@ -514,19 +507,19 @@ class Style(ClearableCachedPropertyMixin):
 
     # region Font Methods
 
-    def char_height(self, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> int:
+    def char_height(self, layer: Layer = 'base', state: StyleStateVal = StyleState.DEFAULT) -> int:
         tk_font: TkFont = getattr(self, layer).tk_font[state]
         return tk_font.metrics('linespace')
 
-    def char_width(self, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> int:
+    def char_width(self, layer: Layer = 'base', state: StyleStateVal = StyleState.DEFAULT) -> int:
         tk_font: TkFont = getattr(self, layer).tk_font[state]
         return tk_font.measure('A')
 
-    def measure(self, text: str, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> int:
+    def measure(self, text: str, layer: Layer = 'base', state: StyleStateVal = StyleState.DEFAULT) -> int:
         tk_font: TkFont = getattr(self, layer).tk_font[state]
         return tk_font.measure(text)
 
-    def text_size(self, text: str, layer: Layer = 'base', state: StyleState = State.DEFAULT) -> XY:
+    def text_size(self, text: str, layer: Layer = 'base', state: StyleStateVal = StyleState.DEFAULT) -> XY:
         tk_font: TkFont = getattr(self, layer).tk_font[state]
         width = tk_font.measure(text)
         height = tk_font.metrics('linespace')

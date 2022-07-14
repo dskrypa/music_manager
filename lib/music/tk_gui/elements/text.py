@@ -12,8 +12,8 @@ from functools import cached_property
 from tkinter import StringVar, Label, Event, Frame, Text as TkText
 from typing import TYPE_CHECKING, Optional, Union, Any
 
+from ..enums import Justify
 from .element import Element, ScrollableMixin
-from ..utils import Justify
 
 if TYPE_CHECKING:
     # from pathlib import Path

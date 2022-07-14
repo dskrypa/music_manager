@@ -15,10 +15,11 @@ from tkinter import TclError, Frame, Text
 from tkinter.ttk import Style as TtkStyle, Scrollbar
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping, overload
 
+from ..enums import StyleState, Anchor, Justify, Side
 from ..pseudo_elements.scroll import add_scroll_bar
 from ..pseudo_elements.tooltips import ToolTip
-from ..style import Style, StyleSpec, State
-from ..utils import Anchor, Justify, Side, Inheritable, ClearableCachedPropertyMixin
+from ..style import Style, StyleSpec
+from ..utils import Inheritable, ClearableCachedPropertyMixin
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
@@ -339,12 +340,12 @@ class Interactive(Element, ABC):
         self.valid = True
 
     @property
-    def style_state(self) -> State:
+    def style_state(self) -> StyleState:
         if self.disabled:
-            return State.DISABLED
+            return StyleState.DISABLED
         elif not self.valid:
-            return State.INVALID
-        return State.DEFAULT
+            return StyleState.INVALID
+        return StyleState.DEFAULT
 
     def pack_widget(self, *, expand: bool = False, fill: TkFill = tkc.NONE, **kwargs):
         super().pack_widget(expand=expand, fill=fill, focus=self.focus, disabled=self.disabled, **kwargs)

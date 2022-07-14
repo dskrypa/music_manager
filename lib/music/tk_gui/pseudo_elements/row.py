@@ -11,8 +11,9 @@ import tkinter.constants as tkc
 from tkinter import Frame, Widget
 from typing import TYPE_CHECKING, Optional, Union, Iterable
 
+from ..enums import Anchor, Justify, Side
 from ..style import Style
-from ..utils import Anchor, Justify, Side, Inheritable
+from ..utils import Inheritable
 
 if TYPE_CHECKING:
     from ..elements import Element

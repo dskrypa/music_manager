@@ -11,7 +11,7 @@ from typing import Literal, _ProtocolMeta  # noqa
 if TYPE_CHECKING:
     from tkinter import Event
     from .elements import Element
-    from .utils import BindTargets, BindEvent
+    from .enums import BindTargets, BindEvent
 
 # fmt: off
 __all__ = [

@@ -11,10 +11,10 @@ import tkinter.constants as tkc
 from tkinter import Frame as TkFrame, LabelFrame, Canvas, Widget, Event
 from typing import TYPE_CHECKING, Optional, Union, Iterable, Type
 
+from ..enums import Anchor, Justify, Side
 from ..pseudo_elements.row_container import RowContainer
 from ..pseudo_elements.scroll import add_scroll_bar
 from ..style import Style
-from ..utils import Anchor, Justify, Side, Inheritable
 from ..window import Window, CONTAINER_PARAMS, ON_WINDOWS
 from .element import Element, ElementBase, ScrollableMixin
 

@@ -17,12 +17,15 @@ from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection
 if TYPE_CHECKING:
     from .typing import HasParent
 
-__all__ = ['ON_WINDOWS', 'ON_LINUX', 'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata', 'tcl_version']
+__all__ = [
+    'ON_WINDOWS', 'ON_LINUX', 'ON_MAC', 'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata', 'tcl_version'
+]
 log = logging.getLogger(__name__)
 
 _OS = platform.system().lower()
 ON_WINDOWS = _OS == 'windows'
 ON_LINUX = _OS == 'linux'
+ON_MAC = _OS == 'darwin'
 
 
 class Inheritable:

@@ -11,6 +11,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
+from .popups.raw import PickFolder
 from .window import Window
 
 ICONS_DIR = Path(__file__).resolve().parents[3].joinpath('icons')
@@ -77,6 +78,11 @@ class GuiTest(Command):
     def max_size(self):
         layout = [[Text(f'test_{i:03d}')] for i in range(100)]
         Window(layout, 'Auto Max Size Test', anchor_elements='c', exit_on_esc=True, handle_configure=True).run()
+
+    @action
+    def pick_folder(self):
+        path = PickFolder().run()
+        print(f'Picked: {path.as_posix() if path else path}')
 
     @action(default=True)
     def window(self):

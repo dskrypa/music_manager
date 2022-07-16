@@ -349,22 +349,3 @@ class Interactive(Element, ABC):
 
     def pack_widget(self, *, expand: bool = False, fill: TkFill = tkc.NONE, **kwargs):
         super().pack_widget(expand=expand, fill=fill, focus=self.focus, disabled=self.disabled, **kwargs)
-
-
-class ScrollableMixin:
-    frame: Frame
-    widget: Text
-    style: Style
-    scroll_bar_y: Optional[Scrollbar] = None
-    scroll_bar_x: Optional[Scrollbar] = None
-
-    def add_scroll_bars(self, vertical: bool = True, horizontal: bool = False):
-        if vertical:
-            self.add_scroll_bar(True)
-        if horizontal:
-            self.add_scroll_bar(False)
-
-    def add_scroll_bar(self, vertical: bool = True):
-        axis = 'y' if vertical else 'x'
-        scroll_bar = add_scroll_bar(self.frame, self.widget, axis, self.style)  # noqa
-        setattr(self, f'scroll_bar_{axis}', scroll_bar)

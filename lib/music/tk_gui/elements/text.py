@@ -9,11 +9,12 @@ from __future__ import annotations
 import logging
 import webbrowser
 from functools import cached_property
-from tkinter import StringVar, Label, Event, Frame, Text as TkText
+from tkinter import StringVar, Label, Event
 from typing import TYPE_CHECKING, Optional, Union, Any
 
 from ..enums import Justify
-from .element import Element, ScrollableMixin
+from ..pseudo_elements.scroll import ScrollableText
+from .element import Element
 
 if TYPE_CHECKING:
     # from pathlib import Path
@@ -133,9 +134,8 @@ class Link(Text):
         super().__init__(value, link=link, link_bind=link_bind, **kwargs)
 
 
-class Multiline(Element, ScrollableMixin):
-    frame: Frame
-    widget: TkText
+class Multiline(Element):
+    widget: ScrollableText
 
     def __init__(
         self,
@@ -143,8 +143,8 @@ class Multiline(Element, ScrollableMixin):
         *,
         scroll_y: bool = True,
         scroll_x: bool = False,
-        auto_scroll: bool = False,
-        rstrip: bool = True,
+        # auto_scroll: bool = False,  # TODO
+        # rstrip: bool = True,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
         **kwargs,
     ):
@@ -152,11 +152,10 @@ class Multiline(Element, ScrollableMixin):
         self._value = str(value)
         self.scroll_y = scroll_y
         self.scroll_x = scroll_x
-        self.auto_scroll = auto_scroll
-        self.rstrip = rstrip
+        # self.auto_scroll = auto_scroll
+        # self.rstrip = rstrip
 
     def pack_into(self, row: Row, column: int):
-        self.frame = frame = Frame(row.frame)
         style = self.style
         kwargs = {
             'highlightthickness': 0,
@@ -170,17 +169,13 @@ class Multiline(Element, ScrollableMixin):
         except TypeError:
             pass
 
-        self.widget = text = TkText(frame, **kwargs)
-        self.add_scroll_bars(self.scroll_y, self.scroll_x)
-        text.config(wrap='none' if self.scroll_x else 'word')  # noqa
+        self.widget = scroll_text = ScrollableText(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)
+        text = scroll_text.inner_widget
         if value := self._value:
             text.insert(1.0, value)
-
+        if (justify := self.justify_text) != Justify.NONE:
+            text.tag_add(justify.value, 1.0, 'end')
         for pos in ('center', 'left', 'right'):
             text.tag_configure(pos, justify=pos)  # noqa
 
-        if (justify := self.justify_text) != Justify.NONE:
-            text.tag_add(justify.value, 1.0, 'end')
-
-        self.pack_widget(widget=frame)
         self.pack_widget()

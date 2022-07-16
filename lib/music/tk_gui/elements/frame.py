@@ -15,7 +15,7 @@ from ..pseudo_elements.row_container import RowContainer
 from ..pseudo_elements.scroll import ScrollableFrame, ScrollableLabelFrame
 from ..style import Style, StyleSpec
 from ..window import CONTAINER_PARAMS
-from .element import Element, ScrollableMixin
+from .element import Element
 
 if TYPE_CHECKING:
     from ..typing import Layout, Bool
@@ -28,7 +28,7 @@ TkFrameType = Type[Union[TkFrame, LabelFrame]]
 FrameMode = Literal['inner', 'outer', 'both']
 
 
-class Frame(Element, RowContainer, ScrollableMixin):
+class Frame(Element, RowContainer):
     widget: Union[TkFrame, LabelFrame]
     inner_style: Optional[Style] = None
 

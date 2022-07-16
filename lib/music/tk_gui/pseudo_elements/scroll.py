@@ -6,8 +6,9 @@ Tkinter GUI Scroll Bar Utils
 
 from __future__ import annotations
 
+from abc import ABC
 import tkinter.constants as tkc
-from tkinter import Misc, Frame, LabelFrame, Canvas, Widget, Event, Tk, Toplevel
+from tkinter import Misc, Frame, LabelFrame, Canvas, Widget, Event, Tk, Toplevel, Text
 from tkinter.ttk import Scrollbar, Treeview
 from typing import TYPE_CHECKING, Literal, Type, Mapping, Union, Optional, Any
 from weakref import WeakKeyDictionary
@@ -18,7 +19,11 @@ if TYPE_CHECKING:
     from ..style import Style
     from ..typing import Bool
 
-__all__ = ['add_scroll_bar', 'ScrollableToplevel', 'ScrollableFrame', 'ScrollableTreeview']
+__all__ = [
+    'add_scroll_bar',
+    'ScrollableToplevel', 'ScrollableFrame', 'ScrollableLabelFrame',
+    'ScrollableTreeview', 'ScrollableText',
+]
 
 FrameLike = Union[Tk, Frame, LabelFrame]
 ScrollOuter = Union[Misc, 'Scrollable']
@@ -63,7 +68,7 @@ def add_scroll_bar(
     return scroll_bar
 
 
-class ScrollableBase:
+class ScrollableBase(ABC):
     _inner_outer_map = WeakKeyDictionary()
     _tk_cls: Type[Union[Widget, Toplevel]] = None
     scroll_bar_y: Optional[Scrollbar] = None
@@ -79,14 +84,17 @@ class ScrollableBase:
             super().__init__(*args, **kwargs)
 
 
-class Scrollable(ScrollableBase):
+# region Scrollable Container
+
+
+class ScrollableContainer(ScrollableBase, ABC):
     _y_bind, _x_bind = ('<MouseWheel>', 'Shift-MouseWheel') if ON_WINDOWS else ('<4>', '<5>')
     _inner_widget_id: int
     canvas: Canvas
     inner_widget: FrameLike
 
     def __init__(
-        self: Union[Widget, Toplevel, Scrollable],
+        self: Union[Widget, Toplevel, ScrollableContainer],
         parent: Optional[Misc] = None,
         scroll_y: Bool = False,
         scroll_x: Bool = False,
@@ -139,7 +147,7 @@ class Scrollable(ScrollableBase):
         canvas.unbind_all(self._y_bind)
         canvas.unbind_all(self._x_bind)
 
-    def scroll_y(self: Union[Widget, Toplevel, Scrollable], event: Event):
+    def scroll_y(self: Union[Widget, Toplevel, ScrollableContainer], event: Event):
         if (outer := self._inner_outer_map.get(event.widget)) and outer.scroll_bar_y:
             # log.debug(f'Ignoring Y axis scroll for {event=} due to {outer=} focus')
             return
@@ -164,29 +172,53 @@ class Scrollable(ScrollableBase):
             canvas.configure(scrollregion=bbox)
 
 
-class ScrollableToplevel(Scrollable, Toplevel, tk_cls=Toplevel):
+class ScrollableToplevel(ScrollableContainer, Toplevel, tk_cls=Toplevel):
     pass
 
 
-class ScrollableFrame(Scrollable, Frame, tk_cls=Frame):
+class ScrollableFrame(ScrollableContainer, Frame, tk_cls=Frame):
     pass
 
 
-class ScrollableLabelFrame(Scrollable, LabelFrame, tk_cls=LabelFrame):
+class ScrollableLabelFrame(ScrollableContainer, LabelFrame, tk_cls=LabelFrame):
     pass
 
 
-class ScrollableTreeview(ScrollableBase, Frame, tk_cls=Frame):
-    inner_widget: Treeview
+# endregion
+
+# region Scrollable Widget
+
+
+class ScrollableWidget(ScrollableBase, ABC):
+    _inner_cls: Type[Widget]
+
+    def __init_subclass__(cls, inner_cls: Type[Widget], **kwargs):  # noqa
+        super().__init_subclass__(**kwargs)
+        cls._inner_cls = inner_cls
 
     def __init__(
         self, parent: Misc = None, scroll_y: Bool = False, scroll_x: Bool = False, style: Style = None, **kwargs
     ):
         super().__init__(parent)
-        self.inner_widget = inner_widget = Treeview(self, **kwargs)
+        self.inner_widget = inner_widget = self._inner_cls(self, **kwargs)
         self._inner_outer_map[inner_widget] = self
         if scroll_x:
             self.scroll_bar_x = add_scroll_bar(self, inner_widget, 'x', style)
         if scroll_y:
             self.scroll_bar_y = add_scroll_bar(self, inner_widget, 'y', style)
         inner_widget.pack(side='left', fill='both', expand=True, padx=0, pady=0)
+
+
+class ScrollableTreeview(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Treeview):
+    inner_widget: Treeview
+
+
+class ScrollableText(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Text):
+    inner_widget: Text
+
+    def __init__(self, parent: Misc = None, scroll_y: Bool = False, scroll_x: Bool = False, *args, **kwargs):
+        super().__init__(parent, scroll_y, scroll_x, *args, **kwargs)
+        self.inner_widget.configure(wrap=tkc.NONE if scroll_x else tkc.WORD)
+
+
+# endregion

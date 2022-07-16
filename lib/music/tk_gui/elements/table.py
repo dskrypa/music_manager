@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import logging
 from itertools import chain
-from tkinter import Frame, Tcl
 from tkinter.ttk import Treeview, Style as TtkStyle
-from typing import TYPE_CHECKING, Optional, Union, Callable, Literal, Mapping, Any, Iterable
+from typing import TYPE_CHECKING, Union, Callable, Literal, Mapping, Any, Iterable
 from unicodedata import normalize
 
 from wcwidth import wcswidth
 
-from .element import Element, ScrollableMixin
+from ..pseudo_elements.scroll import ScrollableTreeview
+from .element import Element
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
@@ -25,7 +25,6 @@ __all__ = ['TableColumn', 'Table']
 log = logging.getLogger(__name__)
 
 SelectMode = Literal['none', 'browse', 'extended']
-TCL_VERSION = Tcl().eval('info patchlevel')
 XGROUND_DEFAULT_HIGHLIGHT_COLOR_MAP = {'foreground': 'SystemHighlightText', 'background': 'SystemHighlight'}
 _Width = Union[float, Mapping[Any, Mapping[str, Any]], Iterable[Union[Mapping[str, Any], Any]]]
 FormatFunc = Callable[[Any], str]
@@ -95,9 +94,8 @@ class TableColumn:
             raise
 
 
-class Table(Element, ScrollableMixin):
-    widget: Treeview
-    frame: Optional[Frame]
+class Table(Element):
+    widget: Union[Treeview, ScrollableTreeview]
     columns: dict[str, TableColumn]
 
     def __init__(
@@ -109,12 +107,11 @@ class Table(Element, ScrollableMixin):
         row_height: int = None,
         selected_row_color: tuple[str, str] = None,  # fg, bg
         select_mode: SelectMode = None,
-        scroll_x: bool = False,
         scroll_y: bool = True,
+        scroll_x: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.frame = None
         if show_row_nums:
             columns = chain((TableColumn('#', width=len(f'{len(data):>,d}'), fmt_func='{:>,d}'.format),), columns)
         self.columns = {col.key: col for col in columns}
@@ -156,32 +153,28 @@ class Table(Element, ScrollableMixin):
         return config
 
     def pack_into(self, row: Row, column: int):
-        self.frame = frame = Frame(row.frame)
-        columns = self.columns
-        height = self.num_rows if self.num_rows else self.size[1] if self.size else len(self.data)
-        # log.debug(f'Creating Table Treeview with {height=}')
-        self.widget = tree_view = Treeview(
-            frame,
-            columns=[col.key for col in columns.values()],
-            displaycolumns=[col.key for col in columns.values() if col.show],
-            height=height,
-            show='headings',
-            selectmode=self.select_mode,
-        )
-        style = self.style
+        columns, style = self.columns, self.style
+        kwargs = {
+            'columns': [col.key for col in columns.values()],
+            'displaycolumns': [col.key for col in columns.values() if col.show],
+            'height': self.num_rows if self.num_rows else self.size[1] if self.size else len(self.data),
+            'show': 'headings',
+            'selectmode': self.select_mode,
+        }
+        if self.scroll_y or self.scroll_x:
+            self.widget = outer = ScrollableTreeview(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)
+            tree_view = outer.inner_widget
+        else:
+            self.widget = tree_view = Treeview(row.frame, **kwargs)
+
         char_width = style.char_width('table')
-        # log.debug(f'Processing columns; {char_width=}')
         for column in columns.values():
             tree_view.heading(column.key, text=column.title)
-            width = column.width * char_width + 10
-            # log.debug(f'  Adding column with key={column.key!r} title={column.title!r} {width=}')
-            # tree_view.column(column.key, width=width, minwidth=10, anchor=self.anchor, stretch=0)
-            tree_view.column(column.key, width=width, minwidth=10, stretch=False)
+            tree_view.column(column.key, width=column.width * char_width + 10, minwidth=10, stretch=False)
 
         for i, row in enumerate(self.data):
             values = (val for key, val in row.items() if columns[key].show)
             values = [i, *values] if self.show_row_nums else list(values)
-            # self._tree_ids.append(tree_view.insert('', 'end', text=values, iid=i + 1, values=values, tag=i))
             self._tree_ids.append(tree_view.insert('', 'end', text=values, iid=i, values=values, tag=i))  # noqa
 
         if alt_row_style := style.table_alt:
@@ -191,11 +184,7 @@ class Table(Element, ScrollableMixin):
 
         tree_view.configure(style=self._ttk_style()[0])
         # tree_view.bind('<<TreeviewSelect>>', self._treeview_selected)
-        self.add_scroll_bars(self.scroll_y, self.scroll_x)
-        # tree_view.pack(side=tkc.LEFT, expand=True, padx=0, pady=0, fill='both')
-        self.pack_widget(expand=True, fill='both', padx=0, pady=0)
-        # frame.pack(side=tkc.LEFT, expand=True, **self.pad_kw)
-        frame.pack(anchor=self.anchor.value, side=self.side.value, expand=True, **self.pad_kw)
+        self.pack_widget(expand=True)
 
 
 def _style_map_data(style: TtkStyle, name: str, query_opt: str, selected_color: str = None):

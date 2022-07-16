@@ -58,8 +58,8 @@ class GuiTest(Command):
         png_path = ICONS_DIR.joinpath('exclamation-triangle-yellow.png')
 
         layout = [
-            # [Frame(frame_layout, size=(100, 100), scroll_y=True)],
-            [Frame(frame_layout, scroll_y=True)],
+            [Frame(frame_layout, size=(100, 100), scroll_y=True)],
+            # [Frame(frame_layout, scroll_y=True)],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
@@ -102,6 +102,8 @@ class GuiTest(Command):
 
         layout = [
             # [Frame(frame_layout, size=(100, 100), scroll_y=True)],
+            # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner', title_mode='inner')],
+            # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner')],
             [Frame(frame_layout, scroll_y=True)],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],

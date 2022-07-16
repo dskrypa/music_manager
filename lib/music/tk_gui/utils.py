@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection
 if TYPE_CHECKING:
     from .typing import HasParent
 
-__all__ = ['ON_WINDOWS', 'ON_LINUX', 'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata']
+__all__ = ['ON_WINDOWS', 'ON_LINUX', 'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata', 'tcl_version']
 log = logging.getLogger(__name__)
 
 _OS = platform.system().lower()
@@ -147,3 +147,13 @@ class ProgramMetadata:
             except IndexError:
                 return path.stem[:-7]
         return path.stem
+
+
+def tcl_version():
+    try:
+        return tcl_version._tcl_version
+    except AttributeError:
+        from tkinter import Tcl
+
+        tcl_version._tcl_version = ver = Tcl().eval('info patchlevel')
+        return ver

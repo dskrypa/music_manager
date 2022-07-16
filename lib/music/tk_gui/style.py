@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Union, Optional, Literal, Type, Mapping, Itera
 from typing import overload
 
 from .enums import StyleState
-from .utils import ClearableCachedPropertyMixin, Inheritable
+from .utils import ClearableCachedPropertyMixin
 
 if TYPE_CHECKING:
     from .typing import XY
@@ -26,6 +26,7 @@ __all__ = ['Style', 'StyleSpec']
 StyleOptions = Mapping[str, Any]
 StyleSpec = Union[str, 'Style', StyleOptions, tuple[str, StyleOptions], None]
 
+T = TypeVar('T')
 T_co = TypeVar('T_co', covariant=True)
 
 StyleAttr = Literal[
@@ -243,6 +244,7 @@ class StyleLayer:
     fg: StateValues[OptStr] = LayerStateValues()            # Foreground / text color
     bg: StateValues[OptStr] = LayerStateValues()            # Background color
     border_width: StateValues[OptInt] = LayerStateValues()  # Border width
+    # border_color: StateValues[OptStr] = LayerStateValues()  # Border color
     relief: StateValues[OptStr] = LayerStateValues()        # Visually differentiate the edges of some elements
     # Scroll bar options
     frame_color: StateValues[OptStr] = LayerStateValues()   # Frame color
@@ -261,6 +263,7 @@ class StyleLayer:
         fg: OptStrVals = None,
         bg: OptStrVals = None,
         border_width: OptIntVals = None,
+        # border_color: OptStrVals = None,
         frame_color: OptStrVals = None,
         trough_color: OptStrVals = None,
         arrow_color: OptStrVals = None,
@@ -308,20 +311,19 @@ class StyleLayer:
         return {key: getattr(val, 'values', None) for key, val in self.__dict__.items() if key in self._fields}
 
 
-class StyleLayerProperty:
-    __slots__ = ('name', 'parent')
+class StyleProperty(Generic[T]):
+    __slots__ = ('name', 'default')
 
-    def __init__(self, parent: str = None):
-        self.parent = parent
+    def __init__(self, default: Optional[T] = None):
+        self.default = default
 
     def __set_name__(self, owner: Type[Style], name: str):
         self.name = name
-        owner._layers.add(name)
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.name}]>'
 
-    def get_parent_part(self, style: Optional[Style]) -> Optional[StyleLayer]:
+    def get_parent_part(self, style: Optional[Style]) -> Optional[T]:
         while style:
             if part := style.__dict__.get(self.name):
                 return part
@@ -330,16 +332,40 @@ class StyleLayerProperty:
 
         return None
 
-    def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StyleLayerProperty, StyleLayer, None]:
+    def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StyleProperty, T, None]:
         if instance is None:
             return self
         elif part := self.get_parent_part(instance):
             return part
-        elif (default := owner.default_style) and default is not instance:
-            if part := default.__dict__.get(self.name):
+        elif (default_style := owner.default_style) and default_style is not instance:
+            if part := default_style.__dict__.get(self.name):
                 return part
+        return self.default
 
-        if not instance.parent or not default or instance is default:
+    def __set__(self, instance: Style, value: T):
+        instance.__dict__[self.name] = value
+
+    def __delete__(self, instance: Style):
+        del instance.__dict__[self.name]
+
+
+class StyleLayerProperty(StyleProperty[StyleLayer]):
+    __slots__ = ('parent',)
+
+    def __init__(self, parent: str = None):
+        super().__init__(None)
+        self.parent = parent
+
+    def __set_name__(self, owner: Type[Style], name: str):
+        self.name = name
+        owner._layers.add(name)
+
+    def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StyleLayerProperty, StyleLayer, None]:
+        if instance is None:
+            return self
+        elif part := super().__get__(instance, owner):
+            return part
+        elif not instance.parent or not (default := owner.default_style) or instance is default:  # noqa
             instance.__dict__[self.name] = part = StyleLayer(instance, self)
             return part
 
@@ -365,7 +391,7 @@ class Style(ClearableCachedPropertyMixin):
     name: str
     parent: Optional[Style]
 
-    ttk_theme: Optional[str] = Inheritable()
+    ttk_theme: Optional[str] = StyleProperty()
 
     base = StyleLayerProperty()
     insert = StyleLayerProperty()

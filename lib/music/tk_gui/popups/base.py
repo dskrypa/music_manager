@@ -58,8 +58,8 @@ class Popup:
     @cached_property
     def window(self) -> Window:
         window = self.prepare_window()
-        if self.parent:
-            window.move_to_center(self.parent)
+        if parent := self.parent:
+            window.move_to_center(parent)
         return window
 
     def _run(self):

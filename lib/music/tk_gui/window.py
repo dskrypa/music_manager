@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 from functools import partial, cached_property
 from os import environ
-from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper
-from typing import TYPE_CHECKING, Optional, Union, Type, Any, overload
+from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame, EventType
+from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, overload
 from weakref import finalize
 
 from .assets import PYTHON_LOGO
@@ -18,6 +18,7 @@ from .enums import BindTargets, Anchor, Justify, Side, BindEvent
 from .exceptions import DuplicateKeyError
 from .positioning import positioner
 from .pseudo_elements.row_container import RowContainer
+from .pseudo_elements.scroll import ScrollableToplevel
 from .style import Style
 from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 __all__ = ['Window']
 log = logging.getLogger(__name__)
 
-CONTAINER_PARAMS = {'anchor_elements', 'text_justification', 'element_side', 'element_padding', 'element_size'}
+Top = Union[ScrollableToplevel, Toplevel]
 
 
 def _tk_event_handler(tk_event: str):
@@ -51,7 +52,8 @@ class Window(RowContainer):
     __hidden_root = None
     _tk_event_handlers: dict[str, str] = {}
     _finalizer: finalize
-    root: Optional[Toplevel] = None
+    root: Union[Toplevel, Frame, None] = None
+    _root: Optional[Top] = None
     element_map: dict[Key, Element]
 
     # region Init Overload
@@ -84,6 +86,11 @@ class Window(RowContainer):
         binds: BindMap = None,
         handle_configure: Bool = False,
         exit_on_esc: Bool = False,
+        scroll_y: Bool = False,
+        scroll_x: Bool = False,
+        scroll_y_div: float = 2,
+        scroll_x_div: float = 1,
+        close_cbs: Iterable[Callable] = None,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -110,6 +117,7 @@ class Window(RowContainer):
         binds: BindMap = None,
         handle_configure: Bool = False,
         exit_on_esc: Bool = False,
+        close_cbs: Iterable[Callable] = None,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
@@ -134,6 +142,7 @@ class Window(RowContainer):
         self.no_title_bar = no_title_bar
         self.margins = margins
         self.binds = binds or {}
+        self.close_cbs = list(close_cbs) if close_cbs is not None else []
         if handle_configure:
             self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
         if exit_on_esc:
@@ -143,7 +152,7 @@ class Window(RowContainer):
             self.show()
 
     @property
-    def tk_container(self) -> Toplevel:
+    def tk_container(self) -> Union[Toplevel, Frame]:
         return self.root
 
     @property
@@ -169,13 +178,13 @@ class Window(RowContainer):
 
     def run(self, n: int = 0):
         try:
-            self.root.mainloop(n)
+            self._root.mainloop(n)
         except AttributeError:
             self.show()
-            self.root.mainloop(n)
+            self._root.mainloop(n)
 
     def interrupt(self, event: Event = None):
-        self.root.quit()  # exit the TK main loop, but leave the window open
+        self._root.quit()  # exit the TK main loop, but leave the window open
 
     # endregion
 
@@ -215,26 +224,26 @@ class Window(RowContainer):
 
     @property
     def size(self) -> XY:
-        root = self.root
+        root = self._root
         root.update_idletasks()
         return root.winfo_width(), root.winfo_height()
 
     @size.setter
     def size(self, size: XY):
-        self.root.geometry('{}x{}'.format(*size))
+        self._root.geometry('{}x{}'.format(*size))
 
     @property
     def true_size(self) -> XY:
-        x, y = self.root.geometry().split('+', 1)[0].split('x', 1)
+        x, y = self._root.geometry().split('+', 1)[0].split('x', 1)
         return int(x), int(y)
 
     def set_min_size(self, width: int, height: int):
-        root = self.root
+        root = self._root
         root.minsize(width, height)
         root.update_idletasks()
 
     def set_max_size(self, width: int, height: int):
-        root = self.root
+        root = self._root
         root.maxsize(width, height)
         root.update_idletasks()
 
@@ -261,7 +270,7 @@ class Window(RowContainer):
             log.debug(f'Could not find monitor for pos={x, y}')
             return
 
-        root = self.root
+        root = self._root
         root.update_idletasks()
         width, height = root.winfo_reqwidth(), root.winfo_reqheight()
         max_width = monitor.width - 100
@@ -279,7 +288,7 @@ class Window(RowContainer):
 
     @property
     def true_size_and_pos(self) -> tuple[XY, XY]:
-        root = self.root
+        root = self._root
         root.update_idletasks()
         size, pos = root.geometry().split('+', 1)
         w, h = size.split('x', 1)
@@ -290,20 +299,20 @@ class Window(RowContainer):
 
     @property
     def position(self) -> XY:
-        root = self.root
+        root = self._root
         # root.update_idletasks()
         return root.winfo_x(), root.winfo_y()
 
     @position.setter
     def position(self, pos: XY):
-        root = self.root
+        root = self._root
         root.geometry('+{}+{}'.format(*pos))
         # root.x root.y = pos
         root.update_idletasks()
 
     @property
     def true_position(self) -> XY:
-        x, y = self.root.geometry().rsplit('+', 2)[1:]
+        x, y = self._root.geometry().rsplit('+', 2)[1:]
         return int(x), int(y)
 
     def move_to_center(self, other: Window = None):
@@ -344,14 +353,14 @@ class Window(RowContainer):
     # region Window State Methods
 
     def minimize(self):
-        self.root.iconify()
+        self._root.iconify()
 
     def maximize(self):
-        self.root.state('zoomed')
-        # self.root.attributes('-fullscreen', True)  # May be needed on Windows
+        self._root.state('zoomed')
+        # self._root.attributes('-fullscreen', True)  # May be needed on Windows
 
     def normal(self):
-        root = self.root
+        root = self._root
         if (state := root.state()) == 'iconic':
             root.deiconify()
         elif state == 'zoomed':
@@ -360,10 +369,10 @@ class Window(RowContainer):
 
     @property
     def is_maximized(self) -> bool:
-        return self.root.state() == 'zoomed'
+        return self._root.state() == 'zoomed'
 
     def bring_to_front(self):
-        root = self.root
+        root = self._root
         if ON_WINDOWS:
             root.wm_attributes('-topmost', 0)
             root.wm_attributes('-topmost', 1)
@@ -373,20 +382,20 @@ class Window(RowContainer):
             root.lift()
 
     def send_to_back(self):
-        self.root.lower()
+        self._root.lower()
 
     def disable(self):
-        self.root.attributes('-disabled', 1)
+        self._root.attributes('-disabled', 1)
 
     def enable(self):
-        self.root.attributes('-disabled', 0)
+        self._root.attributes('-disabled', 0)
 
     def take_focus(self):
-        self.root.focus_force()
+        self._root.focus_force()
 
     @property
     def has_focus(self) -> bool:
-        return self.root.focus_get() in self  # noqa
+        return self._root.focus_get() in self  # noqa
 
     # endregion
 
@@ -394,24 +403,24 @@ class Window(RowContainer):
 
     def set_alpha(self, alpha: int):
         try:
-            self.root.attributes('-alpha', alpha)
+            self._root.attributes('-alpha', alpha)
         except (TclError, RuntimeError):
             log.debug(f'Error setting window alpha color to {alpha!r}:', exc_info=True)
 
     def set_title(self, title: str):
-        self.root.wm_title(title)
+        self._root.wm_title(title)
 
     def disable_title_bar(self):
         try:
             if ON_LINUX:
-                self.root.wm_attributes('-type', 'dock')
+                self._root.wm_attributes('-type', 'dock')
             else:
-                self.root.wm_overrideredirect(True)
+                self._root.wm_overrideredirect(True)
         except (TclError, RuntimeError):
             log.warning('Error while disabling title bar:', exc_info=True)
 
     def make_modal(self):
-        root = self.root
+        root = self._root
         try:  # Apparently this does not work on macs...
             root.transient()
             root.grab_set()
@@ -423,19 +432,23 @@ class Window(RowContainer):
 
     # region Show Window Methods
 
-    def show(self):
-        # PySimpleGUI: StartupTK
-        if self.__hidden_root is None:
-            self._init_hidden_root()
-        if self.root is not None:
-            log.warning('Attempted to show window after it was already shown', stack_info=True)
-            return
-        self.root = root = Toplevel()
+    def _init_root_widget(self) -> Top:
+        style = self.style
+        kwargs = style.get_map(background='bg')
+        scroll_y, scroll_x = self.scroll_y, self.scroll_x
+        if not scroll_y and not scroll_x:
+            self._root = self.root = root = Toplevel(**kwargs)
+            return root
+
+        kwargs['inner_kwargs'] = kwargs.copy()
+        self._root = root = ScrollableToplevel(scroll_y=scroll_y, scroll_x=scroll_x, style=style, **kwargs)
+        self.root = root.inner_widget
+        return root
+
+    def _init_root(self) -> Top:
+        root = self._init_root_widget()
         self._finalizer = finalize(self, self._close, root)
         self.set_alpha(0)  # Hide window while building it
-
-        if bg := self.style.base.bg.default:
-            root.configure(background=bg)
         if not self.resizable:
             root.resizable(False, False)
         if not self.can_minimize:
@@ -447,17 +460,30 @@ class Window(RowContainer):
                 root.attributes('-transparentcolor', self.transparent_color)
             except (TclError, RuntimeError):
                 log.error('Transparent window color not supported on this platform (Windows only)')
+        return root
 
-        # PySimpleGUI:_convert_window_to_tk
+    def _init_pack_root(self) -> Top:
+        outer = self._init_root()
         self.pack_rows()
-        root.configure(padx=self.margins[0], pady=self.margins[1])
+        if (inner := self.root) != outer:
+            self.pack_container(outer, inner, self._size)
 
+        outer.configure(padx=self.margins[0], pady=self.margins[1])
         self._set_init_size()
         if self._position:
             self.position = self._position
         else:
             self.move_to_center()
+        return outer
 
+    def show(self):
+        if self.__hidden_root is None:
+            self._init_hidden_root()
+        if self._root is not None:
+            log.warning('Attempted to show window after it was already shown', stack_info=True)
+            return
+
+        root = self._init_pack_root()
         if self.no_title_bar:
             self.disable_title_bar()
         else:
@@ -488,17 +514,17 @@ class Window(RowContainer):
         Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
 
     def hide(self):
-        self.root.withdraw()
+        self._root.withdraw()
 
     def un_hide(self):
-        self.root.deiconify()
+        self._root.deiconify()
 
     # endregion
 
     # region Bind Methods
 
     def bind(self, event_pat: Bindable, cb: BindTarget):
-        if self.root:
+        if self._root:
             self._bind(event_pat, cb)
         else:
             self.binds[event_pat] = cb
@@ -517,10 +543,10 @@ class Window(RowContainer):
             cb = self._normalize_bind_cb(cb)
             log.debug(f'Binding event={bind_event!r} to {cb=}')
             try:
-                self.root.bind(bind_event, cb)
+                self._root.bind(bind_event, cb)
             except (TclError, RuntimeError) as e:
                 log.error(f'Unable to bind event={bind_event!r}: {e}')
-                self.root.unbind_all(bind_event)
+                # self._root.unbind_all(bind_event)
 
     def _normalize_bind_cb(self, cb: BindTargets) -> BindCallback:
         if isinstance(cb, str):
@@ -538,7 +564,7 @@ class Window(RowContainer):
             self._event_cbs[bind_event] = cb
         if (tk_event := bind_event.event) not in self._bound_for_events:
             method = getattr(self, self._tk_event_handlers[tk_event])
-            self.root.bind(tk_event, method)
+            self._root.bind(tk_event, method)
             self._bound_for_events.add(tk_event)
 
     # endregion
@@ -547,8 +573,8 @@ class Window(RowContainer):
 
     @_tk_event_handler('<Configure>')
     def handle_config_changed(self, event: Event):
-        # log.debug(f'Config changed: {event=}')
-        root = self.root
+        # log.debug(f'{self}: Config changed: {event=}')
+        root = self._root
         if self._motion_end_cb_id:
             root.after_cancel(self._motion_end_cb_id)
 
@@ -581,6 +607,7 @@ class Window(RowContainer):
     @classmethod
     def _close(cls, root: Toplevel):
         log.debug('  Quitting...')
+        # log.debug(f'  Quitting: {root}')
         root.quit()
         log.debug('  Updating...')
         try:
@@ -607,7 +634,9 @@ class Window(RowContainer):
         else:
             log.debug('Closing')
             close_func(*args, **kwargs)
-            self.root = None
+            self._root = None
+            for close_cb in self.close_cbs:
+                close_cb()
             # if self.kill_others_on_close:
             #     self.close_all()
 
@@ -640,7 +669,7 @@ class Window(RowContainer):
 
     # def _sigint_fix(self):
     #     """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
-    #     self.root.after(250, self._sigint_fix)
+    #     self._root.after(250, self._sigint_fix)
 
 
 def _normalize_bind_event(event_pat: Bindable) -> Bindable:

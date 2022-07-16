@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Protocol, TypeVar, Any, Union, Callable, Itera
 from typing import Literal, _ProtocolMeta  # noqa
 
 if TYPE_CHECKING:
-    from tkinter import Event
+    from tkinter import Event, Toplevel, Frame, LabelFrame
     from .elements import Element
     from .enums import BindTargets, BindEvent
 
@@ -18,6 +18,7 @@ __all__ = [
     'Bool', 'XY', 'Key', 'Layout',
     'BindCallback', 'EventCallback', 'BindTarget', 'Bindable', 'BindMap',
     'TkFill', 'TkSide', 'TkJustify',
+    'TkContainer',
 ]
 # fmt: on
 
@@ -36,6 +37,8 @@ Layout = Iterable[Iterable['Element']]
 TkFill = Union[Literal['none', 'x', 'y', 'both'], None, bool]
 TkSide = Literal['left', 'right', 'top', 'bottom']
 TkJustify = Literal['left', 'center', 'right']
+
+TkContainer = Union['Toplevel', 'Frame', 'LabelFrame']
 
 
 @runtime_checkable

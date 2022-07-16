@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from itertools import count
-from tkinter import Toplevel, Frame, Widget
-from typing import TYPE_CHECKING, Optional, Union
+from tkinter import Toplevel, Frame, Widget, Misc
+from typing import TYPE_CHECKING, Optional, Union, Any, overload
 
 from ..enums import Anchor, Justify, Side
 from ..style import Style
@@ -18,15 +18,25 @@ from .row import Row
 
 if TYPE_CHECKING:
     from ..elements.element import Element
-    from ..typing import XY, Layout
+    from ..typing import XY, Layout, Bool, TkContainer
     from ..window import Window
+    from .scroll import ScrollableContainer
 
-__all__ = ['RowContainer']
+__all__ = ['RowContainer', 'CONTAINER_PARAMS']
 log = logging.getLogger(__name__)
+
+CONTAINER_PARAMS = {
+    'anchor_elements', 'text_justification', 'element_side', 'element_padding', 'element_size',
+    'scroll_y', 'scroll_x', 'scroll_y_div', 'scroll_x_div',
+}
 
 
 class RowContainer(ABC):
     _counter = count()
+    scroll_y: Bool = False
+    scroll_x: Bool = False
+    scroll_y_div: float = 2
+    scroll_x_div: float = 1
     anchor_elements: Anchor
     text_justification: Justify
     element_side: Side
@@ -34,22 +44,38 @@ class RowContainer(ABC):
     element_size: Optional[XY]
     rows: list[Row]
 
+    # region Init Overload
+
+    @overload
     def __init__(
         self,
         layout: Layout = None,
         *,
         style: Style = None,
-        grid: bool = False,
+        grid: Bool = False,
         anchor_elements: Union[str, Anchor] = None,
         text_justification: Union[str, Justify] = None,
         element_side: Union[str, Side] = None,
         element_padding: XY = None,
         element_size: XY = None,
+        scroll_y: Bool = False,
+        scroll_x: Bool = False,
+        scroll_y_div: float = 2,
+        scroll_x_div: float = 1,
     ):
+        ...
+
+    # endregion
+
+    def __init__(self, layout: Layout = None, *, style: Style = None, grid: Bool = False, **kwargs):
         self._id = next(self._counter)
         self.style = Style.get_style(style)
         self.grid = grid
-        self.init_container(layout, anchor_elements, text_justification, element_side, element_padding, element_size)
+        self.init_container(layout, **kwargs)
+
+    def init_container_from_kwargs(self, *args, kwargs: dict[str, Any]):
+        kwargs = {key: val for key in CONTAINER_PARAMS if (val := kwargs.pop(key, None)) is not None}
+        self.init_container(*args, **kwargs)
 
     def init_container(
         self,
@@ -59,6 +85,10 @@ class RowContainer(ABC):
         element_side: Union[str, Side] = None,
         element_padding: XY = None,
         element_size: XY = None,
+        scroll_y: Bool = False,
+        scroll_x: Bool = False,
+        scroll_y_div: float = 2,
+        scroll_x_div: float = 1,
     ):
         self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
         self.text_justification = Justify(text_justification)
@@ -66,6 +96,10 @@ class RowContainer(ABC):
         self.element_padding = element_padding
         self.element_size = element_size
         self.rows = [Row(self, row, i) for i, row in enumerate(layout)] if layout else []
+        self.scroll_y = scroll_y
+        self.scroll_x = scroll_x
+        self.scroll_y_div = scroll_y_div
+        self.scroll_x_div = scroll_x_div
 
     @property
     @abstractmethod
@@ -99,12 +133,23 @@ class RowContainer(ABC):
                     pass
         raise KeyError(f'Invalid element ID / (row, column) index: {item!r}')
 
-    def __contains__(self, item: Union[Element, Widget]) -> bool:
+    def __contains__(self, item: Union[Element, Widget, Misc]) -> bool:
         if item is self.tk_container:
             return True
         return any(item in row for row in self.rows)
 
-    def pack_rows(self, debug: bool = False):
+    def pack_container(self, outer: ScrollableContainer, inner: TkContainer, size: Optional[XY]):
+        inner.update()
+        try:
+            width, height = size
+        except TypeError:
+            width = inner.winfo_reqwidth() // self.scroll_x_div
+            height = inner.winfo_reqheight() // self.scroll_y_div
+
+        canvas = outer.canvas
+        canvas.configure(scrollregion=canvas.bbox('all'), width=width, height=height)
+
+    def pack_rows(self, debug: Bool = False):
         # PySimpleGUI: PackFormIntoFrame(window, master, window)
         if debug:
             n_rows = len(self.rows)

@@ -11,12 +11,11 @@ import tkinter.constants as tkc
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from itertools import count
-from tkinter import TclError, Frame, Text
-from tkinter.ttk import Style as TtkStyle, Scrollbar
+from tkinter import TclError
+from tkinter.ttk import Style as TtkStyle
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping, overload
 
 from ..enums import StyleState, Anchor, Justify, Side
-from ..pseudo_elements.scroll import add_scroll_bar
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec
 from ..utils import Inheritable, ClearableCachedPropertyMixin
@@ -27,7 +26,7 @@ if TYPE_CHECKING:
     from ..typing import XY, BindCallback, Key, TkFill
     from ..window import Window
 
-__all__ = ['Element', 'Interactive', 'ScrollableMixin']
+__all__ = ['Element', 'Interactive']
 log = logging.getLogger(__name__)
 
 _DIRECT_ATTRS = {'key', 'tooltip', 'right_click_menu', 'left_click_cb', 'binds', 'expand', 'fill', 'data'}

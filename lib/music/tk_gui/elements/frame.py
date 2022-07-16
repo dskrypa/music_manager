@@ -14,7 +14,6 @@ from ..enums import Anchor
 from ..pseudo_elements.row_container import RowContainer
 from ..pseudo_elements.scroll import ScrollableFrame, ScrollableLabelFrame
 from ..style import Style, StyleSpec
-from ..window import CONTAINER_PARAMS
 from .element import Element
 
 if TYPE_CHECKING:
@@ -30,6 +29,7 @@ FrameMode = Literal['inner', 'outer', 'both']
 
 class Frame(Element, RowContainer):
     widget: Union[TkFrame, LabelFrame]
+    inner_frame: Union[TkFrame, LabelFrame]
     inner_style: Optional[Style] = None
 
     def __init__(
@@ -41,30 +41,22 @@ class Frame(Element, RowContainer):
         border: Bool = False,
         title_mode: FrameMode = 'outer',
         border_mode: FrameMode = 'outer',
-        scroll_y: Bool = False,
-        scroll_x: Bool = False,
-        scroll_y_div: float = 2,
-        scroll_x_div: float = 1,
         inner_style: StyleSpec = None,
         **kwargs,
     ):
-        self.init_container(layout, **{k: kwargs.pop(k, None) for k in CONTAINER_PARAMS})
+        self.init_container_from_kwargs(layout, kwargs=kwargs)
         Element.__init__(self, **kwargs)
         self.title = title
         self.title_mode = title_mode
         self.anchor_title = Anchor(anchor_title)
         self.border = border
         self.border_mode = border_mode
-        self.scroll_y = scroll_y
-        self.scroll_x = scroll_x
-        self.scroll_y_div = scroll_y_div
-        self.scroll_x_div = scroll_x_div
         if inner_style:
             self.inner_style = Style.get_style(inner_style)
 
     @property
     def tk_container(self) -> TkFrame:
-        return self.widget
+        return self.inner_frame
 
     def _prepare_pack_kwargs(self) -> dict[str, Any]:
         style = self.style
@@ -104,16 +96,8 @@ class Frame(Element, RowContainer):
         kwargs = self._prepare_pack_kwargs()
         labeled = self.title_mode in {'outer', 'both'}
         outer_cls = ScrollableLabelFrame if labeled else ScrollableFrame
-        self.frame = outer_frame = outer_cls(self.parent.frame, self.scroll_y, self.scroll_x, **kwargs)
-        self.widget = inner_frame = outer_frame.inner_widget
+        self.widget = outer_frame = outer_cls(self.parent.frame, self.scroll_y, self.scroll_x, **kwargs)
+        self.inner_frame = inner_frame = outer_frame.inner_widget
         self.pack_rows()
-        inner_frame.update()
-        try:
-            width, height = self.size
-        except TypeError:
-            width = inner_frame.winfo_reqwidth() // self.scroll_x_div
-            height = inner_frame.winfo_reqheight() // self.scroll_y_div
-
-        canvas = outer_frame.canvas
-        canvas.configure(scrollregion=canvas.bbox('all'), width=width, height=height)
-        self.pack_widget(widget=outer_frame)
+        self.pack_container(outer_frame, inner_frame, self.size)
+        self.pack_widget()

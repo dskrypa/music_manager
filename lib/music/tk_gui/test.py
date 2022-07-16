@@ -64,7 +64,14 @@ class GuiTest(Command):
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
 
-        Window(layout, 'Scroll Test', anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
+        Window(
+            layout,
+            'Scroll Test',
+            size=(300, 500),
+            exit_on_esc=True,
+            scroll_y=True,
+            # handle_configure=True,
+        ).run()
 
     @action
     def max_size(self):

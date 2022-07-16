@@ -10,7 +10,7 @@ import logging
 from abc import ABC
 from pathlib import Path
 from tkinter import filedialog, colorchooser
-from typing import Union, Collection
+from typing import Union, Collection, Optional
 
 from .base import Popup
 from ..utils import ON_MAC
@@ -42,7 +42,7 @@ class FilePopup(RawPopup, ABC):
 
 
 class PickFolder(FilePopup):
-    def _run(self):
+    def _run(self) -> Optional[Path]:
         kwargs = {} if ON_MAC else {'parent': self._get_root()}
         if name := filedialog.askdirectory(initialdir=self.initial_dir, **kwargs):
             return Path(name)
@@ -59,14 +59,14 @@ class PickFile(FilePopup):
             return {}
         return {'parent': self._get_root(), 'filetypes': self.file_types or ALL_FILES}
 
-    def _run(self):
+    def _run(self) -> Optional[Path]:
         if name := filedialog.askopenfilename(initialdir=self.initial_dir, **self._dialog_kwargs()):
             return Path(name)
         return None
 
 
 class PickFiles(PickFile):
-    def _run(self):
+    def _run(self) -> list[Path]:
         if names := filedialog.askopenfilenames(initialdir=self.initial_dir, **self._dialog_kwargs()):
             return [Path(name) for name in names]
         return []
@@ -77,7 +77,7 @@ class SaveAs(PickFile):
         super().__init__(initial_dir, file_types)
         self.default_ext = default_ext
 
-    def _run(self):
+    def _run(self) -> Optional[Path]:
         kwargs = self._dialog_kwargs()
         kwargs['defaultextension'] = self.default_ext
         if name := filedialog.asksaveasfilename(initialdir=self.initial_dir, **kwargs):
@@ -89,8 +89,7 @@ class SaveAs(PickFile):
 
 
 class PickColor(RawPopup):
-    def _run(self):
+    def _run(self) -> Optional[tuple[tuple[int, int, int], str]]:
         if color := colorchooser.askcolor(parent=self._get_root()):
-            log.debug(f'Picked {color=}')
-            return color[1]  # hex RGB
+            return color  # noqa  # hex RGB
         return None

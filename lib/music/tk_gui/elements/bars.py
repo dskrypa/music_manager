@@ -1,5 +1,5 @@
 """
-Input GUI elements
+Separators, progress bars, and other bar-like GUI elements
 
 :author: Doug Skrypa
 """
@@ -8,16 +8,18 @@ from __future__ import annotations
 
 import logging
 import tkinter.constants as tkc
+from math import floor, ceil
+from tkinter import Scale, IntVar, DoubleVar
 from tkinter.ttk import Separator as TtkSeparator, Progressbar
-from typing import TYPE_CHECKING, Iterable, Iterator
+from typing import TYPE_CHECKING, Iterable, Iterator, Union, Any
 
-from .element import ElementBase, Element
+from .element import ElementBase, Element, Interactive
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
     from ..typing import Bool, Orientation, T
 
-__all__ = ['Separator', 'HorizontalSeparator', 'VerticalSeparator', 'ProgressBar']
+__all__ = ['Separator', 'HorizontalSeparator', 'VerticalSeparator', 'ProgressBar', 'Slider']
 log = logging.getLogger(__name__)
 
 # region Separators
@@ -120,3 +122,67 @@ class ProgressBar(Element):
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.max_on_exit:
             self.widget['value'] = self.max_value
+
+
+class Slider(Interactive):
+    widget: Scale
+    tk_var: Union[IntVar, DoubleVar]
+
+    def __init__(
+        self,
+        min_value: float,
+        max_value: float,
+        default: float = None,
+        interval: float = 1,
+        tick_interval: float = None,
+        show_values: Bool = True,
+        orientation: Orientation = tkc.HORIZONTAL,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.min_value = min_value
+        self.max_value = max_value
+        self.default = default
+        self.interval = interval
+        self.tick_interval = tick_interval
+        self.show_values = show_values
+        self.orientation = orientation
+
+    @property
+    def value(self) -> float:
+        return self.tk_var.get()
+
+    def pack_into(self, row: Row, column: int):
+        min_val, max_val, interval, default = self.min_value, self.max_value, self.interval, self.default
+        if _is_int(min_val) and _is_int(max_val) and _is_int(interval):
+            self.tk_var = tk_var = IntVar(value=int(default) if default is not None else default)
+        else:
+            self.tk_var = tk_var = DoubleVar(value=default)
+
+        kwargs: dict[str, Any] = {
+            'orient': self.orientation,
+            'variable': tk_var,
+            'from_': min_val,
+            'to_': max_val,
+            'resolution': interval,
+            'tickinterval': self.tick_interval or interval,
+            'highlightthickness': 0,
+            **self.style.get_map(
+                'slider', self.style_state,
+                bd='border_width', relief='relief', font='font', background='bg', troughcolor='trough_color', fg='fg',
+            )
+        }
+        kwargs.setdefault('relief', tkc.FLAT)
+        try:
+            kwargs['width'], kwargs['height'] = self.size
+        except TypeError:
+            pass
+        if not self.show_values:
+            kwargs['showvalue'] = 0
+
+        self.widget = Scale(row.frame, **kwargs)
+        self.pack_widget()
+
+
+def _is_int(value: float) -> bool:
+    return floor(value) == ceil(value)

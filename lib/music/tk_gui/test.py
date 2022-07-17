@@ -10,7 +10,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
 from .elements.choices import Radio, RadioGroup, Checkbox, Combo
-from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar
+from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -120,6 +120,15 @@ class GuiTest(Command):
         for _ in bar(range(99)):
             window._root.after(50, window.interrupt)
             window.run()
+
+    @action
+    def slider(self):
+        layout = [
+            [Slider(0, 1, interval=0.05, key='A')],
+            [Slider(0, 20, tick_interval=5, key='B')],
+        ]
+        results = Window(layout, 'Slider Test', exit_on_esc=True).run().results
+        print(f'Results: {results}')
 
     @action(default=True)
     def window(self):

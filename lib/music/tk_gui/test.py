@@ -9,7 +9,7 @@ from ds_tools.logging import init_logging
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
-from .elements.choices import Radio, RadioGroup
+from .elements.choices import Radio, RadioGroup, Checkbox
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -137,6 +137,7 @@ class GuiTest(Command):
             # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner', title_mode='inner')],
             # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner')],
             [Frame(frame_layout, scroll_y=True)],
+            [Checkbox('A', key='A', default=True), Checkbox('B', key='B'), Checkbox('C', key='C')],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
@@ -145,7 +146,8 @@ class GuiTest(Command):
         # Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
         # Window(layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
         # Window(layout, 'Test One', anchor_elements='c', binds={'<Escape>': 'exit'}).run()
-        Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run()
+        results = Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run().results
+        print(f'Results: {results}')
 
 
 if __name__ == '__main__':

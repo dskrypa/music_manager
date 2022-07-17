@@ -376,7 +376,7 @@ class StyleLayerProperty(StyleProperty[StyleLayer]):
 
 
 Layer = Literal[
-    'base', 'insert', 'hover', 'focus', 'scroll', 'radio', 'frame',
+    'base', 'insert', 'hover', 'focus', 'scroll', 'radio', 'checkbox', 'frame',
     'tooltip', 'image', 'button', 'text', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt',
 ]
 
@@ -409,6 +409,7 @@ class Style(ClearableCachedPropertyMixin):
     table_header = StyleLayerProperty('table')      # Table headers
     table_alt = StyleLayerProperty('table')         # Alternate / even rows in tables
     radio = StyleLayerProperty('base')
+    checkbox = StyleLayerProperty('base')
     frame = StyleLayerProperty('base')
 
     def __init__(self, name: str = None, *, parent: Union[str, Style] = None, ttk_theme: str = None, **kwargs):

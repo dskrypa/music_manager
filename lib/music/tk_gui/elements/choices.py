@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from contextvars import ContextVar
 from itertools import count
-from tkinter import IntVar, Radiobutton
+from tkinter import IntVar, Radiobutton, Checkbutton, BooleanVar
 from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic
 from weakref import WeakValueDictionary
 
@@ -20,11 +20,14 @@ from .exceptions import NoActiveGroup, BadGroupCombo
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
 
-__all__ = ['Radio', 'RadioGroup']
+__all__ = ['Radio', 'RadioGroup', 'Checkbox']
 log = logging.getLogger(__name__)
 
-_radio_group_stack = ContextVar('tk_gui.elements.choices.radio.stack', default=[])
 _NotSet = object()
+_radio_group_stack = ContextVar('tk_gui.elements.choices.radio.stack', default=[])
+
+
+# region Radio
 
 
 class Radio(Interactive, Generic[T]):
@@ -170,3 +173,40 @@ def get_current_radio_group(silent: bool = False) -> Optional[RadioGroup]:
         if silent:
             return None
         raise NoActiveGroup('There is no active context') from None
+
+
+# endregion
+
+
+class Checkbox(Interactive):
+    widget: Checkbutton
+    tk_var: Optional[BooleanVar] = None
+
+    def __init__(self, text: str, default: Bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self.text = text
+        self.default = default
+
+    @property
+    def value(self) -> bool:
+        return self.tk_var.get()
+
+    def pack_into(self, row: Row, column: int):
+        self.tk_var = tk_var = BooleanVar(value=self.default)
+        style = self.style
+        kwargs = {
+            'text': self.text,
+            'variable': tk_var,
+            'highlightthickness': 1,
+            **style.get_map(
+                'checkbox', self.style_state, bd='border_width', font='font', highlightcolor='fg', fg='fg',
+                highlightbackground='bg', background='bg', activebackground='bg',
+            ),
+            **style.get_map('selected', self.style_state, selectcolor='fg'),
+        }
+        try:
+            kwargs['width'], kwargs['height'] = self.size
+        except TypeError:
+            pass
+        self.widget = Checkbutton(row.frame, **kwargs)
+        self.pack_widget()

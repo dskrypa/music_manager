@@ -12,7 +12,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from itertools import count
 from tkinter import TclError
-from tkinter.ttk import Style as TtkStyle
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping, overload
 
 from ..enums import StyleState, Anchor, Justify, Side
@@ -26,109 +25,42 @@ if TYPE_CHECKING:
     from ..typing import XY, BindCallback, Key, TkFill
     from ..window import Window
 
-__all__ = ['Element', 'Interactive']
+__all__ = ['ElementBase', 'Element', 'Interactive']
 log = logging.getLogger(__name__)
 
-_DIRECT_ATTRS = {'key', 'tooltip', 'right_click_menu', 'left_click_cb', 'binds', 'expand', 'fill', 'data'}
-_INHERITABLES = {'pad', 'size', 'auto_size_text', 'grid', 'side', 'anchor', 'justify_text', 'style'}
+_DIRECT_ATTRS = {'key', 'tooltip', 'right_click_menu', 'left_click_cb', 'binds', 'data'}
+_INHERITABLES = {'size', 'auto_size_text', 'grid', 'anchor', 'justify_text'}
+_BASIC = {'style', 'pad', 'side', 'fill', 'expand'}
+_Side = Union[str, Side]
 
 
 class ElementBase(ClearableCachedPropertyMixin, ABC):
     _counters = defaultdict(count)
     _id: int
     id: str
+    parent: Optional[Row] = None
+    column: Optional[int] = None
     widget: Optional[Widget] = None
+    fill: TkFill = None
+    expand: bool = None
+    pad: XY = Inheritable('element_padding')
+    side: Side = Inheritable('element_side', type=Side)
     style: Style = Inheritable(type=Style.get_style)
 
-    def __init__(self, style: StyleSpec = None):
+    def __init__(
+        self, style: StyleSpec = None, pad: XY = None, side: _Side = None, fill: TkFill = None, expand: bool = None
+    ):
         cls = self.__class__
         self._id = _id = next(self._counters[cls])
         self.id = f'{cls.__name__}#{_id}'
+        self.pad = pad
+        self.side = side
+        if expand is not None:
+            self.expand = expand
+        if fill:
+            self.fill = fill
         if style:
             self.style = style
-
-
-class Element(ElementBase, ABC):
-    _key: Optional[Key] = None
-    _tooltip: Optional[ToolTip] = None
-    _pack_settings: dict[str, Any] = None
-    parent: Optional[Row] = None
-    column: Optional[int] = None
-    tooltip_text: Optional[str] = None
-    right_click_menu: Optional[ContextualMenu] = None
-    left_click_cb: Optional[Callable] = None
-    binds: Optional[MutableMapping[str, BindCallback]] = None
-    data: Any = None                                            # Any data that needs to be stored with the element
-    expand: bool = None
-    fill: TkFill = None
-
-    pad: XY = Inheritable('element_padding')
-    size: XY = Inheritable('element_size')
-    grid: bool = Inheritable()
-    auto_size_text: bool = Inheritable()
-    anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
-    justify_text: Justify = Inheritable('text_justification', type=Justify)
-    side: Side = Inheritable('element_side', type=Side)
-
-    @overload
-    def __init__(
-        self,
-        *,
-        key: Key = None,
-        size: XY = None,
-        pad: XY = None,
-        style: StyleSpec = None,
-        auto_size_text: bool = None,
-        anchor: Union[str, Anchor] = None,
-        side: Union[str, Side] = Side.LEFT,
-        justify_text: Union[str, Justify] = None,
-        grid: bool = None,
-        expand: bool = None,
-        fill: TkFill = None,
-        visible: bool = True,
-        tooltip: str = None,
-        right_click_menu: ContextualMenu = None,
-        left_click_cb: Callable = None,
-        binds: MutableMapping[str, BindCallback] = None,
-        data: Any = None,
-    ):
-        ...
-
-    def __init__(self, *, visible: bool = True, style: StyleSpec = None, **kwargs):
-        super().__init__(style)
-        self._visible = visible
-
-        bad = {}
-        for key, val in kwargs.items():
-            if key in _DIRECT_ATTRS:
-                if val is not None:
-                    setattr(self, key, val)
-            elif key in _INHERITABLES:
-                setattr(self, key, val)
-            else:
-                bad[key] = val
-        if bad:
-            raise ValueError(f'Invalid options for {self.__class__.__name__}: {bad}')
-
-    def __repr__(self) -> str:
-        x, y = self.col_row
-        return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
-
-    @property
-    def key(self) -> Key:
-        if key := self._key:
-            return key
-        return self.id
-
-    @key.setter
-    def key(self, value: Key):
-        self._key = value
-        if parent := self.parent:
-            parent.window.register_element(value, self)
-
-    @property
-    def value(self) -> Any:
-        return None
 
     # region Introspection
 
@@ -166,16 +98,116 @@ class Element(ElementBase, ABC):
     def pack_into_row(self, row: Row, column: int):
         self.parent = row
         self.column = column
+        self.pack_into(row, column)
+
+    @abstractmethod
+    def pack_into(self, row: Row, column: int):
+        raise NotImplementedError
+
+    def pack_widget(self, *, expand: bool = None, fill: TkFill = None, **kwargs):
+        if expand is None:
+            expand = self.expand
+        if fill is None:
+            fill = self.fill
+        pack_kwargs = {  # Note: using pack_kwargs to allow things like padding overrides
+            'side': self.side.value,
+            'expand': False if expand is None else expand,
+            'fill': tkc.NONE if not fill else tkc.BOTH if fill is True else fill,
+            **self.pad_kw,
+            **kwargs,
+        }
+        self.widget.pack(**pack_kwargs)
+
+    # endregion
+
+
+class Element(ElementBase, ABC):
+    _key: Optional[Key] = None
+    _tooltip: Optional[ToolTip] = None
+    _pack_settings: dict[str, Any] = None
+    tooltip_text: Optional[str] = None
+    right_click_menu: Optional[ContextualMenu] = None
+    left_click_cb: Optional[Callable] = None
+    binds: Optional[MutableMapping[str, BindCallback]] = None
+    data: Any = None                                            # Any data that needs to be stored with the element
+
+    size: XY = Inheritable('element_size')
+    grid: bool = Inheritable()
+    auto_size_text: bool = Inheritable()
+    anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
+    justify_text: Justify = Inheritable('text_justification', type=Justify)
+
+    @overload
+    def __init__(
+        self,
+        *,
+        key: Key = None,
+        size: XY = None,
+        pad: XY = None,
+        style: StyleSpec = None,
+        auto_size_text: bool = None,
+        anchor: Union[str, Anchor] = None,
+        side: Union[str, Side] = Side.LEFT,
+        justify_text: Union[str, Justify] = None,
+        grid: bool = None,
+        expand: bool = None,
+        fill: TkFill = None,
+        visible: bool = True,
+        tooltip: str = None,
+        right_click_menu: ContextualMenu = None,
+        left_click_cb: Callable = None,
+        binds: MutableMapping[str, BindCallback] = None,
+        data: Any = None,
+    ):
+        ...
+
+    def __init__(self, *, visible: bool = True, **kwargs):
+        super().__init__(**{k: kwargs.pop(k, None) for k in _BASIC})
+        self._visible = visible
+
+        bad = {}
+        for key, val in kwargs.items():
+            if key in _DIRECT_ATTRS:
+                if val is not None:
+                    setattr(self, key, val)
+            elif key in _INHERITABLES:
+                setattr(self, key, val)
+            else:
+                bad[key] = val
+        if bad:
+            raise ValueError(f'Invalid options for {self.__class__.__name__}: {bad}')
+
+    def __repr__(self) -> str:
+        x, y = self.col_row
+        return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
+
+    @property
+    def key(self) -> Key:
+        if key := self._key:
+            return key
+        return self.id
+
+    @key.setter
+    def key(self, value: Key):
+        self._key = value
+        if parent := self.parent:
+            parent.window.register_element(value, self)
+
+    @property
+    def value(self) -> Any:
+        return None
+
+    # region Pack Methods / Attributes
+
+    def pack_into_row(self, row: Row, column: int):
+        self.parent = row
+        self.column = column
         if key := self._key:
             row.window.register_element(key, self)
         self.pack_into(row, column)
         self.apply_binds()
         if tooltip := self.tooltip_text:
             self.add_tooltip(tooltip)
-
-    @abstractmethod
-    def pack_into(self, row: Row, column: int):
-        raise NotImplementedError
 
     def pack_widget(
         self,

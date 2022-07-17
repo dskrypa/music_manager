@@ -10,6 +10,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
 from .elements.choices import Radio, RadioGroup, Checkbox, Combo
+from .elements.misc import HorizontalSeparator, Separator, VerticalSeparator
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -135,9 +136,10 @@ class GuiTest(Command):
 
         frame_layout = [
             [table1], [table2],
+            [HorizontalSeparator()],
             [inpt, Button('Submit', bind_enter=True), Button(image=search_path, shortcut='s', size=(30, 30))],
             [Animation(gif_path)], [SpinnerImage()], [ClockImage()],
-            [Text('test'), Text('link test', link='https://google.com')],
+            [Text('test'), VerticalSeparator(), Text('link test', link='https://google.com')],
             # [Text(f'test_{i:03d}')] for i in range(100)
         ]
 

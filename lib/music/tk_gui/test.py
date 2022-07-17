@@ -10,7 +10,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
 from .elements.choices import Radio, RadioGroup, Checkbox, Combo
-from .elements.misc import HorizontalSeparator, VerticalSeparator, ProgressBar
+from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor

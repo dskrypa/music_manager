@@ -24,7 +24,7 @@ from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 
 if TYPE_CHECKING:
     from .elements.element import Element
-    from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool
+    from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
 
 __all__ = ['Window']
 log = logging.getLogger(__name__)
@@ -176,12 +176,13 @@ class Window(RowContainer):
     #  a high level event for window close / exit?  Subclass that uses that instead of the more direct exit, leaving
     #  this one without that or the higher level loop?
 
-    def run(self, n: int = 0):
+    def run(self, n: int = 0) -> Window:
         try:
             self._root.mainloop(n)
         except AttributeError:
             self.show()
             self._root.mainloop(n)
+        return self
 
     def interrupt(self, event: Event = None):
         self._root.quit()  # exit the TK main loop, but leave the window open
@@ -190,7 +191,7 @@ class Window(RowContainer):
 
     # region Results
 
-    def __getitem__(self, item: Union[Key, str, tuple[int, int]]) -> Element:
+    def __getitem__(self, item: Union[Key, str, tuple[int, int]]) -> Union[Element, HasValue]:
         try:
             return self.element_map[item]
         except KeyError:
@@ -208,7 +209,7 @@ class Window(RowContainer):
     def get_result(self, key: Key) -> Any:
         return self.element_map[key].value
 
-    def register_element(self, key: Key, element: Element):
+    def register_element(self, key: Key, element: Union[Element, HasValue]):
         ele_map = self.element_map
         try:
             old = ele_map[key]

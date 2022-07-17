@@ -15,13 +15,14 @@ if TYPE_CHECKING:
 
 # fmt: off
 __all__ = [
-    'Bool', 'XY', 'Key', 'Layout',
+    'Bool', 'XY', 'Key', 'HasParent', 'HasValue', 'Layout',
     'BindCallback', 'EventCallback', 'BindTarget', 'Bindable', 'BindMap',
     'TkFill', 'TkSide', 'TkJustify',
     'TkContainer',
 ]
 # fmt: on
 
+T = TypeVar('T')
 T_co = TypeVar('T_co', covariant=True)
 
 BindCallback = Callable[['Event'], Any]
@@ -67,3 +68,13 @@ class KeyMeta(_ProtocolMeta):
 @runtime_checkable
 class Key(Protocol, metaclass=KeyMeta):
     __slots__ = ()
+
+
+@runtime_checkable
+class HasValue(Protocol[T_co]):
+    __slots__ = ()
+
+    @property
+    @abstractmethod
+    def value(self) -> T_co:
+        pass

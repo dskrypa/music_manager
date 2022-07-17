@@ -9,6 +9,7 @@ from ds_tools.logging import init_logging
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
+from .elements.choices import Radio, RadioGroup
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -77,7 +78,7 @@ class GuiTest(Command):
     @action
     def max_size(self):
         layout = [[Text(f'test_{i:03d}')] for i in range(100)]
-        Window(layout, 'Auto Max Size Test', anchor_elements='c', exit_on_esc=True, handle_configure=True).run()
+        Window(layout, 'Auto Max Size Test', exit_on_esc=True, handle_configure=True).run()
 
     @action
     def pick_folder(self):
@@ -88,6 +89,19 @@ class GuiTest(Command):
     def pick_color(self):
         color = PickColor().run()
         print(f'Picked {color=}')
+
+    @action
+    def radio(self):
+        b = RadioGroup('group 2')
+        with RadioGroup('group 1'):
+            layout = [
+                [Radio('A1', default=True), Radio('B1', group=b)],
+                [Radio('A2'), Radio('B2', 'b two', group=b)],
+                [Radio('A3'), Radio('B3', group=b)],
+            ]
+
+        results = Window(layout, 'Radio Test', exit_on_esc=True).run().results
+        print(f'Results: {results}')
 
     @action(default=True)
     def window(self):
@@ -130,7 +144,6 @@ class GuiTest(Command):
         # Window(layout, size=(600, 600), anchor_elements='c').run()
         # Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
         # Window(layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
-        # TODO: If window is too small for layout, add scroll bar?  Right now the remainder is silently hidden
         # Window(layout, 'Test One', anchor_elements='c', binds={'<Escape>': 'exit'}).run()
         Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run()
 

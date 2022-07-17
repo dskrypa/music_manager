@@ -6,11 +6,11 @@ Tkinter GUI Exceptions
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from .elements import Element
-    from .typing import Key
+    from .typing import Key, HasValue
     from .window import Window
 
 __all__ = ['TkGuiException', 'DuplicateKeyError']
@@ -23,7 +23,7 @@ class TkGuiException(Exception):
 class DuplicateKeyError(TkGuiException):
     """Raised when a duplicate key is used for an Element"""
 
-    def __init__(self, key: Key, old: Element, new: Element, window: Window):
+    def __init__(self, key: Key, old: Union[Element, HasValue], new: Union[Element, HasValue], window: Window):
         self.key = key
         self.old = old
         self.new = new

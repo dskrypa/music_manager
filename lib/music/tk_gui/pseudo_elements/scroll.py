@@ -20,7 +20,7 @@ from ..utils import ON_WINDOWS
 
 if TYPE_CHECKING:
     from ..style import Style
-    from ..typing import Bool, BindCallback
+    from ..typing import Bool, BindCallback, Axis
 
 __all__ = [
     'add_scroll_bar',
@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 FrameLike = Union[Tk, Frame, LabelFrame]
 ScrollOuter = Union[Misc, 'Scrollable']
-Axis = Literal['x', 'y']
+
 AXIS_DIR_SIDE = {'x': (tkc.HORIZONTAL, tkc.BOTTOM), 'y': (tkc.VERTICAL, tkc.RIGHT)}
 
 

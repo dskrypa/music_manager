@@ -37,7 +37,6 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     _counters = defaultdict(count)
     _id: int
     id: str
-    ttk_styles: dict[str, TtkStyle]
     widget: Optional[Widget] = None
     style: Style = Inheritable(type=Style.get_style)
 
@@ -45,22 +44,8 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
         cls = self.__class__
         self._id = _id = next(self._counters[cls])
         self.id = f'{cls.__name__}#{_id}'
-        self.ttk_styles = {}
         if style:
             self.style = style
-
-    # region TTK Styles
-
-    def ttk_style_name(self, suffix: str) -> str:
-        return f'{self.id}.{suffix}'
-
-    def prepare_ttk_style(self, name_suffix: str) -> tuple[str, TtkStyle]:
-        name = self.ttk_style_name(name_suffix)
-        self.ttk_styles[name] = ttk_style = TtkStyle()
-        ttk_style.theme_use(self.style.ttk_theme)
-        return name, ttk_style
-
-    # endregion
 
 
 class Element(ElementBase, ABC):

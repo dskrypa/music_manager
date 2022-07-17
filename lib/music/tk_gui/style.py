@@ -394,25 +394,27 @@ class Style(ClearableCachedPropertyMixin):
     ttk_theme: Optional[str] = StyleProperty()
 
     base = StyleLayerProperty()
-    insert = StyleLayerProperty()
-    hover = StyleLayerProperty()
-    focus = StyleLayerProperty()
-    scroll = StyleLayerProperty()
+
     arrows = StyleLayerProperty()                   # Arrows on forms, such as combo boxes
-    tooltip = StyleLayerProperty('base')
-    image = StyleLayerProperty('base')
     button = StyleLayerProperty('base')
-    text = StyleLayerProperty('base')
-    link = StyleLayerProperty('text')               # Hyperlinks
-    selected = StyleLayerProperty('base')           # Selected text / radio buttons / etc
-    input = StyleLayerProperty('text')
-    combo = StyleLayerProperty('text')              # Combo box (dropdown) input
-    table = StyleLayerProperty('base')              # Table elements
-    table_header = StyleLayerProperty('table')      # Table headers
-    table_alt = StyleLayerProperty('table')         # Alternate / even rows in tables
-    radio = StyleLayerProperty('base')
     checkbox = StyleLayerProperty('base')
+    combo = StyleLayerProperty('text')              # Combo box (dropdown) input
+    focus = StyleLayerProperty()
     frame = StyleLayerProperty('base')
+    hover = StyleLayerProperty()
+    image = StyleLayerProperty('base')
+    input = StyleLayerProperty('text')
+    insert = StyleLayerProperty()
+    link = StyleLayerProperty('text')               # Hyperlinks
+    radio = StyleLayerProperty('base')
+    scroll = StyleLayerProperty()
+    selected = StyleLayerProperty('base')           # Selected text / radio buttons / etc
+    separator = StyleLayerProperty('base')          # Vertical / horizontal separator lines
+    table = StyleLayerProperty('base')              # Table elements
+    table_alt = StyleLayerProperty('table')         # Alternate / even rows in tables
+    table_header = StyleLayerProperty('table')      # Table headers
+    text = StyleLayerProperty('base')
+    tooltip = StyleLayerProperty('base')
 
     def __init__(self, name: str = None, *, parent: Union[str, Style] = None, ttk_theme: str = None, **kwargs):
         if not name:  # Anonymous styles won't be stored

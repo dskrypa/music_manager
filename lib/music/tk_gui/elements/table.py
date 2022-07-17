@@ -132,8 +132,8 @@ class Table(Element):
         return cls(*columns, data=data, **kwargs)
 
     def _ttk_style(self) -> tuple[str, TtkStyle]:
-        name, ttk_style = self.prepare_ttk_style('customtable.Treeview')
         style = self.style
+        name, ttk_style = style.make_ttk_style('customtable.Treeview')
         ttk_style.configure(name, rowheight=self.row_height or style.char_height('table'))
 
         if base := self._tk_style_config(ttk_style, name, 'table'):

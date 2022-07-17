@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 # fmt: off
 __all__ = [
-    'Bool', 'XY', 'Key', 'HasParent', 'HasValue', 'Layout',
+    'Bool', 'XY', 'Key', 'HasParent', 'HasValue', 'Layout', 'Axis', 'Orientation',
     'BindCallback', 'EventCallback', 'BindTarget', 'Bindable', 'BindMap',
     'TkFill', 'TkSide', 'TkJustify',
     'TkContainer',
@@ -34,6 +34,8 @@ BindMap = MutableMapping[Bindable, BindTarget]
 Bool = Union[bool, Any]
 XY = tuple[int, int]
 Layout = Iterable[Iterable['Element']]
+Axis = Literal['x', 'y']
+Orientation = Literal['horizontal', 'vertical']
 
 TkFill = Union[Literal['none', 'x', 'y', 'both'], None, bool]
 TkSide = Literal['left', 'right', 'top', 'bottom']

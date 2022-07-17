@@ -7,3 +7,4 @@ from .images import Image, Animation, SpinnerImage, ClockImage
 from .inputs import Input
 from .table import TableColumn, Table
 from .text import Text, Link, Multiline
+from .misc import HorizontalSeparator, VerticalSeparator, ProgressBar

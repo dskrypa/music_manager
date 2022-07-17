@@ -376,7 +376,7 @@ class StyleLayerProperty(StyleProperty[StyleLayer]):
 
 
 Layer = Literal[
-    'base', 'insert', 'hover', 'focus', 'scroll', 'arrows', 'radio', 'checkbox', 'frame', 'combo',
+    'base', 'insert', 'hover', 'focus', 'scroll', 'arrows', 'radio', 'checkbox', 'frame', 'combo', 'progress',
     'tooltip', 'image', 'button', 'text', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt',
 ]
 
@@ -406,6 +406,7 @@ class Style(ClearableCachedPropertyMixin):
     input = StyleLayerProperty('text')
     insert = StyleLayerProperty()
     link = StyleLayerProperty('text')               # Hyperlinks
+    progress = StyleLayerProperty('base')           # Progress bars
     radio = StyleLayerProperty('base')
     scroll = StyleLayerProperty()
     selected = StyleLayerProperty('base')           # Selected text / radio buttons / etc

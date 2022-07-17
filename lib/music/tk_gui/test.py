@@ -10,7 +10,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
 from .elements.choices import Radio, RadioGroup, Checkbox, Combo
-from .elements.misc import HorizontalSeparator, Separator, VerticalSeparator
+from .elements.misc import HorizontalSeparator, VerticalSeparator, ProgressBar
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -112,6 +112,14 @@ class GuiTest(Command):
         ]
         results = Window(layout, 'Combo Test', exit_on_esc=True).run().results
         print(f'Results: {results}')
+
+    @action
+    def progress(self):
+        bar = ProgressBar(100)
+        window = Window([[Text('Processing...')], [bar]], 'Progress Test', exit_on_esc=True)
+        for _ in bar(range(99)):
+            window._root.after(50, window.interrupt)
+            window.run()
 
     @action(default=True)
     def window(self):

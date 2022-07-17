@@ -9,7 +9,7 @@ from ds_tools.logging import init_logging
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
-from .elements.choices import Radio, RadioGroup, Checkbox
+from .elements.choices import Radio, RadioGroup, Checkbox, Combo
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -101,6 +101,15 @@ class GuiTest(Command):
             ]
 
         results = Window(layout, 'Radio Test', exit_on_esc=True).run().results
+        print(f'Results: {results}')
+
+    @action
+    def combo(self):
+        layout = [
+            [Combo(['A', 'B', 'C', 'D'], key='A')],
+            [Combo({'A': 1, 'B': 2, 'C': 3}, key='B', default='C')],
+        ]
+        results = Window(layout, 'Combo Test', exit_on_esc=True).run().results
         print(f'Results: {results}')
 
     @action(default=True)

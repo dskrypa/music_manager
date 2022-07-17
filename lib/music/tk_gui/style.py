@@ -376,7 +376,7 @@ class StyleLayerProperty(StyleProperty[StyleLayer]):
 
 
 Layer = Literal[
-    'base', 'insert', 'hover', 'focus', 'scroll', 'radio', 'checkbox', 'frame',
+    'base', 'insert', 'hover', 'focus', 'scroll', 'arrows', 'radio', 'checkbox', 'frame', 'combo',
     'tooltip', 'image', 'button', 'text', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt',
 ]
 
@@ -398,6 +398,7 @@ class Style(ClearableCachedPropertyMixin):
     hover = StyleLayerProperty()
     focus = StyleLayerProperty()
     scroll = StyleLayerProperty()
+    arrows = StyleLayerProperty()                   # Arrows on forms, such as combo boxes
     tooltip = StyleLayerProperty('base')
     image = StyleLayerProperty('base')
     button = StyleLayerProperty('base')
@@ -405,6 +406,7 @@ class Style(ClearableCachedPropertyMixin):
     link = StyleLayerProperty('text')               # Hyperlinks
     selected = StyleLayerProperty('base')           # Selected text / radio buttons / etc
     input = StyleLayerProperty('text')
+    combo = StyleLayerProperty('text')              # Combo box (dropdown) input
     table = StyleLayerProperty('base')              # Table elements
     table_header = StyleLayerProperty('table')      # Table headers
     table_alt = StyleLayerProperty('table')         # Alternate / even rows in tables

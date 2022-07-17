@@ -9,8 +9,9 @@ from __future__ import annotations
 import logging
 from contextvars import ContextVar
 from itertools import count
-from tkinter import IntVar, Radiobutton, Checkbutton, BooleanVar
-from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic
+from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar
+from tkinter.ttk import Combobox
+from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection
 from weakref import WeakValueDictionary
 
 from ..typing import Bool, T
@@ -20,7 +21,7 @@ from .exceptions import NoActiveGroup, BadGroupCombo
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
 
-__all__ = ['Radio', 'RadioGroup', 'Checkbox']
+__all__ = ['Radio', 'RadioGroup', 'Checkbox', 'Combo']
 log = logging.getLogger(__name__)
 
 _NotSet = object()
@@ -210,3 +211,61 @@ class Checkbox(Interactive):
             pass
         self.widget = Checkbutton(row.frame, **kwargs)
         self.pack_widget()
+
+
+class Combo(Interactive):
+    widget: Combobox
+    tk_var: Optional[StringVar] = None
+
+    def __init__(self, choices: Collection[str], default: str = None, read_only: Bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self.choices = choices
+        self.default = default
+        self.read_only = read_only  # TODO: Handle
+        # TODO: To register a callback on selection made: '<<ComboboxSelected>>'
+
+    @property
+    def value(self) -> Any:
+        choice = self.tk_var.get()
+        try:
+            return self.choices[choice]  # noqa
+        except TypeError:
+            return choice
+
+    def _prepare_ttk_style(self) -> str:
+        style, state = self.style, self.style_state
+        ttk_style_name, ttk_style = style.make_ttk_style('.TCombobox')
+        style_kwargs = {
+            **style.get_map('combo', state, foreground='fg', insertcolor='fg', fieldbackground='bg'),
+            **style.get_map('arrows', state, arrowcolor='fg', background='bg'),
+            **style.get_map('selected', state, selectforeground='fg', selectbackground='bg'),
+        }
+        ttk_style.configure(ttk_style_name, **style_kwargs)
+        ttk_style.map(ttk_style_name, fieldbackground=[('readonly', style.combo.bg[state])])
+        return ttk_style_name
+
+    def pack_into(self, row: Row, column: int):
+        self.tk_var = tk_var = StringVar()
+        style, state = self.style, self.style_state
+        kwargs = {
+            'textvariable': tk_var,
+            'style': self._prepare_ttk_style(),
+            'values': list(self.choices),
+            **style.get_map('combo', state, font='font'),
+        }
+        try:
+            kwargs['width'], kwargs['height'] = self.size
+        except TypeError:
+            kwargs['width'] = max(map(len, self.choices)) + 1 if self.choices else 0
+
+        self.widget = combo_box = Combobox(row.frame, **kwargs)
+        fg, bg = style.combo.fg[state], style.combo.bg[state]
+        if fg and bg:  # This sets colors for drop-down formatting
+            combo_box.tk.eval(
+                f'[ttk::combobox::PopdownWindow {combo_box}].f.l configure'
+                f' -foreground {fg} -background {bg} -selectforeground {bg} -selectbackground {fg}'
+            )
+
+        self.pack_widget()
+        if default := self.default:
+            combo_box.set(default)

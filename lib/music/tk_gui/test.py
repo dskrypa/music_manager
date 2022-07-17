@@ -8,7 +8,7 @@ from ds_tools.logging import init_logging
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
-from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame
+from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame, SizeGrip
 from .elements.choices import Radio, RadioGroup, Checkbox, Combo
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
@@ -167,7 +167,7 @@ class GuiTest(Command):
             [Frame(frame_layout, scroll_y=True)],
             [Checkbox('A', key='A', default=True), Checkbox('B', key='B'), Checkbox('C', key='C')],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
-            [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
+            [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],
         ]
 
         # Window(layout, size=(600, 600), anchor_elements='c').run()

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Union, Collection, Mapping
 from ..elements import Input, Button
 from ..positioning import positioner
 from ..style import Style, StyleSpec
+from ..utils import max_line_len
 from ..window import Window
 
 if TYPE_CHECKING:
@@ -102,14 +103,11 @@ class BasicPopup(Popup):
         return self.text.splitlines()
 
     @cached_property
-    def longest_line(self) -> int:
-        return max(map(len, self.lines))
-
-    @cached_property
     def text_size(self) -> XY:
         if size := self.window_kwargs.pop('size', None):
             return size
-        n_lines = len(self.lines)
+        lines = self.lines
+        n_lines = len(lines)
         if self.multiline or n_lines > 1:
             if parent := self.parent:
                 monitor = positioner.get_monitor(*parent.position)
@@ -120,7 +118,7 @@ class BasicPopup(Popup):
         else:
             lines_to_show = 1
 
-        return self.longest_line, lines_to_show
+        return max_line_len(lines), lines_to_show
 
     def prepare_buttons(self) -> Collection[Button]:
         buttons = self.buttons

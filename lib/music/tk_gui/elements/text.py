@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Optional, Union, Any
 
 from ..enums import Justify
 from ..pseudo_elements.scroll import ScrollableText
+from ..utils import max_line_len
 from .element import Element
 
 if TYPE_CHECKING:
@@ -144,7 +145,7 @@ class Multiline(Element):
         scroll_y: bool = True,
         scroll_x: bool = False,
         # auto_scroll: bool = False,  # TODO
-        # rstrip: bool = True,
+        rstrip: bool = True,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
         **kwargs,
     ):
@@ -153,7 +154,7 @@ class Multiline(Element):
         self.scroll_y = scroll_y
         self.scroll_x = scroll_x
         # self.auto_scroll = auto_scroll
-        # self.rstrip = rstrip
+        self.rstrip = rstrip
 
     def pack_into(self, row: Row, column: int):
         style = self.style
@@ -169,9 +170,18 @@ class Multiline(Element):
         except TypeError:
             pass
 
+        value = self._value
+        if self.rstrip:
+            lines = [line.rstrip() for line in value.splitlines()]
+            value = '\n'.join(lines)
+            if 'width' not in kwargs:
+                kwargs['width'] = max_line_len(lines)
+        elif 'width' not in kwargs:
+            kwargs['width'] = max_line_len(value.splitlines())
+
         self.widget = scroll_text = ScrollableText(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)
         text = scroll_text.inner_widget
-        if value := self._value:
+        if value:
             text.insert(1.0, value)
         if (justify := self.justify_text) != Justify.NONE:
             text.tag_add(justify.value, 1.0, 'end')

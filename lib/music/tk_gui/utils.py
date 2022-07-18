@@ -18,7 +18,9 @@ if TYPE_CHECKING:
     from .typing import HasParent
 
 __all__ = [
-    'ON_WINDOWS', 'ON_LINUX', 'ON_MAC', 'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata', 'tcl_version'
+    'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
+    'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata',
+    'tcl_version', 'max_line_len',
 ]
 log = logging.getLogger(__name__)
 
@@ -160,3 +162,9 @@ def tcl_version():
 
         tcl_version._tcl_version = ver = Tcl().eval('info patchlevel')
         return ver
+
+
+def max_line_len(lines: Collection[str]) -> int:
+    if not lines:
+        return 0
+    return max(map(len, lines))

@@ -4,7 +4,7 @@ from .frame import Frame
 
 from .bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .buttons import Button
-from .choices import Radio, RadioGroup, Combo, Checkbox
+from .choices import Radio, RadioGroup, Combo, CheckBox, ListBox
 from .images import Image, Animation, SpinnerImage, ClockImage
 from .inputs import Input
 from .misc import SizeGrip

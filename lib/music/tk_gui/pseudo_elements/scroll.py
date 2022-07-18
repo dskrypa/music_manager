@@ -12,9 +12,9 @@ import tkinter.constants as tkc
 from abc import ABC
 from functools import cached_property
 from itertools import count
-from tkinter import Misc, Frame, LabelFrame, Canvas, Widget, Event, Tk, Toplevel, Text
+from tkinter import Misc, Frame, LabelFrame, Canvas, Widget, Event, Tk, Toplevel, Text, Listbox
 from tkinter.ttk import Scrollbar, Treeview
-from typing import TYPE_CHECKING, Literal, Type, Mapping, Union, Optional, Any
+from typing import TYPE_CHECKING, Type, Mapping, Union, Optional, Any
 
 from ..utils import ON_WINDOWS
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 __all__ = [
     'add_scroll_bar',
     'ScrollableToplevel', 'ScrollableFrame', 'ScrollableLabelFrame',
-    'ScrollableTreeview', 'ScrollableText',
+    'ScrollableTreeview', 'ScrollableText', 'ScrollableListbox',
 ]
 log = logging.getLogger(__name__)
 
@@ -297,6 +297,10 @@ class ScrollableText(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Text):
     def __init__(self, parent: Misc = None, scroll_y: Bool = False, scroll_x: Bool = False, *args, **kwargs):
         super().__init__(parent, scroll_y, scroll_x, *args, **kwargs)
         self.inner_widget.configure(wrap=tkc.NONE if scroll_x else tkc.WORD)
+
+
+class ScrollableListbox(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Listbox):
+    inner_widget: Listbox
 
 
 # endregion

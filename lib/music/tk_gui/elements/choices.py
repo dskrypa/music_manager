@@ -7,21 +7,25 @@ Choice GUI elements
 from __future__ import annotations
 
 import logging
+import tkinter.constants as tkc
 from contextvars import ContextVar
 from itertools import count
-from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar
+from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar, Event, TclError
 from tkinter.ttk import Combobox
 from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection
 from weakref import WeakValueDictionary
 
+from ..enums import ListBoxSelectMode
+from ..pseudo_elements.scroll import ScrollableListbox
 from ..typing import Bool, T
+from ..utils import max_line_len
 from .element import Interactive
 from .exceptions import NoActiveGroup, BadGroupCombo
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
 
-__all__ = ['Radio', 'RadioGroup', 'Checkbox', 'Combo']
+__all__ = ['Radio', 'RadioGroup', 'CheckBox', 'Combo', 'ListBox']
 log = logging.getLogger(__name__)
 
 _NotSet = object()
@@ -134,7 +138,7 @@ class RadioGroup:
     def select(self, choice: Radio):
         self.selection_var.set(choice.choice_id)
 
-    def reset(self, default: bool = True):
+    def reset(self, default: Bool = True):
         self.selection_var.set(self.default.choice_id if default and self.default else 0)
 
     def get_choice(self) -> Optional[Radio]:
@@ -179,7 +183,7 @@ def get_current_radio_group(silent: bool = False) -> Optional[RadioGroup]:
 # endregion
 
 
-class Checkbox(Interactive):
+class CheckBox(Interactive):
     widget: Checkbutton
     tk_var: Optional[BooleanVar] = None
 
@@ -256,7 +260,7 @@ class Combo(Interactive):
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
-            kwargs['width'] = max(map(len, self.choices)) + 1 if self.choices else 0
+            kwargs['width'] = max_line_len(self.choices) + 1
 
         self.widget = combo_box = Combobox(row.frame, **kwargs)
         fg, bg = style.combo.fg[state], style.combo.bg[state]
@@ -269,3 +273,80 @@ class Combo(Interactive):
         self.pack_widget()
         if default := self.default:
             combo_box.set(default)
+
+
+class ListBox(Interactive):
+    widget: ScrollableListbox
+
+    def __init__(
+        self,
+        choices: Collection[str],
+        default: Union[str, Collection[str]] = None,
+        select_mode: Union[str, ListBoxSelectMode] = ListBoxSelectMode.EXTENDED,
+        scroll_y: Bool = True,
+        scroll_x: Bool = False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.choices = tuple(choices)
+        self.defaults = {default} if isinstance(default, str) else set(default) if default else None
+        self.select_mode = ListBoxSelectMode(select_mode)
+        self.scroll_y = scroll_y
+        self.scroll_x = scroll_x
+        self._last_selection: Optional[tuple[int]] = None
+
+    @property
+    def value(self) -> list[str]:
+        list_box, choices = self.widget.inner_widget, self.choices
+        try:
+            return [choices[i] for i in list_box.curselection()]
+        except TclError as e:
+            log.debug(f'Using cached listbox selection due to error obtaining current selection: {e}')
+            if (last := self._last_selection) is None:
+                if defaults := self.defaults:
+                    return [choice for choice in self.choices if choice in defaults]
+                last = ()
+            return [choices[i] for i in last]
+
+    def _handle_selection_made(self, event: Event = None):
+        """
+        Stores the most recent selection so it can be used if the window is closed / the widget is destroyed before this
+        element's value is accessed.
+        """
+        # TODO: Exiting via escape key results in a final empty selection being registered, breaking this...
+        # selection = self.widget.inner_widget.curselection()
+        # log.debug(f'Storing {selection=} {event.__dict__=}')
+        # self._last_selection = selection
+        self._last_selection = self.widget.inner_widget.curselection()
+
+    def reset(self, default: Bool = True):
+        list_box = self.widget.inner_widget
+        if default and (defaults := self.defaults):
+            for i, choice in enumerate(self.choices):
+                if choice in defaults:
+                    list_box.selection_set(i)
+        else:
+            list_box.selection_clear(0, len(self.choices))
+
+    def pack_into(self, row: Row, column: int):
+        style, state = self.style, self.style_state
+        kwargs = {
+            'exportselection': False,  # Prevent selections in this box from affecting others / the primary selection
+            'selectmode': self.select_mode.value,
+            'highlightthickness': 0,
+            **style.get_map('listbox', state, font='font', background='bg', fg='fg', ),
+            **style.get_map('selected', state, font='font', selectbackground='bg', selectforeground='fg', ),
+        }
+        try:
+            kwargs['width'], kwargs['height'] = self.size
+        except TypeError:
+            kwargs['width'] = max_line_len(self.choices) + 1
+
+        self.widget = outer = ScrollableListbox(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)
+        list_box = outer.inner_widget
+        if choices := self.choices:
+            list_box.insert(tkc.END, *choices)
+            self.reset(default=True)
+
+        self.pack_widget()
+        list_box.bind('<<ListboxSelect>>', self._handle_selection_made)

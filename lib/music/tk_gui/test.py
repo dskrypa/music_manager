@@ -9,7 +9,7 @@ from ds_tools.logging import init_logging
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame, SizeGrip
-from .elements.choices import Radio, RadioGroup, Checkbox, Combo
+from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
 from .popups.about import AboutPopup
@@ -130,6 +130,15 @@ class GuiTest(Command):
         results = Window(layout, 'Slider Test', exit_on_esc=True).run().results
         print(f'Results: {results}')
 
+    @action
+    def listbox(self):
+        chars = list(map(chr, range(97, 123)))
+        layout = [
+            [ListBox(chars, key='A', size=(40, 10)), ListBox(chars, ['a', 'b'], key='B', size=(40, 10))]
+        ]
+        results = Window(layout, 'ListBox Test', exit_on_esc=True).run().results
+        print(f'Results: {results}')
+
     @action(default=True)
     def window(self):
         table1 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
@@ -165,7 +174,7 @@ class GuiTest(Command):
             # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner', title_mode='inner')],
             # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner')],
             [Frame(frame_layout, scroll_y=True)],
-            [Checkbox('A', key='A', default=True), Checkbox('B', key='B'), Checkbox('C', key='C')],
+            [CheckBox('A', key='A', default=True), CheckBox('B', key='B'), CheckBox('C', key='C')],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],
         ]

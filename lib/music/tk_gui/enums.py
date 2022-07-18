@@ -10,7 +10,7 @@ import tkinter.constants as tkc
 from enum import Enum, IntEnum
 from typing import Type
 
-__all__ = ['BindTargets', 'Anchor', 'BindEvent', 'Justify', 'Side', 'StyleState']
+__all__ = ['BindTargets', 'Anchor', 'BindEvent', 'Justify', 'Side', 'StyleState', 'ListBoxSelectMode']
 
 # fmt: off
 ANCHOR_ALIASES = {
@@ -118,3 +118,10 @@ class StyleState(MissingMixin, IntEnum):
     DEFAULT = 0
     DISABLED = 1
     INVALID = 2
+
+
+class ListBoxSelectMode(MissingMixin, Enum):
+    BROWSE = tkc.BROWSE         #: Select 1 item; can drag mouse and selection will follow (tk default)
+    SINGLE = tkc.SINGLE         #: Select 1 item; cannot drag mouse to move selection
+    MULTIPLE = tkc.MULTIPLE     #: Select multiple items; each must be clicked individually
+    EXTENDED = tkc.EXTENDED     #: Select multiple items; can drag mouse to select multiple items (lib default)

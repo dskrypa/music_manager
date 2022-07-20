@@ -38,7 +38,7 @@ class ImagePopup(Popup):
         kwargs.setdefault('bind_esc', True)
         kwargs.setdefault('keep_on_top', False)
         kwargs.setdefault('can_minimize', True)
-        super().__init__(title or 'Image', **kwargs)
+        super().__init__(title=title or 'Image', **kwargs)
         self._set_image(image)
 
     def get_layout(self) -> Layout:

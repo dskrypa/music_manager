@@ -11,7 +11,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame, SizeGrip
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
-from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup
+from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
 from .window import Window
@@ -136,7 +136,9 @@ class GuiTest(Command):
         layout = [
             [ListBox(chars, key='A', size=(40, 10)), ListBox(chars, ['a', 'b'], key='B', size=(40, 10))]
         ]
-        results = Window(layout, 'ListBox Test', exit_on_esc=True).run().results
+
+        results = Popup(layout, 'ListBox Test', exit_on_esc=True).run()
+        # results = Window(layout, 'ListBox Test', exit_on_esc=True).run().results
         print(f'Results: {results}')
 
     @action(default=True)

@@ -23,7 +23,7 @@ class AboutPopup(Popup):
     def __init__(self, data: dict[str, str] = None, title: str = None, **kwargs):
         kwargs.setdefault('bind_esc', True)
         kwargs.setdefault('keep_on_top', True)
-        super().__init__(title or 'About', **kwargs)
+        super().__init__(title=title or 'About', **kwargs)
         self.about_data = data
 
     def get_about_data(self):

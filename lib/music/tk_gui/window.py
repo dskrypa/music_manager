@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from functools import partial, cached_property
 from os import environ
-from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame, EventType
+from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, overload
 from weakref import finalize
 
@@ -142,6 +142,7 @@ class Window(RowContainer):
         self.no_title_bar = no_title_bar
         self.margins = margins
         self.binds = binds or {}
+        self.closed = False
         self.close_cbs = list(close_cbs) if close_cbs is not None else []
         if handle_configure:
             self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
@@ -636,6 +637,7 @@ class Window(RowContainer):
             log.debug('Closing')
             close_func(*args, **kwargs)
             self._root = None
+            self.closed = True
             for close_cb in self.close_cbs:
                 close_cb()
             # if self.kill_others_on_close:

@@ -293,6 +293,7 @@ class ListBox(Interactive):
         self.select_mode = ListBoxSelectMode(select_mode)
         self.scroll_y = scroll_y
         self.scroll_x = scroll_x
+        self._prev_selection: Optional[tuple[int]] = None
         self._last_selection: Optional[tuple[int]] = None
 
     @property
@@ -302,7 +303,11 @@ class ListBox(Interactive):
             return [choices[i] for i in list_box.curselection()]
         except TclError as e:
             log.debug(f'Using cached listbox selection due to error obtaining current selection: {e}')
-            if (last := self._last_selection) is None:
+            prev, last = self._prev_selection, self._last_selection
+            if self.window.closed and prev and not last:
+                # An empty selection is registered while closing, before anything can be set to indicate it is happening
+                last = prev
+            elif last is None:
                 if defaults := self.defaults:
                     return [choice for choice in self.choices if choice in defaults]
                 last = ()
@@ -313,10 +318,7 @@ class ListBox(Interactive):
         Stores the most recent selection so it can be used if the window is closed / the widget is destroyed before this
         element's value is accessed.
         """
-        # TODO: Exiting via escape key results in a final empty selection being registered, breaking this...
-        # selection = self.widget.inner_widget.curselection()
-        # log.debug(f'Storing {selection=} {event.__dict__=}')
-        # self._last_selection = selection
+        self._prev_selection = self._last_selection
         self._last_selection = self.widget.inner_widget.curselection()
 
     def reset(self, default: Bool = True):

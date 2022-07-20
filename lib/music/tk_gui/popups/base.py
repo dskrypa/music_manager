@@ -31,8 +31,8 @@ POPUP_QUEUE = Queue()
 class Popup:
     def __init__(
         self,
-        title: str = None,
         layout: Layout = (),
+        title: str = None,
         *,
         parent: Window = None,
         bind_esc: Bool = False,

@@ -13,6 +13,7 @@ from enum import Enum
 from itertools import count
 from tkinter import Event, Misc, TclError, Menu as TkMenu
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Mapping, Iterator, Sequence
+from urllib.parse import quote_plus, urlparse
 
 from ..utils import get_top_level
 from .element import ElementBase
@@ -22,7 +23,11 @@ if TYPE_CHECKING:
     from ..pseudo_elements import Row
     from ..typing import Bool, XY, EventCallback
 
-__all__ = ['MenuGroup', 'MenuItem', 'Menu', 'CopySelection']
+__all__ = [
+    'MenuGroup', 'MenuItem', 'Menu',
+    'SelectionMenuItem', 'CopySelection',
+    'SearchSelection', 'GoogleSelection', 'SearchKpopFandom', 'SearchGenerasia',
+]
 log = logging.getLogger(__name__)
 
 _menu_group_stack = ContextVar('tk_gui.elements.menu.stack', default=[])
@@ -425,6 +430,57 @@ class CopySelection(SelectionMenuItem):
             widget: Misc = event.widget
             widget.clipboard_clear()
             widget.clipboard_append(selection)
+
+
+class SearchSelection(SelectionMenuItem, ABC):
+    title: str
+    url_fmt: str
+
+    def __init_subclass__(cls, url: str, title: str = None):  # noqa
+        expected = '{query}'
+        if expected not in url:
+            raise ValueError(f'Invalid {url=} - expected a format string with {expected!r} in place of the query')
+        if title is None:
+            title = urlparse(url).hostname
+            if title.startswith('www.') and len(title) > 4:
+                title = title[4:]
+
+        cls.title = title
+        cls.url_fmt = url
+
+    def __init__(self, label: str = None, *, keyword: str = 'selection', quote: Bool = True, **kwargs):
+        if label is None:
+            label = f'Search {self.title} for {{{keyword}!r}}'
+        kwargs['format_label'] = True
+        super().__init__(label, self._search_cb, keyword=keyword, **kwargs)
+        self.quote = quote
+
+    def _search_cb(self, event: Event, **kwargs):
+        if not (selection := kwargs.get(self.keyword)):
+            return
+
+        import webbrowser
+
+        if self.quote:
+            selection = quote_plus(selection)
+
+        url = self.url_fmt.format(query=selection)
+        log.debug(f'Opening {url=}')
+        webbrowser.open(url)
+
+
+class GoogleSelection(SearchSelection, title='Google', url='https://www.google.com/search?q={query}'):
+    pass
+
+
+class SearchKpopFandom(SearchSelection, url='https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={query}'):
+    pass
+
+
+class SearchGenerasia(
+    SearchSelection, url='https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={query}'
+):
+    pass
 
 
 # endregion

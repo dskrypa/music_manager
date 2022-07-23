@@ -11,7 +11,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame, SizeGrip
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
-from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection
+from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -166,7 +166,10 @@ class GuiTest(Command):
         class RightClickMenu(Menu):
             MenuItem('Test A', print)
             CopySelection()
-            MenuItem('Test B', print)
+            GoogleSelection()
+            SearchKpopFandom()
+            SearchGenerasia()
+            # MenuItem('Test B', print)
 
         class MenuBar(Menu):
             with MenuGroup('File'):

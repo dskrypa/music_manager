@@ -16,6 +16,7 @@ from weakref import finalize
 from PIL import ImageGrab
 
 from .assets import PYTHON_LOGO
+from .elements.menu import Menu
 from .enums import BindTargets, Anchor, Justify, Side, BindEvent
 from .exceptions import DuplicateKeyError
 from .positioning import positioner
@@ -27,7 +28,6 @@ from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
     from .elements.element import Element
-    from .elements.menu import Menu
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
 
 __all__ = ['Window']
@@ -39,24 +39,27 @@ Top = Union[ScrollableToplevel, Toplevel]
 # region Event Handling Helpers
 
 
-def _tk_event_handler(tk_event: Union[str, BindEvent]):
-    return partial(_TkEventHandler, tk_event)
+def _tk_event_handler(tk_event: Union[str, BindEvent], always_bind: bool = False):
+    return partial(_TkEventHandler, tk_event, always_bind)
 
 
 class _TkEventHandler:
-    __slots__ = ('tk_event', 'func')
+    __slots__ = ('tk_event', 'func', 'always_bind')
 
-    def __init__(self, tk_event: Union[str, BindEvent], func: BindCallback):
+    def __init__(self, tk_event: Union[str, BindEvent], always_bind: bool, func: BindCallback):
         self.tk_event = tk_event
+        self.always_bind = always_bind
         self.func = func
 
     def __set_name__(self, owner: Type[Window], name: str):
-        event = self.tk_event
+        bind_event = self.tk_event
         try:
-            event = event.event
+            event = bind_event.event
         except AttributeError:
-            pass
+            event = bind_event
         owner._tk_event_handlers[event] = name
+        if self.always_bind:
+            owner._always_bind_events.add(bind_event)
         setattr(owner, name, self.func)  # replace wrapper with the original function
 
 
@@ -66,6 +69,7 @@ class _TkEventHandler:
 class Window(RowContainer):
     __hidden_root = None
     _tk_event_handlers: dict[str, str] = {}
+    _always_bind_events: set[BindEvent] = set()
     _finalizer: finalize
     root: Union[Toplevel, Frame, None] = None
     _root: Optional[Top] = None
@@ -581,6 +585,9 @@ class Window(RowContainer):
         for event_pat, cb in self.binds.items():
             self._bind(event_pat, cb)
 
+        for bind_event in self._always_bind_events:
+            self._bind_event(bind_event, None)
+
     def _bind(self, event_pat: Bindable, cb: BindTarget):
         bind_event = _normalize_bind_event(event_pat)
         if isinstance(bind_event, BindEvent):
@@ -607,11 +614,12 @@ class Window(RowContainer):
 
         return cb
 
-    def _bind_event(self, bind_event: BindEvent, cb: EventCallback):
+    def _bind_event(self, bind_event: BindEvent, cb: Optional[EventCallback]):
         if cb is not None:
             self._event_cbs[bind_event] = cb
         if (tk_event := bind_event.event) not in self._bound_for_events:
             method = getattr(self, self._tk_event_handlers[tk_event])
+            log.debug(f'Binding event={tk_event!r} to {method=}')
             self._root.bind(tk_event, method)
             self._bound_for_events.add(tk_event)
 
@@ -653,6 +661,13 @@ class Window(RowContainer):
         if menu := self._right_click_menu:
             menu.parent = self
             menu.show(event, self.root)
+
+    @_tk_event_handler(BindEvent.MENU_RESULT, True)
+    def _handle_menu_callback(self, event: Event):
+        result = Menu.results.pop(event.state, None)
+        log.debug(f'Menu {result=}')
+        if cb := self._event_cbs.get(BindEvent.MENU_RESULT):
+            cb(event, result)
 
     # endregion
 

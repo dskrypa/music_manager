@@ -89,7 +89,11 @@ class SaveAs(PickFile):
 
 
 class PickColor(RawPopup):
+    def __init__(self, initial_color: str = None):
+        super().__init__()
+        self.initial_color = initial_color
+
     def _run(self) -> Optional[tuple[tuple[int, int, int], str]]:
-        if color := colorchooser.askcolor(parent=self._get_root()):
+        if color := colorchooser.askcolor(self.initial_color, parent=self._get_root()):
             return color  # noqa  # hex RGB
         return None

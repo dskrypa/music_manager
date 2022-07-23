@@ -20,6 +20,7 @@ from ..utils import max_line_len
 from ..window import Window
 
 if TYPE_CHECKING:
+    from tkinter import Event
     from ..typing import XY, Layout, Bool
 
 __all__ = ['Popup', 'POPUP_QUEUE', 'BasicPopup']
@@ -52,8 +53,8 @@ class Popup:
 
     @classmethod
     def as_callback(cls, *args, **kwargs) -> Callable:
-        def callback():
-            cls(*args, **kwargs).run()
+        def callback(event: Event = None):
+            return cls(*args, **kwargs).run()
 
         return callback
 

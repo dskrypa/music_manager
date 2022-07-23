@@ -164,11 +164,14 @@ class GuiTest(Command):
         # ]
 
         class RightClickMenu(Menu):
+            MenuItem('Test A', print)
             CopySelection()
+            MenuItem('Test B', print)
 
         class MenuBar(Menu):
             with MenuGroup('File'):
-                MenuItem('Open', print)
+                # MenuItem('Open', print)
+                MenuItem('Pick Color', PickColor.as_callback('#1c1e23'))
             with MenuGroup('Help'):
                 MenuItem('About', AboutPopup.as_callback())
 

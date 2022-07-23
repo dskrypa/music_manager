@@ -54,6 +54,7 @@ class BindEvent(MissingMixin, Enum):
     POSITION_CHANGED = '<Configure>'
     SIZE_CHANGED = '<Configure>'
     RIGHT_CLICK = '<ButtonRelease-2>' if ON_MAC else '<ButtonRelease-3>'
+    MENU_RESULT = '<<Custom:MenuCallback>>'
 
 
 class BindTargets(MissingMixin, Enum):
@@ -121,6 +122,7 @@ class StyleState(MissingMixin, IntEnum):
     DEFAULT = 0
     DISABLED = 1
     INVALID = 2
+    ACTIVE = 3
 
 
 class ListBoxSelectMode(MissingMixin, Enum):

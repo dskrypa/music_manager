@@ -10,16 +10,17 @@ import logging
 from abc import ABCMeta, ABC, abstractmethod
 from contextvars import ContextVar
 from enum import Enum
-from functools import partial
+from itertools import count
 from tkinter import Event, Misc, TclError, Menu as TkMenu
-from typing import TYPE_CHECKING, Optional, Union, Type, Callable, Any, Mapping, Iterator, Sequence
+from typing import TYPE_CHECKING, Optional, Union, Type, Any, Mapping, Iterator, Sequence
 
+from ..utils import get_top_level
 from .element import ElementBase
 from .exceptions import NoActiveGroup
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..typing import Bool, XY
+    from ..typing import Bool, XY, EventCallback
 
 __all__ = ['MenuGroup', 'MenuItem', 'Menu', 'CopySelection']
 log = logging.getLogger(__name__)
@@ -134,6 +135,50 @@ class MenuMeta(ABCMeta, type):
         return cls
 
 
+class CallbackMetadata:
+    __slots__ = ('menu_item', 'result', 'event', 'args', 'kwargs')
+
+    def __init__(
+        self,
+        menu_item: MenuItem,
+        result: Any,
+        event: Event = None,
+        args: Sequence[Any] = (),
+        kwargs: dict[str, Any] = None,
+    ):
+        self.menu_item = menu_item
+        self.result = result
+        self.event = event
+        self.args = args
+        self.kwargs = kwargs
+
+    def __repr__(self) -> str:
+        content = ',\n    '.join(f'{k}={getattr(self, k)!r}' for k in self.__slots__)
+        return f'<{self.__class__.__name__}(\n    {content}\n)>'
+
+
+def wrap_menu_cb(
+    menu_item: MenuItem,
+    func: EventCallback,
+    event: Event = None,
+    store_meta: Bool = False,
+    args: Sequence[Any] = (),
+    kwargs: dict[str, Any] = None,
+):
+    kwargs = kwargs or {}
+
+    def run_menu_cb():
+        result = func(event, *args, **kwargs)
+        if store_meta:
+            result = CallbackMetadata(menu_item, result, event, args, kwargs)
+
+        widget = event.widget if event else menu_item.root_menu.widget
+        num = menu_item.root_menu.add_result(result)
+        get_top_level(widget).event_generate('<<Custom:MenuCallback>>', state=num)
+
+    return run_menu_cb
+
+
 # endregion
 
 
@@ -141,7 +186,7 @@ class MenuMeta(ABCMeta, type):
 
 
 class MenuEntry(ABC):
-    __slots__ = ('label', '_underline', 'enabled', 'show', 'keyword', '_format_label')
+    __slots__ = ('parent', 'label', '_underline', 'enabled', 'show', 'keyword', '_format_label')
 
     def __init__(
         self,
@@ -160,6 +205,9 @@ class MenuEntry(ABC):
         self._format_label = format_label
         if group := get_current_menu_group(True):
             group.members.append(self)
+            self.parent = group
+        else:
+            self.parent = None
 
     def __set_name__(self, owner: Type[Menu], name: str):
         if not self.label:
@@ -168,6 +216,13 @@ class MenuEntry(ABC):
     def __repr__(self) -> str:
         underline, enabled, show = self._underline, self.enabled, self.show
         return f'<{self.__class__.__name__}({self.label!r}, {underline=}, {enabled=}, {show=})>'
+
+    @property
+    def root_menu(self) -> Optional[Menu]:
+        parent = self.parent
+        if parent is None or isinstance(parent, Menu):
+            return parent
+        return parent.parent
 
     @property
     def underline(self) -> Optional[int]:
@@ -187,17 +242,19 @@ class MenuEntry(ABC):
         return self.label
 
     @abstractmethod
-    def maybe_add(self, menu: TkMenu, style: dict[str, Any], kwargs: dict[str, Any] = None) -> bool:
+    def maybe_add(
+        self, menu: TkMenu, style: dict[str, Any], event: Event = None, kwargs: dict[str, Any] = None
+    ) -> bool:
         raise NotImplementedError
 
 
 class MenuItem(MenuEntry):
-    __slots__ = ('callback', 'use_kwargs')
+    __slots__ = ('callback', 'use_kwargs', 'store_meta')
 
     def __init__(
         self,
         label: str,
-        callback: Callable,
+        callback: EventCallback,
         *,
         underline: Union[str, int] = None,
         enabled: Mode = MenuMode.ALWAYS,
@@ -205,20 +262,26 @@ class MenuItem(MenuEntry):
         keyword: str = None,
         use_kwargs: Bool = False,
         format_label: Bool = False,
+        store_meta: Bool = False,
     ):
         if show is None:
             show = MenuMode.KEYWORD if keyword else MenuMode.ALWAYS
         super().__init__(label, underline, enabled, show, keyword, format_label)
         self.callback = callback
         self.use_kwargs = use_kwargs
+        self.store_meta = store_meta
 
-    def maybe_add(self, menu: TkMenu, style: dict[str, Any], kwargs: dict[str, Any] = None) -> bool:
+    def maybe_add(
+        self, menu: TkMenu, style: dict[str, Any], event: Event = None, kwargs: dict[str, Any] = None
+    ) -> bool:
         if not self.show.show(kwargs, self.keyword):
             return False
 
         callback = self.callback
         if self.use_kwargs and kwargs is not None:
-            callback = partial(callback, **kwargs)
+            callback = wrap_menu_cb(self, callback, event, self.store_meta, kwargs=kwargs)
+        else:
+            callback = wrap_menu_cb(self, callback, event, self.store_meta)
 
         label = self.format_label(kwargs)
         menu.add_command(label=label, underline=self.underline, command=callback)
@@ -239,7 +302,9 @@ class MenuGroup(ContainerMixin, MenuEntry):
         label, underline, enabled, show = self.label, self.underline, self.enabled, self.show
         return f'<{self.__class__.__name__}({label!r}, {underline=}, {enabled=}, {show=})[members={len(self.members)}]>'
 
-    def maybe_add(self, menu: TkMenu, style: dict[str, Any], kwargs: dict[str, Any] = None) -> bool:
+    def maybe_add(
+        self, menu: TkMenu, style: dict[str, Any], event: Event = None, kwargs: dict[str, Any] = None
+    ) -> bool:
         if not self.show.show(kwargs, self.keyword):
             return False
 
@@ -259,6 +324,8 @@ class MenuGroup(ContainerMixin, MenuEntry):
 class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
     """A menu bar or right-click menu"""
 
+    _result_counter = count()
+    results = {}
     widget: TkMenu
     members: Sequence[Union[MenuEntry, MenuItem, MenuGroup]]
 
@@ -270,6 +337,13 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
                 all_members.extend(members)
             else:
                 self.members = members
+        for member in self.members:
+            member.parent = self
+
+    def add_result(self, result: Any) -> int:
+        num = next(self._result_counter)
+        self.results[num] = result
+        return num
 
     def __enter__(self) -> Menu:
         super().__enter__()
@@ -280,32 +354,29 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
     def style_kwargs(self) -> dict[str, Any]:
         style = self.style
         return {
-            **style.get_map('menu', font='font', fg='fg', bg='bg'),
+            **style.get_map('menu', font='font', fg='fg', bg='bg', bd='border_width', relief='relief'),
             **style.get_map('menu', 'disabled', disabledforeground='fg'),
+            **style.get_map('menu', 'active', activeforeground='fg', activebackground='bg'),
         }
 
-    def prepare(self, parent: Misc = None, kwargs: dict[str, Any] = None) -> TkMenu:
+    def prepare(self, parent: Misc = None, event: Event = None, kwargs: dict[str, Any] = None) -> TkMenu:
         style = self.style_kwargs()
         menu = TkMenu(parent, tearoff=0, **style)
         for member in self.members:
-            member.maybe_add(menu, style, kwargs)
+            member.maybe_add(menu, style, event, kwargs)
 
         return menu
 
     def pack_into(self, row: Row, column: int):
-        # self.widget = menu = self.prepare(row.frame)
-        # self.pack_widget()
         root = row.window._root
         self.widget = menu = self.prepare(root)
         root.configure(menu=menu)
-        # self.pack_widget()
 
     def show(self, event: Event, parent: Misc = None, **kwargs):
-        kwargs.setdefault('event', event)
-        return self.popup((event.x_root, event.y_root), parent, **kwargs)
+        return self.popup((event.x_root, event.y_root), parent, event, **kwargs)
 
-    def popup(self, position: XY = None, parent: Misc = None, **kwargs):
-        menu = self.prepare(parent, kwargs)
+    def popup(self, position: XY = None, parent: Misc = None, event: Event = None, **kwargs):
+        menu = self.prepare(parent, event, kwargs)
         try:
             _x, _y = position
         except (TypeError, ValueError):
@@ -322,43 +393,38 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
 # region Custom Menu Items
 
 
-class CopySelection(MenuItem):
-    def __init__(
-        self,
-        label: str = 'Copy',
-        *,
-        underline: Union[str, int] = 0,
-        enabled: Mode = MenuMode.TRUTHY,
-        show: Mode = MenuMode.ALWAYS,
-        keyword: str = 'selection',
-        **kwargs,
-    ):
+class SelectionMenuItem(MenuItem):
+    def __init__(self, *args, enabled: Mode = MenuMode.TRUTHY, keyword: str = 'selection', **kwargs):
         kwargs['use_kwargs'] = True
-        super().__init__(
-            label, self._copy_cb, underline=underline, enabled=enabled, show=show, keyword=keyword, **kwargs
-        )
+        super().__init__(*args, enabled=enabled, keyword=keyword, **kwargs)
 
-    def _copy_cb(self, event: Event, **kwargs):
-        if selection := kwargs.get(self.keyword):
-            event.widget.clipboard_clear()
-            event.widget.clipboard_append(selection)
-
-    def _add_selection(self, event: Event, kwargs: dict[str, Any]):
+    def maybe_add_selection(self, event: Event, kwargs: dict[str, Any]):
+        if self.keyword in kwargs:
+            return
         widget: Misc = event.widget
         try:
             if widget != widget.selection_own_get():
                 return
             kwargs[self.keyword] = widget.selection_get()
-        except TclError as e:  # When no selection exists
+        # except TclError as e:  # When no selection exists
+        except TclError:
             # log.debug(f'Error getting selection: {e}')
             pass
 
-    def maybe_add(self, menu: TkMenu, style: dict[str, Any], kwargs: dict[str, Any]) -> bool:  # noqa
-        event: Event = kwargs['event']
-        if self.keyword not in kwargs:
-            self._add_selection(event, kwargs)
+    def maybe_add(self, menu: TkMenu, style: dict[str, Any], event: Event, kwargs: dict[str, Any]) -> bool:  # noqa
+        self.maybe_add_selection(event, kwargs)
+        return super().maybe_add(menu, style, event, kwargs)
 
-        return super().maybe_add(menu, style, kwargs)
+
+class CopySelection(SelectionMenuItem):
+    def __init__(self, label: str = 'Copy', *, underline: Union[str, int] = 0, show: Mode = MenuMode.ALWAYS, **kwargs):
+        super().__init__(label, self._copy_cb, underline=underline, show=show, store_meta=True, **kwargs)
+
+    def _copy_cb(self, event: Event, **kwargs):
+        if selection := kwargs.get(self.keyword):
+            widget: Misc = event.widget
+            widget.clipboard_clear()
+            widget.clipboard_append(selection)
 
 
 # endregion

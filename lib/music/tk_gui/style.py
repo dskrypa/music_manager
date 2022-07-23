@@ -34,19 +34,23 @@ StyleAttr = Literal[
     'frame_color', 'trough_color', 'arrow_color', 'arrow_width', 'bar_width',
 ]
 Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
-StateName = Literal['default', 'disabled', 'invalid']
+StateName = Literal['default', 'disabled', 'invalid', 'active']
 StyleStateVal = Union[StyleState, StateName, Literal[0, 1, 2]]
 
 OptStr = Optional[str]
-_OptStrTuple = Union[tuple[OptStr], tuple[OptStr, OptStr], tuple[OptStr, OptStr, OptStr]]
+_OptStrTuple = Union[
+    tuple[OptStr], tuple[OptStr, OptStr], tuple[OptStr, OptStr, OptStr], tuple[OptStr, OptStr, OptStr, OptStr]
+]
 OptStrVals = Union[OptStr, Mapping[StyleStateVal, OptStr], _OptStrTuple]
 
 OptInt = Optional[int]
-_OptIntTuple = Union[tuple[OptInt], tuple[OptInt, OptInt], tuple[OptInt, OptInt, OptInt]]
+_OptIntTuple = Union[
+    tuple[OptInt], tuple[OptInt, OptInt], tuple[OptInt, OptInt, OptInt], tuple[OptInt, OptInt, OptInt, OptInt]
+]
 OptIntVals = Union[OptInt, Mapping[StyleStateVal, OptInt], _OptIntTuple]
 
 Font = Union[str, tuple[str, int], None]
-_FontValsTuple = Union[tuple[Font], tuple[Font, Font], tuple[Font, Font, Font]]
+_FontValsTuple = Union[tuple[Font], tuple[Font, Font], tuple[Font, Font, Font], tuple[Font, Font, Font, Font]]
 FontValues = Union[Font, Mapping[StyleStateVal, Font], _FontValsTuple]
 
 StyleValue = Union[OptStr, OptInt, Font]
@@ -57,7 +61,7 @@ LayerValues = Union[FontValues, Mapping[StyleStateVal, StyleValue]]
 
 # region State Values
 
-StateValueTuple = namedtuple('StateValueTuple', ('default', 'disabled', 'invalid'))
+StateValueTuple = namedtuple('StateValueTuple', ('default', 'disabled', 'invalid', 'active'))
 
 
 class StateValue(Generic[T_co]):
@@ -83,6 +87,7 @@ class StateValues(Generic[T_co]):
     default = StateValue()
     disabled = StateValue()
     invalid = StateValue()
+    active = StateValue()
 
     def __init__(
         self,
@@ -91,10 +96,11 @@ class StateValues(Generic[T_co]):
         default: Optional[T_co] = None,
         disabled: Optional[T_co] = None,
         invalid: Optional[T_co] = None,
+        active: Optional[T_co] = None,
     ):
         self.name = name
         self.layer = layer
-        self.values = StateValueTuple(default, disabled, invalid)
+        self.values = StateValueTuple(default, disabled, invalid, active)
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.layer.prop.name}.{self.name}: {self.values}]>'
@@ -576,6 +582,8 @@ Style(
     insert_bg='#FFFFFF',
     input_fg='#8b9fde',
     input_bg='#272a31',
+    menu_fg=('#8b9fde', '#616161', None, '#8b9fde'),
+    menu_bg=('#272a31', '#272a31', None, '#000000'),
     button_fg='#f5f5f6',
     button_bg='#2e3d5a',
     tooltip_fg='#000000',

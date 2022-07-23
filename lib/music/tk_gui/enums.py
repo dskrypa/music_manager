@@ -10,6 +10,8 @@ import tkinter.constants as tkc
 from enum import Enum, IntEnum
 from typing import Type
 
+from .utils import ON_MAC
+
 __all__ = ['BindTargets', 'Anchor', 'BindEvent', 'Justify', 'Side', 'StyleState', 'ListBoxSelectMode']
 
 # fmt: off
@@ -51,6 +53,7 @@ class BindEvent(MissingMixin, Enum):
 
     POSITION_CHANGED = '<Configure>'
     SIZE_CHANGED = '<Configure>'
+    RIGHT_CLICK = '<ButtonRelease-2>' if ON_MAC else '<ButtonRelease-3>'
 
 
 class BindTargets(MissingMixin, Enum):

@@ -11,7 +11,7 @@ from concurrent.futures import Future
 from functools import cached_property
 from queue import Queue
 from threading import current_thread, main_thread
-from typing import TYPE_CHECKING, Union, Collection, Mapping
+from typing import TYPE_CHECKING, Union, Collection, Mapping, Callable
 
 from ..elements import Input, Button
 from ..positioning import positioner
@@ -49,6 +49,13 @@ class Popup:
         if bind_esc:
             binds['<Escape>'] = 'exit'
         self.window_kwargs = kwargs
+
+    @classmethod
+    def as_callback(cls, *args, **kwargs) -> Callable:
+        def callback():
+            cls(*args, **kwargs).run()
+
+        return callback
 
     def get_layout(self) -> Layout:
         return self.layout

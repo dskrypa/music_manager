@@ -11,6 +11,7 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame, SizeGrip
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
+from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -162,7 +163,17 @@ class GuiTest(Command):
         #     [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         # ]
 
+        class RightClickMenu(Menu):
+            CopySelection()
+
+        class MenuBar(Menu):
+            with MenuGroup('File'):
+                MenuItem('Open', print)
+            with MenuGroup('Help'):
+                MenuItem('About', AboutPopup.as_callback())
+
         frame_layout = [
+            [MenuBar()],
             [table1], [table2],
             [HorizontalSeparator()],
             [inpt, Button('Submit', bind_enter=True), Button(image=search_path, shortcut='s', size=(30, 30))],
@@ -185,7 +196,7 @@ class GuiTest(Command):
         # Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
         # Window(layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
         # Window(layout, 'Test One', anchor_elements='c', binds={'<Escape>': 'exit'}).run()
-        results = Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}).run().results
+        results = Window(layout, binds={'<Escape>': 'exit'}, right_click_menu=RightClickMenu()).run().results
         print(f'Results: {results}')
 
 

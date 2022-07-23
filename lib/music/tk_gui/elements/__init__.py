@@ -7,6 +7,7 @@ from .buttons import Button
 from .choices import Radio, RadioGroup, Combo, CheckBox, ListBox
 from .images import Image, Animation, SpinnerImage, ClockImage
 from .inputs import Input
+from .menu import Menu, MenuGroup, MenuItem
 from .misc import SizeGrip
 from .table import TableColumn, Table
 from .text import Text, Link, Multiline

@@ -13,6 +13,8 @@ from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Fram
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, overload
 from weakref import finalize
 
+from PIL import ImageGrab
+
 from .assets import PYTHON_LOGO
 from .enums import BindTargets, Anchor, Justify, Side, BindEvent
 from .exceptions import DuplicateKeyError
@@ -23,7 +25,9 @@ from .style import Style
 from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 
 if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
     from .elements.element import Element
+    from .elements.menu import Menu
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
 
 __all__ = ['Window']
@@ -32,20 +36,31 @@ log = logging.getLogger(__name__)
 Top = Union[ScrollableToplevel, Toplevel]
 
 
-def _tk_event_handler(tk_event: str):
+# region Event Handling Helpers
+
+
+def _tk_event_handler(tk_event: Union[str, BindEvent]):
     return partial(_TkEventHandler, tk_event)
 
 
 class _TkEventHandler:
     __slots__ = ('tk_event', 'func')
 
-    def __init__(self, tk_event: str, func: BindCallback):
+    def __init__(self, tk_event: Union[str, BindEvent], func: BindCallback):
         self.tk_event = tk_event
         self.func = func
 
     def __set_name__(self, owner: Type[Window], name: str):
-        owner._tk_event_handlers[self.tk_event] = name
+        event = self.tk_event
+        try:
+            event = event.event
+        except AttributeError:
+            pass
+        owner._tk_event_handlers[event] = name
         setattr(owner, name, self.func)  # replace wrapper with the original function
+
+
+# endregion
 
 
 class Window(RowContainer):
@@ -91,6 +106,7 @@ class Window(RowContainer):
         scroll_y_div: float = 2,
         scroll_x_div: float = 1,
         close_cbs: Iterable[Callable] = None,
+        right_click_menu: Menu = None,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -118,6 +134,7 @@ class Window(RowContainer):
         handle_configure: Bool = False,
         exit_on_esc: Bool = False,
         close_cbs: Iterable[Callable] = None,
+        right_click_menu: Menu = None,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
@@ -133,7 +150,7 @@ class Window(RowContainer):
         self._last_known_size: Optional[XY] = None
         self.element_map = {}
         self.resizable = resizable
-        self.keep_on_top = keep_on_top
+        self._keep_on_top = keep_on_top
         self.can_minimize = can_minimize
         self.transparent_color = transparent_color
         self.alpha_channel = alpha_channel
@@ -144,6 +161,9 @@ class Window(RowContainer):
         self.binds = binds or {}
         self.closed = False
         self.close_cbs = list(close_cbs) if close_cbs is not None else []
+        if right_click_menu:
+            self._right_click_menu = right_click_menu
+            self.binds.setdefault(BindEvent.RIGHT_CLICK, None)
         if handle_configure:
             self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
         if exit_on_esc:
@@ -221,7 +241,6 @@ class Window(RowContainer):
 
     # endregion
 
-    # region Size & Position Methods
     # region Size
 
     @property
@@ -239,6 +258,11 @@ class Window(RowContainer):
         x, y = self._root.geometry().split('+', 1)[0].split('x', 1)
         return int(x), int(y)
 
+    @property
+    def title_bar_height(self) -> int:
+        root = self._root
+        return root.winfo_rooty() - root.winfo_y()
+
     def set_min_size(self, width: int, height: int):
         root = self._root
         root.minsize(width, height)
@@ -251,9 +275,11 @@ class Window(RowContainer):
 
     def _outer_size(self) -> XY:
         # Outer dimensions of the window, used for calculating relative position
-        width, height = self.size
+        width, height = self.true_size
+        # width, height = self.size
         if not self.no_title_bar:
-            height += 30  # Title bar size on Windows 10; more info would be needed for portability
+            height += self.title_bar_height
+            # height += 30  # Title bar size on Windows 10; more info would be needed for portability
         return width, height
 
     def _set_init_size(self):
@@ -349,7 +375,10 @@ class Window(RowContainer):
 
         self.position = x, y
 
-    # endregion
+    @property
+    def mouse_position(self) -> XY:
+        return self._root.winfo_pointerxy()
+
     # endregion
 
     # region Window State Methods
@@ -378,7 +407,7 @@ class Window(RowContainer):
         if ON_WINDOWS:
             root.wm_attributes('-topmost', 0)
             root.wm_attributes('-topmost', 1)
-            if not self.keep_on_top:
+            if not self._keep_on_top:
                 root.wm_attributes('-topmost', 0)
         else:
             root.lift()
@@ -430,6 +459,23 @@ class Window(RowContainer):
         except (TclError, RuntimeError):
             log.error('Error configuring window to be modal:', exc_info=True)
 
+    @property
+    def keep_on_top(self) -> bool:
+        return self._keep_on_top
+
+    @keep_on_top.setter
+    def keep_on_top(self, value: Bool):
+        self._keep_on_top = bool(value)
+        root = self._root
+        if value and not ON_WINDOWS:
+            root.lift()  # Bring the window to the front first
+        # if value:  # Bring the window to the front first
+        #     if ON_WINDOWS:
+        #         root.wm_attributes('-topmost', 0)
+        #     else:
+        #         root.lift()
+        root.wm_attributes('-topmost', 1 if value else 0)
+
     # endregion
 
     # region Show Window Methods
@@ -455,7 +501,7 @@ class Window(RowContainer):
             root.resizable(False, False)
         if not self.can_minimize:
             root.attributes('-toolwindow', 1)
-        if self.keep_on_top:
+        if self._keep_on_top:
             root.attributes('-topmost', 1)
         if self.transparent_color is not None:
             try:
@@ -602,6 +648,12 @@ class Window(RowContainer):
         # else:
         #     log.debug(f'  Size did not change: old={self._last_known_size}, new={new_size}')
 
+    @_tk_event_handler(BindEvent.RIGHT_CLICK)
+    def handle_right_click(self, event: Event):
+        if menu := self._right_click_menu:
+            menu.parent = self
+            menu.show(event, self.root)
+
     # endregion
 
     # region Cleanup Methods
@@ -673,6 +725,13 @@ class Window(RowContainer):
     # def _sigint_fix(self):
     #     """Continuously re-registers itself to be called every 250ms so that Ctrl+C is able to exit tk's mainloop"""
     #     self._root.after(250, self._sigint_fix)
+
+    def get_screenshot(self) -> PILImage:
+        (width, height), (x, y) = self.true_size_and_pos
+        if not self.no_title_bar:
+            height += self.title_bar_height
+
+        return ImageGrab.grab((x, y, x + width, y + height))
 
 
 def _normalize_bind_event(event_pat: Bindable) -> Bindable:

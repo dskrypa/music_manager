@@ -15,12 +15,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection
 
 if TYPE_CHECKING:
+    from tkinter import Misc
     from .typing import HasParent
 
 __all__ = [
     'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
     'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata',
-    'tcl_version', 'max_line_len',
+    'tcl_version', 'max_line_len', 'get_top_level',
 ]
 log = logging.getLogger(__name__)
 
@@ -168,3 +169,8 @@ def max_line_len(lines: Collection[str]) -> int:
     if not lines:
         return 0
     return max(map(len, lines))
+
+
+def get_top_level(widget: Misc) -> Misc:
+    name = widget._w  # noqa
+    return widget.nametowidget('.!'.join(name.split('.!')[:2]))

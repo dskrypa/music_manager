@@ -7,21 +7,25 @@ Text GUI elements
 from __future__ import annotations
 
 import logging
+import tkinter.constants as tkc
 import webbrowser
+from contextlib import contextmanager
 from functools import cached_property
-from tkinter import StringVar, Label, Event
+from tkinter import TclError, StringVar, Label, Event
 from typing import TYPE_CHECKING, Optional, Union, Any
 
 from ..enums import Justify
 from ..pseudo_elements.scroll import ScrollableText
+from ..style import Style, Font
 from ..utils import max_line_len
 from .element import Element
 
 if TYPE_CHECKING:
     # from pathlib import Path
     from ..pseudo_elements import Row
+    from ..typing import Bool
 
-__all__ = ['Text', 'Link', 'Multiline']
+__all__ = ['Text', 'Link', 'Multiline', 'GuiTextHandler', 'gui_log_handler']
 log = logging.getLogger(__name__)
 
 LINK_BIND_DEFAULT = '<Control-ButtonRelease-1>'
@@ -144,8 +148,8 @@ class Multiline(Element):
         *,
         scroll_y: bool = True,
         scroll_x: bool = False,
-        # auto_scroll: bool = False,  # TODO
-        rstrip: bool = True,
+        auto_scroll: bool = False,
+        rstrip: bool = False,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
         **kwargs,
     ):
@@ -153,7 +157,7 @@ class Multiline(Element):
         self._value = str(value)
         self.scroll_y = scroll_y
         self.scroll_x = scroll_x
-        # self.auto_scroll = auto_scroll
+        self.auto_scroll = auto_scroll
         self.rstrip = rstrip
 
     def pack_into(self, row: Row, column: int):
@@ -189,3 +193,68 @@ class Multiline(Element):
             text.tag_configure(pos, justify=pos)  # noqa
 
         self.pack_widget()
+
+    def clear(self):
+        self.widget.inner_widget.delete('1.0', tkc.END)
+
+    def write(self, text: str, *, fg: str = None, bg: str = None, font: Font = None, append: Bool = False):
+        widget = self.widget.inner_widget
+        # TODO: Handle justify
+        if fg or bg or font:
+            style = Style(parent=self.style, text_fg=fg, text_bg=bg, text_font=font)
+            tag = f'{self.__class__.__name__}({fg},{bg},{font})'
+            widget.tag_configure(tag, **style.get_map('text', background='bg', foreground='fg', font='font'))
+            args = ((None, tag),)
+        else:
+            args = ()
+
+        if not append:
+            self.clear()
+
+        if self.rstrip:
+            text = '\n'.join(line.rstrip() for line in text.splitlines())
+
+        widget.insert(tkc.END, text, *args)
+        if self.auto_scroll:
+            widget.see(tkc.END)
+
+
+class GuiTextHandler(logging.Handler):
+    def __init__(self, element: Multiline, level: int = logging.NOTSET):
+        super().__init__(level)
+        self.element = element
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.element.write(msg + '\n', append=True)
+        except RecursionError:  # See issue 36272
+            raise
+        except TclError:
+            pass  # The element was most likely destroyed
+        except Exception:  # noqa
+            self.handleError(record)
+
+
+@contextmanager
+def gui_log_handler(
+    element: Multiline,
+    logger_name: str = None,
+    level: int = logging.DEBUG,
+    detail: bool = False,
+    logger: logging.Logger = None,
+):
+    from ds_tools.logging import DatetimeFormatter, ENTRY_FMT_DETAILED
+
+    handler = GuiTextHandler(element, level)
+    if detail:
+        handler.setFormatter(DatetimeFormatter(ENTRY_FMT_DETAILED, '%Y-%m-%d %H:%M:%S %Z'))
+
+    loggers = [logging.getLogger(logger_name), logger] if logger else [logging.getLogger(logger_name)]
+    for logger in loggers:
+        logger.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        for logger in loggers:
+            logger.removeHandler(handler)

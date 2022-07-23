@@ -111,6 +111,7 @@ class Input(Interactive):
             self._refresh_colors()
 
     def handle_right_click(self, event):
+        # TODO: Replace with new right-click menu/handling
         if (menu := self.right_click_menu) is not None:
             try:
                 kwargs = {'selected': self.get_selection()}

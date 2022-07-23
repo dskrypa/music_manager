@@ -8,10 +8,11 @@ from ds_tools.logging import init_logging
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
-from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Multiline, Frame, SizeGrip
+from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Frame, SizeGrip
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia
+from .elements.text import Multiline, gui_log_handler
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
@@ -188,6 +189,9 @@ class GuiTest(Command):
             # [Text(f'test_{i:03d}')] for i in range(100)
         ]
 
+        # multiline = Multiline(size=(40, 10), expand=True)
+        multiline = Multiline(size=(120, None), expand=True)
+
         layout = [
             # [Frame(frame_layout, size=(100, 100), scroll_y=True)],
             # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner', title_mode='inner')],
@@ -195,14 +199,18 @@ class GuiTest(Command):
             [Frame(frame_layout, scroll_y=True)],
             [CheckBox('A', key='A', default=True), CheckBox('B', key='B'), CheckBox('C', key='C')],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
-            [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],
+            # [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],
+            [multiline, SizeGrip()],
         ]
 
         # Window(layout, size=(600, 600), anchor_elements='c').run()
         # Window(layout, anchor_elements='c', binds={'<Escape>': 'exit'}, kill_others_on_close=True).run()
         # Window(layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
         # Window(layout, 'Test One', anchor_elements='c', binds={'<Escape>': 'exit'}).run()
-        results = Window(layout, binds={'<Escape>': 'exit'}, right_click_menu=RightClickMenu()).run().results
+        # results = Window(layout, binds={'<Escape>': 'exit'}, right_click_menu=RightClickMenu()).run().results
+        window = Window(layout, binds={'<Escape>': 'exit'}, right_click_menu=RightClickMenu())
+        with gui_log_handler(multiline):
+            results = window.run().results
         print(f'Results: {results}')
 
 

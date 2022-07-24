@@ -39,7 +39,7 @@ ImageCycle = Union[FrameCycle, '_ClockCycle']
 
 
 class Image(Element):
-    widget: Label
+    widget: Label = None
     animated: bool = False
 
     def __init_subclass__(cls, animated: bool = None):
@@ -50,17 +50,17 @@ class Image(Element):
         if popup_on_click:
             kwargs['left_click_cb'] = self.open_popup
         super().__init__(**kwargs)
-        self._image = _GuiImage(image)
+        self.image = image
 
-    # @property
-    # def image(self) -> Optional[PILImage]:
-    #     return self._image
-    #
-    # @image.setter
-    # def image(self, data: ImageType):
-    #     self._image = as_image(data)
-    #     # if self.widget is not None:
-    #     #     self.resize()
+    @property
+    def image(self) -> Optional[_GuiImage]:
+        return self._image
+
+    @image.setter
+    def image(self, data: ImageType):
+        self._image = _GuiImage(data)
+        if self.widget is not None:
+            self.refresh()
 
     def pack_into(self, row: Row, column: int):
         try:
@@ -98,6 +98,9 @@ class Image(Element):
 
     def target_size(self, width: int, height: int) -> Size:
         return self._image.target_size(width, height)
+
+    def refresh(self):
+        self.resize(*self.size)
 
     def resize(self, width: int, height: int):
         image, width, height = self._image.as_size(width, height)

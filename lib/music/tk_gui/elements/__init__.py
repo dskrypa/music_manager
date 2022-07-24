@@ -1,6 +1,6 @@
 from .exceptions import ElementGroupError, NoActiveGroup, BadGroupCombo
 from .element import Element
-from .frame import Frame
+from .frame import ScrollFrame
 
 from .bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .buttons import Button

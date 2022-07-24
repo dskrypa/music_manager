@@ -1,5 +1,5 @@
 """
-Tkinter GUI Frame
+Tkinter GUI Frames
 
 :author: Doug Skrypa
 """
@@ -7,27 +7,110 @@ Tkinter GUI Frame
 from __future__ import annotations
 
 import logging
+from abc import ABC
 from tkinter import Frame as TkFrame, LabelFrame
-from typing import TYPE_CHECKING, Optional, Union, Type, Literal, Any
+from typing import TYPE_CHECKING, Optional, Union, Type, Literal, Any, Callable
 
 from ..enums import Anchor
+from ..pseudo_elements.row import RowBase
 from ..pseudo_elements.row_container import RowContainer
 from ..pseudo_elements.scroll import ScrollableFrame, ScrollableLabelFrame
 from ..style import Style, StyleSpec
-from .element import Element
+from ..utils import call_with_popped
+from .element import Element, InteractiveMixin
 
 if TYPE_CHECKING:
     from ..typing import Layout, Bool
     from ..pseudo_elements.row import Row
 
-__all__ = ['Frame']
+# __all__ = ['RowFrame', 'InteractiveRowFrame', 'Frame', 'InteractiveFrame', 'ScrollFrame']
+__all__ = ['RowFrame', 'InteractiveRowFrame', 'ScrollFrame']
 log = logging.getLogger(__name__)
 
 TkFrameType = Type[Union[TkFrame, LabelFrame]]
 FrameMode = Literal['inner', 'outer', 'both']
+_Anchor = Union[str, Anchor]
 
 
-class Frame(Element, RowContainer):
+class FrameMixin:
+    widget: Union[TkFrame, LabelFrame]
+    style: Style
+    border: Bool
+    title: Optional[str]
+    anchor_title: Anchor
+    pack_rows: Callable
+    pack_widget: Callable
+
+    def init_frame(self, title: str = None, anchor_title: _Anchor = None, border: Bool = False):
+        self.title = title
+        self.anchor_title = Anchor(anchor_title)
+        self.border = border
+
+    def init_frame_from_kwargs(self, kwargs: dict[str, Any]):
+        call_with_popped(self.init_frame, ('title', 'anchor_title', 'border'), kwargs)
+
+    @property
+    def tk_container(self) -> Union[TkFrame, LabelFrame]:
+        return self.widget
+
+    def pack_into(self, row: Row, column: int):
+        style = self.style
+        kwargs = style.get_map('frame', bd='border_width', background='bg', relief='relief')
+        if self.border:
+            kwargs.setdefault('relief', 'groove')
+            kwargs.update(style.get_map('frame', highlightcolor='bg', highlightbackground='bg'))
+
+        if title := self.title:
+            kwargs['text'] = title
+            kwargs.update(style.get_map('frame', foreground='fg', font='font'))
+            if (anchor := self.anchor_title) != Anchor.NONE:
+                kwargs['labelanchor'] = anchor.value
+            frame_cls = LabelFrame
+        else:
+            frame_cls = TkFrame
+
+        self.widget = frame_cls(row.frame, **kwargs)
+        self.pack_rows()
+        self.pack_widget()
+
+
+class RowFrame(FrameMixin, RowBase, Element, ABC):
+    def __init__(self, **kwargs):
+        self.init_frame_from_kwargs(kwargs)
+        Element.__init__(self, **kwargs)
+
+    @property
+    def parent_rc(self) -> RowContainer:
+        return self.parent.parent_rc  # self.parent is a Row
+
+    @property
+    def frame(self) -> Union[TkFrame, LabelFrame]:
+        return self.widget
+
+    def pack_rows(self, debug: Bool = False):
+        self.pack_elements(debug)
+
+
+class InteractiveRowFrame(InteractiveMixin, RowFrame, ABC):
+    def __init__(self, **kwargs):
+        self.init_interactive_from_kwargs(kwargs)
+        super().__init__(**kwargs)
+
+
+# class Frame(FrameMixin, Element, RowContainer):
+#     def __init__(self, layout: Layout = None, **kwargs):
+#         self.init_frame_from_kwargs(kwargs)
+#         self.init_container_from_kwargs(layout, kwargs=kwargs)
+#         Element.__init__(self, **kwargs)
+#
+#
+# class InteractiveFrame(InteractiveMixin, Frame):
+#     def __init__(self, layout: Layout = None, **kwargs):
+#         self.init_interactive_from_kwargs(kwargs)
+#         super().__init__(layout, **kwargs)
+
+
+class ScrollFrame(Element, RowContainer):
     widget: Union[TkFrame, LabelFrame]
     inner_frame: Union[TkFrame, LabelFrame]
     inner_style: Optional[Style] = None
@@ -37,7 +120,7 @@ class Frame(Element, RowContainer):
         layout: Layout = None,
         title: str = None,
         *,
-        anchor_title: Union[str, Anchor] = None,
+        anchor_title: _Anchor = None,
         border: Bool = False,
         title_mode: FrameMode = 'outer',
         border_mode: FrameMode = 'outer',

@@ -11,10 +11,10 @@ import tkinter.constants as tkc
 import webbrowser
 from contextlib import contextmanager
 from functools import cached_property
-from tkinter import TclError, StringVar, Label, Event
+from tkinter import TclError, StringVar, Label, Event, Entry
 from typing import TYPE_CHECKING, Optional, Union, Any
 
-from ..enums import Justify
+from ..enums import Justify, Anchor
 from ..pseudo_elements.scroll import ScrollableText
 from ..style import Style, Font
 from ..utils import max_line_len
@@ -32,7 +32,7 @@ LINK_BIND_DEFAULT = '<Control-ButtonRelease-1>'
 
 
 class Text(Element):
-    widget: Label
+    widget: Union[Label, Entry]
     string_var: Optional[StringVar] = None
 
     def __init__(
@@ -40,25 +40,56 @@ class Text(Element):
         value: Any = '',
         link: Union[bool, str] = None,
         # path: Union[bool, str, Path] = None,
-        justify_text: Union[str, Justify, None] = Justify.LEFT,
         *,
+        justify: Union[str, Justify] = None,
+        anchor: Union[str, Anchor] = None,
         link_bind: str = LINK_BIND_DEFAULT,
+        selectable: Bool = True,
         **kwargs,
     ):
         self._tooltip_text = kwargs.pop('tooltip', None)
-        super().__init__(justify_text=justify_text, **kwargs)
+        if justify is anchor is None:
+            justify = Justify.LEFT
+            if not selectable:
+                anchor = Justify.LEFT.as_anchor()
+        super().__init__(justify_text=justify, anchor=anchor, **kwargs)
         self._link_bind = link_bind
         self._value = str(value)
         self._link = link or link is None
+        self._selectable = selectable
         # self._path = path
+
+    @property
+    def pad_kw(self) -> dict[str, int]:
+        try:
+            x, y = self.pad
+        except TypeError:
+            if self._selectable:
+                x, y = 5, 3
+            else:
+                x, y = 0, 3
+
+        return {'padx': x, 'pady': y}
 
     def pack_into(self, row: Row, column: int):
         self.string_var = StringVar()
         self.string_var.set(self._value)
+
+        if self._selectable:
+            self._pack_entry(row)
+        else:
+            self._pack_label(row)
+
+        self.pack_widget()
+        if self.url:
+            self._enable_link()
+
+    def _pack_label(self, row: Row):
         style = self.style
         kwargs = {
             'textvariable': self.string_var,
             'justify': self.justify_text.value,
+            'wraplength': 0,
             **style.get_map('text', bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
         }
         try:
@@ -66,12 +97,27 @@ class Text(Element):
         except TypeError:
             pass
         self.widget = label = Label(row.frame, **kwargs)
-        # if kwargs.get('height') != 1:
-        #     wrap_len = label.winfo_reqwidth()  # width in pixels
-        #     label.configure(wraplength=wrap_len)
-        self.pack_widget()
-        if self.url:
-            self._enable_link()
+        if kwargs.get('height', 1) != 1:
+            wrap_len = label.winfo_reqwidth()  # width in pixels
+            label.configure(wraplength=wrap_len)
+
+    def _pack_entry(self, row: Row):
+        style = self.style
+        kwargs = {
+            'highlightthickness': 0,
+            'textvariable': self.string_var,
+            'justify': self.justify_text.value,
+            'state': 'readonly',
+            **style.get_map(
+                'text', bd='border_width', fg='fg', bg='bg', font='font', relief='relief', readonlybackground='bg'
+            ),
+        }
+        kwargs.setdefault('relief', 'flat')
+        try:
+            kwargs['width'] = self.size[0]
+        except TypeError:
+            pass
+        self.widget = Entry(row.frame, **kwargs)
 
     def update(self, value: Any = None, link: Union[bool, str] = None):
         if value is not None:
@@ -115,14 +161,14 @@ class Text(Element):
             self._disable_link()
 
     def _enable_link(self):
-        label = self.widget
-        label.bind(self._link_bind, self._open_link)
-        label.configure(cursor='hand2', fg=self.style.link.fg.default)
+        widget = self.widget
+        widget.bind(self._link_bind, self._open_link)
+        widget.configure(cursor='hand2', fg=self.style.link.fg.default)
 
     def _disable_link(self):
-        label = self.widget
-        label.unbind(self._link_bind)
-        label.configure(cursor='', fg=self.style.text.fg.default)
+        widget = self.widget
+        widget.unbind(self._link_bind)
+        widget.configure(cursor='', fg=self.style.text.fg.default)
 
     def _open_link(self, event: Event = None):
         if not (url := self.url):

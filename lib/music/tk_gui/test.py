@@ -2,20 +2,22 @@
 
 from pathlib import Path
 
-from cli_command_parser import Command, Action, Counter, main
+from cli_command_parser import Command, Action, Counter, Option, main
 
 from ds_tools.logging import init_logging
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
-from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, Frame, SizeGrip
+from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, ScrollFrame, SizeGrip
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia
 from .elements.text import Multiline, gui_log_handler
+from .elements.rating import Rating
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
 from .popups.raw import PickFolder, PickColor
+from .popups.style import StylePopup
 from .window import Window
 
 ICONS_DIR = Path(__file__).resolve().parents[3].joinpath('icons')
@@ -24,6 +26,7 @@ ICONS_DIR = Path(__file__).resolve().parents[3].joinpath('icons')
 class GuiTest(Command):
     action = Action(help='The test to perform')
     verbose = Counter('-v', default=2, help='Increase logging verbosity (can specify multiple times)')
+    color = Option('-c', help='The initial color to display when action=pick_color')
 
     def __init__(self):
         init_logging(self.verbose, log_path=None, names=None, set_levels={'PIL.PngImagePlugin': 50})
@@ -63,8 +66,8 @@ class GuiTest(Command):
         png_path = ICONS_DIR.joinpath('exclamation-triangle-yellow.png')
 
         layout = [
-            [Frame(frame_layout, size=(100, 100), scroll_y=True)],
-            # [Frame(frame_layout, scroll_y=True)],
+            [ScrollFrame(frame_layout, size=(100, 100), scroll_y=True)],
+            # [ScrollFrame(frame_layout, scroll_y=True)],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
@@ -90,7 +93,7 @@ class GuiTest(Command):
 
     @action
     def pick_color(self):
-        color = PickColor().run()
+        color = PickColor(self.color).run()
         print(f'Picked {color=}')
 
     @action
@@ -143,6 +146,16 @@ class GuiTest(Command):
         # results = Window(layout, 'ListBox Test', exit_on_esc=True).run().results
         print(f'Results: {results}')
 
+    @action
+    def rating(self):
+        layout = [[Rating(key='a')], [Rating(key='b', show_value=True)]]
+        results = Window(layout, 'Slider Test', exit_on_esc=True).run().results
+        print(f'Results: {results}')
+
+    @action
+    def style(self):
+        StylePopup().run()
+
     @action(default=True)
     def window(self):
         table1 = Table.from_data([{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], show_row_nums=True)
@@ -193,10 +206,10 @@ class GuiTest(Command):
         multiline = Multiline(size=(120, None), expand=True)
 
         layout = [
-            # [Frame(frame_layout, size=(100, 100), scroll_y=True)],
-            # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner', title_mode='inner')],
-            # [Frame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner')],
-            [Frame(frame_layout, scroll_y=True)],
+            # [ScrollFrame(frame_layout, size=(100, 100), scroll_y=True)],
+            # [ScrollFrame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner', title_mode='inner')],
+            # [ScrollFrame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner')],
+            [ScrollFrame(frame_layout, scroll_y=True)],
             [CheckBox('A', key='A', default=True), CheckBox('B', key='B'), CheckBox('C', key='C')],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
             # [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],

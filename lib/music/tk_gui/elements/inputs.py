@@ -19,6 +19,7 @@ from .element import Interactive
 if TYPE_CHECKING:
     from pathlib import Path
     from ..pseudo_elements import Row
+    from ..typing import Bool
 
 __all__ = ['Input']
 log = logging.getLogger(__name__)
@@ -52,6 +53,10 @@ class Input(Interactive):
             raise NotSelectionOwner
         return selection
 
+    @property
+    def value(self) -> str:
+        return self.string_var.get()
+
     def pack_into(self, row: Row, column: int):
         self.string_var = StringVar()
         self.string_var.set(self._value)
@@ -62,7 +67,8 @@ class Input(Interactive):
             'textvariable': self.string_var,
             'show': self.password_char,
             'justify': self.justify_text.value,
-            **style.get_map('input', state, bd='border_width', fg='fg', bg='bg', font='font'),
+            **style.get_map('input', state, bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
+            **style.get_map('input', 'disabled', readonlybackground='bg'),
             **style.get_map('insert', state, insertbackground='bg'),
         }
         try:
@@ -79,36 +85,46 @@ class Input(Interactive):
             if (value := self._value) and value.startswith(('http://', 'https://')):
                 entry.configure(cursor='hand2')
 
-    def _refresh_colors(self):
-        bg_key = 'readonlybackground' if self.disabled else 'bg'
-        kwargs = self.style.get_map('input', self.style_state, fg='fg', **{bg_key: 'bg'})
-        self.widget.configure(**kwargs)
-
-    def update(self, value=None, disabled: bool = None, password_char: str = None):
-        entry = self.widget
+    def update(self, value: Any = None, disabled: Bool = None, password_char: str = None):
         if disabled is not None:
-            if disabled:
-                entry['state'] = 'readonly'
-            elif disabled is False:
-                entry['state'] = 'normal'
-            self.disabled = disabled
-            self._refresh_colors()
+            self._update_state(disabled)
         if value is not None:
             self._value = str(value)
             self.string_var.set(self._value)
-            entry.icursor(tkc.END)
+            self.widget.icursor(tkc.END)
         if password_char is not None:
-            entry.configure(show=password_char)
+            self.widget.configure(show=password_char)
             self.password_char = password_char
 
-    @property
-    def value(self):
-        return self.string_var.get()
+    # region Update State
+
+    def disable(self):
+        if self.disabled:
+            return
+        self._update_state(True)
+
+    def enable(self):
+        if not self.disabled:
+            return
+        self._update_state(False)
 
     def validated(self, valid: bool):
         if self.valid != valid:
             self.valid = valid
             self._refresh_colors()
+
+    def _update_state(self, disabled: bool):
+        self.disabled = disabled
+        self.widget['state'] = 'readonly' if disabled else 'normal'
+        self._refresh_colors()
+
+    def _refresh_colors(self):
+        bg_key = 'readonlybackground' if self.disabled else 'bg'
+        kwargs = self.style.get_map('input', self.style_state, fg='fg', **{bg_key: 'bg'})
+        log.debug(f'Refreshing colors for {self} with {self.style_state=}: {kwargs}')
+        self.widget.configure(**kwargs)
+
+    # endregion
 
     def handle_right_click(self, event):
         # TODO: Replace with new right-click menu/handling

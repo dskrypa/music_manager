@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import logging
 import tkinter.constants as tkc
-from tkinter import Frame, Widget
-from typing import TYPE_CHECKING, Optional, Union, Iterable
+from abc import ABC, abstractmethod
+from functools import cached_property
+from tkinter import Frame, LabelFrame, Widget
+from typing import TYPE_CHECKING, Optional, Union, Iterable, Sequence
 
 from ..enums import Anchor, Justify, Side
 from ..style import Style
@@ -25,25 +27,38 @@ __all__ = ['Row']
 log = logging.getLogger(__name__)
 
 
-class Row:
-    frame: Optional[Frame] = None
-    expand: Optional[bool] = None   # Set to True only for Column elements
-    fill: Optional[bool] = None     # Changes for Column, Separator, StatusBar
+class RowBase(ABC):
+    anchor_elements: Anchor = Inheritable(type=Anchor, attr_name='parent_rc')
+    text_justification: Justify = Inheritable(type=Justify, attr_name='parent_rc')
+    element_side: Side = Inheritable(type=Side, attr_name='parent_rc')
+    element_padding: XY = Inheritable(attr_name='parent_rc')
+    element_size: XY = Inheritable(attr_name='parent_rc')
+    style: Style = Inheritable(attr_name='parent_rc')
+    grid: bool = Inheritable(attr_name='parent_rc')
+    auto_size_text: bool = Inheritable(attr_name='parent_rc')
 
-    anchor_elements: Anchor = Inheritable(type=Anchor)
-    text_justification: Justify = Inheritable(type=Justify)
-    element_side: Side = Inheritable(type=Side)
-    element_padding: XY = Inheritable()
-    element_size: XY = Inheritable()
-    style: Style = Inheritable()
-    grid: bool = Inheritable()
-    auto_size_text: bool = Inheritable()
+    @property
+    @abstractmethod
+    def parent_rc(self) -> RowContainer:
+        raise NotImplementedError
 
-    def __init__(self, parent: RowContainer, elements: Iterable[Element], num: int):
-        self.num = num
-        self.parent = parent
-        self.elements = tuple(elements)
-        self.id_ele_map = {ele.id: ele for ele in self.elements}
+    @property
+    @abstractmethod
+    def frame(self) -> Union[Frame, LabelFrame]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def elements(self) -> Sequence[Element]:
+        raise NotImplementedError
+
+    @cached_property
+    def id_ele_map(self) -> dict[str, Element]:
+        return {ele.id: ele for ele in self.elements}
+
+    @property
+    def window(self) -> Window:
+        return self.parent_rc.window
 
     def __getitem__(self, index_or_id: Union[int, str]):
         try:
@@ -67,29 +82,6 @@ class Row:
         else:
             return item in self.elements
 
-    @property
-    def anchor(self):
-        return self.anchor_elements.value
-
-    @property
-    def window(self) -> Window:
-        return self.parent.window
-
-    def pack(self, debug: bool = False):
-        # log.debug(f'Packing row {self.num} in {self.parent=} {self.parent.tk_container=}')
-        self.frame = frame = Frame(self.parent.tk_container)
-        self.pack_elements(debug)
-        anchor = self.anchor
-        center = anchor == tkc.CENTER
-        if (expand := self.expand) is None:
-            expand = center
-        if (fill := self.fill) is None:
-            fill = tkc.BOTH if center else tkc.NONE
-        # log.debug(f'Packing row with {center=}, {expand=}, {fill=}')
-        frame.pack(side=tkc.TOP, anchor=anchor, padx=0, pady=0, expand=expand, fill=fill)
-        if bg := self.style.base.bg.default:
-            frame.configure(background=bg)
-
     def pack_elements(self, debug: bool = False):
         if debug:
             n_eles = len(self.elements)
@@ -103,3 +95,38 @@ class Row:
         else:
             for i, ele in enumerate(self.elements):
                 ele.pack_into_row(self, i)
+
+
+class Row(RowBase):
+    frame: Optional[Frame] = None
+    expand: Optional[bool] = None   # Set to True only for Column elements
+    fill: Optional[bool] = None     # Changes for Column, Separator, StatusBar
+    elements: tuple[Element, ...] = ()
+
+    def __init__(self, parent: RowContainer, elements: Iterable[Element], num: int):
+        self.num = num
+        self.parent = parent
+        self.elements = tuple(elements)
+
+    @property
+    def parent_rc(self) -> RowContainer:
+        return self.parent
+
+    @property
+    def anchor(self):
+        return self.anchor_elements.value
+
+    def pack(self, debug: bool = False):
+        # log.debug(f'Packing row {self.num} in {self.parent=} {self.parent.tk_container=}')
+        self.frame = frame = Frame(self.parent.tk_container)
+        self.pack_elements(debug)
+        anchor = self.anchor
+        center = anchor == tkc.CENTER or anchor is None
+        if (expand := self.expand) is None:
+            expand = center
+        if (fill := self.fill) is None:
+            fill = tkc.BOTH if center else tkc.NONE
+        # log.debug(f'Packing row with {anchor=}, {center=}, {expand=}, {fill=}')
+        frame.pack(side=tkc.TOP, anchor=anchor, padx=0, pady=0, expand=expand, fill=fill)
+        if bg := self.style.base.bg.default:
+            frame.configure(background=bg)

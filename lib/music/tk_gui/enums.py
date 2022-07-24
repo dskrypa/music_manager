@@ -20,6 +20,7 @@ ANCHOR_ALIASES = {
     'c': 'MID_CENTER', 't': 'TOP_CENTER', 'b': 'BOTTOM_CENTER', 'l': 'MID_LEFT', 'r': 'MID_RIGHT',
 }
 SIDE_STICKY_MAP = {tkc.LEFT: tkc.W, tkc.RIGHT: tkc.E, tkc.TOP: tkc.N, tkc.BOTTOM: tkc.S}
+JUSTIFY_TO_ANCHOR = {tkc.LEFT: tkc.W, tkc.CENTER: tkc.CENTER, tkc.RIGHT: tkc.E}
 # fmt: on
 
 
@@ -40,6 +41,9 @@ class MissingMixin:
             return cls[value.upper().replace(' ', '_')]
         except KeyError:
             return None  # This is what the default implementation does to signal an exception should be raised
+
+    def __bool__(self) -> bool:
+        return self._value_ is not None  # noqa
 
 
 class BindEvent(MissingMixin, Enum):
@@ -78,6 +82,9 @@ class Justify(MissingMixin, Enum, aliases={'c': 'CENTER', 'l': 'LEFT', 'r': 'RIG
     LEFT = tkc.LEFT
     CENTER = tkc.CENTER
     RIGHT = tkc.RIGHT
+
+    def as_anchor(self):
+        return JUSTIFY_TO_ANCHOR.get(self.value)
 
 
 class Anchor(MissingMixin, Enum, aliases=ANCHOR_ALIASES):

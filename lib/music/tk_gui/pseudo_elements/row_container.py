@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Optional, Union, Any, overload
 
 from ..enums import Anchor, Justify, Side
 from ..style import Style
+from ..utils import call_with_popped
 from .row import Row
 
 if TYPE_CHECKING:
@@ -74,8 +75,7 @@ class RowContainer(ABC):
         self.init_container(layout, **kwargs)
 
     def init_container_from_kwargs(self, *args, kwargs: dict[str, Any]):
-        kwargs = {key: val for key in CONTAINER_PARAMS if (val := kwargs.pop(key, None)) is not None}
-        self.init_container(*args, **kwargs)
+        call_with_popped(self.init_container, CONTAINER_PARAMS, kwargs, args)
 
     def init_container(
         self,
@@ -90,7 +90,7 @@ class RowContainer(ABC):
         scroll_y_div: float = 2,
         scroll_x_div: float = 1,
     ):
-        self.anchor_elements = Anchor(anchor_elements) if anchor_elements else Anchor.MID_CENTER
+        self.anchor_elements = Anchor(anchor_elements)
         self.text_justification = Justify(text_justification)
         self.element_side = Side(element_side) if element_side else Side.LEFT
         self.element_padding = element_padding

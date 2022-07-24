@@ -12,7 +12,7 @@ import sys
 from functools import cached_property
 from inspect import stack
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection
+from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection, Iterable, Sequence
 
 if TYPE_CHECKING:
     from tkinter import Misc
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 __all__ = [
     'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
     'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata',
-    'tcl_version', 'max_line_len', 'get_top_level',
+    'tcl_version', 'max_line_len', 'get_top_level', 'call_with_popped',
 ]
 log = logging.getLogger(__name__)
 
@@ -34,19 +34,23 @@ ON_MAC = _OS == 'darwin'
 class Inheritable:
     """An attribute whose value can be inherited from a parent"""
 
-    __slots__ = ('parent_attr', 'default', 'type', 'name')
+    __slots__ = ('parent_attr', 'default', 'type', 'name', 'attr_name')
 
-    def __init__(self, parent_attr: str = None, default: Any = None, type: Callable = None):  # noqa
+    def __init__(
+        self, parent_attr: str = None, default: Any = None, type: Callable = None, attr_name: str = 'parent'  # noqa
+    ):
         """
         :param parent_attr: The attribute within the parent that holds the value to inherit, if different from the
           name of this attribute.
         :param default: The default value to return when no specific value is stored in the instance, instead of
           inheriting from the parent.
         :param type: A callable used to convert new values to the expected type when this attribute is set.
+        :param attr_name: The name of the ``parent`` attribute in this class
         """
         self.parent_attr = parent_attr
         self.default = default
         self.type = type
+        self.attr_name = attr_name
 
     def __set_name__(self, owner: Type[HasParent], name: str):
         self.name = name
@@ -59,7 +63,8 @@ class Inheritable:
         except KeyError:
             if self.default is not None:
                 return self.default
-            return getattr(instance.parent, self.parent_attr or self.name)
+            parent = getattr(instance, self.attr_name)
+            return getattr(parent, self.parent_attr or self.name)
 
     def __set__(self, instance: HasParent, value):
         if value is not None:
@@ -174,3 +179,8 @@ def max_line_len(lines: Collection[str]) -> int:
 def get_top_level(widget: Misc) -> Misc:
     name = widget._w  # noqa
     return widget.nametowidget('.!'.join(name.split('.!')[:2]))
+
+
+def call_with_popped(func: Callable, keys: Iterable[str], kwargs: dict[str, Any], args: Sequence[Any] = ()):
+    kwargs = {key: val for key in keys if (val := kwargs.pop(key, None)) is not None}
+    func(*args, **kwargs)

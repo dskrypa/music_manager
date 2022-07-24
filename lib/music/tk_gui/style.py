@@ -569,7 +569,7 @@ class Style(ClearableCachedPropertyMixin):
         layer: Layer = 'base',
         state: StyleStateVal = StyleState.DEFAULT,
         attrs: Iterable[StyleAttr] = None,  # Note: PyCharm doesn't handle this Literal well
-        include_none: bool = False,
+        include_none: Bool = False,
         **dst_src_map
     ) -> dict[str, FinalValue]:
         layer: StyleLayer = getattr(self, layer)

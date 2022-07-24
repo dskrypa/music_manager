@@ -9,6 +9,7 @@ from __future__ import annotations
 from functools import partial
 from typing import TYPE_CHECKING, Iterator
 
+from ..color import pick_fg
 from ..elements import Text, HorizontalSeparator
 from ..style import Style, StyleSpec, STATE_NAMES
 from .base import Popup
@@ -68,7 +69,7 @@ class StylePopup(Popup):
                         try:
                             ele_style = styles[color]
                         except KeyError:
-                            styles[color] = ele_style = style.sub_style(color, text_bg=color)
+                            styles[color] = ele_style = style.sub_style(color, text_bg=color, text_fg=pick_fg(color))
 
                         row.append(IText(color, style=ele_style))
 

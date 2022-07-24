@@ -26,7 +26,8 @@ if TYPE_CHECKING:
 __all__ = [
     'MenuGroup', 'MenuItem', 'Menu',
     'SelectionMenuItem', 'CopySelection',
-    'SearchSelection', 'GoogleSelection', 'SearchKpopFandom', 'SearchGenerasia',
+    'SearchSelection', 'GoogleSelection', 'GoogleTranslate', 'SearchWikipedia',
+    'SearchKpopFandom', 'SearchGenerasia', 'SearchDramaWiki',
 ]
 log = logging.getLogger(__name__)
 
@@ -432,6 +433,12 @@ class CopySelection(SelectionMenuItem):
             widget.clipboard_append(selection)
 
 
+# endregion
+
+
+# region Search Engines
+
+
 class SearchSelection(SelectionMenuItem, ABC):
     title: str
     url_fmt: str
@@ -473,6 +480,19 @@ class GoogleSelection(SearchSelection, title='Google', url='https://www.google.c
     pass
 
 
+class GoogleTranslate(SearchSelection, url='https://translate.google.com/?sl=auto&tl=en&text={query}&op=translate'):
+    def __init__(self, label: str = None, *, keyword: str = 'selection', **kwargs):
+        super().__init__(label or f'Translate {{{keyword}!r}}', keyword=keyword, **kwargs)
+
+
+class SearchWikipedia(
+    SearchSelection,
+    title='Wikipedia',
+    url='https://en.wikipedia.org/w/index.php?search={query}&title=Special%3ASearch&fulltext=Search&ns0=1',
+):
+    pass
+
+
 class SearchKpopFandom(SearchSelection, url='https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={query}'):
     pass
 
@@ -480,6 +500,10 @@ class SearchKpopFandom(SearchSelection, url='https://kpop.fandom.com/wiki/Specia
 class SearchGenerasia(
     SearchSelection, url='https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={query}'
 ):
+    pass
+
+
+class SearchDramaWiki(SearchSelection, title='DramaWiki', url='https://wiki.d-addicts.com/index.php?search={query}'):
     pass
 
 

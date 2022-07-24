@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class RowBase(ABC):
+    parent: Optional[Union[RowBase, RowContainer]]
     anchor_elements: Anchor = Inheritable(type=Anchor, attr_name='parent_rc')
     text_justification: Justify = Inheritable(type=Justify, attr_name='parent_rc')
     element_side: Side = Inheritable(type=Side, attr_name='parent_rc')

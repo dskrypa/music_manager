@@ -17,18 +17,19 @@ from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 from ..enums import StyleState, Anchor, Justify, Side
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec
-from ..utils import Inheritable, ClearableCachedPropertyMixin
+from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
-    from ..pseudo_elements import ContextualMenu, Row
-    from ..typing import XY, BindCallback, Key, TkFill
+    from ..pseudo_elements import ContextualMenu
+    from ..pseudo_elements.row import RowBase, Row
+    from ..typing import XY, Bool, BindCallback, Key, TkFill
     from ..window import Window
 
 __all__ = ['ElementBase', 'Element', 'Interactive']
 log = logging.getLogger(__name__)
 
-_DIRECT_ATTRS = {'key', 'tooltip', 'right_click_menu', 'left_click_cb', 'binds', 'data'}
+_DIRECT_ATTRS = {'key', 'right_click_menu', 'left_click_cb', 'binds', 'data'}
 _INHERITABLES = {'size', 'auto_size_text', 'grid', 'anchor', 'justify_text'}
 _BASIC = {'style', 'pad', 'side', 'fill', 'expand'}
 _Side = Union[str, Side]
@@ -38,7 +39,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     _counters = defaultdict(count)
     _id: int
     id: str
-    parent: Optional[Row] = None
+    parent: Optional[RowBase] = None
     column: Optional[int] = None
     widget: Optional[Widget] = None
     fill: TkFill = None
@@ -68,12 +69,16 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     def window(self) -> Window:
         return self.parent.window
 
-    @property
-    def col_row(self) -> XY:
-        row = self.parent
-        x = row.elements.index(self)
-        y = row.parent.rows.index(row)
-        return x, y
+    # @property
+    # def col_row(self) -> XY:
+    #     row_base = self.parent
+    #     x = row_base.elements.index(self)
+    #     try:
+    #         y = row_base.parent_rc.rows.index(row_base)
+    #     except ValueError:  # It's a compound element
+    #         return row_base.col_row
+    #
+    #     return x, y
 
     @property
     def size_and_pos(self) -> tuple[XY, XY]:
@@ -101,7 +106,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
         self.pack_into(row, column)
 
     @abstractmethod
-    def pack_into(self, row: Row, column: int):
+    def pack_into(self, row: RowBase, column: int):
         raise NotImplementedError
 
     def pack_widget(self, *, expand: bool = None, fill: TkFill = None, **kwargs):
@@ -129,6 +134,7 @@ class Element(ElementBase, ABC):
     right_click_menu: Optional[ContextualMenu] = None
     left_click_cb: Optional[Callable] = None
     binds: Optional[MutableMapping[str, BindCallback]] = None
+    bind_clicks: bool = None
     data: Any = None                                            # Any data that needs to be stored with the element
 
     size: XY = Inheritable('element_size')
@@ -145,25 +151,32 @@ class Element(ElementBase, ABC):
         size: XY = None,
         pad: XY = None,
         style: StyleSpec = None,
-        auto_size_text: bool = None,
+        auto_size_text: Bool = None,
         anchor: Union[str, Anchor] = None,
         side: Union[str, Side] = Side.LEFT,
         justify_text: Union[str, Justify] = None,
-        grid: bool = None,
-        expand: bool = None,
+        grid: Bool = None,
+        expand: Bool = None,
         fill: TkFill = None,
-        visible: bool = True,
+        visible: Bool = True,
         tooltip: str = None,
         right_click_menu: ContextualMenu = None,
         left_click_cb: Callable = None,
         binds: MutableMapping[str, BindCallback] = None,
+        bind_clicks: Bool = None,
         data: Any = None,
     ):
         ...
 
-    def __init__(self, *, visible: bool = True, **kwargs):
+    def __init__(self, *, visible: Bool = True, bind_clicks: Bool = None, **kwargs):
         super().__init__(**{k: kwargs.pop(k, None) for k in _BASIC})
         self._visible = visible
+        if tooltip_text := kwargs.pop('tooltip', None):
+            self.tooltip_text = tooltip_text
+        if bind_clicks is None:
+            self.bind_clicks = bool(kwargs.get('right_click_menu') or kwargs.get('left_click_cb'))
+        else:
+            self.bind_clicks = bind_clicks
 
         bad = {}
         for key, val in kwargs.items():
@@ -178,8 +191,9 @@ class Element(ElementBase, ABC):
             raise ValueError(f'Invalid options for {self.__class__.__name__}: {bad}')
 
     def __repr__(self) -> str:
-        x, y = self.col_row
-        return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
+        # x, y = self.col_row
+        # return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
+        return f'<{self.__class__.__name__}[id={self.id}, size={self.size}, visible={self._visible}]>'
 
     @property
     def key(self) -> Key:
@@ -199,7 +213,7 @@ class Element(ElementBase, ABC):
 
     # region Pack Methods / Attributes
 
-    def pack_into_row(self, row: Row, column: int):
+    def pack_into_row(self, row: RowBase, column: int):
         self.parent = row
         self.column = column
         if key := self._key:
@@ -237,21 +251,27 @@ class Element(ElementBase, ABC):
             expand = self.expand
         if fill is None:
             fill = self.fill
+
         pack_kwargs = {  # Note: using pack_kwargs to allow things like padding overrides
-            'anchor': self.anchor.value,
             'side': self.side.value,
             'expand': False if expand is None else expand,
             'fill': tkc.NONE if not fill else tkc.BOTH if fill is True else fill,
             **self.pad_kw,
             **kwargs,
         }
+        if anchor := self.anchor.value:
+            try:
+                widget.configure(anchor=anchor)  # noqa
+            except TclError:  # Not all widgets support anchor in configure
+                pack_kwargs['anchor'] = anchor
+
         widget.pack(**pack_kwargs)
         if not self._visible:
             widget.pack_forget()
 
     def _grid_widget(self, widget: Widget, kwargs: dict[str, Any]):
         widget.grid_configure(
-            row=self.parent.num,
+            row=self.parent.num,  # TODO: Fix for RowBase
             column=self.column,
             sticky=self.anchor.as_sticky(),
             **self.pad_kw,
@@ -305,9 +325,11 @@ class Element(ElementBase, ABC):
     # region Bind Methods
 
     def apply_binds(self):
-        widget = self.widget
-        widget.bind('<Button-1>', self.handle_left_click)
-        widget.bind('<Button-3>', self.handle_right_click)
+        if self.bind_clicks:
+            widget = self.widget
+            widget.bind('<Button-1>', self.handle_left_click)
+            widget.bind('<Button-3>', self.handle_right_click)
+
         if self.binds:
             for event_pat, cb in self.binds.items():
                 self._bind(event_pat, cb)
@@ -348,12 +370,18 @@ class Element(ElementBase, ABC):
     # endregion
 
 
-class Interactive(Element, ABC):
-    def __init__(self, disabled: bool = False, focus: bool = False, **kwargs):
-        super().__init__(**kwargs)
+class InteractiveMixin:
+    disabled: bool = False
+    focus: bool = False
+    valid: bool = True
+
+    def init_interactive(self, disabled: Bool = False, focus: Bool = False, valid: Bool = True):
         self.disabled = disabled
         self.focus = focus
-        self.valid = True
+        self.valid = valid
+
+    def init_interactive_from_kwargs(self, kwargs: dict[str, Any]):
+        call_with_popped(self.init_interactive, ('disabled', 'focus', 'valid'), kwargs)
 
     @property
     def style_state(self) -> StyleState:
@@ -364,4 +392,10 @@ class Interactive(Element, ABC):
         return StyleState.DEFAULT
 
     def pack_widget(self, *, expand: bool = False, fill: TkFill = tkc.NONE, **kwargs):
-        super().pack_widget(expand=expand, fill=fill, focus=self.focus, disabled=self.disabled, **kwargs)
+        super().pack_widget(expand=expand, fill=fill, focus=self.focus, disabled=self.disabled, **kwargs)  # noqa
+
+
+class Interactive(InteractiveMixin, Element, ABC):
+    def __init__(self, disabled: Bool = False, focus: Bool = False, valid: Bool = True, **kwargs):
+        super().__init__(**kwargs)
+        self.init_interactive(disabled, focus, valid)

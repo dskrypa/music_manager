@@ -493,7 +493,9 @@ class Window(RowContainer):
             return root
 
         kwargs['inner_kwargs'] = kwargs.copy()
-        self._root = root = ScrollableToplevel(scroll_y=scroll_y, scroll_x=scroll_x, style=style, **kwargs)
+        self._root = root = ScrollableToplevel(
+            scroll_y=scroll_y, scroll_x=scroll_x, style=style, pad=self.margins, **kwargs
+        )
         self.root = root.inner_widget
         return root
 
@@ -519,8 +521,9 @@ class Window(RowContainer):
         self.pack_rows()
         if (inner := self.root) != outer:
             self.pack_container(outer, inner, self._size)
+        else:
+            outer.configure(padx=self.margins[0], pady=self.margins[1])
 
-        outer.configure(padx=self.margins[0], pady=self.margins[1])
         self._set_init_size()
         if self._position:
             self.position = self._position

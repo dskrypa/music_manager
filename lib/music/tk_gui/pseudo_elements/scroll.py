@@ -20,7 +20,7 @@ from ..utils import ON_WINDOWS
 
 if TYPE_CHECKING:
     from ..style import Style
-    from ..typing import Bool, BindCallback, Axis
+    from ..typing import Bool, BindCallback, Axis, XY
 
 __all__ = [
     'add_scroll_bar',
@@ -178,16 +178,19 @@ class ScrollableContainer(ScrollableBase, ABC):
         inner_cls: Type[FrameLike] = Frame,
         style: Style = None,
         inner_kwargs: dict[str, Any] = None,
+        pad: XY = None,
         **kwargs,
     ):
         if 'relief' not in kwargs:
             kwargs.setdefault('borderwidth', 0)
         kwargs.setdefault('highlightthickness', 0)
         super().__init__(parent, **kwargs)
-        self.init_canvas(scroll_y, scroll_x, style)
+        self.init_canvas(scroll_y, scroll_x, style, pad)
         self.init_inner(inner_cls, scroll_y, scroll_x, **(inner_kwargs or {}))
 
-    def init_canvas(self: ScrollOuter, scroll_y: Bool = False, scroll_x: Bool = False, style: Style = None):
+    def init_canvas(
+        self: ScrollOuter, scroll_y: Bool = False, scroll_x: Bool = False, style: Style = None, pad: XY = None
+    ):
         kwargs = style.get_map('frame', background='bg') if style else {}
         self.canvas = canvas = Canvas(self, borderwidth=0, highlightthickness=0, **kwargs)
         if scroll_x:
@@ -195,7 +198,12 @@ class ScrollableContainer(ScrollableBase, ABC):
         if scroll_y:
             self.scroll_bar_y = add_scroll_bar(self, canvas, 'y', style, {'fill': 'both', 'expand': True})
 
-        canvas.pack(side='left', fill='both', expand=True)
+        kwargs = {'side': 'left', 'fill': 'both', 'expand': True}
+        try:
+            kwargs['padx'], kwargs['pady'] = pad
+        except TypeError:
+            pass
+        canvas.pack(**kwargs)
         canvas.xview_moveto(0)
         canvas.yview_moveto(0)
 

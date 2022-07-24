@@ -18,7 +18,7 @@ from .enums import StyleState
 from .utils import ClearableCachedPropertyMixin
 
 if TYPE_CHECKING:
-    from .typing import XY
+    from .typing import XY, Bool
 
 __all__ = ['Style', 'StyleSpec']
 # log = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ StyleAttr = Literal[
 ]
 Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
 StateName = Literal['default', 'disabled', 'invalid', 'active']
+STATE_NAMES = ('default', 'disabled', 'invalid', 'active')
 StyleStateVal = Union[StyleState, StateName, Literal[0, 1, 2]]
 
 OptStr = Optional[str]
@@ -49,7 +50,7 @@ _OptIntTuple = Union[
 ]
 OptIntVals = Union[OptInt, Mapping[StyleStateVal, OptInt], _OptIntTuple]
 
-Font = Union[str, tuple[str, int], None]
+Font = Union[str, tuple[str, int], tuple[str, int, str, ...], None]
 _FontValsTuple = Union[tuple[Font], tuple[Font, Font], tuple[Font, Font, Font], tuple[Font, Font, Font, Font]]
 FontValues = Union[Font, Mapping[StyleStateVal, Font], _FontValsTuple]
 
@@ -61,7 +62,7 @@ LayerValues = Union[FontValues, Mapping[StyleStateVal, StyleValue]]
 
 # region State Values
 
-StateValueTuple = namedtuple('StateValueTuple', ('default', 'disabled', 'invalid', 'active'))
+StateValueTuple = namedtuple('StateValueTuple', STATE_NAMES)
 
 
 class StateValue(Generic[T_co]):
@@ -138,10 +139,16 @@ class StateValues(Generic[T_co]):
             return cls(layer, name, **values)
         except TypeError:
             pass
+
+        match values:  # noqa
+            case (str(), int(), *_):  # easier than checking len + a chain of isinstance checks
+                return cls(layer, name, values)
+
         try:
             return cls(layer, name, *values)
         except TypeError:
             pass
+
         raise TypeError(f'Invalid type={values.__class__.__name__!r} to initialize {cls.__name__}')
 
     def copy(self: StateValues[T_co], layer: StyleLayer = None, name: str = None) -> StateValues[T_co]:
@@ -313,8 +320,29 @@ class StyleLayer:
             self._tk_font = tk_font = StateValues(self, 'tk_font', *parts)  # noqa
             return tk_font
 
+    def sub_font(self, state: StateName = 'default', name: str = None, size: int = None, *attrs: str) -> Font:
+        font = self.font[state]
+        try:
+            _name, _size, *_attrs = font
+        except (TypeError, ValueError):
+            _name, _size, _attrs = font, None, ()
+
+        return (name or _name), (size or _size), *(attrs or _attrs)  # noqa
+
+    def _iter_values(self) -> Iterator[tuple[str, Optional[StateValues]]]:
+        fields = self._fields
+        for key, val in self.__dict__.items():
+            if key in fields:
+                yield key, getattr(val, 'values', None)
+
     def as_dict(self) -> dict[str, StateValues]:
-        return {key: getattr(val, 'values', None) for key, val in self.__dict__.items() if key in self._fields}
+        return dict(self._iter_values())
+        # return {key: getattr(val, 'values', None) for key, val in self.__dict__.items() if key in self._fields}
+
+    def iter_values(self) -> Iterator[tuple[str, StateValues]]:
+        for key, values in self._iter_values():
+            if values is not None:
+                yield key, values
 
 
 class StyleProperty(Generic[T]):
@@ -509,17 +537,32 @@ class Style(ClearableCachedPropertyMixin):
     def make_default(self):
         self.__class__.default_style = self
 
+    def sub_style(self, name: str = None, **kwargs) -> Style:
+        if name and name in self._instances:
+            name = f'{self.name}:{name}'
+        return self.__class__(name, parent=self, **kwargs)
+
     # endregion
 
     def as_dict(self) -> dict[str, Union[str, None, dict[str, StateValues]]]:
         get = self.__dict__.get
         style = {'name': self.name, 'parent': self.parent.name if self.parent else None, 'ttk_theme': get('ttk_theme')}
+        layer: StyleLayer
         for name in self._layers:
             if layer := get(name):
                 style[name] = layer.as_dict()
             else:
                 style[name] = None
         return style
+
+    def iter_layers(self) -> Iterator[tuple[str, StyleLayer]]:
+        names = self._layers.copy()
+        names.remove('base')
+        names = ['base'] + sorted(names)
+        get = self.__dict__.get
+        for name in names:
+            if layer := get(name):
+                yield name, layer
 
     def get_map(
         self,
@@ -580,8 +623,8 @@ Style(
     selected_fg=('#1c1e23', '#a2a2a2', '#781F1F'),  # Inverse of non-selected
     selected_bg=('#cccdcf', '#000000', '#FFFFFF'),
     insert_bg='#FFFFFF',
-    input_fg='#8b9fde',
-    input_bg='#272a31',
+    input_fg=('#8b9fde', '#000000', '#FFFFFF'),
+    input_bg=('#272a31', '#a2a2a2', '#781F1F'),
     menu_fg=('#8b9fde', '#616161', None, '#8b9fde'),
     menu_bg=('#272a31', '#272a31', None, '#000000'),
     button_fg='#f5f5f6',

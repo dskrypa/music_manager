@@ -9,8 +9,7 @@ from functools import cached_property
 from itertools import count
 from typing import Optional, Literal, Iterator, Callable
 
-from PIL import Image
-from PIL.Image import Image as PILImage
+from PIL.Image import Image as PILImage, new as new_image
 from PySimpleGUI import Column, Text, Element, ELEM_TYPE_GRAPH
 
 from ...common.ratings import star_fill_counts, stars_to_256
@@ -20,6 +19,7 @@ from .inputs import ExtInput
 
 __all__ = ['Rating']
 log = logging.getLogger(__name__)
+
 Color = Literal['black', 'gold']
 FillAmount = Literal['empty', 'full', 'half']
 
@@ -100,7 +100,7 @@ class Rating(Column):
 
     def _combined_stars(self) -> PILImage:
         width, height = self._star_size
-        combined = Image.new('RGBA', self._star_full_size)
+        combined = new_image('RGBA', self._star_full_size)
         for i, image in enumerate(self._iter_star_images()):
             combined.paste(image, (width * i + i, 0))
         return combined

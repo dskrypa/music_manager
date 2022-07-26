@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 from ..enums import StyleState, Anchor, Justify, Side
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec
-from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped
+from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped, extract_style
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
@@ -127,6 +127,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
 
 
 class Element(ElementBase, ABC):
+    _style_config: dict[str, Any]
     _key: Optional[Key] = None
     _tooltip: Optional[ToolTip] = None
     _pack_settings: dict[str, Any] = None
@@ -171,6 +172,7 @@ class Element(ElementBase, ABC):
     def __init__(self, *, visible: Bool = True, bind_clicks: Bool = None, **kwargs):
         super().__init__(**{k: kwargs.pop(k, None) for k in _BASIC})
         self._visible = visible
+        self._style_config = extract_style(kwargs)
         if tooltip_text := kwargs.pop('tooltip', None):
             self.tooltip_text = tooltip_text
         if bind_clicks is None:
@@ -212,6 +214,10 @@ class Element(ElementBase, ABC):
         return None
 
     # region Pack Methods / Attributes
+
+    @property
+    def style_config(self) -> dict[str, Any]:
+        return self._style_config
 
     def pack_into_row(self, row: RowBase, column: int):
         self.parent = row

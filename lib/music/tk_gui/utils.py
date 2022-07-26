@@ -14,6 +14,8 @@ from inspect import stack
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection, Iterable, Sequence
 
+from .constants import STYLE_CONFIG_KEYS
+
 if TYPE_CHECKING:
     from tkinter import Misc
     from .typing import HasParent
@@ -184,3 +186,7 @@ def get_top_level(widget: Misc) -> Misc:
 def call_with_popped(func: Callable, keys: Iterable[str], kwargs: dict[str, Any], args: Sequence[Any] = ()):
     kwargs = {key: val for key in keys if (val := kwargs.pop(key, None)) is not None}
     func(*args, **kwargs)
+
+
+def extract_style(kwargs: dict[str, Any], keys: Collection[str] = STYLE_CONFIG_KEYS) -> dict[str, Any]:
+    return {key: kwargs.pop(key) for key in tuple(kwargs) if key in keys}

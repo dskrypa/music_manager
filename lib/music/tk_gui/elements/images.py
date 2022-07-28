@@ -71,21 +71,22 @@ class Image(Element):
         image, width, height = self._image.as_size(width, height)
         self._pack_into(row, image, width, height)
 
+    @property
+    def style_config(self) -> dict[str, Any]:
+        return {
+            **self.style.get_map('image', bd='border_width', background='bg', relief='relief'),
+            **self._style_config,
+        }
+
     def _pack_into(self, row: Row, image: _Image, width: int, height: int):
         # log.debug(f'Packing {image=} into row with {width=}, {height=}')
-        style = self.style
-        kwargs = {'image': image} if image else {}
+        kwargs = {'width': width, 'height': height, **self.style_config}
+        if image:
+            kwargs['image'] = image
+
         self.size = (width, height)
-        self.widget = label = Label(
-            row.frame,
-            width=width,
-            height=height,
-            bd=style.image.border_width.default,
-            background=style.image.bg.default,
-            **kwargs
-        )
+        self.widget = label = Label(row.frame, **kwargs)
         label.image = image
-        # label.pack(side=tkc.LEFT, expand=False, fill=tkc.NONE, **self.pad_kw)
         self.pack_widget()
 
     def _re_pack(self, image: _Image, width: int, height: int):

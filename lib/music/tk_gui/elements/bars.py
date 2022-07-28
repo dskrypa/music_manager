@@ -89,7 +89,9 @@ class ProgressBar(Element):
 
     def pack_into(self, row: Row, column: int):
         horizontal = self.orientation == tkc.HORIZONTAL
-        kwargs = {'style': self._prepare_ttk_style(), 'orient': self.orientation, 'value': self.default}
+        kwargs = {
+            'style': self._prepare_ttk_style(), 'orient': self.orientation, 'value': self.default, **self.style_config
+        }
         try:
             width, height = self.size
         except TypeError:
@@ -152,6 +154,19 @@ class Slider(Interactive):
     def value(self) -> float:
         return self.tk_var.get()
 
+    @property
+    def style_config(self) -> dict[str, Any]:
+        config: dict[str, Any] = {
+            'highlightthickness': 0,
+            **self.style.get_map(
+                'slider', self.style_state,
+                bd='border_width', relief='relief', font='font', background='bg', troughcolor='trough_color', fg='fg',
+            ),
+            **self._style_config,
+        }
+        config.setdefault('relief', tkc.FLAT)
+        return config
+
     def pack_into(self, row: Row, column: int):
         min_val, max_val, interval, default = self.min_value, self.max_value, self.interval, self.default
         if _is_int(min_val) and _is_int(max_val) and _is_int(interval):
@@ -166,13 +181,8 @@ class Slider(Interactive):
             'to_': max_val,
             'resolution': interval,
             'tickinterval': self.tick_interval or interval,
-            'highlightthickness': 0,
-            **self.style.get_map(
-                'slider', self.style_state,
-                bd='border_width', relief='relief', font='font', background='bg', troughcolor='trough_color', fg='fg',
-            )
+            **self.style_config,
         }
-        kwargs.setdefault('relief', tkc.FLAT)
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
@@ -180,6 +190,15 @@ class Slider(Interactive):
         if not self.show_values:
             kwargs['showvalue'] = 0
 
+        """
+        bigincrement:
+        digits:
+        label:
+        repeatdelay:
+        repeatinterval:
+        sliderlength:
+        sliderrelief:
+        """
         self.widget = Scale(row.frame, **kwargs)
         self.pack_widget()
 

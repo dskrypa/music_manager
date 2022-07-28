@@ -160,6 +160,7 @@ class Table(Element):
             'height': self.num_rows if self.num_rows else self.size[1] if self.size else len(self.data),
             'show': 'headings',
             'selectmode': self.select_mode,
+            **self.style_config,
         }
         if self.scroll_y or self.scroll_x:
             self.widget = outer = ScrollableTreeview(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)

@@ -71,6 +71,13 @@ class Text(Element):
 
         return {'padx': x, 'pady': y}
 
+    @property
+    def style_config(self) -> dict[str, Any]:
+        return {
+            **self.style.get_map('text', bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
+            **self._style_config,
+        }
+
     def pack_into(self, row: Row, column: int):
         self.string_var = StringVar()
         self.string_var.set(self._value)
@@ -85,12 +92,11 @@ class Text(Element):
             self._enable_link()
 
     def _pack_label(self, row: Row):
-        style = self.style
         kwargs = {
             'textvariable': self.string_var,
             'justify': self.justify_text.value,
             'wraplength': 0,
-            **style.get_map('text', bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
+            **self.style_config,
         }
         try:
             kwargs['width'], kwargs['height'] = self.size
@@ -102,15 +108,13 @@ class Text(Element):
             label.configure(wraplength=wrap_len)
 
     def _pack_entry(self, row: Row):
-        style = self.style
         kwargs = {
             'highlightthickness': 0,
             'textvariable': self.string_var,
             'justify': self.justify_text.value,
             'state': 'readonly',
-            **style.get_map(
-                'text', bd='border_width', fg='fg', bg='bg', font='font', relief='relief', readonlybackground='bg'
-            ),
+            **self.style.get_map('text', readonlybackground='bg'),
+            **self.style_config,
         }
         kwargs.setdefault('relief', 'flat')
         try:
@@ -206,15 +210,21 @@ class Multiline(Element):
         self.auto_scroll = auto_scroll
         self.rstrip = rstrip
 
-    def pack_into(self, row: Row, column: int):
+    @property
+    def style_config(self) -> dict[str, Any]:
         style = self.style
-        kwargs = {
+        config: dict[str, Any] = {
             'highlightthickness': 0,
             **style.get_map('text', attrs=('fg', 'bg', 'font', 'relief'), bd='border_width'),  # noqa
             **style.get_map('selected', selectforeground='fg', selectbackground='bg'),
             **style.get_map('insert', insertbackground='bg'),
+            **self._style_config,
         }
-        kwargs.setdefault('relief', 'sunken')  # noqa
+        config.setdefault('relief', 'sunken')
+        return config
+
+    def pack_into(self, row: Row, column: int):
+        kwargs = self.style_config
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
@@ -229,7 +239,16 @@ class Multiline(Element):
         elif 'width' not in kwargs:
             kwargs['width'] = max_line_len(value.splitlines())
 
-        self.widget = scroll_text = ScrollableText(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)
+        """
+        maxundo:
+        spacing1:
+        spacing2:
+        spacing3:
+        tabs:
+        undo:
+        wrap:
+        """
+        self.widget = scroll_text = ScrollableText(row.frame, self.scroll_y, self.scroll_x, self.style, **kwargs)
         text = scroll_text.inner_widget
         if value:
             text.insert(1.0, value)
@@ -263,6 +282,9 @@ class Multiline(Element):
         widget.insert(tkc.END, text, *args)
         if self.auto_scroll:
             widget.see(tkc.END)
+
+
+# region Log to Element Handling
 
 
 class GuiTextHandler(logging.Handler):
@@ -304,3 +326,6 @@ def gui_log_handler(
     finally:
         for logger in loggers:
             logger.removeHandler(handler)
+
+
+# endregion

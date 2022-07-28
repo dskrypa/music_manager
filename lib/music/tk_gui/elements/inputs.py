@@ -57,19 +57,25 @@ class Input(Interactive):
     def value(self) -> str:
         return self.string_var.get()
 
-    def pack_into(self, row: Row, column: int):
-        self.string_var = StringVar()
-        self.string_var.set(self._value)
-        style = self.style
-        state = self.style_state
-        kwargs = {
+    @property
+    def style_config(self) -> dict[str, Any]:
+        style, state = self.style, self.style_state
+        return {
             'highlightthickness': 0,
-            'textvariable': self.string_var,
-            'show': self.password_char,
-            'justify': self.justify_text.value,
             **style.get_map('input', state, bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
             **style.get_map('input', 'disabled', readonlybackground='bg'),
             **style.get_map('insert', state, insertbackground='bg'),
+            **self._style_config,
+        }
+
+    def pack_into(self, row: Row, column: int):
+        self.string_var = StringVar()
+        self.string_var.set(self._value)
+        kwargs = {
+            'textvariable': self.string_var,
+            'show': self.password_char,
+            'justify': self.justify_text.value,
+            **self.style_config,
         }
         try:
             kwargs['width'] = self.size[0]

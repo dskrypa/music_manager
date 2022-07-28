@@ -12,7 +12,7 @@ from enum import Enum
 from math import ceil
 from time import monotonic
 from tkinter import Event, Button as _Button
-from typing import TYPE_CHECKING, Union, Optional, MutableMapping
+from typing import TYPE_CHECKING, Union, Optional, Any, MutableMapping
 
 from PIL.ImageTk import PhotoImage
 
@@ -142,19 +142,29 @@ class Button(Interactive):
 
         return width, height
 
+    @property
+    def style_config(self) -> dict[str, Any]:
+        style, state = self.style, self.style_state
+        config = {
+            **style.get_map('button', state, bd='border_width', font='font', foreground='fg', background='bg'),
+            **style.get_map('hover', state, activeforeground='fg', activebackground='bg'),
+            **style.get_map('focus', state, highlightcolor='fg', highlightbackground='bg'),
+            **self._style_config,
+        }
+        if style.button.border_width[state] == 0:
+            config['relief'] = tkc.FLAT  # May not work on mac
+
+        return config
+
     def pack_into(self, row: Row, column: int):
         # self.string_var = StringVar()
         # self.string_var.set(self._value)
-        style = self.style
-        state = self.style_state
         width, height = self._pack_size()
         kwargs = {
             'width': width,
             'height': height,
             'justify': self.justify_text.value,
-            **style.get_map('button', state, bd='border_width', font='font', foreground='fg', background='bg'),
-            **style.get_map('hover', state, activeforeground='fg', activebackground='bg'),
-            **style.get_map('focus', state, highlightcolor='fg', highlightbackground='bg'),
+            **self.style_config,
         }
         if not self.separate:
             kwargs['command'] = self.handle_activated
@@ -167,9 +177,7 @@ class Button(Interactive):
         elif not self.pad or 0 in self.pad:
             kwargs['highlightthickness'] = 0
         if width:
-            kwargs['wraplength'] = width * style.char_width('button', state)
-        if style.button.border_width[state] == 0:
-            kwargs['relief'] = tkc.FLAT  # May not work on mac
+            kwargs['wraplength'] = width * self.style.char_width('button', self.style_state)
 
         self.widget = button = _Button(row.frame, **kwargs)
         if image:

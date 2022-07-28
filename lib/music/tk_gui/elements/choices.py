@@ -70,23 +70,34 @@ class Radio(Interactive, Generic[T]):
             row.window.register_element(key, group)
         group._registered = True
 
-    def pack_into(self, row: Row, column: int):
+    @property
+    def style_config(self) -> dict[str, Any]:
         style = self.style
-        kwargs = {
-            'text': self.text,
-            'value': self.choice_id,
-            'variable': self.group.get_selection_var(),
+        return {
             'highlightthickness': 1,
             **style.get_map(
                 'radio', self.style_state, bd='border_width', font='font', highlightcolor='fg', fg='fg',
                 highlightbackground='bg', background='bg', activebackground='bg',
             ),
             **style.get_map('selected', self.style_state, selectcolor='fg'),
+            **self._style_config,
+        }
+
+    def pack_into(self, row: Row, column: int):
+        kwargs = {
+            'text': self.text,
+            'value': self.choice_id,
+            'variable': self.group.get_selection_var(),
+            **self.style_config,
         }
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
             pass
+        """
+        indicatoron: bool
+        selectimage:
+        """
         self.widget = Radiobutton(row.frame, **kwargs)
         self.pack_widget()
         if self.default:
@@ -196,23 +207,36 @@ class CheckBox(Interactive):
     def value(self) -> bool:
         return self.tk_var.get()
 
-    def pack_into(self, row: Row, column: int):
-        self.tk_var = tk_var = BooleanVar(value=self.default)
+    @property
+    def style_config(self) -> dict[str, Any]:
         style = self.style
-        kwargs = {
-            'text': self.text,
-            'variable': tk_var,
+        return {
             'highlightthickness': 1,
             **style.get_map(
                 'checkbox', self.style_state, bd='border_width', font='font', highlightcolor='fg', fg='fg',
                 highlightbackground='bg', background='bg', activebackground='bg',
             ),
             **style.get_map('selected', self.style_state, selectcolor='fg'),
+            **self._style_config,
         }
+
+    def pack_into(self, row: Row, column: int):
+        self.tk_var = tk_var = BooleanVar(value=self.default)
+        kwargs = {'text': self.text, 'variable': tk_var, **self.style_config}
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
             pass
+        """
+        underline: int index of char in text to underline
+        textvariable: var for text
+        indicatoron: bool
+        offvalue: value to store when off
+        onvalue: value to store when on
+        selectimage:
+        tristateimage:
+        tristatevalue:
+        """
         self.widget = Checkbutton(row.frame, **kwargs)
         self.pack_widget()
 
@@ -248,6 +272,14 @@ class Combo(Interactive):
         ttk_style.map(ttk_style_name, fieldbackground=[('readonly', style.combo.bg[state])])
         return ttk_style_name
 
+    @property
+    def style_config(self) -> dict[str, Any]:
+        style, state = self.style, self.style_state
+        return {
+            **style.get_map('combo', state, font='font'),
+            **self._style_config,
+        }
+
     def pack_into(self, row: Row, column: int):
         self.tk_var = tk_var = StringVar()
         style, state = self.style, self.style_state
@@ -255,7 +287,7 @@ class Combo(Interactive):
             'textvariable': tk_var,
             'style': self._prepare_ttk_style(),
             'values': list(self.choices),
-            **style.get_map('combo', state, font='font'),
+            **self.style_config,
         }
         try:
             kwargs['width'], kwargs['height'] = self.size
@@ -330,21 +362,32 @@ class ListBox(Interactive):
         else:
             list_box.selection_clear(0, len(self.choices))
 
-    def pack_into(self, row: Row, column: int):
+    @property
+    def style_config(self) -> dict[str, Any]:
         style, state = self.style, self.style_state
-        kwargs = {
-            'exportselection': False,  # Prevent selections in this box from affecting others / the primary selection
-            'selectmode': self.select_mode.value,
+        return {
             'highlightthickness': 0,
             **style.get_map('listbox', state, font='font', background='bg', fg='fg', ),
             **style.get_map('selected', state, font='font', selectbackground='bg', selectforeground='fg', ),
+            **self._style_config,
+        }
+
+    def pack_into(self, row: Row, column: int):
+        kwargs = {
+            'exportselection': False,  # Prevent selections in this box from affecting others / the primary selection
+            'selectmode': self.select_mode.value,
+            **self.style_config,
         }
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
             kwargs['width'] = max_line_len(self.choices) + 1
 
-        self.widget = outer = ScrollableListbox(row.frame, self.scroll_y, self.scroll_x, style, **kwargs)
+        """
+        activestyle: Literal["dotbox", "none", "underline"]
+        setgrid: bool
+        """
+        self.widget = outer = ScrollableListbox(row.frame, self.scroll_y, self.scroll_x, self.style, **kwargs)
         list_box = outer.inner_widget
         if choices := self.choices:
             list_box.insert(tkc.END, *choices)

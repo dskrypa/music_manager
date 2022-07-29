@@ -11,9 +11,9 @@ from concurrent.futures import Future
 from functools import cached_property
 from queue import Queue
 from threading import current_thread, main_thread
-from typing import TYPE_CHECKING, Union, Collection, Mapping, Callable
+from typing import TYPE_CHECKING, Union, Optional, Collection, Mapping, Callable, Literal
 
-from ..elements import Input, Button
+from ..elements import Element, Button, Text, Image
 from ..positioning import positioner
 from ..style import Style, StyleSpec
 from ..utils import max_line_len
@@ -21,9 +21,9 @@ from ..window import Window
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from ..typing import XY, Layout, Bool
+    from ..typing import XY, Layout, Bool, ImageType
 
-__all__ = ['Popup', 'POPUP_QUEUE', 'BasicPopup']
+__all__ = ['Popup', 'POPUP_QUEUE', 'BasicPopup', 'BoolPopup']
 log = logging.getLogger(__name__)
 
 POPUP_QUEUE = Queue()
@@ -94,6 +94,8 @@ class BasicPopup(Popup):
         buttons: Union[Mapping[str, str], Collection[str], Collection[Button]] = None,
         multiline: Bool = False,
         style: StyleSpec = None,
+        image: ImageType = None,
+        image_size: XY = None,
         **kwargs,
     ):
         if buttons and button:
@@ -105,6 +107,8 @@ class BasicPopup(Popup):
         self.buttons = (button,) if button else buttons
         self.multiline = multiline
         self.style = Style.get_style(style)
+        self.image = image
+        self.image_size = image_size or (100, 100)
 
     @cached_property
     def lines(self) -> list[str]:
@@ -155,4 +159,37 @@ class BasicPopup(Popup):
         return buttons
 
     def get_layout(self) -> Layout:
-        return [[Input(self.text, disabled=True)], self.prepare_buttons()]
+        layout: list[list[Element]] = [[Text(self.text)], self.prepare_buttons()]
+        if image := self.image:
+            layout[0].insert(0, Image(image, size=self.image_size))
+
+        return layout
+
+
+class BoolPopup(BasicPopup):
+    def __init__(
+        self,
+        text: str,
+        true: str = 'OK',
+        false: str = 'Cancel',
+        order: Literal['TF', 'FT'] = 'FT',
+        select: Optional[bool] = True,
+        **kwargs,
+    ):
+        self.true_key = true
+        self.false_key = false
+        tf = order.upper() == 'TF'
+        tside, fside = ('left', 'right') if tf else ('right', 'left')
+        te, fe = (True, False) if select else (False, True) if select is False else (False, False)
+        tb = Button(true, key=true, side=tside, bind_enter=te)
+        fb = Button(false, key=false, side=fside, bind_enter=fe)
+        buttons = (tb, fb) if tf else (fb, tb)
+        super().__init__(text, buttons=buttons, **kwargs)
+
+    def run(self) -> Optional[bool]:
+        results = super().run()
+        if results[self.true_key]:
+            return True
+        elif results[self.false_key]:
+            return False
+        return None  # exited without clicking either button

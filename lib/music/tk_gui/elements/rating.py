@@ -81,7 +81,7 @@ class Rating(InteractiveRowFrame):
 
     @cached_property
     def _star_images(self) -> dict[Color, dict[FillAmount, PILImage]]:
-        from ..icons import Icons
+        from ..images import Icons
 
         colors = {'gold': '#F2D250', 'black': '#000000'}
         names = {'empty': 'star', 'half': 'star-half', 'full': 'star-fill'}

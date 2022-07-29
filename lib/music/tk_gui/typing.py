@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING, Protocol, TypeVar, Any, Union, Callable, Itera
 from typing import Literal, _ProtocolMeta  # noqa
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from tkinter import Event, Toplevel, Frame, LabelFrame
+    from PIL.Image import Image as PILImage
     from .elements import Element
     from .enums import BindTargets, BindEvent
 
@@ -42,6 +44,8 @@ TkSide = Literal['left', 'right', 'top', 'bottom']
 TkJustify = Literal['left', 'center', 'right']
 
 TkContainer = Union['Toplevel', 'Frame', 'LabelFrame']
+
+ImageType = Union['PILImage', bytes, 'Path', str, None]
 
 
 @runtime_checkable

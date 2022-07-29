@@ -34,24 +34,24 @@ StyleAttr = Literal[
     'frame_color', 'trough_color', 'arrow_color', 'arrow_width', 'bar_width',
 ]
 Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
-StateName = Literal['default', 'disabled', 'invalid', 'active']
-STATE_NAMES = ('default', 'disabled', 'invalid', 'active')
+StateName = Literal['default', 'disabled', 'invalid', 'active', 'highlight']
+STATE_NAMES = ('default', 'disabled', 'invalid', 'active', 'highlight')
 StyleStateVal = Union[StyleState, StateName, Literal[0, 1, 2]]
 
 OptStr = Optional[str]
 _OptStrTuple = Union[
-    tuple[OptStr], tuple[OptStr, OptStr], tuple[OptStr, OptStr, OptStr], tuple[OptStr, OptStr, OptStr, OptStr]
+    tuple[OptStr], tuple[(OptStr,) * 2], tuple[(OptStr,) * 3], tuple[(OptStr,) * 4], tuple[(OptStr,) * 5]
 ]
 OptStrVals = Union[OptStr, Mapping[StyleStateVal, OptStr], _OptStrTuple]
 
 OptInt = Optional[int]
 _OptIntTuple = Union[
-    tuple[OptInt], tuple[OptInt, OptInt], tuple[OptInt, OptInt, OptInt], tuple[OptInt, OptInt, OptInt, OptInt]
+    tuple[OptInt], tuple[(OptInt,) * 2], tuple[(OptInt,) * 3], tuple[(OptInt,) * 4], tuple[(OptInt,) * 5]
 ]
 OptIntVals = Union[OptInt, Mapping[StyleStateVal, OptInt], _OptIntTuple]
 
 Font = Union[str, tuple[str, int], tuple[str, int, str, ...], None]
-_FontValsTuple = Union[tuple[Font], tuple[Font, Font], tuple[Font, Font, Font], tuple[Font, Font, Font, Font]]
+_FontValsTuple = Union[tuple[Font], tuple[(Font,) * 2], tuple[(Font,) * 3], tuple[(Font,) * 4], tuple[(Font,) * 5]]
 FontValues = Union[Font, Mapping[StyleStateVal, Font], _FontValsTuple]
 
 StyleValue = Union[OptStr, OptInt, Font]
@@ -89,6 +89,7 @@ class StateValues(Generic[T_co]):
     disabled = StateValue()
     invalid = StateValue()
     active = StateValue()
+    highlight = StateValue()
 
     def __init__(
         self,
@@ -98,10 +99,11 @@ class StateValues(Generic[T_co]):
         disabled: Optional[T_co] = None,
         invalid: Optional[T_co] = None,
         active: Optional[T_co] = None,
+        highlight: Optional[T_co] = None,
     ):
         self.name = name
         self.layer = layer
-        self.values = StateValueTuple(default, disabled, invalid, active)
+        self.values = StateValueTuple(default, disabled, invalid, active, highlight)
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.layer.prop.name}.{self.name}: {self.values}]>'
@@ -410,9 +412,8 @@ class StyleLayerProperty(StyleProperty[StyleLayer]):
 
 
 Layer = Literal[
-    'base', 'insert', 'hover', 'focus', 'scroll', 'arrows', 'radio', 'checkbox', 'frame', 'combo', 'progress', 'image',
-    'tooltip', 'text', 'button', 'listbox', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt', 'slider',
-    'menu',
+    'base', 'insert', 'scroll', 'arrows', 'radio', 'checkbox', 'frame', 'combo', 'progress', 'image', 'tooltip', 'text',
+    'button', 'listbox', 'link', 'selected', 'input', 'table', 'table_header', 'table_alt', 'slider', 'menu',
 ]
 
 
@@ -434,9 +435,7 @@ class Style(ClearableCachedPropertyMixin):
     button = StyleLayerProperty('base')
     checkbox = StyleLayerProperty('base')
     combo = StyleLayerProperty('text')              # Combo box (dropdown) input
-    focus = StyleLayerProperty()
     frame = StyleLayerProperty('base')
-    hover = StyleLayerProperty()
     image = StyleLayerProperty('base')
     input = StyleLayerProperty('text')
     insert = StyleLayerProperty()
@@ -613,6 +612,7 @@ class Style(ClearableCachedPropertyMixin):
     # endregion
 
 
+# States: (default, disabled, invalid, active, highlight)
 Style('default', font=('Helvetica', 10), ttk_theme='default', border_width=1)
 Style(
     'DarkGrey10',
@@ -627,8 +627,8 @@ Style(
     input_bg=('#272a31', '#a2a2a2', '#781F1F'),
     menu_fg=('#8b9fde', '#616161', None, '#8b9fde'),
     menu_bg=('#272a31', '#272a31', None, '#000000'),
-    button_fg='#f5f5f6',
-    button_bg='#2e3d5a',
+    button_fg=('#f5f5f6', None, None, '#000000'),
+    button_bg=('#2e3d5a', None, None, '#8b9fde'),
     tooltip_fg='#000000',
     tooltip_bg='#ffffe0',
     table_alt_fg='#8b9fde',

@@ -130,6 +130,7 @@ class StyleState(MissingMixin, IntEnum):
     DISABLED = 1
     INVALID = 2
     ACTIVE = 3
+    HIGHLIGHT = 4
 
 
 class ListBoxSelectMode(MissingMixin, Enum):

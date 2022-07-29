@@ -11,15 +11,14 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from PIL.Image import MIME
 
-from ds_tools.images.utils import ImageType, as_image
-
 from ..elements.images import AnimatedType, Image, Animation, ClockImage, SpinnerImage, get_size
 from ..positioning import positioner
+from ..images import as_image
 from .base import Popup
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from ..typing import XY, Layout
+    from ..typing import XY, Layout, ImageType
 
 __all__ = ['ImagePopup', 'AnimatedPopup', 'SpinnerPopup', 'ClockPopup']
 log = logging.getLogger(__name__)

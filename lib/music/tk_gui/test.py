@@ -16,6 +16,7 @@ from .elements.text import Multiline, gui_log_handler
 from .elements.rating import Rating
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
+from .popups.common import popup_warning, popup_error, popup_yes_no, popup_no_yes, popup_ok
 from .popups.raw import PickFolder, PickColor
 from .popups.style import StylePopup
 from .window import Window
@@ -155,6 +156,28 @@ class GuiTest(Command):
     @action
     def style(self):
         StylePopup().run()
+
+    @action
+    def popup_warning(self):
+        popup_warning('This is a test warning!')
+
+    @action
+    def popup_error(self):
+        popup_error('This is a test error!')
+
+    @action
+    def popup_yes_no(self):
+        result = popup_yes_no('This is a test!')
+        print(f'{result=}')
+
+    @action
+    def popup_no_yes(self):
+        result = popup_no_yes('This is a test!')
+        print(f'{result=}')
+
+    @action
+    def popup_ok(self):
+        popup_ok('This is a test!')
 
     @action(default=True)
     def window(self):

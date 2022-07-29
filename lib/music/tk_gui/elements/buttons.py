@@ -57,6 +57,7 @@ class Button(Interactive):
         binds: MutableMapping[str, BindCallback] = None,
         bind_enter: Bool = False,
         separate: Bool = False,
+        focus: Bool = None,
         **kwargs,
     ):
         if not binds:
@@ -74,7 +75,9 @@ class Button(Interactive):
         if bind_enter:
             self.bind_enter = True
             binds['<Return>'] = self.handle_activated
-        super().__init__(binds=binds, justify_text=justify_text, **kwargs)
+        if focus is None:
+            focus = bind_enter
+        super().__init__(binds=binds, justify_text=justify_text, focus=focus, **kwargs)
         self.text = text
         self.image = image
         self.action = ButtonAction(action)
@@ -147,8 +150,8 @@ class Button(Interactive):
         style, state = self.style, self.style_state
         config = {
             **style.get_map('button', state, bd='border_width', font='font', foreground='fg', background='bg'),
-            **style.get_map('hover', state, activeforeground='fg', activebackground='bg'),
-            **style.get_map('focus', state, highlightcolor='fg', highlightbackground='bg'),
+            **style.get_map('button', 'active', activeforeground='fg', activebackground='bg'),
+            **style.get_map('button', 'highlight', highlightcolor='fg', highlightbackground='bg'),
             **self._style_config,
         }
         if style.button.border_width[state] == 0:

@@ -37,6 +37,7 @@ _Side = Union[str, Side]
 
 class ElementBase(ClearableCachedPropertyMixin, ABC):
     _counters = defaultdict(count)
+    _style_config: dict[str, Any]
     _id: int
     id: str
     parent: Optional[RowBase] = None
@@ -49,13 +50,22 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     style: Style = Inheritable(type=Style.get_style)
 
     def __init__(
-        self, style: StyleSpec = None, pad: XY = None, side: _Side = None, fill: TkFill = None, expand: bool = None
+        self,
+        style: StyleSpec = None,
+        pad: XY = None,
+        side: _Side = None,
+        fill: TkFill = None,
+        expand: bool = None,
+        **kwargs,
     ):
         cls = self.__class__
         self._id = _id = next(self._counters[cls])
         self.id = f'{cls.__name__}#{_id}'
         self.pad = pad
         self.side = side
+        self._style_config = extract_style(kwargs) if kwargs else {}
+        if kwargs:
+            raise ValueError(f'Unexpected {kwargs=}')
         if expand is not None:
             self.expand = expand
         if fill:
@@ -127,7 +137,6 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
 
 
 class Element(ElementBase, ABC):
-    _style_config: dict[str, Any]
     _key: Optional[Key] = None
     _tooltip: Optional[ToolTip] = None
     _pack_settings: dict[str, Any] = None

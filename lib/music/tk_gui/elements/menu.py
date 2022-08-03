@@ -357,16 +357,18 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
             self.members = list(self.members)
         return self
 
-    def style_kwargs(self) -> dict[str, Any]:
+    @property
+    def style_config(self) -> dict[str, Any]:
         style = self.style
         return {
             **style.get_map('menu', font='font', fg='fg', bg='bg', bd='border_width', relief='relief'),
             **style.get_map('menu', 'disabled', disabledforeground='fg'),
             **style.get_map('menu', 'active', activeforeground='fg', activebackground='bg'),
+            **self._style_config,
         }
 
     def prepare(self, parent: Misc = None, event: Event = None, kwargs: dict[str, Any] = None) -> TkMenu:
-        style = self.style_kwargs()
+        style = self.style_config
         menu = TkMenu(parent, tearoff=0, **style)
         for member in self.members:
             member.maybe_add(menu, style, event, kwargs)

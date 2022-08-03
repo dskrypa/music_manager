@@ -66,6 +66,7 @@ def add_scroll_bar(
 
     kwargs = {'side': side, 'fill': axis}
     if pack_kwargs:
+        # Additional possible kwargs: elementborderwidth, jump, repeatdelay, repeatinterval
         kwargs.update(pack_kwargs)
     scroll_bar.pack(**kwargs)
 

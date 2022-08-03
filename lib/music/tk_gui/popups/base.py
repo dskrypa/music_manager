@@ -13,7 +13,7 @@ from queue import Queue
 from threading import current_thread, main_thread
 from typing import TYPE_CHECKING, Union, Optional, Collection, Mapping, Callable, Literal
 
-from ..elements import Element, Button, Text, Image
+from ..elements import Element, Button, Text, Image, Input
 from ..positioning import positioner
 from ..style import Style, StyleSpec
 from ..utils import max_line_len
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from tkinter import Event
     from ..typing import XY, Layout, Bool, ImageType
 
-__all__ = ['Popup', 'POPUP_QUEUE', 'BasicPopup', 'BoolPopup']
+__all__ = ['Popup', 'POPUP_QUEUE', 'BasicPopup', 'BoolPopup', 'TextPromptPopup', 'LoginPromptPopup']
 log = logging.getLogger(__name__)
 
 POPUP_QUEUE = Queue()
@@ -158,7 +158,7 @@ class BasicPopup(Popup):
 
         return buttons
 
-    def get_layout(self) -> Layout:
+    def get_layout(self) -> list[list[Element]]:
         layout: list[list[Element]] = [[Text(self.text)], self.prepare_buttons()]
         if image := self.image:
             layout[0].insert(0, Image(image, size=self.image_size))
@@ -193,3 +193,43 @@ class BoolPopup(BasicPopup):
         elif results[self.false_key]:
             return False
         return None  # exited without clicking either button
+
+
+class TextPromptPopup(BasicPopup):
+    input_key = 'input'
+
+    def __init__(self, text: str, button_text: str = 'Submit', **kwargs):
+        button = Button(button_text, side='right', bind_enter=True)
+        super().__init__(text, button=button, **kwargs)
+
+    def get_layout(self) -> list[list[Element]]:
+        layout = super().get_layout()
+        # TODO: Make the input have focus for immediate text entry
+        layout.insert(1, [Input(key=self.input_key)])
+        return layout
+
+    def run(self) -> Optional[str]:
+        results = super().run()
+        return results[self.input_key]
+
+
+class LoginPromptPopup(BasicPopup):
+    user_key = 'username'
+    pw_key = 'password'
+
+    def __init__(self, text: str, button_text: str = 'Submit', password_char: str = '*', **kwargs):
+        button = Button(button_text, side='right', bind_enter=True)
+        super().__init__(text, button=button, **kwargs)
+        self.password_char = password_char
+
+    def get_layout(self) -> list[list[Element]]:
+        layout = super().get_layout()
+        # TODO: focus=True is not working for immediate text entry in the username field
+        # TODO: tab should move between inputs, skip the labels
+        layout.insert(1, [Text('Username:'), Input(key=self.user_key, focus=True)])
+        layout.insert(2, [Text('Password:'), Input(key=self.pw_key, password_char=self.password_char)])
+        return layout
+
+    def run(self) -> tuple[Optional[str], Optional[str]]:
+        results = super().run()
+        return results[self.user_key], results[self.pw_key]

@@ -16,6 +16,7 @@ from .elements.text import Multiline, gui_log_handler
 from .elements.rating import Rating
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
 from .popups.about import AboutPopup
+from .popups.base import TextPromptPopup, LoginPromptPopup
 from .popups.common import popup_warning, popup_error, popup_yes_no, popup_no_yes, popup_ok
 from .popups.raw import PickFolder, PickColor
 from .popups.style import StylePopup
@@ -178,6 +179,16 @@ class GuiTest(Command):
     @action
     def popup_ok(self):
         popup_ok('This is a test!')
+
+    @action
+    def popup_text(self):
+        result = TextPromptPopup('Enter a string').run()
+        print(f'{result=}')
+
+    @action
+    def popup_login(self):
+        user, pw = LoginPromptPopup('Enter your login info').run()
+        print(f'{user=}, {pw=}')
 
     @action(default=True)
     def window(self):

@@ -35,6 +35,7 @@ _Anchor = Union[str, Anchor]
 class FrameMixin:
     widget: Union[TkFrame, LabelFrame]
     style: Style
+    _style_config: dict[str, Any]
     border: Bool
     title: Optional[str]
     anchor_title: Anchor
@@ -53,16 +54,25 @@ class FrameMixin:
     def tk_container(self) -> Union[TkFrame, LabelFrame]:
         return self.widget
 
-    def pack_into(self, row: Row, column: int):
+    @property
+    def style_config(self) -> dict[str, Any]:
         style = self.style
-        kwargs = style.get_map('frame', bd='border_width', background='bg', relief='relief')
+        config = {
+            **style.get_map('frame', bd='border_width', background='bg', relief='relief'),
+            **self._style_config,
+        }
         if self.border:
-            kwargs.setdefault('relief', 'groove')
-            kwargs.update(style.get_map('frame', highlightcolor='bg', highlightbackground='bg'))
+            config.setdefault('relief', 'groove')
+            config.update(style.get_map('frame', highlightcolor='bg', highlightbackground='bg'))
+        if self.title:
+            config.update(style.get_map('frame', foreground='fg', font='font'))
 
+        return config
+
+    def pack_into(self, row: Row, column: int):
+        kwargs = self.style_config
         if title := self.title:
             kwargs['text'] = title
-            kwargs.update(style.get_map('frame', foreground='fg', font='font'))
             if (anchor := self.anchor_title) != Anchor.NONE:
                 kwargs['labelanchor'] = anchor.value
             frame_cls = LabelFrame
@@ -162,6 +172,7 @@ class ScrollFrame(Element, RowContainer):
             common = {'text': title}
             if (anchor := self.anchor_title) != Anchor.NONE:
                 common['labelanchor'] = anchor.value
+                # labelwidget: The widget to use as the label
 
             if self.title_mode in {'outer', 'both'}:
                 outer_kw.update(common)

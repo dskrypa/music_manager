@@ -199,12 +199,11 @@ class TextPromptPopup(BasicPopup):
     input_key = 'input'
 
     def __init__(self, text: str, button_text: str = 'Submit', **kwargs):
-        button = Button(button_text, side='right', bind_enter=True)
+        button = Button(button_text, side='right', bind_enter=True, focus=False)
         super().__init__(text, button=button, **kwargs)
 
     def get_layout(self) -> list[list[Element]]:
         layout = super().get_layout()
-        # TODO: Make the input have focus for immediate text entry
         layout.insert(1, [Input(key=self.input_key)])
         return layout
 
@@ -217,14 +216,13 @@ class LoginPromptPopup(BasicPopup):
     user_key = 'username'
     pw_key = 'password'
 
-    def __init__(self, text: str, button_text: str = 'Submit', password_char: str = '*', **kwargs):
-        button = Button(button_text, side='right', bind_enter=True)
+    def __init__(self, text: str, button_text: str = 'Submit', password_char: str = '\u2b24', **kwargs):
+        button = Button(button_text, side='right', bind_enter=True, focus=False)
         super().__init__(text, button=button, **kwargs)
         self.password_char = password_char
 
     def get_layout(self) -> list[list[Element]]:
         layout = super().get_layout()
-        # TODO: focus=True is not working for immediate text entry in the username field
         # TODO: tab should move between inputs, skip the labels
         layout.insert(1, [Text('Username:'), Input(key=self.user_key, focus=True)])
         layout.insert(2, [Text('Password:'), Input(key=self.pw_key, password_char=self.password_char)])

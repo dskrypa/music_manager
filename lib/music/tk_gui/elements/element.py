@@ -257,7 +257,8 @@ class Element(ElementBase, ABC):
             self._pack_widget(widget, expand, fill, kwargs)
 
         if focus:
-            widget.focus_set()
+            got_focus = self.parent.window.maybe_set_focus(self, widget)
+            # log.debug(f'Got focus for {widget=}: {got_focus}')
         if disabled:
             widget['state'] = 'readonly' if disabled is True else disabled
 

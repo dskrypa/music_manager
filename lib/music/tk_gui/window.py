@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 from functools import partial, cached_property
 from os import environ
-from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame
+from time import monotonic
+from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame, Misc
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, overload
 from weakref import finalize
 
@@ -68,9 +69,11 @@ class _TkEventHandler:
 
 class Window(RowContainer):
     __hidden_root = None
+    __focus_widget = None
     _tk_event_handlers: dict[str, str] = {}
     _always_bind_events: set[BindEvent] = set()
     _finalizer: finalize
+    _last_run: float = 0
     root: Union[Toplevel, Frame, None] = None
     _root: Optional[Top] = None
     element_map: dict[Key, Element]
@@ -111,6 +114,7 @@ class Window(RowContainer):
         scroll_x_div: float = 1,
         close_cbs: Iterable[Callable] = None,
         right_click_menu: Menu = None,
+        scaling: float = None,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -139,6 +143,7 @@ class Window(RowContainer):
         exit_on_esc: Bool = False,
         close_cbs: Iterable[Callable] = None,
         right_click_menu: Menu = None,
+        scaling: float = None,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
@@ -160,6 +165,7 @@ class Window(RowContainer):
         self.alpha_channel = alpha_channel
         self.icon = icon or PYTHON_LOGO
         self.modal = modal
+        self.scaling = scaling
         self.no_title_bar = no_title_bar
         self.margins = margins
         self.binds = binds or {}
@@ -202,6 +208,10 @@ class Window(RowContainer):
     #  this one without that or the higher level loop?
 
     def run(self, n: int = 0) -> Window:
+        if not self._last_run:
+            self._last_run = monotonic()
+            self._root.after(100, self._init_fix_focus)  # Nothing else seemed to work...
+
         try:
             self._root.mainloop(n)
         except AttributeError:
@@ -387,6 +397,12 @@ class Window(RowContainer):
 
     # region Window State Methods
 
+    def hide(self):
+        self._root.withdraw()
+
+    def un_hide(self):
+        self._root.deiconify()
+
     def minimize(self):
         self._root.iconify()
 
@@ -514,12 +530,14 @@ class Window(RowContainer):
                 root.attributes('-transparentcolor', self.transparent_color)
             except (TclError, RuntimeError):
                 log.error('Transparent window color not supported on this platform (Windows only)')
+        if (scaling := self.scaling) is not None:
+            root.tk.call('tk', 'scaling', scaling)
         return root
 
     def _init_pack_root(self) -> Top:
         outer = self._init_root()
         self.pack_rows()
-        if (inner := self.root) != outer:
+        if (inner := self.root) != outer:  # outer is scrollable
             self.pack_container(outer, inner, self._size)
         else:
             outer.configure(padx=self.margins[0], pady=self.margins[1])
@@ -568,11 +586,21 @@ class Window(RowContainer):
         hidden_root.withdraw()
         Window.__hidden_finalizer = finalize(Window, Window.__close_hidden_root)
 
-    def hide(self):
-        self._root.withdraw()
+    def _init_fix_focus(self):
+        if (widget := self.__focus_widget) is None:
+            return
+        if self._root.focus_get() != widget:
+            log.debug(f'Setting focus on {widget}')
+            widget.focus_set()
 
-    def un_hide(self):
-        self._root.deiconify()
+    def maybe_set_focus(self, element: Element, widget: Misc = None) -> bool:
+        if self.__focus_widget is not None:
+            return False
+        if widget is None:
+            widget = element.widget
+        widget.focus_set()
+        self.__focus_widget = widget
+        return True
 
     # endregion
 

@@ -86,6 +86,13 @@ class FrameMixin:
 
 
 class RowFrame(FrameMixin, RowBase, Element, ABC):
+    """
+    A compound element that behaves both like a single :class:`.Element` and like a :class:`.Row` that contains other
+    elements.  Compound elements that do not contain multiple rows can extend this instead of a Frame-like class that
+    extends :class:`.RowContainer` to be lighter-weight since a RowContainer would contain at least one more additional
+    nested Frame widget.
+    """
+
     def __init__(self, **kwargs):
         self.init_frame_from_kwargs(kwargs)
         Element.__init__(self, **kwargs)

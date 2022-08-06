@@ -73,6 +73,8 @@ class Rating(InteractiveRowFrame):
     def rating(self, value: int):
         self._rating = 10 if value > 10 else 0 if value < 0 else value
 
+    # region Star Image
+
     @property
     def color(self) -> Color:
         if (color := self._color) != 'mix':
@@ -92,13 +94,6 @@ class Rating(InteractiveRowFrame):
         }
         return images
 
-    def _combined_stars(self) -> PILImage:
-        width, height = self._star_size
-        combined = new_image('RGBA', self._star_full_size)
-        for i, image in enumerate(self._iter_star_images()):
-            combined.paste(image, (width * i + i, 0))
-        return combined
-
     def _iter_star_images(self) -> Iterator[PILImage]:
         images = self._star_images[self.color]
         for key, num in zip(('full', 'half', 'empty'), star_fill_counts(self.rating, half=True)):
@@ -107,15 +102,24 @@ class Rating(InteractiveRowFrame):
                 for _ in range(num):
                     yield image
 
+    def _combined_stars(self) -> PILImage:
+        width, height = self._star_size
+        combined = new_image('RGBA', self._star_full_size)
+        for i, image in enumerate(self._iter_star_images()):
+            combined.paste(image, (width * i + i, 0))
+        return combined
+
+    @cached_property
+    def star_element(self) -> Image:
+        return Image(self._combined_stars(), size=self._star_full_size, pad=(0, 0))
+
+    # endregion
+
     @cached_property
     def rating_input(self) -> Optional[Input]:
         if not self._show_value:
             return None
         return Input(self._rating, disabled=self.disabled, size=(5, 1), tooltip=self.tooltip_text)
-
-    @cached_property
-    def star_element(self) -> Image:
-        return Image(self._combined_stars(), size=self._star_full_size, pad=(0, 0))
 
     @property
     def elements(self) -> tuple[Element, ...]:
@@ -130,6 +134,8 @@ class Rating(InteractiveRowFrame):
             self.enable()           # Apply binds and maybe add the input var trace
         if (rating_input := self.rating_input) and not self._valid_value:
             rating_input.validated(False)
+
+    # region Event Handling
 
     def _handle_star_clicked(self, event: Event):
         self._button_down = True
@@ -162,12 +168,6 @@ class Rating(InteractiveRowFrame):
         self.star_element.image = self._combined_stars()
         self._maybe_callback()
 
-    def validated(self, valid: bool):
-        if self._valid_value != valid:
-            self._valid_value = valid
-        if rating_input := self.rating_input:
-            rating_input.validated(valid)
-
     def _handle_button_released(self, event):
         self._button_down = False
         self._maybe_callback()
@@ -177,6 +177,14 @@ class Rating(InteractiveRowFrame):
             if self._last_cb_rating != self._rating and self._valid_value:
                 self._last_cb_rating = self._rating
                 self._change_cb(self)
+
+    # endregion
+
+    def validated(self, valid: bool):
+        if self._valid_value != valid:
+            self._valid_value = valid
+        if rating_input := self.rating_input:
+            rating_input.validated(valid)
 
     def update(self, rating: int = None, disabled: Bool = None):
         if disabled is not None:

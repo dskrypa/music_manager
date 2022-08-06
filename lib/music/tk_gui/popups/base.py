@@ -72,9 +72,9 @@ class Popup:
         return window
 
     def _run(self):
-        self.window.take_focus()
-        self.window.run()
-        return self.window.results
+        with self.window(take_focus=True) as window:
+            window.run()
+            return window.results
 
     def run(self):
         if current_thread() == main_thread():

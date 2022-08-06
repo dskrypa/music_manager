@@ -74,6 +74,7 @@ class Window(RowContainer):
     _always_bind_events: set[BindEvent] = set()
     _finalizer: finalize
     _last_run: float = 0
+    _last_interrupt: float = 0
     root: Union[Toplevel, Frame, None] = None
     _root: Optional[Top] = None
     element_map: dict[Key, Element]
@@ -208,20 +209,44 @@ class Window(RowContainer):
 
     def run(self, n: int = 0) -> Window:
         if not self._last_run:
-            self._last_run = monotonic()
             self._root.after(100, self._init_fix_focus)  # Nothing else seemed to work...
 
-        try:
-            self._root.mainloop(n)
-        except AttributeError:
-            self.show()
-            self._root.mainloop(n)
+        self._last_run = monotonic()
+        while not self.closed and self._last_interrupt < self._last_run:
+            try:
+                self._root.mainloop(n)
+            except AttributeError:
+                self.show()
+                self._root.mainloop(n)
+
+        # log.debug(f'Main loop exited for {self}')
         return self
 
     def interrupt(self, event: Event = None):
+        self._last_interrupt = monotonic()
+        # log.debug(f'Interrupting {self} due to {event=}')
         self._root.quit()  # exit the TK main loop, but leave the window open
 
     # endregion
+
+    def __call__(self, *, take_focus: Bool = False) -> Window:
+        """
+        Update settings for this window.  Intended as a helper for using this Window as a context manager.
+
+        Example of the intended use case::
+
+            with self.window(take_focus=True) as window:
+                window.run()
+        """
+        if take_focus:
+            self.take_focus()
+        return self
+
+    def __enter__(self) -> Window:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     # region Results
 
@@ -445,7 +470,9 @@ class Window(RowContainer):
 
     @property
     def has_focus(self) -> bool:
-        return self._root.focus_get() in self  # noqa
+        if (focus_widget := self._root.focus_get()) is None:
+            return False
+        return focus_widget.winfo_toplevel() == self._root
 
     # endregion
 
@@ -705,23 +732,25 @@ class Window(RowContainer):
 
     @classmethod
     def _close(cls, root: Toplevel):
-        log.debug('  Quitting...')
+        log.debug(f'Closing: {root}')
+        # log.debug('  Quitting...')
         # log.debug(f'  Quitting: {root}')
         root.quit()
-        log.debug('  Updating...')
+        # log.debug('  Updating...')
         try:
             root.update()  # Needed to actually close the window on Linux if user closed with X
         except Exception:  # noqa
             pass
-        log.debug('  Destroying...')
+        # log.debug('  Destroying...')
         try:
             root.destroy()
             root.update()
         except Exception:  # noqa
             pass
-        log.debug('  Done')
+        # log.debug('  Done')
 
     def close(self, event: Event = None):
+        self.closed = True
         # if event and not self.has_focus:
         #     log.debug(f'Ignoring {event=} for window={self}')
         #     return
@@ -731,17 +760,18 @@ class Window(RowContainer):
         except (TypeError, AttributeError):
             pass
         else:
-            log.debug('Closing')
+            # log.debug('Closing')
             close_func(*args, **kwargs)
             self._root = None
-            self.closed = True
             for close_cb in self.close_cbs:
+                # log.debug(f'Calling {close_cb=}')
                 close_cb()
             # if self.kill_others_on_close:
             #     self.close_all()
 
     @classmethod
     def __close_hidden_root(cls):
+        # log.debug('Closing hidden Tk root')
         try:
             # if cls.__hidden_finalizer.detach():  # noqa
             cls.__hidden_root.destroy()

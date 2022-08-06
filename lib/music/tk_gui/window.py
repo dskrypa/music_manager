@@ -689,7 +689,7 @@ class Window(RowContainer):
     @_tk_event_handler(BindEvent.RIGHT_CLICK)
     def handle_right_click(self, event: Event):
         if menu := self._right_click_menu:
-            menu.parent = self
+            menu.parent = self  # Needed for style inheritance
             menu.show(event, self.root)
 
     @_tk_event_handler(BindEvent.MENU_RESULT, True)

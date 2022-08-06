@@ -219,6 +219,10 @@ class GuiTest(Command):
             SearchGenerasia()
             # MenuItem('Test B', print)
 
+        class EleRightClickMenu(Menu):
+            MenuItem('Test A', print)
+            MenuItem('Test B', print)
+
         class MenuBar(Menu):
             with MenuGroup('File'):
                 # MenuItem('Open', print)
@@ -231,7 +235,7 @@ class GuiTest(Command):
             [table1], [table2],
             [HorizontalSeparator()],
             [inpt, Button('Submit', bind_enter=True), Button(image=search_path, shortcut='s', size=(30, 30))],
-            [Animation(gif_path)], [SpinnerImage()], [ClockImage()],
+            [Animation(gif_path)], [SpinnerImage()], [ClockImage(right_click_menu=EleRightClickMenu())],
             [Text('test'), VerticalSeparator(), Text('link test', link='https://google.com')],
             # [Text(f'test_{i:03d}')] for i in range(100)
         ]

@@ -21,10 +21,10 @@ from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped,
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event
-    from ..pseudo_elements import ContextualMenu
     from ..pseudo_elements.row import RowBase, Row
     from ..typing import XY, Bool, BindCallback, Key, TkFill
     from ..window import Window
+    from .menu import Menu
 
 __all__ = ['ElementBase', 'Element', 'Interactive']
 log = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ class Element(ElementBase, ABC):
     _tooltip: Optional[ToolTip] = None
     _pack_settings: dict[str, Any] = None
     tooltip_text: Optional[str] = None
-    right_click_menu: Optional[ContextualMenu] = None
+    right_click_menu: Optional[Menu] = None
     left_click_cb: Optional[Callable] = None
     binds: Optional[MutableMapping[str, BindCallback]] = None
     bind_clicks: bool = None
@@ -161,7 +161,7 @@ class Element(ElementBase, ABC):
         allow_focus: bool = False,
         visible: Bool = True,
         tooltip: str = None,
-        right_click_menu: ContextualMenu = None,
+        right_click_menu: Menu = None,
         left_click_cb: Callable = None,
         binds: MutableMapping[str, BindCallback] = None,
         bind_clicks: Bool = None,
@@ -345,7 +345,8 @@ class Element(ElementBase, ABC):
 
     def handle_right_click(self, event: Event):
         if menu := self.right_click_menu:
-            menu.show(event, self.widget.master)  # noqa
+            menu.parent = self  # Needed for style inheritance
+            menu.show(event, self.widget.master)
 
     # endregion
 

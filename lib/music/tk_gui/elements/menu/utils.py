@@ -9,10 +9,11 @@ from __future__ import annotations
 from abc import ABCMeta
 from contextvars import ContextVar
 from enum import Enum
-from tkinter import Event
+from tkinter import Event, Entry, Text
 from typing import TYPE_CHECKING, Optional, Union, Any, Mapping, Iterator, Sequence
 
-from ...utils import get_top_level
+from music.text.extraction import split_enclosed
+from music.tk_gui.utils import get_top_level
 from ..exceptions import NoActiveGroup
 
 if TYPE_CHECKING:
@@ -169,3 +170,33 @@ def wrap_menu_cb(
         get_top_level(widget).event_generate('<<Custom:MenuCallback>>', state=num)
 
     return run_menu_cb
+
+
+# region Menu Item Text Helpers
+
+
+def get_text(widget: Union[Entry, Text]) -> str:
+    try:
+        return widget.get()
+    except TypeError:
+        return widget.get(0)
+
+
+def replace_selection(widget: Union[Entry, Text], text: str, first: Union[str, int], last: Union[str, int]):
+    try:
+        widget.replace(first, last, text)
+    except AttributeError:
+        widget.delete(first, last)
+        widget.insert(first, text)
+
+
+def flip_name_parts(text: str) -> str:
+    try:
+        a, b = split_enclosed(text, maxsplit=1)
+    except ValueError:
+        return text
+    else:
+        return f'{b} ({a})'
+
+
+# endregion

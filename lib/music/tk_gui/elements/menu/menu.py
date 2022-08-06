@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ...pseudo_elements import Row
     from ...typing import Bool, XY, EventCallback
 
-__all__ = ['Mode', 'MenuEntry', 'MenuItem', 'MenuGroup', 'Menu']
+__all__ = ['Mode', 'MenuEntry', 'MenuItem', 'MenuGroup', 'Menu', 'CustomMenuItem']
 
 Mode = Union['MenuMode', str, bool, None]
 
@@ -87,7 +87,7 @@ class MenuEntry(ABC):
 
 
 class MenuItem(MenuEntry):
-    __slots__ = ('callback', 'use_kwargs', 'store_meta')
+    __slots__ = ('_callback', 'use_kwargs', 'store_meta')
 
     def __init__(
         self,
@@ -105,7 +105,7 @@ class MenuItem(MenuEntry):
         if show is None:
             show = MenuMode.KEYWORD if keyword else MenuMode.ALWAYS
         super().__init__(label, underline, enabled, show, keyword, format_label)
-        self.callback = callback
+        self._callback = callback
         self.use_kwargs = use_kwargs
         self.store_meta = store_meta
 
@@ -115,7 +115,7 @@ class MenuItem(MenuEntry):
         if not self.show.show(kwargs, self.keyword):
             return False
 
-        callback = self.callback
+        callback = self._callback
         if self.use_kwargs and kwargs is not None:
             callback = wrap_menu_cb(self, callback, event, self.store_meta, kwargs=kwargs)
         else:
@@ -127,6 +127,17 @@ class MenuItem(MenuEntry):
             menu.entryconfigure(label, state='disabled')
 
         return True
+
+
+class CustomMenuItem(MenuItem, ABC):
+    __slots__ = ()
+
+    def __init__(self, label: str, **kwargs):
+        super().__init__(label, self.callback, **kwargs)
+
+    @abstractmethod
+    def callback(self, event: Event, **kwargs) -> Any:
+        raise NotImplementedError
 
 
 class MenuGroup(ContainerMixin, MenuEntry):
@@ -149,7 +160,7 @@ class MenuGroup(ContainerMixin, MenuEntry):
         sub_menu = TkMenu(menu, tearoff=0, **style)
         added_any = False
         for member in self.members:
-            added_any |= member.maybe_add(sub_menu, style, kwargs)
+            added_any |= member.maybe_add(sub_menu, style, event, kwargs)
 
         cascade_kwargs = {'label': self.format_label(kwargs)}
         if not added_any or not self.enabled.enabled(kwargs, self.keyword):

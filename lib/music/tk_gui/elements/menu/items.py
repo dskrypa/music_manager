@@ -7,20 +7,22 @@ Tkinter GUI custom menu items
 from __future__ import annotations
 
 import logging
+import tkinter.constants as tkc
 from abc import ABC
-from tkinter import Event, Misc, TclError, Menu as TkMenu
-from typing import TYPE_CHECKING, Union, Any
+from tkinter import Event, Misc, TclError, Menu as TkMenu, Entry, Text
+from typing import TYPE_CHECKING, Union, Optional, Any, Callable
 from urllib.parse import quote_plus, urlparse
 
-from ...utils import get_selection_pos
-from .menu import MenuItem, Mode
-from .utils import MenuMode
+from music.tk_gui.utils import get_selection_pos
+from .menu import Mode, CustomMenuItem
+from .utils import MenuMode, get_text, replace_selection, flip_name_parts
 
 if TYPE_CHECKING:
     from ...typing import Bool
 
 __all__ = [
     'SelectionMenuItem', 'CopySelection', 'PasteClipboard',
+    'FlipNameParts', 'ToLowerCase', 'ToTitleCase', 'ToUpperCase',
     'SearchSelection', 'GoogleSelection', 'GoogleTranslate', 'SearchWikipedia',
     'SearchKpopFandom', 'SearchGenerasia', 'SearchDramaWiki',
 ]
@@ -30,7 +32,9 @@ log = logging.getLogger(__name__)
 # region Selection Menu Items
 
 
-class SelectionMenuItem(MenuItem):
+class SelectionMenuItem(CustomMenuItem, ABC):
+    __slots__ = ()
+
     def __init__(self, *args, enabled: Mode = MenuMode.TRUTHY, keyword: str = 'selection', **kwargs):
         kwargs['use_kwargs'] = True
         super().__init__(*args, enabled=enabled, keyword=keyword, **kwargs)
@@ -54,10 +58,12 @@ class SelectionMenuItem(MenuItem):
 
 
 class CopySelection(SelectionMenuItem):
-    def __init__(self, label: str = 'Copy', *, underline: Union[str, int] = 0, show: Mode = MenuMode.ALWAYS, **kwargs):
-        super().__init__(label, self._copy_cb, underline=underline, show=show, store_meta=True, **kwargs)
+    __slots__ = ()
 
-    def _copy_cb(self, event: Event, **kwargs):
+    def __init__(self, label: str = 'Copy', *, underline: Union[str, int] = 0, show: Mode = MenuMode.ALWAYS, **kwargs):
+        super().__init__(label, underline=underline, show=show, store_meta=True, **kwargs)
+
+    def callback(self, event: Event, **kwargs):
         if selection := kwargs.get(self.keyword):
             widget: Misc = event.widget
             widget.clipboard_clear()
@@ -65,11 +71,20 @@ class CopySelection(SelectionMenuItem):
 
 
 class PasteClipboard(SelectionMenuItem):
-    def __init__(self, label: str = 'Paste', *, underline: Union[str, int] = 0, show: Mode = MenuMode.ALWAYS, **kwargs):
-        kwargs['enabled'] = MenuMode.ALWAYS
-        super().__init__(label, self._paste_cb, underline=underline, show=show, store_meta=True, **kwargs)
+    __slots__ = ()
 
-    def _paste_cb(self, event: Event, **kwargs):
+    def __init__(
+        self,
+        label: str = 'Paste',
+        *,
+        underline: Union[str, int] = 0,
+        show: Mode = MenuMode.ALWAYS,
+        enabled: Mode = MenuMode.ALWAYS,
+        **kwargs,
+    ):
+        super().__init__(label, underline=underline, show=show, store_meta=True, enabled=enabled, **kwargs)
+
+    def callback(self, event: Event, **kwargs):
         widget: Misc = event.widget
         try:
             if widget['state'] != 'normal':
@@ -83,13 +98,85 @@ class PasteClipboard(SelectionMenuItem):
             if first is None:
                 widget.insert('insert', text)  # noqa
             else:
-                try:
-                    widget.replace(first, last, text)  # noqa
-                except AttributeError:
-                    widget.delete(first, last)  # noqa
-                    widget.insert(first, text)  # noqa
+                replace_selection(widget, text, first, last)  # noqa
         except (AttributeError, TclError):
             pass
+
+
+# endregion
+
+
+# region Text Manipulation
+
+
+class _UpdateTextMenuItem(SelectionMenuItem, ABC):
+    __slots__ = ()
+
+    _update_func: Optional[Callable[[str], str]] = None
+
+    def __init_subclass__(cls, update_func: Callable[[str], str] = None):  # noqa
+        if update_func is not None:
+            cls._update_func = update_func
+
+    def __init__(self, label: str, *, show: Mode = MenuMode.ALWAYS, enabled: Mode = MenuMode.ALWAYS, **kwargs):
+        super().__init__(label, show=show, enabled=enabled, store_meta=True, **kwargs)
+
+    @classmethod  # Must be a classmethod, otherwise str methods get confused
+    def update_text(cls, text: str) -> str:
+        if (func := cls._update_func) is not None:
+            return func(text)
+        raise NotImplementedError
+
+    def _update_widget(self, widget: Union[Entry, Text], kwargs: dict[str, Any]):
+        if selection := kwargs.get(self.keyword):
+            first, last = get_selection_pos(widget, raw=True)
+            if (updated := self.update_text(selection)) != selection:
+                replace_selection(widget, updated, first, last)
+        else:
+            text = get_text(widget)
+            if (updated := self.update_text(text)) != text:
+                widget.delete(0, tkc.END)
+                widget.insert(0, updated)
+
+    def callback(self, event: Event, **kwargs):
+        widget: Union[Entry, Text] = event.widget
+        try:
+            if widget['state'] != 'normal':
+                return
+        except TclError:
+            return
+        try:
+            self._update_widget(widget, kwargs)
+        except (AttributeError, TclError):
+            pass
+
+
+class FlipNameParts(_UpdateTextMenuItem, update_func=flip_name_parts):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Flip name parts', **kwargs):
+        super().__init__(label, **kwargs)
+
+
+class ToUpperCase(_UpdateTextMenuItem, update_func=str.upper):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Change case: Upper', **kwargs):
+        super().__init__(label, **kwargs)
+
+
+class ToLowerCase(_UpdateTextMenuItem, update_func=str.lower):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Change case: Lower', **kwargs):
+        super().__init__(label, **kwargs)
+
+
+class ToTitleCase(_UpdateTextMenuItem, update_func=str.title):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Change case: Title', **kwargs):
+        super().__init__(label, **kwargs)
 
 
 # endregion
@@ -99,6 +186,7 @@ class PasteClipboard(SelectionMenuItem):
 
 
 class SearchSelection(SelectionMenuItem, ABC):
+    __slots__ = ('quote',)
     title: str
     url_fmt: str
 
@@ -118,10 +206,10 @@ class SearchSelection(SelectionMenuItem, ABC):
         if label is None:
             label = f'Search {self.title} for {{{keyword}!r}}'
         kwargs['format_label'] = True
-        super().__init__(label, self._search_cb, keyword=keyword, **kwargs)
+        super().__init__(label, keyword=keyword, **kwargs)
         self.quote = quote
 
-    def _search_cb(self, event: Event, **kwargs):
+    def callback(self, event: Event, **kwargs):
         if not (selection := kwargs.get(self.keyword)):
             return
 
@@ -136,10 +224,12 @@ class SearchSelection(SelectionMenuItem, ABC):
 
 
 class GoogleSelection(SearchSelection, title='Google', url='https://www.google.com/search?q={query}'):
-    pass
+    __slots__ = ()
 
 
 class GoogleTranslate(SearchSelection, url='https://translate.google.com/?sl=auto&tl=en&text={query}&op=translate'):
+    __slots__ = ()
+
     def __init__(self, label: str = None, *, keyword: str = 'selection', **kwargs):
         super().__init__(label or f'Translate {{{keyword}!r}}', keyword=keyword, **kwargs)
 
@@ -149,21 +239,21 @@ class SearchWikipedia(
     title='Wikipedia',
     url='https://en.wikipedia.org/w/index.php?search={query}&title=Special%3ASearch&fulltext=Search&ns0=1',
 ):
-    pass
+    __slots__ = ()
 
 
 class SearchKpopFandom(SearchSelection, url='https://kpop.fandom.com/wiki/Special:Search?scope=internal&query={query}'):
-    pass
+    __slots__ = ()
 
 
 class SearchGenerasia(
     SearchSelection, url='https://www.generasia.com/w/index.php?title=Special%3ASearch&fulltext=Search&search={query}'
 ):
-    pass
+    __slots__ = ()
 
 
 class SearchDramaWiki(SearchSelection, title='DramaWiki', url='https://wiki.d-addicts.com/index.php?search={query}'):
-    pass
+    __slots__ = ()
 
 
 # endregion

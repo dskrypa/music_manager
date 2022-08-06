@@ -11,8 +11,9 @@ from ..__version__ import __author_email__, __version__, __author__, __url__  # 
 from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, Button, Text, ScrollFrame, SizeGrip
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
-from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia
-from .elements.menu import PasteClipboard
+from .elements.menu.menu import Menu, MenuGroup, MenuItem
+from .elements.menu.items import CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia, PasteClipboard
+from .elements.menu.items import FlipNameParts, ToUpperCase, ToTitleCase, ToLowerCase
 from .elements.text import Multiline, gui_log_handler
 from .elements.rating import Rating
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
@@ -216,9 +217,15 @@ class GuiTest(Command):
             MenuItem('Test A', print)
             CopySelection()
             PasteClipboard()
-            GoogleSelection()
-            SearchKpopFandom()
-            SearchGenerasia()
+            FlipNameParts()
+            with MenuGroup('Change Case'):
+                ToLowerCase()
+                ToUpperCase()
+                ToTitleCase()
+            with MenuGroup('Search'):
+                GoogleSelection()
+                SearchKpopFandom()
+                SearchGenerasia()
             # MenuItem('Test B', print)
 
         class EleRightClickMenu(Menu):

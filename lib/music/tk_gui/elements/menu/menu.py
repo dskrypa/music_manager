@@ -79,6 +79,12 @@ class MenuEntry(ABC):
             return self.label.format(**kwargs)
         return self.label
 
+    def enabled_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
+        return self.enabled.enabled(kwargs, self.keyword)
+
+    def show_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
+        return self.show.show(kwargs, self.keyword)
+
     @abstractmethod
     def maybe_add(
         self, menu: TkMenu, style: dict[str, Any], event: Event = None, kwargs: dict[str, Any] = None
@@ -112,7 +118,7 @@ class MenuItem(MenuEntry):
     def maybe_add(
         self, menu: TkMenu, style: dict[str, Any], event: Event = None, kwargs: dict[str, Any] = None
     ) -> bool:
-        if not self.show.show(kwargs, self.keyword):
+        if not self.show_for(event, kwargs):
             return False
 
         callback = self._callback
@@ -123,7 +129,7 @@ class MenuItem(MenuEntry):
 
         label = self.format_label(kwargs)
         menu.add_command(label=label, underline=self.underline, command=callback)
-        if not self.enabled.enabled(kwargs, self.keyword):
+        if not self.enabled_for(event, kwargs):
             menu.entryconfigure(label, state='disabled')
 
         return True
@@ -141,20 +147,28 @@ class CustomMenuItem(MenuItem, ABC):
 
 
 class MenuGroup(ContainerMixin, MenuEntry):
-    __slots__ = ('members',)
+    __slots__ = ('members', 'hide_if_disabled')
 
-    def __init__(self, label: Optional[str], underline: Union[str, int] = None, *args, **kwargs):
+    def __init__(
+        self, label: Optional[str], underline: Union[str, int] = None, *args, hide_if_disabled: Bool = True, **kwargs
+    ):
         super().__init__(label, underline, *args, **kwargs)
         self.members: list[Union[MenuEntry, MenuItem, MenuGroup]] = []
+        self.hide_if_disabled = hide_if_disabled
 
     def __repr__(self) -> str:
         label, underline, enabled, show = self.label, self.underline, self.enabled, self.show
         return f'<{self.__class__.__name__}({label!r}, {underline=}, {enabled=}, {show=})[members={len(self.members)}]>'
 
+    def enabled_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
+        if not super().enabled_for(event, kwargs):
+            return False
+        return any(member.enabled_for(event, kwargs) for member in self.members)
+
     def maybe_add(
         self, menu: TkMenu, style: dict[str, Any], event: Event = None, kwargs: dict[str, Any] = None
     ) -> bool:
-        if not self.show.show(kwargs, self.keyword):
+        if not self.show_for(event, kwargs):
             return False
 
         sub_menu = TkMenu(menu, tearoff=0, **style)
@@ -163,7 +177,9 @@ class MenuGroup(ContainerMixin, MenuEntry):
             added_any |= member.maybe_add(sub_menu, style, event, kwargs)
 
         cascade_kwargs = {'label': self.format_label(kwargs)}
-        if not added_any or not self.enabled.enabled(kwargs, self.keyword):
+        if not added_any or not self.enabled_for(event, kwargs):
+            if self.hide_if_disabled:
+                return False
             cascade_kwargs['state'] = 'disabled'
 
         menu.add_cascade(menu=sub_menu, underline=self.underline, **cascade_kwargs)

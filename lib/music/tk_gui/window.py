@@ -207,17 +207,33 @@ class Window(RowContainer):
     #  a high level event for window close / exit?  Subclass that uses that instead of the more direct exit, leaving
     #  this one without that or the higher level loop?
 
-    def run(self, n: int = 0) -> Window:
+    def run(self, timeout: int = 0) -> Window:
+        """
+
+        :param timeout: Timeout in milliseconds.  If not specified or <= 0, then the mail loop will run until
+          interrupted
+        :return:
+        """
+        try:
+            root = self._root
+        except AttributeError:
+            self.show()
+            root = self._root
+
         if not self._last_run:
-            self._root.after(100, self._init_fix_focus)  # Nothing else seemed to work...
+            root.after(100, self._init_fix_focus)  # Nothing else seemed to work...
+
+        if timeout > 0:
+            interrupt_id = root.after(timeout, self.interrupt)
+        else:
+            interrupt_id = None
 
         self._last_run = monotonic()
         while not self.closed and self._last_interrupt < self._last_run:
-            try:
-                self._root.mainloop(n)
-            except AttributeError:
-                self.show()
-                self._root.mainloop(n)
+            root.mainloop()
+
+        if interrupt_id is not None:
+            root.after_cancel(interrupt_id)
 
         # log.debug(f'Main loop exited for {self}')
         return self

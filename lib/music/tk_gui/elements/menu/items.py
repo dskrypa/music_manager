@@ -89,6 +89,15 @@ class PasteClipboard(SelectionMenuItem):
     ):
         super().__init__(label, underline=underline, show=show, store_meta=True, enabled=enabled, **kwargs)
 
+    def enabled_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
+        widget: Misc = event.widget
+        try:
+            if widget['state'] != 'normal':
+                return False
+        except TclError:
+            return False
+        return hasattr(widget, 'insert')
+
     def callback(self, event: Event, **kwargs):
         widget: Misc = event.widget
         try:
@@ -134,6 +143,9 @@ class _PathMenuItem(SelectionMenuItem, ABC):
         if text := get_any_text(event.widget):
             return self._normalize(text)
         return None
+
+    def enabled_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
+        return self.get_path(event, kwargs) is not None
 
 
 class OpenFileLocation(_PathMenuItem):
@@ -182,6 +194,15 @@ class _UpdateTextMenuItem(SelectionMenuItem, ABC):
 
     def __init__(self, label: str, *, show: Mode = MenuMode.ALWAYS, enabled: Mode = MenuMode.ALWAYS, **kwargs):
         super().__init__(label, show=show, enabled=enabled, store_meta=True, **kwargs)
+
+    def show_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
+        widget: Misc = event.widget
+        try:
+            if widget['state'] != 'normal':
+                return False
+        except TclError:
+            return False
+        return hasattr(widget, 'insert')
 
     @classmethod  # Must be a classmethod, otherwise str methods get confused
     def update_text(cls, text: str) -> str:

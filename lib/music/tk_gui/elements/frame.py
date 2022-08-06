@@ -36,6 +36,7 @@ class FrameMixin:
     widget: Union[TkFrame, LabelFrame]
     style: Style
     _style_config: dict[str, Any]
+    allow_focus: bool
     border: Bool
     title: Optional[str]
     anchor_title: Anchor
@@ -79,7 +80,7 @@ class FrameMixin:
         else:
             frame_cls = TkFrame
 
-        self.widget = frame_cls(row.frame, **kwargs)
+        self.widget = frame_cls(row.frame, takefocus=int(self.allow_focus), **kwargs)
         self.pack_rows()
         self.pack_widget()
 
@@ -160,6 +161,7 @@ class ScrollFrame(Element, RowContainer):
             inner_style = style
             inner_kw = outer_kw.copy()
 
+        inner_kw['takefocus'] = outer_kw['takefocus'] = int(self.allow_focus)
         if self.border:
             if self.border_mode in {'outer', 'both'}:
                 outer_kw.setdefault('relief', 'groove')

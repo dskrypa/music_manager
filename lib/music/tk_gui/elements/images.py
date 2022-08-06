@@ -80,7 +80,7 @@ class Image(Element):
 
     def _pack_into(self, row: Row, image: _Image, width: int, height: int):
         # log.debug(f'Packing {image=} into row with {width=}, {height=}')
-        kwargs = {'width': width, 'height': height, **self.style_config}
+        kwargs = {'width': width, 'height': height, 'takefocus': int(self.allow_focus), **self.style_config}
         if image:
             kwargs['image'] = image
 

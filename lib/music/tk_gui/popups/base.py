@@ -223,7 +223,6 @@ class LoginPromptPopup(BasicPopup):
 
     def get_layout(self) -> list[list[Element]]:
         layout = super().get_layout()
-        # TODO: tab should move between inputs, skip the labels
         layout.insert(1, [Text('Username:'), Input(key=self.user_key, focus=True)])
         layout.insert(2, [Text('Password:'), Input(key=self.pw_key, password_char=self.password_char)])
         return layout

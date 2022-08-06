@@ -30,5 +30,5 @@ class SizeGrip(ElementBase):
         style = self.style
         name, ttk_style = style.make_ttk_style('.Sizegrip.TSizegrip')
         ttk_style.configure(name, background=style.base.bg.default)
-        self.widget = Sizegrip(row.frame, style=name)
+        self.widget = Sizegrip(row.frame, style=name, takefocus=int(self.allow_focus))
         self.pack_widget(fill=tkc.X, expand=True, anchor=tkc.SE)

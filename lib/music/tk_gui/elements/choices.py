@@ -88,6 +88,7 @@ class Radio(Interactive, Generic[T]):
             'text': self.text,
             'value': self.choice_id,
             'variable': self.group.get_selection_var(),
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         try:
@@ -222,7 +223,7 @@ class CheckBox(Interactive):
 
     def pack_into(self, row: Row, column: int):
         self.tk_var = tk_var = BooleanVar(value=self.default)
-        kwargs = {'text': self.text, 'variable': tk_var, **self.style_config}
+        kwargs = {'text': self.text, 'variable': tk_var, 'takefocus': int(self.allow_focus), **self.style_config}
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
@@ -287,6 +288,7 @@ class Combo(Interactive):
             'textvariable': tk_var,
             'style': self._prepare_ttk_style(),
             'values': list(self.choices),
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         try:
@@ -376,6 +378,7 @@ class ListBox(Interactive):
         kwargs = {
             'exportselection': False,  # Prevent selections in this box from affecting others / the primary selection
             'selectmode': self.select_mode.value,
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         try:

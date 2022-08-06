@@ -369,7 +369,7 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
 
     def prepare(self, parent: Misc = None, event: Event = None, kwargs: dict[str, Any] = None) -> TkMenu:
         style = self.style_config
-        menu = TkMenu(parent, tearoff=0, **style)
+        menu = TkMenu(parent, tearoff=0, takefocus=int(self.allow_focus), **style)
         for member in self.members:
             member.maybe_add(menu, style, event, kwargs)
 

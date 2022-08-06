@@ -167,6 +167,7 @@ class Button(Interactive):
             'width': width,
             'height': height,
             'justify': self.justify_text.value,
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         if not self.separate:

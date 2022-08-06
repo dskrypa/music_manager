@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 _DIRECT_ATTRS = {'key', 'right_click_menu', 'left_click_cb', 'binds', 'data'}
 _INHERITABLES = {'size', 'auto_size_text', 'grid', 'anchor', 'justify_text'}
-_BASIC = {'style', 'pad', 'side', 'fill', 'expand'}
+_BASIC = {'style', 'pad', 'side', 'fill', 'expand', 'allow_focus'}
 _Side = Union[str, Side]
 
 
@@ -45,6 +45,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     widget: Optional[Widget] = None
     fill: TkFill = None
     expand: bool = None
+    allow_focus: bool = False
     pad: XY = Inheritable('element_padding')
     side: Side = Inheritable('element_side', type=Side)
     style: Style = Inheritable(type=Style.get_style)
@@ -64,6 +65,8 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
         self.pad = pad
         self.side = side
         self._style_config = extract_style(kwargs) if kwargs else {}
+        if (allow_focus := kwargs.pop('allow_focus', None)) is not None:
+            self.allow_focus = allow_focus
         if kwargs:
             raise ValueError(f'Unexpected {kwargs=}')
         if expand is not None:
@@ -168,6 +171,7 @@ class Element(ElementBase, ABC):
         grid: Bool = None,
         expand: Bool = None,
         fill: TkFill = None,
+        allow_focus: bool = False,
         visible: Bool = True,
         tooltip: str = None,
         right_click_menu: ContextualMenu = None,
@@ -390,6 +394,7 @@ class InteractiveMixin:
     disabled: bool = False
     focus: bool = False
     valid: bool = True
+    allow_focus: bool = True
 
     def init_interactive(self, disabled: Bool = False, focus: Bool = False, valid: Bool = True):
         self.disabled = disabled

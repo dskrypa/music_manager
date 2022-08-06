@@ -77,6 +77,7 @@ class ScrollableBase(ABC):
     _tk_w_cls_search = re.compile(r'^(.*?)\d*$').search
     _counter = count()
     _scrollable_cls_names = set()
+    _scroll_id: int
     _tk_cls: Type[Union[Widget, Toplevel]] = None
     scroll_bar_y: Optional[Scrollbar] = None
     scroll_bar_x: Optional[Scrollbar] = None

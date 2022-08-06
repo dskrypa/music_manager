@@ -36,7 +36,7 @@ class Separator(ElementBase):
         style = self.style
         name, ttk_style = style.make_ttk_style('.Line.TSeparator')
         ttk_style.configure(name, background=style.separator.bg.default)
-        self.widget = TtkSeparator(row.frame, orient=self.orientation, style=name)
+        self.widget = TtkSeparator(row.frame, orient=self.orientation, style=name, takefocus=int(self.allow_focus))
         fill, expand = (tkc.X, True) if self.orientation == tkc.HORIZONTAL else (tkc.Y, False)
         self.pack_widget(fill=fill, expand=expand)
 
@@ -90,7 +90,11 @@ class ProgressBar(Element):
     def pack_into(self, row: Row, column: int):
         horizontal = self.orientation == tkc.HORIZONTAL
         kwargs = {
-            'style': self._prepare_ttk_style(), 'orient': self.orientation, 'value': self.default, **self.style_config
+            'style': self._prepare_ttk_style(),
+            'orient': self.orientation,
+            'value': self.default,
+            'takefocus': int(self.allow_focus),
+            **self.style_config,
         }
         try:
             width, height = self.size
@@ -181,6 +185,7 @@ class Slider(Interactive):
             'to_': max_val,
             'resolution': interval,
             'tickinterval': self.tick_interval or interval,
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         try:

@@ -75,6 +75,7 @@ class Input(Interactive):
             'textvariable': self.string_var,
             'show': self.password_char,
             'justify': self.justify_text.value,
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         try:

@@ -96,6 +96,7 @@ class Text(Element):
             'textvariable': self.string_var,
             'justify': self.justify_text.value,
             'wraplength': 0,
+            'takefocus': int(self.allow_focus),
             **self.style_config,
         }
         try:
@@ -113,6 +114,7 @@ class Text(Element):
             'textvariable': self.string_var,
             'justify': self.justify_text.value,
             'state': 'readonly',
+            'takefocus': int(self.allow_focus),
             **self.style.get_map('text', readonlybackground='bg'),
             **self.style_config,
         }
@@ -225,6 +227,7 @@ class Multiline(Element):
 
     def pack_into(self, row: Row, column: int):
         kwargs = self.style_config
+        kwargs['takefocus'] = int(self.allow_focus)
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:

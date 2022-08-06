@@ -13,7 +13,7 @@ from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .elements.menu.menu import Menu, MenuGroup, MenuItem
 from .elements.menu.items import CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia, PasteClipboard
-from .elements.menu.items import FlipNameParts, ToUpperCase, ToTitleCase, ToLowerCase
+from .elements.menu.items import FlipNameParts, ToUpperCase, ToTitleCase, ToLowerCase, OpenFileLocation, OpenFile
 from .elements.text import Multiline, gui_log_handler
 from .elements.rating import Rating
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
@@ -217,8 +217,8 @@ class GuiTest(Command):
             MenuItem('Test A', print)
             CopySelection()
             PasteClipboard()
-            FlipNameParts()
-            with MenuGroup('Change Case'):
+            with MenuGroup('Update'):
+                FlipNameParts()
                 ToLowerCase()
                 ToUpperCase()
                 ToTitleCase()
@@ -226,6 +226,9 @@ class GuiTest(Command):
                 GoogleSelection()
                 SearchKpopFandom()
                 SearchGenerasia()
+            with MenuGroup('Open'):
+                OpenFileLocation()
+                OpenFile()
             # MenuItem('Test B', print)
 
         class EleRightClickMenu(Menu):
@@ -259,6 +262,7 @@ class GuiTest(Command):
             [ScrollFrame(frame_layout, scroll_y=True)],
             [CheckBox('A', key='A', default=True), CheckBox('B', key='B'), CheckBox('C', key='C')],
             [Image(png_path, popup_on_click=True, size=(150, 150))],
+            [Text(Path(__file__).resolve().as_posix())],
             # [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],
             [multiline, SizeGrip()],
         ]

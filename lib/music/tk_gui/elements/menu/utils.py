@@ -9,7 +9,7 @@ from __future__ import annotations
 from abc import ABCMeta
 from contextvars import ContextVar
 from enum import Enum
-from tkinter import Event, Entry, Text
+from tkinter import Event, Entry, Text, Misc, TclError, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any, Mapping, Iterator, Sequence
 
 from music.text.extraction import split_enclosed
@@ -180,6 +180,23 @@ def get_text(widget: Union[Entry, Text]) -> str:
         return widget.get()
     except TypeError:
         return widget.get(0)
+
+
+def get_any_text(widget: Misc) -> Optional[str]:
+    try:
+        return get_text(widget)  # noqa
+    except (AttributeError, TypeError, TclError):
+        pass
+    try:
+        return widget['text']
+    except TclError:
+        pass
+    try:
+        var: StringVar = widget['textvariable']
+    except TclError:
+        return None
+    else:
+        return var.get()
 
 
 def replace_selection(widget: Union[Entry, Text], text: str, first: Union[str, int], last: Union[str, int]):

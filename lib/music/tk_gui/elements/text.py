@@ -23,7 +23,7 @@ from .element import Element
 if TYPE_CHECKING:
     # from pathlib import Path
     from ..pseudo_elements import Row
-    from ..typing import Bool
+    from ..typing import Bool, XY
 
 __all__ = ['Text', 'Link', 'Multiline', 'GuiTextHandler', 'gui_log_handler']
 log = logging.getLogger(__name__)
@@ -45,6 +45,7 @@ class Text(Element):
         anchor: Union[str, Anchor] = None,
         link_bind: str = LINK_BIND_DEFAULT,
         selectable: Bool = True,
+        auto_size: Bool = True,
         **kwargs,
     ):
         self._tooltip_text = kwargs.pop('tooltip', None)
@@ -57,6 +58,7 @@ class Text(Element):
         self._value = str(value)
         self._link = link or link is None
         self._selectable = selectable
+        self._auto_size = auto_size
         # self._path = path
 
     @property
@@ -70,6 +72,21 @@ class Text(Element):
                 x, y = 0, 3
 
         return {'padx': x, 'pady': y}
+
+    @property
+    def _init_size(self) -> Optional[XY]:
+        try:
+            width, size = self.size
+        except TypeError:
+            pass
+        else:
+            return width, size
+        if not self._auto_size:
+            return None
+        lines = self._value.splitlines()
+        width = max(map(len, lines))
+        height = len(lines)
+        return width, height
 
     @property
     def style_config(self) -> dict[str, Any]:
@@ -100,9 +117,10 @@ class Text(Element):
             **self.style_config,
         }
         try:
-            kwargs['width'], kwargs['height'] = self.size
+            kwargs['width'], kwargs['height'] = self._init_size
         except TypeError:
             pass
+
         self.widget = label = Label(row.frame, **kwargs)
         if kwargs.get('height', 1) != 1:
             wrap_len = label.winfo_reqwidth()  # width in pixels
@@ -120,7 +138,7 @@ class Text(Element):
         }
         kwargs.setdefault('relief', 'flat')
         try:
-            kwargs['width'] = self.size[0]
+            kwargs['width'] = self._init_size[0]
         except TypeError:
             pass
         self.widget = Entry(row.frame, **kwargs)

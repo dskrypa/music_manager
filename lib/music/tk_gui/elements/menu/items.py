@@ -9,13 +9,15 @@ from __future__ import annotations
 import logging
 import tkinter.constants as tkc
 from abc import ABC
+from pathlib import Path
 from tkinter import Event, Misc, TclError, Menu as TkMenu, Entry, Text
 from typing import TYPE_CHECKING, Union, Optional, Any, Callable
 from urllib.parse import quote_plus, urlparse
 
+from ds_tools.utils.launch import explore, launch
 from music.tk_gui.utils import get_selection_pos
 from .menu import Mode, CustomMenuItem
-from .utils import MenuMode, get_text, replace_selection, flip_name_parts
+from .utils import MenuMode, get_text, replace_selection, flip_name_parts, get_any_text
 
 if TYPE_CHECKING:
     from ...typing import Bool
@@ -23,10 +25,13 @@ if TYPE_CHECKING:
 __all__ = [
     'SelectionMenuItem', 'CopySelection', 'PasteClipboard',
     'FlipNameParts', 'ToLowerCase', 'ToTitleCase', 'ToUpperCase',
+    'OpenFileLocation', 'OpenFile', 'PlayFile',
     'SearchSelection', 'GoogleSelection', 'GoogleTranslate', 'SearchWikipedia',
     'SearchKpopFandom', 'SearchGenerasia', 'SearchDramaWiki',
 ]
 log = logging.getLogger(__name__)
+
+# TODO: Error popups
 
 
 # region Selection Menu Items
@@ -101,6 +106,63 @@ class PasteClipboard(SelectionMenuItem):
                 replace_selection(widget, text, first, last)  # noqa
         except (AttributeError, TclError):
             pass
+
+
+# endregion
+
+
+# region File Handling Menu Items
+
+
+class _PathMenuItem(SelectionMenuItem, ABC):
+    __slots__ = ()
+
+    def __init__(self, label: str, *, show: Mode = MenuMode.ALWAYS, enabled: Mode = MenuMode.ALWAYS, **kwargs):
+        super().__init__(label, show=show, enabled=enabled, store_meta=True, **kwargs)
+
+    @classmethod
+    def _normalize(cls, text: str) -> Optional[Path]:
+        path = Path(text.strip())
+        if path.exists():
+            return path
+        return None
+
+    def get_path(self, event: Event, kwargs: dict[str, Any]) -> Optional[Path]:
+        if selection := kwargs.get(self.keyword):
+            if path := self._normalize(selection):
+                return path
+        if text := get_any_text(event.widget):
+            return self._normalize(text)
+        return None
+
+
+class OpenFileLocation(_PathMenuItem):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Open in File Manager', **kwargs):
+        super().__init__(label, **kwargs)
+
+    def callback(self, event: Event, **kwargs):
+        if path := self.get_path(event, kwargs):
+            explore(path)
+
+
+class OpenFile(_PathMenuItem):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Open File', **kwargs):
+        super().__init__(label, **kwargs)
+
+    def callback(self, event: Event, **kwargs):
+        if path := self.get_path(event, kwargs):
+            launch(path)
+
+
+class PlayFile(OpenFile):
+    __slots__ = ()
+
+    def __init__(self, label: str = 'Play File', **kwargs):
+        super().__init__(label, **kwargs)
 
 
 # endregion

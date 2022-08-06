@@ -35,7 +35,6 @@ class RowBase(ABC):
     element_padding: XY = Inheritable(attr_name='parent_rc')
     element_size: XY = Inheritable(attr_name='parent_rc')
     style: Style = Inheritable(attr_name='parent_rc')
-    grid: bool = Inheritable(attr_name='parent_rc')
     auto_size_text: bool = Inheritable(attr_name='parent_rc')
 
     @property

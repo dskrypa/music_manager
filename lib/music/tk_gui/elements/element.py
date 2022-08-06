@@ -30,7 +30,7 @@ __all__ = ['ElementBase', 'Element', 'Interactive']
 log = logging.getLogger(__name__)
 
 _DIRECT_ATTRS = {'key', 'right_click_menu', 'left_click_cb', 'binds', 'data'}
-_INHERITABLES = {'size', 'auto_size_text', 'grid', 'anchor', 'justify_text'}
+_INHERITABLES = {'size', 'auto_size_text', 'anchor', 'justify_text'}
 _BASIC = {'style', 'pad', 'side', 'fill', 'expand', 'allow_focus'}
 _Side = Union[str, Side]
 
@@ -81,17 +81,6 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     @property
     def window(self) -> Window:
         return self.parent.window
-
-    # @property
-    # def col_row(self) -> XY:
-    #     row_base = self.parent
-    #     x = row_base.elements.index(self)
-    #     try:
-    #         y = row_base.parent_rc.rows.index(row_base)
-    #     except ValueError:  # It's a compound element
-    #         return row_base.col_row
-    #
-    #     return x, y
 
     @property
     def size_and_pos(self) -> tuple[XY, XY]:
@@ -151,7 +140,6 @@ class Element(ElementBase, ABC):
     data: Any = None                                            # Any data that needs to be stored with the element
 
     size: XY = Inheritable('element_size')
-    grid: bool = Inheritable()
     auto_size_text: bool = Inheritable()
     anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
     justify_text: Justify = Inheritable('text_justification', type=Justify)
@@ -168,7 +156,6 @@ class Element(ElementBase, ABC):
         anchor: Union[str, Anchor] = None,
         side: Union[str, Side] = Side.LEFT,
         justify_text: Union[str, Justify] = None,
-        grid: Bool = None,
         expand: Bool = None,
         fill: TkFill = None,
         allow_focus: bool = False,
@@ -206,8 +193,6 @@ class Element(ElementBase, ABC):
             raise ValueError(f'Invalid options for {self.__class__.__name__}: {bad}')
 
     def __repr__(self) -> str:
-        # x, y = self.col_row
-        # return f'<{self.__class__.__name__}[id={self.id}, col={x}, row={y}, size={self.size}, visible={self._visible}]>'
         return f'<{self.__class__.__name__}[id={self.id}, size={self.size}, visible={self._visible}]>'
 
     @property
@@ -255,14 +240,9 @@ class Element(ElementBase, ABC):
         if not widget:
             widget = self.widget
 
-        if self.grid:
-            self._grid_widget(widget, kwargs)
-        else:
-            self._pack_widget(widget, expand, fill, kwargs)
-
+        self._pack_widget(widget, expand, fill, kwargs)
         if focus:
-            got_focus = self.parent.window.maybe_set_focus(self, widget)
-            # log.debug(f'Got focus for {widget=}: {got_focus}')
+            self.parent.window.maybe_set_focus(self, widget)
         if disabled:
             widget['state'] = 'readonly' if disabled is True else disabled
 
@@ -289,17 +269,6 @@ class Element(ElementBase, ABC):
         if not self._visible:
             widget.pack_forget()
 
-    def _grid_widget(self, widget: Widget, kwargs: dict[str, Any]):
-        widget.grid_configure(
-            row=self.parent.num,  # TODO: Fix for RowBase
-            column=self.column,
-            sticky=self.anchor.as_sticky(),
-            **self.pad_kw,
-            **kwargs
-        )
-        if not self._visible:
-            widget.grid_forget()
-
     def add_tooltip(
         self, text: str, delay: int = ToolTip.DEFAULT_DELAY, style: StyleSpec = None, wrap_len_px: int = None
     ):
@@ -313,23 +282,14 @@ class Element(ElementBase, ABC):
 
     def hide(self):
         widget = self.widget
-        if self.grid:
-            self._pack_settings = widget.grid_info()
-            widget.grid_forget()
-        else:
-            self._pack_settings = widget.pack_info()
-            widget.pack_forget()
+        self._pack_settings = widget.pack_info()
+        widget.pack_forget()
         self._visible = False
 
     def show(self):
-        widget = self.widget
         settings = self._pack_settings or {}
-        if self.grid:
-            widget.grid_configure(**settings)
-            # widget.grid_configure(row=self.parent.num, column=self.column, **self.pad_kw)
-        else:
-            widget.pack(**settings)
-            # widget.pack(**self.pad_kw)
+        self.widget.pack(**settings)
+        # self.widget.pack(**self.pad_kw)
         self._visible = True
 
     def toggle_visibility(self, show: bool = None):

@@ -53,7 +53,6 @@ class RowContainer(ABC):
         layout: Layout = None,
         *,
         style: Style = None,
-        grid: Bool = False,
         anchor_elements: Union[str, Anchor] = None,
         text_justification: Union[str, Justify] = None,
         element_side: Union[str, Side] = None,
@@ -68,10 +67,9 @@ class RowContainer(ABC):
 
     # endregion
 
-    def __init__(self, layout: Layout = None, *, style: Style = None, grid: Bool = False, **kwargs):
+    def __init__(self, layout: Layout = None, *, style: Style = None, **kwargs):
         self._id = next(self._counter)
         self.style = Style.get_style(style)
-        self.grid = grid
         self.init_container(layout, **kwargs)
 
     def init_container_from_kwargs(self, *args, kwargs: dict[str, Any]):

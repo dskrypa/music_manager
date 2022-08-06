@@ -87,7 +87,6 @@ class Window(RowContainer):
         title: str = None,
         *,
         style: Style = None,
-        grid: bool = False,
         size: XY = None,
         min_size: XY = (200, 50),
         position: XY = None,

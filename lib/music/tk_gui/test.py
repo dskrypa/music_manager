@@ -12,6 +12,7 @@ from .elements import Table, Input, Image, Animation, SpinnerImage, ClockImage, 
 from .elements.choices import Radio, RadioGroup, CheckBox, Combo, ListBox
 from .elements.bars import HorizontalSeparator, VerticalSeparator, ProgressBar, Slider
 from .elements.menu import Menu, MenuGroup, MenuItem, CopySelection, GoogleSelection, SearchKpopFandom, SearchGenerasia
+from .elements.menu import PasteClipboard
 from .elements.text import Multiline, gui_log_handler
 from .elements.rating import Rating
 from .popups import ImagePopup, AnimatedPopup, SpinnerPopup, ClockPopup, BasicPopup, Popup
@@ -214,6 +215,7 @@ class GuiTest(Command):
         class RightClickMenu(Menu):
             MenuItem('Test A', print)
             CopySelection()
+            PasteClipboard()
             GoogleSelection()
             SearchKpopFandom()
             SearchGenerasia()

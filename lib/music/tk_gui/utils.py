@@ -12,18 +12,18 @@ import sys
 from functools import cached_property
 from inspect import stack
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Type, Any, Callable, Collection, Iterable, Sequence
+from tkinter import TclError, Misc, Text, Entry
+from typing import TYPE_CHECKING, Optional, Union, Type, Any, Callable, Collection, Iterable, Sequence
 
 from .constants import STYLE_CONFIG_KEYS
 
 if TYPE_CHECKING:
-    from tkinter import Misc
-    from .typing import HasParent
+    from .typing import HasParent, XY
 
 __all__ = [
     'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
     'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata',
-    'tcl_version', 'max_line_len', 'get_top_level', 'call_with_popped',
+    'tcl_version', 'max_line_len', 'get_top_level', 'call_with_popped', 'get_selection_pos',
 ]
 log = logging.getLogger(__name__)
 
@@ -190,3 +190,21 @@ def call_with_popped(func: Callable, keys: Iterable[str], kwargs: dict[str, Any]
 
 def extract_style(kwargs: dict[str, Any], keys: Collection[str] = STYLE_CONFIG_KEYS) -> dict[str, Any]:
     return {key: kwargs.pop(key) for key in tuple(kwargs) if key in keys}
+
+
+def get_selection_pos(
+    widget: Union[Entry, Text], raw: bool = False
+) -> Union[XY, tuple[XY, XY], tuple[None, None], tuple[str, str]]:
+    try:
+        first, last = widget.index('sel.first'), widget.index('sel.last')
+    except (AttributeError, TclError):
+        return None, None
+    if raw:
+        return first, last
+    try:
+        return int(first), int(last)
+    except ValueError:
+        pass
+    first_line, first_index = map(int, first.split('.', 1))
+    last_line, last_index = map(int, last.split('.', 1))
+    return (first_line, first_index), (last_line, last_index)

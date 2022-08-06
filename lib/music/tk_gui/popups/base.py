@@ -11,7 +11,7 @@ from concurrent.futures import Future
 from functools import cached_property
 from queue import Queue
 from threading import current_thread, main_thread
-from typing import TYPE_CHECKING, Union, Optional, Collection, Mapping, Callable, Literal
+from typing import TYPE_CHECKING, Union, Optional, Collection, Mapping, Callable, Literal, Any
 
 from ..elements import Element, Button, Text, Image, Input
 from ..positioning import positioner
@@ -21,7 +21,7 @@ from ..window import Window
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from ..typing import XY, Layout, Bool, ImageType
+    from ..typing import XY, Layout, Bool, ImageType, Key
 
 __all__ = ['Popup', 'POPUP_QUEUE', 'BasicPopup', 'BoolPopup', 'TextPromptPopup', 'LoginPromptPopup']
 log = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class Popup:
             window.move_to_center(parent)
         return window
 
-    def _run(self):
+    def _run(self) -> dict[Key, Any]:
         with self.window(take_focus=True) as window:
             window.run()
             return window.results

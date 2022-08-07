@@ -13,7 +13,7 @@ from tkinter import Event, Entry, Text, BaseWidget, TclError, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any, Mapping, Iterator, Sequence
 
 from music.text.extraction import split_enclosed
-from music.tk_gui.utils import get_top_level
+from .._utils import get_top_level
 from ..exceptions import NoActiveGroup
 
 if TYPE_CHECKING:

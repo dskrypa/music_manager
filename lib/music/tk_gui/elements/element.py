@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 from ..enums import StyleState, Anchor, Justify, Side, BindTargets
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec
-from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped, extract_style, find_descendants
+from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped, extract_style
+from ._utils import find_descendants
 
 if TYPE_CHECKING:
     from tkinter import Widget, Event, BaseWidget

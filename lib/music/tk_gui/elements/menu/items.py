@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Union, Optional, Any, Callable
 from urllib.parse import quote_plus, urlparse
 
 from ds_tools.utils.launch import explore, launch
-from music.tk_gui.utils import get_selection_pos
+from .._utils import get_selection_pos
 from .menu import Mode, CustomMenuItem
 from .utils import MenuMode, get_text, replace_selection, flip_name_parts, get_any_text
 

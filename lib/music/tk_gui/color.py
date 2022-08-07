@@ -7,11 +7,12 @@ Tkinter GUI popup: Style
 from __future__ import annotations
 
 from colorsys import rgb_to_hls
-from typing import Union, Optional
+from random import randrange
+from typing import Union, Optional, Collection
 
 from PIL.ImageColor import getrgb
 
-__all__ = ['color_to_rgb', 'get_hue', 'get_lightness', 'get_saturation', 'pick_fg']
+__all__ = ['color_to_rgb', 'get_hue', 'get_lightness', 'get_saturation', 'pick_fg', 'find_unused_color']
 
 RGB = HSL = tuple[int, int, int]
 RGBA = tuple[int, int, int, int]
@@ -52,3 +53,13 @@ def get_lightness(color: Color) -> float:
 def get_saturation(color: Color) -> float:
     r, g, b, *a = color_to_rgb(color)
     return rgb_to_hls(r / 255, g / 255, b / 255)[2]
+
+
+def find_unused_color(used: Collection[RGB]) -> RGB:
+    used = set(used)
+    if len(used) > 256 ** 3:
+        raise ValueError(f'Too many colors ({len(used)}) - impossible to generate different unique random color')
+    while True:
+        color = (randrange(256), randrange(256), randrange(256))
+        if color not in used:
+            return color

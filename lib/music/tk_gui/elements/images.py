@@ -19,15 +19,14 @@ from PIL.ImageTk import PhotoImage
 
 from ds_tools.images.animated.cycle import FrameCycle, PhotoImageCycle
 from ds_tools.images.animated.spinner import Spinner
-from ds_tools.images.lcd import SevenSegmentDisplay
-from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
 
+from ..images import SevenSegmentDisplay, calculate_resize, as_image
 from ..style import Style, StyleSpec
 from .element import Element
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..typing import XY, BindTarget
+    from ..typing import XY, BindTarget, ImageType
 
 __all__ = ['Image', 'Animation', 'SpinnerImage', 'ClockImage', 'get_size']
 log = logging.getLogger(__name__)
@@ -99,6 +98,7 @@ class Image(Element):
             self.left_click_cb = self.normalize_callback(callback)
 
     def _re_pack(self, image: _Image, width: int, height: int):
+        # log.debug(f'_re_pack: {width=}, {height=}, {self}')
         self.size = (width, height)
         widget = self.widget
         widget.configure(image=image, width=width, height=height)
@@ -106,7 +106,7 @@ class Image(Element):
         widget.image = image
         widget.pack(**self.pad_kw)
 
-    def target_size(self, width: int, height: int) -> Size:
+    def target_size(self, width: int, height: int) -> XY:
         return self._image.target_size(width, height)
 
     def refresh(self):
@@ -162,7 +162,7 @@ class Animation(Image, animated=True):
         if self._run:
             self._next_id = self.widget.after(delay, self.next)
 
-    def target_size(self, width: int, height: int) -> Size:
+    def target_size(self, width: int, height: int) -> XY:
         try:
             size = self.__image.size
         except AttributeError:
@@ -170,6 +170,7 @@ class Animation(Image, animated=True):
         return calculate_resize(*size, width, height)
 
     def resize(self, width: int, height: int):
+        # log.debug(f'resize: {width=}, {height=}, {self}')
         # self.size = size = (width, height)
         self.image_cycle = image_cycle = self._resize_cycle((width, height))
         image = self.__image
@@ -183,7 +184,8 @@ class Animation(Image, animated=True):
         self._re_pack(frame, width, height)
         if self._run:
             self._cancel()
-            self._next_id = self.widget.after(delay, self.next)
+            self.next()
+            # self._next_id = self.widget.after(delay, self.next)
 
     def _resize_cycle(self, size: XY) -> ImageCycle:
         return normalize_image_cycle(self.__image, size, self.image_cycle.n)
@@ -230,19 +232,18 @@ class SpinnerImage(Animation):
         spinner = Spinner(**spinner_kwargs)
         super().__init__(spinner, size=size, **kwargs)
 
-    def target_size(self, width: int, height: int) -> Size:
+    def target_size(self, width: int, height: int) -> XY:
         # TODO: Add support for keeping aspect ratio
         return width, height
 
 
 class _ClockCycle:
-    __slots__ = ('clock', 'show_seconds', 'delay', 'last_time', '_last_frame', 'n')
+    __slots__ = ('clock', 'delay', 'last_time', '_last_frame', 'n')
     SECOND = timedelta(seconds=1)
 
-    def __init__(self, clock: SevenSegmentDisplay, seconds: bool = True):
+    def __init__(self, clock: SevenSegmentDisplay):
         self.clock = clock
-        self.show_seconds = seconds
-        self.delay = 200 if seconds else 1000
+        self.delay = 200 if clock.seconds else 1000
         self.last_time = datetime.now() - self.SECOND
         self._last_frame = None
         self.n = 0
@@ -251,7 +252,7 @@ class _ClockCycle:
         now = datetime.now()
         if now.second != self.last_time.second:
             self.last_time = now
-            self._last_frame = frame = PhotoImage(self.clock.draw_time(now, self.show_seconds))
+            self._last_frame = frame = PhotoImage(self.clock.draw_time(now))
         else:
             frame = self._last_frame
 
@@ -261,8 +262,7 @@ class _ClockCycle:
 
     @property
     def size(self) -> XY:
-        clock = self.clock
-        return clock.width, clock.height
+        return self.clock.time_size()
 
 
 class ClockImage(Animation):
@@ -274,21 +274,25 @@ class ClockImage(Animation):
         self,
         slim: bool = False,
         img_size: XY = None,
-        seconds: bool = True,
         style: StyleSpec = None,
-        toggle_slim_on_click: bool = False,
+        toggle_slim_on_click: Union[bool, str] = False,
         **kwargs,
     ):
         clock_kwargs = _extract_kwargs(kwargs, self._clock_keys, self.DEFAULT_KWARGS)
         self._slim = slim
         self.clock = clock = SevenSegmentDisplay(**clock_kwargs)
         if img_size is not None:
-            clock.resize(clock.calc_width(calculate_resize(*clock.time_size(seconds), *img_size)[1]) - 1)
+            clock.resize_full(*img_size)
+
         if toggle_slim_on_click:
-            kwargs['left_click_cb'] = self.toggle_slim
+            if toggle_slim_on_click is True:
+                kwargs['left_click_cb'] = self.toggle_slim
+            elif isinstance(toggle_slim_on_click, str):
+                kwargs.setdefault('binds', {})[toggle_slim_on_click] = self.toggle_slim
+
         kwargs.setdefault('pad', (0, 0))
-        kwargs.setdefault('size', clock.time_size(seconds))
-        super().__init__(_ClockCycle(clock, seconds), style=style or Style(bg='black'), **kwargs)
+        kwargs.setdefault('size', clock.time_size())
+        super().__init__(_ClockCycle(clock), style=style or Style(bg='black'), **kwargs)
 
     def toggle_slim(self, event: Event = None):
         slim = self._slim
@@ -298,19 +302,12 @@ class ClockImage(Animation):
         self.image_cycle.last_time -= _ClockCycle.SECOND
 
     def _resize_cycle(self, size: XY) -> ImageCycle:
-        # clock = self.clock
-        # image_cycle = self.image_cycle
-        self.clock.resize(self.target_size(*size)[0])
+        self.clock.resize_full(*size)
+        self.image_cycle.last_time -= _ClockCycle.SECOND
         return self.image_cycle
-        # clock.resize(clock.calc_width(calculate_resize(*clock.time_size(image_cycle.show_seconds), *size)[1]) - 1)
-        # return image_cycle
 
-    def target_size(self, width: int, height: int) -> Size:
-        clock = self.clock
-        image_cycle = self.image_cycle
-        width = clock.calc_width(calculate_resize(*clock.time_size(image_cycle.show_seconds), width, height)[1]) - 1
-        height = 2 * width - clock.bar
-        return width, height
+    def target_size(self, width: int, height: int) -> XY:
+        return self.clock.calc_resize_width(width, height)[0]
 
 
 class _GuiImage:
@@ -333,14 +330,14 @@ class _GuiImage:
         self.src_size = size
         self.size = size
 
-    def _normalize(self, width: Optional[int], height: Optional[int]) -> Size:
+    def _normalize(self, width: Optional[int], height: Optional[int]) -> XY:
         if width is None:
             width = self.size[0]
         if height is None:
             height = self.size[1]
         return width, height
 
-    def target_size(self, width: Optional[int], height: Optional[int]) -> Size:
+    def target_size(self, width: Optional[int], height: Optional[int]) -> XY:
         width, height = self._normalize(width, height)
         cur_width, cur_height = self.size
         if self.current is None or (cur_width == width and cur_height == height):
@@ -379,7 +376,7 @@ class _GuiImage:
             return tk_image, dst_width, dst_height
 
 
-def normalize_image_cycle(image: AnimatedType, size: Size = None, last_frame_num: int = 0) -> ImageCycle:
+def normalize_image_cycle(image: AnimatedType, size: XY = None, last_frame_num: int = 0) -> ImageCycle:
     if isinstance(image, Spinner):
         if size:
             image.resize(size)
@@ -388,7 +385,7 @@ def normalize_image_cycle(image: AnimatedType, size: Size = None, last_frame_num
         frame_cycle = image
         if size:
             clock = frame_cycle.clock
-            clock.resize(clock.calc_width(size[1]) - 1)
+            clock.resize_full(*size)
             frame_cycle.last_time -= frame_cycle.SECOND
     else:
         try:
@@ -439,7 +436,8 @@ def get_size(image: Union[AnimatedType, SevenSegmentDisplay]) -> XY:
     if isinstance(image, Spinner):
         return image.size
     elif isinstance(image, SevenSegmentDisplay):
-        return image.width, image.height
+        return image.time_size()
+        # return image.width, image.height
     image = as_image(image)
     return image.size
 

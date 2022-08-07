@@ -16,8 +16,7 @@ from PIL.Image import Image as PILImage, new as new_image
 from ...common.ratings import star_fill_counts, stars_to_256
 from .frame import InteractiveRowFrame
 from .images import Image
-from .inputs import Input
-from .text import Text
+from .text import Text, Input
 
 if TYPE_CHECKING:
     from ..typing import Bool, XY

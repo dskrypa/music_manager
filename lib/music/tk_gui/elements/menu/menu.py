@@ -12,6 +12,7 @@ from tkinter import Event, BaseWidget, Menu as TkMenu
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Sequence
 
 from ..element import ElementBase
+from .._utils import normalize_underline
 from .utils import MenuMode, ContainerMixin, MenuMeta, get_current_menu_group, wrap_menu_cb
 
 if TYPE_CHECKING:
@@ -64,15 +65,7 @@ class MenuEntry(ABC):
 
     @property
     def underline(self) -> Optional[int]:
-        underline = self._underline
-        try:
-            return int(underline)
-        except (TypeError, ValueError):
-            pass
-        try:
-            return self.label.index(underline)
-        except (ValueError, TypeError):
-            return None
+        return normalize_underline(self._underline, self.label)
 
     def format_label(self, kwargs: dict[str, Any] = None) -> str:
         if self._format_label and kwargs is not None:

@@ -13,13 +13,14 @@ from functools import cached_property
 from itertools import count
 from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar, Event, TclError, BaseWidget
 from tkinter.ttk import Combobox
-from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection
+from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection, TypeVar
 from weakref import WeakValueDictionary
 
 from ..enums import ListBoxSelectMode
 from ..pseudo_elements.scroll import ScrollableListbox
-from ..typing import Bool, T
+from ..typing import Bool, T, BindTarget, BindCallback
 from ..utils import max_line_len
+from ._utils import normalize_underline
 from .element import Interactive
 from .exceptions import NoActiveGroup, BadGroupCombo
 
@@ -31,7 +32,8 @@ log = logging.getLogger(__name__)
 
 _NotSet = object()
 _radio_group_stack = ContextVar('tk_gui.elements.choices.radio.stack', default=[])
-
+A = TypeVar('A')
+B = TypeVar('B')
 
 # region Radio
 
@@ -40,11 +42,19 @@ class Radio(Interactive, Generic[T]):
     widget: Radiobutton
 
     def __init__(
-        self, text: str, value: T = _NotSet, default: Bool = False, group: Union[RadioGroup, int] = None, **kwargs
+        self,
+        label: str,
+        value: T = _NotSet,
+        default: Bool = False,
+        *,
+        group: Union[RadioGroup, int] = None,
+        callback: BindTarget = None,
+        **kwargs,
     ):
         self.default = default
-        self.text = text
+        self.label = label
         self._value = value
+        self._callback = callback
         self.group = RadioGroup.get_group(group)
         self.choice_id = self.group.register(self)
         kwargs.setdefault('anchor', 'nw')
@@ -53,7 +63,7 @@ class Radio(Interactive, Generic[T]):
     def __repr__(self) -> str:
         val_str = f', value={self._value!r}' if self._value is not _NotSet else ''
         def_str = ', default=True' if self.default else ''
-        return f'<{self.__class__.__name__}({self.text!r}{val_str}{def_str}, group={self.group!r})>'
+        return f'<{self.__class__.__name__}({self.label!r}{val_str}{def_str}, group={self.group!r})>'
 
     def select(self):
         self.group.select(self)
@@ -62,7 +72,7 @@ class Radio(Interactive, Generic[T]):
     def value(self) -> Union[T, str]:
         if (value := self._value) is not _NotSet:
             return value
-        return self.text
+        return self.label
 
     def pack_into_row(self, row: Row, column: int):
         super().pack_into_row(row, column)
@@ -86,20 +96,19 @@ class Radio(Interactive, Generic[T]):
 
     def pack_into(self, row: Row, column: int):
         kwargs = {
-            'text': self.text,
+            'text': self.label,
             'value': self.choice_id,
             'variable': self.group.get_selection_var(),
             'takefocus': int(self.allow_focus),
             **self.style_config,
         }
+        if (callback := self._callback) is not None:
+            kwargs['command'] = self.normalize_callback(callback)
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
             pass
-        """
-        indicatoron: bool
-        selectimage:
-        """
+
         self.widget = Radiobutton(row.frame, **kwargs)
         self.pack_widget()
         if self.default:
@@ -199,15 +208,37 @@ def get_current_radio_group(silent: bool = False) -> Optional[RadioGroup]:
 class CheckBox(Interactive):
     widget: Checkbutton
     tk_var: Optional[BooleanVar] = None
+    _values: Optional[tuple[B, A]] = None
 
-    def __init__(self, text: str, default: Bool = False, **kwargs):
+    def __init__(
+        self,
+        label: str,
+        default: Bool = False,
+        *,
+        true_value: A = None,
+        false_value: B = None,
+        underline: Union[str, int] = None,
+        callback: BindTarget = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
-        self.text = text
+        self.label = label
         self.default = default
+        self._underline = underline
+        self._callback = callback
+        if not (true_value is false_value is None):
+            self._values = (false_value, true_value)
 
     @property
-    def value(self) -> bool:
-        return self.tk_var.get()
+    def value(self) -> Union[bool, A, B]:
+        result = self.tk_var.get()
+        if values := self._values:
+            return values[result]
+        return result
+
+    @property
+    def underline(self) -> Optional[int]:
+        return normalize_underline(self._underline, self.label)
 
     @property
     def style_config(self) -> dict[str, Any]:
@@ -224,21 +255,22 @@ class CheckBox(Interactive):
 
     def pack_into(self, row: Row, column: int):
         self.tk_var = tk_var = BooleanVar(value=self.default)
-        kwargs = {'text': self.text, 'variable': tk_var, 'takefocus': int(self.allow_focus), **self.style_config}
+        kwargs = {
+            'text': self.label,
+            'variable': tk_var,
+            'takefocus': int(self.allow_focus),
+            'underline': self.underline,
+            # 'tristatevalue': 2,  # A different / user-specified value could be used
+            # 'tristateimage': '-',  # needs to be an image; may need `image` (+ selectimage) as well to be used
+            **self.style_config,
+        }
+        # Note: The default tristate icon on Win10 / Py 3.10.5 / Tcl 8.6.12 appears to be the same as the checked icon
+        if (callback := self._callback) is not None:
+            kwargs['command'] = self.normalize_callback(callback)
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:
             pass
-        """
-        underline: int index of char in text to underline
-        textvariable: var for text
-        indicatoron: bool
-        offvalue: value to store when off
-        onvalue: value to store when on
-        selectimage:
-        tristateimage:
-        tristatevalue:
-        """
         self.widget = Checkbutton(row.frame, **kwargs)
         self.pack_widget()
 
@@ -247,12 +279,20 @@ class Combo(Interactive):
     widget: Combobox
     tk_var: Optional[StringVar] = None
 
-    def __init__(self, choices: Collection[str], default: str = None, read_only: Bool = False, **kwargs):
+    def __init__(
+        self,
+        choices: Collection[str],
+        default: str = None,
+        *,
+        # read_only: Bool = False,
+        callback: BindTarget = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.choices = choices
         self.default = default
-        self.read_only = read_only  # TODO: Handle
-        # TODO: To register a callback on selection made: '<<ComboboxSelected>>'
+        # self.read_only = read_only  # TODO: Handle
+        self._callback = callback
 
     @property
     def value(self) -> Any:
@@ -308,18 +348,23 @@ class Combo(Interactive):
         self.pack_widget()
         if default := self.default:
             combo_box.set(default)
+        if (callback := self._callback) is not None:
+            combo_box.bind('<<ComboboxSelected>>', self.normalize_callback(callback))
 
 
 class ListBox(Interactive):
     widget: ScrollableListbox
+    callback: Optional[BindCallback] = None
 
     def __init__(
         self,
         choices: Collection[str],
         default: Union[str, Collection[str]] = None,
         select_mode: Union[str, ListBoxSelectMode] = ListBoxSelectMode.EXTENDED,
+        *,
         scroll_y: Bool = True,
         scroll_x: Bool = False,
+        callback: BindTarget = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -328,6 +373,7 @@ class ListBox(Interactive):
         self.select_mode = ListBoxSelectMode(select_mode)
         self.scroll_y = scroll_y
         self.scroll_x = scroll_x
+        self._callback = callback
         self._prev_selection: Optional[tuple[int]] = None
         self._last_selection: Optional[tuple[int]] = None
 
@@ -355,6 +401,8 @@ class ListBox(Interactive):
         """
         self._prev_selection = self._last_selection
         self._last_selection = self.widget.inner_widget.curselection()
+        if (cb := self.callback) is not None:
+            cb(event)
 
     def reset(self, default: Bool = True):
         list_box = self.widget.inner_widget
@@ -399,6 +447,8 @@ class ListBox(Interactive):
 
         self.pack_widget()
         list_box.bind('<<ListboxSelect>>', self._handle_selection_made)
+        if (callback := self._callback) is not None:
+            self.callback = self.normalize_callback(callback)
 
     @cached_property
     def widgets(self) -> list[BaseWidget]:

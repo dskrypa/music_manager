@@ -15,7 +15,7 @@ from itertools import count
 from tkinter import TclError
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping, overload
 
-from ..enums import StyleState, Anchor, Justify, Side
+from ..enums import StyleState, Anchor, Justify, Side, BindTargets
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec
 from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped, extract_style, find_descendants
@@ -23,7 +23,7 @@ from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped,
 if TYPE_CHECKING:
     from tkinter import Widget, Event, BaseWidget
     from ..pseudo_elements.row import RowBase, Row
-    from ..typing import XY, Bool, BindCallback, Key, TkFill
+    from ..typing import XY, Bool, BindCallback, Key, TkFill, BindTarget
     from ..window import Window
     from .menu import Menu
 
@@ -249,7 +249,7 @@ class Element(ElementBase, ABC):
         self._pack_widget(widget, expand, fill, kwargs)
         if focus:
             self.parent.window.maybe_set_focus(self, widget)
-        if disabled:
+        if disabled:  # TODO: Handle state=disabled separately from readonly
             widget['state'] = 'readonly' if disabled is True else disabled
 
     def _pack_widget(self, widget: Widget, expand: bool, fill: TkFill, kwargs: dict[str, Any]):
@@ -339,9 +339,26 @@ class Element(ElementBase, ABC):
             log.error(f'Unable to bind event={event_pat!r}: {e}')
             self.widget.unbind_all(event_pat)
 
+    def normalize_callback(self, cb: BindTarget) -> BindCallback:
+        if isinstance(cb, str):
+            cb = BindTargets(cb)
+        if isinstance(cb, BindTargets):
+            if cb == BindTargets.EXIT:
+                cb = self.window.close
+            elif cb == BindTargets.INTERRUPT:
+                cb = self.trigger_interrupt
+            else:
+                raise ValueError(f'Invalid {cb=} for {self}')
+        elif not isinstance(cb, Callable):
+            raise TypeError(f'Invalid {cb=} for {self}')
+        return cb
+
     # endregion
 
-    # region Event Handlers
+    # region Event Handling
+
+    def trigger_interrupt(self, event: Event = None):
+        self.window.interrupt(event, self)
 
     def handle_left_click(self, event: Event):
         # log.debug(f'Handling left click')
@@ -352,7 +369,7 @@ class Element(ElementBase, ABC):
     def handle_right_click(self, event: Event):
         if menu := self.right_click_menu:
             menu.parent = self  # Needed for style inheritance
-            menu.show(event, self.widget.master)
+            menu.show(event, self.widget.master)  # noqa
 
     # endregion
 

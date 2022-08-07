@@ -351,7 +351,8 @@ class GuiOptions:
     def as_popup(self, **kwargs):
         from .popups import Popup
 
-        return Popup(self.layout(), self.title, **kwargs).run()
+        title = self.title or 'Options'
+        return Popup(self.layout(), title.title(), bind_esc=True, **kwargs).run()
 
 
 class GuiOptionError(Exception):

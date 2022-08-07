@@ -9,7 +9,7 @@ from __future__ import annotations
 from abc import ABCMeta
 from contextvars import ContextVar
 from enum import Enum
-from tkinter import Event, Entry, Text, Misc, TclError, StringVar
+from tkinter import Event, Entry, Text, BaseWidget, TclError, StringVar
 from typing import TYPE_CHECKING, Optional, Union, Any, Mapping, Iterator, Sequence
 
 from music.text.extraction import split_enclosed
@@ -182,7 +182,7 @@ def get_text(widget: Union[Entry, Text]) -> str:
         return widget.get(0)
 
 
-def get_any_text(widget: Misc) -> Optional[str]:
+def get_any_text(widget: BaseWidget) -> Optional[str]:
     try:
         return get_text(widget)  # noqa
     except (AttributeError, TypeError, TclError):

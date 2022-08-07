@@ -10,7 +10,7 @@ import logging
 import tkinter.constants as tkc
 from abc import ABC
 from pathlib import Path
-from tkinter import Event, Misc, TclError, Menu as TkMenu, Entry, Text
+from tkinter import Event, BaseWidget, TclError, Menu as TkMenu, Entry, Text
 from typing import TYPE_CHECKING, Union, Optional, Any, Callable
 from urllib.parse import quote_plus, urlparse
 
@@ -47,7 +47,7 @@ class SelectionMenuItem(CustomMenuItem, ABC):
     def maybe_add_selection(self, event: Event, kwargs: dict[str, Any]):
         if self.keyword in kwargs:
             return
-        widget: Misc = event.widget
+        widget: BaseWidget = event.widget
         try:
             if widget != widget.selection_own_get():
                 return
@@ -70,7 +70,7 @@ class CopySelection(SelectionMenuItem):
 
     def callback(self, event: Event, **kwargs):
         if selection := kwargs.get(self.keyword):
-            widget: Misc = event.widget
+            widget: BaseWidget = event.widget
             widget.clipboard_clear()
             widget.clipboard_append(selection)
 
@@ -90,7 +90,7 @@ class PasteClipboard(SelectionMenuItem):
         super().__init__(label, underline=underline, show=show, store_meta=True, enabled=enabled, **kwargs)
 
     def enabled_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
-        widget: Misc = event.widget
+        widget: BaseWidget = event.widget
         try:
             if widget['state'] != 'normal':
                 return False
@@ -99,7 +99,7 @@ class PasteClipboard(SelectionMenuItem):
         return hasattr(widget, 'insert')
 
     def callback(self, event: Event, **kwargs):
-        widget: Misc = event.widget
+        widget: BaseWidget = event.widget
         try:
             if widget['state'] != 'normal':
                 return
@@ -196,7 +196,7 @@ class _UpdateTextMenuItem(SelectionMenuItem, ABC):
         super().__init__(label, show=show, enabled=enabled, store_meta=True, **kwargs)
 
     def show_for(self, event: Event = None, kwargs: dict[str, Any] = None) -> bool:
-        widget: Misc = event.widget
+        widget: BaseWidget = event.widget
         try:
             if widget['state'] != 'normal':
                 return False

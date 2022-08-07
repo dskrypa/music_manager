@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from itertools import count
-from tkinter import Event, Misc, Menu as TkMenu
+from tkinter import Event, BaseWidget, Menu as TkMenu
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Sequence
 
 from ..element import ElementBase
@@ -226,7 +226,7 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
             **self._style_config,
         }
 
-    def prepare(self, parent: Misc = None, event: Event = None, kwargs: dict[str, Any] = None) -> TkMenu:
+    def prepare(self, parent: BaseWidget = None, event: Event = None, kwargs: dict[str, Any] = None) -> TkMenu:
         style = self.style_config
         menu = TkMenu(parent, tearoff=0, takefocus=int(self.allow_focus), **style)
         for member in self.members:
@@ -239,10 +239,10 @@ class Menu(ContainerMixin, ElementBase, metaclass=MenuMeta):
         self.widget = menu = self.prepare(root)
         root.configure(menu=menu)
 
-    def show(self, event: Event, parent: Misc = None, **kwargs):
+    def show(self, event: Event, parent: BaseWidget = None, **kwargs):
         return self.popup((event.x_root, event.y_root), parent, event, **kwargs)
 
-    def popup(self, position: XY = None, parent: Misc = None, event: Event = None, **kwargs):
+    def popup(self, position: XY = None, parent: BaseWidget = None, event: Event = None, **kwargs):
         menu = self.prepare(parent, event, kwargs)
         try:
             _x, _y = position

@@ -347,6 +347,8 @@ class Element(ElementBase, ABC):
                 cb = self.window.close
             elif cb == BindTargets.INTERRUPT:
                 cb = self.trigger_interrupt
+            elif cb == BindTargets.POPUP:
+                cb = self.handle_open_popup
             else:
                 raise ValueError(f'Invalid {cb=} for {self}')
         elif not isinstance(cb, Callable):
@@ -370,6 +372,9 @@ class Element(ElementBase, ABC):
         if menu := self.right_click_menu:
             menu.parent = self  # Needed for style inheritance
             menu.show(event, self.widget.master)  # noqa
+
+    def handle_open_popup(self, event: Event):
+        log.debug(f'No popup action is configured for {self}')
 
     # endregion
 

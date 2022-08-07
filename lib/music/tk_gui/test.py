@@ -72,7 +72,7 @@ class GuiTest(Command):
         layout = [
             [ScrollFrame(frame_layout, size=(100, 100), scroll_y=True)],
             # [ScrollFrame(frame_layout, scroll_y=True)],
-            [Image(png_path, popup_on_click=True, size=(150, 150))],
+            [Image(png_path, callback='popup', size=(150, 150))],
             [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         ]
 
@@ -209,7 +209,7 @@ class GuiTest(Command):
         #     [inpt, Button('Submit', bind_enter=True), Button(image=search_path, shortcut='s', size=(30, 30))],
         #     [Animation(gif_path), SpinnerImage(), ClockImage()],
         #     [Text('test'), Text('link test', link='https://google.com')],
-        #     [Image(png_path, popup_on_click=True, size=(150, 150))],
+        #     [Image(png_path, callback='popup', size=(150, 150))],
         #     [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10))],
         # ]
 
@@ -261,7 +261,7 @@ class GuiTest(Command):
             # [ScrollFrame(frame_layout, 'test frame', scroll_y=True, border=True, border_mode='inner')],
             [ScrollFrame(frame_layout, scroll_y=True)],
             [CheckBox('A', key='A', default=True), CheckBox('B', key='B'), CheckBox('C', key='C')],
-            [Image(png_path, popup_on_click=True, size=(150, 150))],
+            [Image(png_path, callback='popup', size=(150, 150))],
             [Text(Path(__file__).resolve().as_posix())],
             # [Multiline('\n'.join(map(chr, range(97, 123))), size=(40, 10)), SizeGrip()],
             [multiline, SizeGrip()],

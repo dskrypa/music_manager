@@ -696,6 +696,8 @@ class Window(RowContainer):
                 cb = self.close
             elif cb == BindTargets.INTERRUPT:
                 cb = self.interrupt
+            else:
+                raise ValueError(f'Invalid {cb=} for {self}')
 
         return cb
 

@@ -27,7 +27,7 @@ from .element import Element
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..typing import XY, Bool
+    from ..typing import XY, BindTarget
 
 __all__ = ['Image', 'Animation', 'SpinnerImage', 'ClockImage', 'get_size']
 log = logging.getLogger(__name__)
@@ -46,11 +46,18 @@ class Image(Element):
         if animated is not None:
             cls.animated = animated
 
-    def __init__(self, image: ImageType = None, popup_on_click: Bool = False, **kwargs):
-        if popup_on_click:
-            kwargs['left_click_cb'] = self.open_popup
+    def __init__(self, image: ImageType = None, callback: BindTarget = None, **kwargs):
+        """
+        :param image: The image to display
+        :param callback: Callback action to perform when the image is clicked (overrides left_click_cb).  Supports
+          ``'popup'`` to open a popup with the image.
+        :param kwargs: Additional keyword arguments to pass to :class:`.Element`
+        """
+        if callback is not None:
+            kwargs['bind_clicks'] = True
         super().__init__(**kwargs)
         self.image = image
+        self._callback = callback
 
     @property
     def image(self) -> Optional[_GuiImage]:
@@ -88,6 +95,8 @@ class Image(Element):
         self.widget = label = Label(row.frame, **kwargs)
         label.image = image
         self.pack_widget()
+        if (callback := self._callback) is not None:
+            self.left_click_cb = self.normalize_callback(callback)
 
     def _re_pack(self, image: _Image, width: int, height: int):
         self.size = (width, height)
@@ -107,7 +116,7 @@ class Image(Element):
         image, width, height = self._image.as_size(width, height)
         self._re_pack(image, width, height)
 
-    def open_popup(self, event: Event = None):
+    def handle_open_popup(self, event: Event = None):
         from ..popups.image import ImagePopup
 
         img = self._image
@@ -117,12 +126,21 @@ class Image(Element):
 class Animation(Image, animated=True):
     image_cycle: FrameCycle
 
-    def __init__(self, image: AnimatedType, last_frame_num: int = 0, paused: bool = False, **kwargs):
+    def __init__(
+        self,
+        image: AnimatedType,
+        last_frame_num: int = 0,
+        paused: bool = False,
+        *,
+        callback: BindTarget = None,
+        **kwargs,
+    ):
         Element.__init__(self, **kwargs)
         self.__image = image
         self._last_frame_num = last_frame_num
         self._next_id = None
         self._run = not paused
+        self._callback = callback
 
     @property
     def paused(self):

@@ -7,11 +7,13 @@ Tkinter GUI Window
 from __future__ import annotations
 
 import logging
+import tkinter as tk
 from functools import partial
 from os import environ
 from time import monotonic
 from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame, BaseWidget
-from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, overload
+from tkinter.ttk import Sizegrip, Scrollbar, Treeview
+from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, Literal, overload
 from weakref import finalize
 
 from PIL import ImageGrab
@@ -35,6 +37,11 @@ __all__ = ['Window']
 log = logging.getLogger(__name__)
 
 Top = Union[ScrollableToplevel, Toplevel]
+GrabAnywhere = Union[bool, Literal['control']]
+_GRAB_ANYWHERE_IGNORE = (
+    Sizegrip, Scrollbar, Treeview,
+    tk.Scale, tk.Scrollbar, tk.Entry, tk.Text, tk.PanedWindow, tk.Listbox, tk.OptionMenu, tk.Button,
+)
 
 
 # region Event Handling Helpers
@@ -67,13 +74,34 @@ class _TkEventHandler:
 class Interrupt:
     __slots__ = ('time', 'event', 'element')
 
-    def __init__(self, event: Event = None, element: ElementBase = None, time: float = None):
+    def __init__(self, event: Event = None, element: Union[ElementBase, Element] = None, time: float = None):
         self.time = monotonic() if time is None else time
         self.event = event
         self.element = element
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}@{self.time}[event={self.event!r}, element={self.element}]>'
+
+
+class MotionTracker:
+    __slots__ = ('start_pos', 'mouse_pos')
+
+    def __init__(self, start_pos: XY, event: Event):
+        self.start_pos = start_pos
+        self.mouse_pos = self._mouse_position(event)
+
+    @classmethod
+    def _mouse_position(cls, event: Event) -> XY:
+        widget: BaseWidget = event.widget
+        x = event.x + widget.winfo_rootx()
+        y = event.y + widget.winfo_rooty()
+        return x, y
+
+    def new_position(self, event: Event) -> XY:
+        src_x, src_y = self.start_pos
+        old_x, old_y = self.mouse_pos
+        new_x, new_y = self._mouse_position(event)
+        return src_x + (new_x - old_x), src_y + (new_y - old_y)
 
 
 # endregion
@@ -90,6 +118,8 @@ class Window(RowContainer):
     widget: Top = None
     root: Union[Toplevel, Frame, None] = None
     _root: Optional[Top] = None
+    _motion_tracker: MotionTracker = None
+    grab_anywhere: GrabAnywhere = False
     element_map: dict[Key, Element]
 
     # region Init Overload
@@ -128,6 +158,7 @@ class Window(RowContainer):
         close_cbs: Iterable[Callable] = None,
         right_click_menu: Menu = None,
         scaling: float = None,
+        grab_anywhere: GrabAnywhere = False,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -157,6 +188,7 @@ class Window(RowContainer):
         close_cbs: Iterable[Callable] = None,
         right_click_menu: Menu = None,
         scaling: float = None,
+        grab_anywhere: GrabAnywhere = False,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
@@ -191,6 +223,13 @@ class Window(RowContainer):
             self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
         if exit_on_esc:
             self.binds.setdefault('<Escape>', BindTargets.EXIT)
+        if grab_anywhere is True:
+            self.grab_anywhere = True
+        elif grab_anywhere:
+            if isinstance(grab_anywhere, str) and grab_anywhere.lower() == 'control':
+                self.grab_anywhere = 'control'
+            else:
+                raise ValueError(f'Unexpected {grab_anywhere=} value')
         # self.kill_others_on_close = kill_others_on_close
         if self.rows:
             self.show()
@@ -254,6 +293,18 @@ class Window(RowContainer):
         self._last_interrupt = Interrupt(event, element)
         # log.debug(f'Interrupting {self} due to {event=}')
         self._root.quit()  # exit the TK main loop, but leave the window open
+
+    def read(self, timeout: int) -> tuple[Optional[Key], dict[Key, Any], Optional[Event]]:
+        self.run(timeout)
+        interrupt = self._last_interrupt
+        if (element := interrupt.element) is not None:
+            try:
+                key = element.key
+            except AttributeError:
+                key = element.id
+        else:
+            key = None
+        return key, self.results, interrupt.event
 
     # endregion
 
@@ -516,6 +567,7 @@ class Window(RowContainer):
         self._root.wm_title(title)
 
     def disable_title_bar(self):
+        self.no_title_bar = True
         try:
             if ON_LINUX:
                 self._root.wm_attributes('-type', 'dock')
@@ -523,6 +575,22 @@ class Window(RowContainer):
                 self._root.wm_overrideredirect(True)
         except (TclError, RuntimeError):
             log.warning('Error while disabling title bar:', exc_info=True)
+
+    def enable_title_bar(self):
+        self.no_title_bar = False
+        try:
+            # if ON_LINUX:
+            #     self._root.wm_attributes('-type', 'dock')
+            # else:
+            self._root.wm_overrideredirect(False)
+        except (TclError, RuntimeError):
+            log.warning('Error while enabling title bar:', exc_info=True)
+
+    def toggle_title_bar(self):
+        if self.no_title_bar:
+            self.enable_title_bar()
+        else:
+            self.disable_title_bar()
 
     def make_modal(self):
         root = self._root
@@ -658,6 +726,37 @@ class Window(RowContainer):
 
     # endregion
 
+    # region Grab Anywhere
+
+    def _init_grab_anywhere(self):
+        prefix = 'Control-' if self.grab_anywhere == 'control' else ''
+        root = self._root
+        root.bind(f'<{prefix}Button-1>', self._begin_grab_anywhere)
+        root.bind(f'<{prefix}B1-Motion>', self._handle_grab_anywhere_motion)
+        root.bind(f'<{prefix}ButtonRelease-1>', self._end_grab_anywhere)
+
+    def _begin_grab_anywhere(self, event: Event):
+        widget: BaseWidget = event.widget
+        if isinstance(widget, _GRAB_ANYWHERE_IGNORE):
+            return
+        elif (element := self.widget_element_map.get(widget)) and element.ignore_grab:
+            return
+        self._motion_tracker = MotionTracker(self.true_size_and_pos[1], event)
+
+    def _handle_grab_anywhere_motion(self, event: Event):
+        try:
+            self.position = self._motion_tracker.new_position(event)
+        except AttributeError:  # grab anywhere already ended and _motion_tracker is None again
+            pass
+
+    def _end_grab_anywhere(self, event: Event):
+        try:
+            del self._motion_tracker
+        except AttributeError:
+            pass
+
+    # endregion
+
     # region Bind Methods
 
     def bind(self, event_pat: Bindable, cb: BindTarget):
@@ -672,6 +771,9 @@ class Window(RowContainer):
 
         for bind_event in self._always_bind_events:
             self._bind_event(bind_event, None)
+
+        if self.grab_anywhere:
+            self._init_grab_anywhere()
 
     def _bind(self, event_pat: Bindable, cb: BindTarget):
         bind_event = _normalize_bind_event(event_pat)

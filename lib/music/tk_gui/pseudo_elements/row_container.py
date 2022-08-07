@@ -35,6 +35,7 @@ CONTAINER_PARAMS = {
 
 class RowContainer(ABC):
     _counter = count()
+    ignore_grab: bool = False
     scroll_y: Bool = False
     scroll_x: Bool = False
     scroll_y_div: float = 2

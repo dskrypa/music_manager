@@ -108,6 +108,7 @@ class RowBase(ABC):
 
 
 class Row(RowBase):
+    ignore_grab: bool = False
     frame: Optional[Frame] = None
     expand: Optional[bool] = None   # Set to True only for Column elements
     fill: Optional[bool] = None     # Changes for Column, Separator, StatusBar

@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 _DIRECT_ATTRS = {'key', 'right_click_menu', 'left_click_cb', 'binds', 'data'}
 _INHERITABLES = {'size', 'auto_size_text', 'anchor', 'justify_text'}
-_BASIC = {'style', 'pad', 'side', 'fill', 'expand', 'allow_focus'}
+_BASIC = {'style', 'pad', 'side', 'fill', 'expand', 'allow_focus', 'ignore_grab'}
 _Side = Union[str, Side]
 
 
@@ -47,6 +47,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
     fill: TkFill = None
     expand: bool = None
     allow_focus: bool = False
+    ignore_grab: bool = False
     pad: XY = Inheritable('element_padding')
     side: Side = Inheritable('element_side', type=Side)
     style: Style = Inheritable(type=Style.get_style)
@@ -58,6 +59,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
         side: _Side = None,
         fill: TkFill = None,
         expand: bool = None,
+        ignore_grab: Bool = False,
         **kwargs,
     ):
         cls = self.__class__
@@ -76,6 +78,8 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
             self.fill = fill
         if style:
             self.style = style
+        if ignore_grab:
+            self.ignore_grab = ignore_grab
 
     # region Introspection
 

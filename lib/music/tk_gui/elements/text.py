@@ -11,7 +11,7 @@ import tkinter.constants as tkc
 import webbrowser
 from contextlib import contextmanager
 from functools import cached_property
-from tkinter import TclError, StringVar, Label, Event, Entry
+from tkinter import TclError, StringVar, Label, Event, Entry, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Any
 
 from ..enums import Justify, Anchor
@@ -274,7 +274,7 @@ class Multiline(Element):
         if value:
             text.insert(1.0, value)
         if (justify := self.justify_text) != Justify.NONE:
-            text.tag_add(justify.value, 1.0, 'end')
+            text.tag_add(justify.value, 1.0, 'end')  # noqa
         for pos in ('center', 'left', 'right'):
             text.tag_configure(pos, justify=pos)  # noqa
 
@@ -303,6 +303,10 @@ class Multiline(Element):
         widget.insert(tkc.END, text, *args)
         if self.auto_scroll:
             widget.see(tkc.END)
+
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        return self.widget.widgets
 
 
 # region Log to Element Handling

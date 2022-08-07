@@ -7,6 +7,7 @@ Table GUI elements
 from __future__ import annotations
 
 import logging
+from functools import cached_property
 from itertools import chain
 from tkinter.ttk import Treeview, Style as TtkStyle
 from typing import TYPE_CHECKING, Union, Callable, Literal, Mapping, Any, Iterable
@@ -18,6 +19,7 @@ from ..pseudo_elements.scroll import ScrollableTreeview
 from .element import Element
 
 if TYPE_CHECKING:
+    from tkinter import BaseWidget
     from ..pseudo_elements import Row
     from ..style import Font, Layer
 
@@ -187,6 +189,14 @@ class Table(Element):
         tree_view.configure(style=self._ttk_style()[0])
         # tree_view.bind('<<TreeviewSelect>>', self._treeview_selected)
         self.pack_widget(expand=True)
+
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        widget = self.widget
+        try:
+            return widget.widgets
+        except AttributeError:
+            return [widget]
 
 
 def _style_map_data(style: TtkStyle, name: str, query_opt: str, selected_color: str = None):

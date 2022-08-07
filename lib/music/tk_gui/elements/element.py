@@ -10,6 +10,7 @@ import logging
 import tkinter.constants as tkc
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import cached_property
 from itertools import count
 from tkinter import TclError
 from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping, overload
@@ -17,10 +18,10 @@ from typing import TYPE_CHECKING, Optional, Callable, Union, Any, MutableMapping
 from ..enums import StyleState, Anchor, Justify, Side
 from ..pseudo_elements.tooltips import ToolTip
 from ..style import Style, StyleSpec
-from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped, extract_style
+from ..utils import Inheritable, ClearableCachedPropertyMixin, call_with_popped, extract_style, find_descendants
 
 if TYPE_CHECKING:
-    from tkinter import Widget, Event
+    from tkinter import Widget, Event, BaseWidget
     from ..pseudo_elements.row import RowBase, Row
     from ..typing import XY, Bool, BindCallback, Key, TkFill
     from ..window import Window
@@ -89,6 +90,11 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
         w, h = size.split('x', 1)
         x, y = pos.split('+', 1)
         return (int(w), int(h)), (int(x), int(y))
+
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        widget = self.widget
+        return [widget, *find_descendants(widget)]
 
     # endregion
 

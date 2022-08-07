@@ -210,9 +210,9 @@ class Button(Interactive):
 
     def handle_activated(self, event: Event = None):
         self._last_activated = monotonic()
-        log.info(f'handle_activated: {event=}')
+        log.debug(f'handle_activated: {event=}')
         if self.action == ButtonAction.SUBMIT:
-            self.window.interrupt()
+            self.window.interrupt(event, self)
         else:
             log.warning(f'No action configured for button={self}')
 

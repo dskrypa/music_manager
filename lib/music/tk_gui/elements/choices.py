@@ -9,8 +9,9 @@ from __future__ import annotations
 import logging
 import tkinter.constants as tkc
 from contextvars import ContextVar
+from functools import cached_property
 from itertools import count
-from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar, Event, TclError
+from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar, Event, TclError, BaseWidget
 from tkinter.ttk import Combobox
 from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection
 from weakref import WeakValueDictionary
@@ -398,3 +399,7 @@ class ListBox(Interactive):
 
         self.pack_widget()
         list_box.bind('<<ListboxSelect>>', self._handle_selection_made)
+
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        return self.widget.widgets

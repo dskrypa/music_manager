@@ -12,9 +12,9 @@ import tkinter.constants as tkc
 from abc import ABC
 from functools import cached_property
 from itertools import count
-from tkinter import Misc, Frame, LabelFrame, Canvas, Widget, Event, Tk, Toplevel, Text, Listbox
+from tkinter import BaseWidget, Frame, LabelFrame, Canvas, Widget, Event, Tk, Toplevel, Text, Listbox
 from tkinter.ttk import Scrollbar, Treeview
-from typing import TYPE_CHECKING, Type, Mapping, Union, Optional, Any
+from typing import TYPE_CHECKING, Type, Mapping, Union, Optional, Any, Iterator
 
 from ..utils import ON_WINDOWS
 
@@ -30,7 +30,7 @@ __all__ = [
 log = logging.getLogger(__name__)
 
 FrameLike = Union[Tk, Frame, LabelFrame]
-ScrollOuter = Union[Misc, 'Scrollable']
+ScrollOuter = Union[BaseWidget, 'ScrollableBase', 'ScrollableContainer']
 
 AXIS_DIR_SIDE = {'x': (tkc.HORIZONTAL, tkc.BOTTOM), 'y': (tkc.VERTICAL, tkc.RIGHT)}
 
@@ -98,7 +98,7 @@ class ScrollableBase(ABC):
         return f'<{self.__class__.__name__}[{self._scroll_id}, parent={self.scroll_parent!r}]>'
 
     @cached_property
-    def scroll_parent(self: Union[ScrollableBase, Misc]) -> Optional[ScrollableBase]:
+    def scroll_parent(self: Union[ScrollableBase, BaseWidget]) -> Optional[ScrollableBase]:
         self_id: str = self._w  # noqa
         id_parts = self_id.split('.!')[:-1]
         for i, id_part in enumerate(reversed(id_parts)):
@@ -116,7 +116,7 @@ class ScrollableBase(ABC):
         return parents
 
     @cached_property
-    def scroll_children(self: Union[ScrollableContainer, Misc]) -> list[ScrollableBase]:
+    def scroll_children(self: Union[ScrollableContainer, BaseWidget]) -> list[ScrollableBase]:
         children = []
         all_children = self.winfo_children()
         while all_children:
@@ -126,6 +126,17 @@ class ScrollableBase(ABC):
             else:
                 all_children.extend(child.winfo_children())
         return children
+
+    def _widgets(self) -> Iterator[BaseWidget]:
+        yield self
+        if (scroll_bar_y := self.scroll_bar_y) is not None:
+            yield scroll_bar_y
+        if (scroll_bar_x := self.scroll_bar_x) is not None:
+            yield scroll_bar_x
+
+    @cached_property
+    def widgets(self) -> tuple[BaseWidget]:
+        return tuple(self._widgets())
 
 
 def get_scrollable(widget: Widget) -> Optional[ScrollableBase]:
@@ -174,7 +185,7 @@ class ScrollableContainer(ScrollableBase, ABC):
 
     def __init__(
         self: Union[Widget, Toplevel, ScrollableContainer],
-        parent: Optional[Misc] = None,
+        parent: Optional[BaseWidget] = None,
         scroll_y: Bool = False,
         scroll_x: Bool = False,
         inner_cls: Type[FrameLike] = Frame,
@@ -260,6 +271,10 @@ class ScrollableContainer(ScrollableBase, ABC):
             # log.debug(f'Updating scroll region to {bbox=} != {canvas["scrollregion"]=} for {self}')
             canvas.configure(scrollregion=bbox)
 
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        return [self.canvas, self.inner_widget, *self._widgets()]
+
 
 class ScrollableToplevel(ScrollableContainer, Toplevel, tk_cls=Toplevel):
     pass
@@ -286,7 +301,7 @@ class ScrollableWidget(ScrollableBase, ABC):
         cls._inner_cls = inner_cls
 
     def __init__(
-        self, parent: Misc = None, scroll_y: Bool = False, scroll_x: Bool = False, style: Style = None, **kwargs
+        self, parent: BaseWidget = None, scroll_y: Bool = False, scroll_x: Bool = False, style: Style = None, **kwargs
     ):
         super().__init__(parent)
         self.inner_widget = inner_widget = self._inner_cls(self, **kwargs)
@@ -296,6 +311,10 @@ class ScrollableWidget(ScrollableBase, ABC):
             self.scroll_bar_y = add_scroll_bar(self, inner_widget, 'y', style)
         inner_widget.pack(side='left', fill='both', expand=True, padx=0, pady=0)
 
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        return [self.inner_widget, *self._widgets()]
+
 
 class ScrollableTreeview(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Treeview):
     inner_widget: Treeview
@@ -304,7 +323,7 @@ class ScrollableTreeview(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Treevi
 class ScrollableText(ScrollableWidget, Frame, tk_cls=Frame, inner_cls=Text):
     inner_widget: Text
 
-    def __init__(self, parent: Misc = None, scroll_y: Bool = False, scroll_x: Bool = False, *args, **kwargs):
+    def __init__(self, parent: BaseWidget = None, scroll_y: Bool = False, scroll_x: Bool = False, *args, **kwargs):
         super().__init__(parent, scroll_y, scroll_x, *args, **kwargs)
         self.inner_widget.configure(wrap=tkc.NONE if scroll_x else tkc.WORD)
 

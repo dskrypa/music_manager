@@ -8,20 +8,21 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from functools import cached_property
 from itertools import count
-from tkinter import Toplevel, Frame, Widget, Misc
+from tkinter import Toplevel, Frame, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Any, overload
 
 from ..enums import Anchor, Justify, Side
 from ..style import Style
 from ..utils import call_with_popped
-from .row import Row
+from .row import Row, RowBase
 
 if TYPE_CHECKING:
-    from ..elements.element import Element
+    from ..elements.element import ElementBase
     from ..typing import XY, Layout, Bool, TkContainer
     from ..window import Window
-    from .scroll import ScrollableContainer
+    from .scroll import ScrollableContainer, ScrollableToplevel
 
 __all__ = ['RowContainer', 'CONTAINER_PARAMS']
 log = logging.getLogger(__name__)
@@ -101,6 +102,11 @@ class RowContainer(ABC):
 
     @property
     @abstractmethod
+    def widget(self) -> Union[Frame, Toplevel, ScrollableToplevel]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def tk_container(self) -> Union[Frame, Toplevel]:
         raise NotImplementedError
 
@@ -109,16 +115,67 @@ class RowContainer(ABC):
     def window(self) -> Window:
         raise NotImplementedError
 
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        widgets = [w for row in self.rows for w in row.widgets]
+        try:
+            widgets.extend(self.widget.widgets)
+        except AttributeError:
+            widgets.append(self.widget)
+        return widgets
+
+    @cached_property
+    def widget_element_map(self) -> dict[BaseWidget, Union[RowBase, ElementBase, RowContainer]]:
+        widget_ele_map = {w: ele for row in self.rows for w, ele in row.widget_element_map.items()}
+        try:
+            widget_ele_map.update({widget: self for widget in self.widget.widgets})
+        except AttributeError:
+            widget_ele_map[self.widget] = self
+        return widget_ele_map
+
+    @cached_property
+    def element_widgets_map(self) -> dict[Union[RowBase, ElementBase, RowContainer], list[BaseWidget]]:
+        ele_widgets_map = {}
+        for key, val in self.widget_element_map.items():
+            try:
+                ele_widgets_map[val].append(key)
+            except KeyError:
+                ele_widgets_map[val] = [key]
+
+        return ele_widgets_map
+
+    @cached_property
+    def id_widget_map(self) -> dict[str, BaseWidget]:
+        return {w._w: w for w in self.widget_element_map}  # noqa
+
+    @cached_property
+    def id_ele_map(self) -> dict[str, ElementBase]:
+        id_ele_map = {}
+        for ele in self.widget_element_map.values():
+            try:
+                id_ele_map[ele.id] = ele
+            except AttributeError:
+                pass
+        return id_ele_map
+
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self._id}]>'
 
-    def __getitem__(self, item: Union[str, tuple[int, int]]) -> Element:
-        if isinstance(item, str) and '#' in item:
-            for row in self.rows:
-                try:
-                    return row[item]
-                except KeyError:
-                    pass
+    def __getitem__(self, item: Union[str, BaseWidget, tuple[int, int]]) -> ElementBase:
+        if isinstance(item, str):
+            try:
+                return self.id_ele_map[item]
+            except KeyError:
+                pass
+            try:
+                return self.widget_element_map[self.id_widget_map[item]]
+            except KeyError:
+                pass
+        elif isinstance(item, BaseWidget):
+            try:
+                return self.widget_element_map[item]
+            except KeyError:
+                pass
         else:
             try:
                 row, column = item
@@ -131,10 +188,12 @@ class RowContainer(ABC):
                     pass
         raise KeyError(f'Invalid element ID / (row, column) index: {item!r}')
 
-    def __contains__(self, item: Union[Element, Widget, Misc]) -> bool:
-        if item is self.tk_container:
-            return True
-        return any(item in row for row in self.rows)
+    def __contains__(self, item: Union[str, ElementBase, BaseWidget]) -> bool:
+        if isinstance(item, str):
+            return item in self.id_ele_map or item in self.id_widget_map
+        elif isinstance(item, BaseWidget):
+            return item in self.widget_element_map
+        return item in self.element_widgets_map
 
     def pack_container(self, outer: ScrollableContainer, inner: TkContainer, size: Optional[XY]):
         inner.update()

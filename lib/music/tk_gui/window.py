@@ -7,10 +7,10 @@ Tkinter GUI Window
 from __future__ import annotations
 
 import logging
-from functools import partial, cached_property
+from functools import partial
 from os import environ
 from time import monotonic
-from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame, Misc
+from tkinter import Tk, Toplevel, PhotoImage, TclError, Event, CallWrapper, Frame, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Type, Any, Iterable, Callable, overload
 from weakref import finalize
 
@@ -28,7 +28,7 @@ from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
-    from .elements.element import Element
+    from .elements.element import Element, ElementBase
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
 
 __all__ = ['Window']
@@ -64,6 +64,18 @@ class _TkEventHandler:
         setattr(owner, name, self.func)  # replace wrapper with the original function
 
 
+class Interrupt:
+    __slots__ = ('time', 'event', 'element')
+
+    def __init__(self, event: Event = None, element: ElementBase = None, time: float = None):
+        self.time = monotonic() if time is None else time
+        self.event = event
+        self.element = element
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}@{self.time}[event={self.event!r}, element={self.element}]>'
+
+
 # endregion
 
 
@@ -74,7 +86,8 @@ class Window(RowContainer):
     _always_bind_events: set[BindEvent] = set()
     _finalizer: finalize
     _last_run: float = 0
-    _last_interrupt: float = 0
+    _last_interrupt: Interrupt = Interrupt(time=0)
+    widget: Top = None
     root: Union[Toplevel, Frame, None] = None
     _root: Optional[Top] = None
     element_map: dict[Key, Element]
@@ -209,10 +222,9 @@ class Window(RowContainer):
 
     def run(self, timeout: int = 0) -> Window:
         """
-
         :param timeout: Timeout in milliseconds.  If not specified or <= 0, then the mail loop will run until
           interrupted
-        :return:
+        :return: Returns itself to allow chaining
         """
         try:
             root = self._root
@@ -229,7 +241,7 @@ class Window(RowContainer):
             interrupt_id = None
 
         self._last_run = monotonic()
-        while not self.closed and self._last_interrupt < self._last_run:
+        while not self.closed and self._last_interrupt.time < self._last_run:
             root.mainloop()
 
         if interrupt_id is not None:
@@ -238,8 +250,8 @@ class Window(RowContainer):
         # log.debug(f'Main loop exited for {self}')
         return self
 
-    def interrupt(self, event: Event = None):
-        self._last_interrupt = monotonic()
+    def interrupt(self, event: Event = None, element: ElementBase = None):
+        self._last_interrupt = Interrupt(event, element)
         # log.debug(f'Interrupting {self} due to {event=}')
         self._root.quit()  # exit the TK main loop, but leave the window open
 
@@ -266,7 +278,7 @@ class Window(RowContainer):
 
     # region Results
 
-    def __getitem__(self, item: Union[Key, str, tuple[int, int]]) -> Union[Element, HasValue]:
+    def __getitem__(self, item: Union[Key, str, BaseWidget, tuple[int, int]]) -> Union[ElementBase, HasValue]:
         try:
             return self.element_map[item]
         except KeyError:
@@ -277,7 +289,7 @@ class Window(RowContainer):
             pass
         raise KeyError(f'Invalid element key/ID / (row, column) index: {item!r}')
 
-    @cached_property
+    @property
     def results(self) -> dict[Key, Any]:
         return {key: ele.value for key, ele in self.element_map.items()}
 
@@ -547,11 +559,11 @@ class Window(RowContainer):
         kwargs = style.get_map(background='bg')
         scroll_y, scroll_x = self.scroll_y, self.scroll_x
         if not scroll_y and not scroll_x:
-            self._root = self.root = root = Toplevel(**kwargs)
+            self.widget = self._root = self.root = root = Toplevel(**kwargs)
             return root
 
         kwargs['inner_kwargs'] = kwargs.copy()
-        self._root = root = ScrollableToplevel(
+        self.widget = self._root = root = ScrollableToplevel(
             scroll_y=scroll_y, scroll_x=scroll_x, style=style, pad=self.margins, **kwargs
         )
         self.root = root.inner_widget
@@ -635,7 +647,7 @@ class Window(RowContainer):
             log.debug(f'Setting focus on {widget}')
             widget.focus_set()
 
-    def maybe_set_focus(self, element: Element, widget: Misc = None) -> bool:
+    def maybe_set_focus(self, element: Element, widget: BaseWidget = None) -> bool:
         if self.__focus_widget is not None:
             return False
         if widget is None:

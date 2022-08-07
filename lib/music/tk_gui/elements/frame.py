@@ -129,7 +129,7 @@ class InteractiveRowFrame(InteractiveMixin, RowFrame, ABC):
 
 
 class ScrollFrame(Element, RowContainer):
-    widget: Union[TkFrame, LabelFrame]
+    widget: Union[ScrollableLabelFrame, ScrollableFrame]
     inner_frame: Union[TkFrame, LabelFrame]
     inner_style: Optional[Style] = None
 

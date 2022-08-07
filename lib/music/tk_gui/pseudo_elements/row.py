@@ -10,7 +10,7 @@ import logging
 import tkinter.constants as tkc
 from abc import ABC, abstractmethod
 from functools import cached_property
-from tkinter import Frame, LabelFrame, Widget
+from tkinter import Frame, LabelFrame, Widget, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Iterable, Sequence
 
 from ..enums import Anchor, Justify, Side
@@ -18,7 +18,7 @@ from ..style import Style
 from ..utils import Inheritable
 
 if TYPE_CHECKING:
-    from ..elements import Element
+    from ..elements.element import Element, ElementBase
     from ..typing import XY
     from ..window import Window
     from .row_container import RowContainer
@@ -51,6 +51,16 @@ class RowBase(ABC):
     @abstractmethod
     def elements(self) -> Sequence[Element]:
         raise NotImplementedError
+
+    @cached_property
+    def widgets(self) -> list[BaseWidget]:
+        return [self.frame, *(w for element in self.elements for w in element.widgets)]
+
+    @cached_property
+    def widget_element_map(self) -> dict[BaseWidget, Union[RowBase, ElementBase]]:
+        widget_ele_map = {w: ele for ele in self.elements for w in ele.widgets}
+        widget_ele_map[self.frame] = self
+        return widget_ele_map
 
     @cached_property
     def id_ele_map(self) -> dict[str, Element]:

@@ -12,8 +12,8 @@ import sys
 from functools import cached_property
 from inspect import stack
 from pathlib import Path
-from tkinter import TclError, Misc, Text, Entry
-from typing import TYPE_CHECKING, Optional, Union, Type, Any, Callable, Collection, Iterable, Sequence
+from tkinter import TclError, Text, Entry, BaseWidget
+from typing import TYPE_CHECKING, Optional, Union, Type, Any, Callable, Collection, Iterable, Sequence, Iterator
 
 from .constants import STYLE_CONFIG_KEYS
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 __all__ = [
     'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
     'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata',
-    'tcl_version', 'max_line_len', 'get_top_level', 'call_with_popped', 'get_selection_pos',
+    'tcl_version', 'max_line_len', 'get_top_level', 'call_with_popped', 'get_selection_pos', 'find_descendants',
 ]
 log = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ def max_line_len(lines: Collection[str]) -> int:
     return max(map(len, lines))
 
 
-def get_top_level(widget: Misc) -> Misc:
+def get_top_level(widget: BaseWidget) -> BaseWidget:
     name = widget._w  # noqa
     return widget.nametowidget('.!'.join(name.split('.!')[:2]))
 
@@ -208,3 +208,9 @@ def get_selection_pos(
     first_line, first_index = map(int, first.split('.', 1))
     last_line, last_index = map(int, last.split('.', 1))
     return (first_line, first_index), (last_line, last_index)
+
+
+def find_descendants(widget: BaseWidget) -> Iterator[BaseWidget]:
+    for child in widget.children.values():
+        yield child
+        yield from find_descendants(child)

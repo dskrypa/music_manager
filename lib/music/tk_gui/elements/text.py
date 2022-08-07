@@ -21,7 +21,6 @@ from ..utils import max_line_len
 from .element import Element, Interactive
 
 if TYPE_CHECKING:
-    # from pathlib import Path
     from ..pseudo_elements import Row
     from ..typing import Bool, XY, BindTarget
 
@@ -39,7 +38,6 @@ class Text(Element):
         self,
         value: Any = '',
         link: Union[bool, str] = None,
-        # path: Union[bool, str, Path] = None,
         *,
         justify: Union[str, Justify] = None,
         anchor: Union[str, Anchor] = None,
@@ -59,7 +57,6 @@ class Text(Element):
         self._link = link or link is None
         self._selectable = selectable
         self._auto_size = auto_size
-        # self._path = path
 
     @property
     def pad_kw(self) -> dict[str, int]:
@@ -219,7 +216,6 @@ class Input(Interactive):
         value: Any = '',
         *,
         link: bool = None,
-        # path: Union[bool, str, Path] = None,
         password_char: str = None,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
         callback: BindTarget = None,
@@ -228,7 +224,6 @@ class Input(Interactive):
         super().__init__(justify_text=justify_text, **kwargs)
         self._value = str(value)
         self._link = link or link is None
-        # self._path = path
         self._callback = callback
         if password_char:
             self.password_char = password_char
@@ -267,7 +262,7 @@ class Input(Interactive):
         self.pack_widget()
 
         entry.bind('<FocusOut>', partial(_clear_selection, entry))  # Prevents ghost selections
-        if self._link:
+        if self._link:  # TODO: Unify with Text's link handling
             entry.bind('<Control-Button-1>', self._open_link)
             if (value := self._value) and value.startswith(('http://', 'https://')):
                 entry.configure(cursor='hand2')
@@ -316,13 +311,11 @@ class Input(Interactive):
     # endregion
 
     def _open_link(self, event):
-        import webbrowser
-
         if (value := self.value) and value.startswith(('http://', 'https://')):
             webbrowser.open(value)
 
 
-class Multiline(Element):  # TODO: Extend Interactive
+class Multiline(Interactive):
     widget: ScrollableText
 
     def __init__(
@@ -347,11 +340,11 @@ class Multiline(Element):  # TODO: Extend Interactive
 
     @property
     def style_config(self) -> dict[str, Any]:
-        style = self.style
+        style, state = self.style, self.style_state
         config: dict[str, Any] = {
             'highlightthickness': 0,
-            **style.get_map('text', attrs=('fg', 'bg', 'font', 'relief'), bd='border_width'),  # noqa
-            **style.get_map('selected', selectforeground='fg', selectbackground='bg'),
+            **style.get_map('input', state, bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
+            **style.get_map('text', 'highlight', selectforeground='fg', selectbackground='bg'),
             **style.get_map('insert', insertbackground='bg'),
             **self._style_config,
         }

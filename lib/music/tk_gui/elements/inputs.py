@@ -19,7 +19,7 @@ from .element import Interactive
 if TYPE_CHECKING:
     from pathlib import Path
     from ..pseudo_elements import Row
-    from ..typing import Bool
+    from ..typing import Bool, BindTarget
 
 __all__ = ['Input']
 log = logging.getLogger(__name__)
@@ -33,16 +33,19 @@ class Input(Interactive):
     def __init__(
         self,
         value: Any = '',
+        *,
         link: bool = None,
         path: Union[bool, str, Path] = None,
         password_char: str = None,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
+        callback: BindTarget = None,
         **kwargs
     ):
         super().__init__(justify_text=justify_text, **kwargs)
         self._value = str(value)
         self._link = link or link is None
         self._path = path
+        self._callback = callback
         if password_char:
             self.password_char = password_char
 
@@ -91,6 +94,8 @@ class Input(Interactive):
             entry.bind('<Control-Button-1>', self._open_link)
             if (value := self._value) and value.startswith(('http://', 'https://')):
                 entry.configure(cursor='hand2')
+        if (callback := self._callback) is not None:
+            entry.bind('<Key>', self.normalize_callback(callback))
 
     def update(self, value: Any = None, disabled: Bool = None, password_char: str = None):
         if disabled is not None:

@@ -17,7 +17,7 @@ from .element import ElementBase, Element, Interactive
 
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
-    from ..typing import Bool, Orientation, T
+    from ..typing import Bool, Orientation, T, BindTarget
 
 __all__ = ['Separator', 'HorizontalSeparator', 'VerticalSeparator', 'ProgressBar', 'Slider']
 log = logging.getLogger(__name__)
@@ -139,10 +139,12 @@ class Slider(Interactive):
         min_value: float,
         max_value: float,
         default: float = None,
+        *,
         interval: float = 1,
         tick_interval: float = None,
         show_values: Bool = True,
         orientation: Orientation = tkc.HORIZONTAL,
+        callback: BindTarget = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -153,6 +155,7 @@ class Slider(Interactive):
         self.tick_interval = tick_interval
         self.show_values = show_values
         self.orientation = orientation
+        self._callback = callback
 
     @property
     def value(self) -> float:
@@ -188,6 +191,8 @@ class Slider(Interactive):
             'takefocus': int(self.allow_focus),
             **self.style_config,
         }
+        if (callback := self._callback) is not None:
+            kwargs['command'] = self.normalize_callback(callback)
         try:
             kwargs['width'], kwargs['height'] = self.size
         except TypeError:

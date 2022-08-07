@@ -23,7 +23,7 @@ from .element import Element
 if TYPE_CHECKING:
     # from pathlib import Path
     from ..pseudo_elements import Row
-    from ..typing import Bool, XY
+    from ..typing import Bool, XY, BindTarget
 
 __all__ = ['Text', 'Link', 'Multiline', 'GuiTextHandler', 'gui_log_handler']
 log = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ class Link(Text):
         super().__init__(value, link=link, link_bind=link_bind, **kwargs)
 
 
-class Multiline(Element):
+class Multiline(Element):  # TODO: Extend Interactive
     widget: ScrollableText
 
     def __init__(
@@ -221,6 +221,7 @@ class Multiline(Element):
         auto_scroll: bool = False,
         rstrip: bool = False,
         justify_text: Union[str, Justify, None] = Justify.LEFT,
+        callback: BindTarget = None,
         **kwargs,
     ):
         super().__init__(justify_text=justify_text, **kwargs)
@@ -229,6 +230,7 @@ class Multiline(Element):
         self.scroll_x = scroll_x
         self.auto_scroll = auto_scroll
         self.rstrip = rstrip
+        self._callback = callback
 
     @property
     def style_config(self) -> dict[str, Any]:
@@ -279,6 +281,8 @@ class Multiline(Element):
             text.tag_configure(pos, justify=pos)  # noqa
 
         self.pack_widget()
+        if (callback := self._callback) is not None:
+            text.bind('<Key>', self.normalize_callback(callback))
 
     def clear(self):
         self.widget.inner_widget.delete('1.0', tkc.END)

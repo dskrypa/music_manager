@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from ..pseudo_elements import Row
     from ..typing import XY, BindCallback, Bool
 
-__all__ = ['Button', 'OK', 'Cancel', 'Yes', 'No']
+__all__ = ['Button', 'OK', 'Cancel', 'Yes', 'No', 'Submit']
 log = logging.getLogger(__name__)
 
 
@@ -231,3 +231,7 @@ def Yes(text: str = 'Yes', bind_enter: Bool = True, **kwargs) -> Button:
 
 def No(text: str = 'No', **kwargs) -> Button:
     return Button(text, **kwargs)
+
+
+def Submit(text: str = 'Submit', bind_enter: Bool = True, **kwargs) -> Button:
+    return Button(text, bind_enter=bind_enter, **kwargs)

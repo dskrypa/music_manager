@@ -150,7 +150,7 @@ class Element(ElementBase, ABC):
     bind_clicks: bool = None
     data: Any = None                                            # Any data that needs to be stored with the element
 
-    size: XY = Inheritable('element_size')
+    size: XY = Inheritable('element_size', default=None)
     auto_size_text: bool = Inheritable()
     anchor: Anchor = Inheritable('anchor_elements', type=Anchor)
     justify_text: Justify = Inheritable('text_justification', type=Justify)

@@ -22,7 +22,7 @@ from .assets import PYTHON_LOGO
 from .elements.menu import Menu
 from .enums import BindTargets, Anchor, Justify, Side, BindEvent
 from .exceptions import DuplicateKeyError
-from .positioning import positioner
+from .positioning import positioner, Monitor
 from .pseudo_elements.row_container import RowContainer
 from .pseudo_elements.scroll import ScrollableToplevel
 from .style import Style
@@ -459,6 +459,10 @@ class Window(RowContainer):
     def true_position(self) -> XY:
         x, y = self._root.geometry().rsplit('+', 2)[1:]
         return int(x), int(y)
+
+    @property
+    def monitor(self) -> Optional[Monitor]:
+        return positioner.get_monitor(*self.position)
 
     def move_to_center(self, other: Window = None):
         """

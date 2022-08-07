@@ -13,7 +13,7 @@ from functools import cached_property
 from itertools import count
 from tkinter import Radiobutton, Checkbutton, BooleanVar, IntVar, StringVar, Event, TclError, BaseWidget
 from tkinter.ttk import Combobox
-from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection, TypeVar
+from typing import TYPE_CHECKING, Optional, Union, Any, MutableMapping, Generic, Collection, TypeVar, Sequence
 from weakref import WeakValueDictionary
 
 from ..enums import ListBoxSelectMode
@@ -27,7 +27,7 @@ from .exceptions import NoActiveGroup, BadGroupCombo
 if TYPE_CHECKING:
     from ..pseudo_elements import Row
 
-__all__ = ['Radio', 'RadioGroup', 'CheckBox', 'Combo', 'ListBox']
+__all__ = ['Radio', 'RadioGroup', 'CheckBox', 'Combo', 'ListBox', 'make_checkbox_grid']
 log = logging.getLogger(__name__)
 
 _NotSet = object()
@@ -204,6 +204,8 @@ def get_current_radio_group(silent: bool = False) -> Optional[RadioGroup]:
 
 # endregion
 
+# region CheckBox
+
 
 class CheckBox(Interactive):
     widget: Checkbutton
@@ -273,6 +275,27 @@ class CheckBox(Interactive):
             pass
         self.widget = Checkbutton(row.frame, **kwargs)
         self.pack_widget()
+
+
+def make_checkbox_grid(rows: list[Sequence[CheckBox]]):
+    if len(rows) > 1 and len(rows[-1]) == 1:
+        last_row = rows[-1]
+        rows = rows[:-1]
+    else:
+        last_row = None
+
+    shortest_row = min(map(len, (row for row in rows)))
+    longest_boxes = [max(map(len, (row[column].label for row in rows))) for column in range(shortest_row)]
+    for row in rows:
+        for column, width in enumerate(longest_boxes):
+            row[column].size = (width, 1)
+
+    if last_row is not None:
+        rows.append(last_row)
+    return rows
+
+
+# endregion
 
 
 class Combo(Interactive):

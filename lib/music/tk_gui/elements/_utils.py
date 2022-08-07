@@ -10,7 +10,7 @@ from tkinter import TclError, Entry, Text, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Iterator
 
 if TYPE_CHECKING:
-    from ..typing import Bool, XY, EventCallback
+    from ..typing import XY
 
 __all__ = ['normalize_underline', 'get_selection_pos', 'find_descendants', 'get_top_level']
 

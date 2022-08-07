@@ -23,8 +23,7 @@ if TYPE_CHECKING:
     from ..typing import Layout, Bool
     from ..pseudo_elements.row import Row
 
-# __all__ = ['RowFrame', 'InteractiveRowFrame', 'Frame', 'InteractiveFrame', 'ScrollFrame']
-__all__ = ['RowFrame', 'InteractiveRowFrame', 'ScrollFrame']
+__all__ = ['RowFrame', 'InteractiveRowFrame', 'Frame', 'ScrollFrame']
 log = logging.getLogger(__name__)
 
 TkFrameType = Type[Union[TkFrame, LabelFrame]]
@@ -115,17 +114,11 @@ class InteractiveRowFrame(InteractiveMixin, RowFrame, ABC):
         super().__init__(**kwargs)
 
 
-# class Frame(FrameMixin, Element, RowContainer):
-#     def __init__(self, layout: Layout = None, **kwargs):
-#         self.init_frame_from_kwargs(kwargs)
-#         self.init_container_from_kwargs(layout, kwargs=kwargs)
-#         Element.__init__(self, **kwargs)
-#
-#
-# class InteractiveFrame(InteractiveMixin, Frame):
-#     def __init__(self, layout: Layout = None, **kwargs):
-#         self.init_interactive_from_kwargs(kwargs)
-#         super().__init__(layout, **kwargs)
+class Frame(FrameMixin, Element, RowContainer):
+    def __init__(self, layout: Layout = None, **kwargs):
+        self.init_frame_from_kwargs(kwargs)
+        self.init_container_from_kwargs(layout, kwargs=kwargs)
+        Element.__init__(self, **kwargs)
 
 
 class ScrollFrame(Element, RowContainer):

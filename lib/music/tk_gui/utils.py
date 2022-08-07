@@ -22,10 +22,11 @@ if TYPE_CHECKING:
 __all__ = [
     'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
     'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata', 'ViewLoggerAdapter',
-    'tcl_version', 'max_line_len', 'call_with_popped',
+    'tcl_version', 'max_line_len', 'call_with_popped', 'resize_text_column',
 ]
 log = logging.getLogger(__name__)
 
+_NotSet = object()
 _OS = platform.system().lower()
 ON_WINDOWS = _OS == 'windows'
 ON_LINUX = _OS == 'linux'
@@ -38,7 +39,7 @@ class Inheritable:
     __slots__ = ('parent_attr', 'default', 'type', 'name', 'attr_name')
 
     def __init__(
-        self, parent_attr: str = None, default: Any = None, type: Callable = None, attr_name: str = 'parent'  # noqa
+        self, parent_attr: str = None, default: Any = _NotSet, type: Callable = None, attr_name: str = 'parent'  # noqa
     ):
         """
         :param parent_attr: The attribute within the parent that holds the value to inherit, if different from the
@@ -62,7 +63,7 @@ class Inheritable:
         try:
             return instance.__dict__[self.name]
         except KeyError:
-            if self.default is not None:
+            if self.default is not _NotSet:
                 return self.default
             parent = getattr(instance, self.attr_name)
             return getattr(parent, self.parent_attr or self.name)
@@ -232,3 +233,12 @@ class ViewLoggerAdapter(logging.LoggerAdapter):
 
     def process(self, msg, kwargs):
         return f'[view={self._view_name}] {msg}', kwargs
+
+
+def resize_text_column(rows: Sequence[Sequence], column: int = 0):
+    if rows:
+        longest = max(map(len, (row[column].text for row in rows)))
+        for row in rows:
+            row[column].size = (longest, 1)
+
+    return rows

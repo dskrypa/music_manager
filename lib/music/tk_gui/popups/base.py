@@ -62,7 +62,7 @@ class Popup:
         return self.layout
 
     def prepare_window(self) -> Window:
-        return Window(self.get_layout(), title=self.title, **self.window_kwargs)
+        return Window(self.get_layout(), title=self.title, is_popup=True, **self.window_kwargs)
 
     @cached_property
     def window(self) -> Window:

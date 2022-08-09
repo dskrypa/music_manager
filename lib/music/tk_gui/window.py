@@ -19,6 +19,7 @@ from weakref import finalize
 from PIL import ImageGrab
 
 from .assets import PYTHON_LOGO
+from .config import WindowConfigProperty
 from .elements.menu import Menu
 from .enums import BindTargets, Anchor, Justify, Side, BindEvent
 from .exceptions import DuplicateKeyError
@@ -29,6 +30,7 @@ from .style import Style
 from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from PIL.Image import Image as PILImage
     from .elements.element import Element, ElementBase
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
@@ -108,10 +110,12 @@ class MotionTracker:
 
 
 class Window(RowContainer):
+    config = WindowConfigProperty()  # TODO: Use
     __hidden_root = None
     __focus_widget = None
     _tk_event_handlers: dict[str, str] = {}
     _always_bind_events: set[BindEvent] = set()
+    _config: tuple[str, Union[str, Path, None], Optional[dict[str, Any]]] = None
     _finalizer: finalize
     _last_run: float = 0
     _last_interrupt: Interrupt = Interrupt(time=0)
@@ -119,7 +123,8 @@ class Window(RowContainer):
     root: Union[Toplevel, Frame, None] = None
     _root: Optional[Top] = None
     _motion_tracker: MotionTracker = None
-    grab_anywhere: GrabAnywhere = False
+    grab_anywhere: GrabAnywhere = False                 #: Whether the window should move on mouse click + movement
+    is_popup: bool = False                              #: Whether the window is a popup
     element_map: dict[Key, Element]
 
     # region Init Overload
@@ -159,6 +164,10 @@ class Window(RowContainer):
         right_click_menu: Menu = None,
         scaling: float = None,
         grab_anywhere: GrabAnywhere = False,
+        is_popup: Bool = False,
+        config_name: str = None,                            #: Name used in config files (defaults to title)
+        config_path: Union[str, Path] = None,
+        config: dict[str, Any] = None,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -189,11 +198,16 @@ class Window(RowContainer):
         right_click_menu: Menu = None,
         scaling: float = None,
         grab_anywhere: GrabAnywhere = False,
+        is_popup: Bool = False,
+        config_name: str = None,
+        config_path: Union[str, Path] = None,
+        config: dict[str, Any] = None,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
         self.title = title or ProgramMetadata('').name.replace('_', ' ').title()
         super().__init__(layout, **kwargs)
+        self._config = (config_name or title, config_path, config)
         self._size = size
         self._min_size = min_size
         self._position = position
@@ -223,6 +237,8 @@ class Window(RowContainer):
             self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
         if exit_on_esc:
             self.binds.setdefault('<Escape>', BindTargets.EXIT)
+        if is_popup:
+            self.is_popup = is_popup
         if grab_anywhere is True:
             self.grab_anywhere = True
         elif grab_anywhere:

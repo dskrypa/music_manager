@@ -153,6 +153,10 @@ class ProgramMetadata:
                 if any(k in g for k in ('__author_email__', '__version__', '__url__')):
                     return installed_via_setup, g, Path(level.filename)
 
+        if path.stem == 'runpy':
+            level = _stack[-3]
+            return installed_via_setup, level.frame.f_globals, Path(level.filename)
+
         return installed_via_setup, g, path
 
     def _get_name(self) -> str:

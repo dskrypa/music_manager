@@ -70,8 +70,7 @@ class Text(Element):
 
         return {'padx': x, 'pady': y}
 
-    @property
-    def _init_size(self) -> Optional[XY]:
+    def _init_size(self, font: Font) -> Optional[XY]:
         try:
             width, size = self.size
         except TypeError:
@@ -83,6 +82,8 @@ class Text(Element):
         lines = self._value.splitlines()
         width = max(map(len, lines))
         height = len(lines)
+        if font and 'bold' in font:
+            width += 1
         return width, height
 
     @property
@@ -114,7 +115,7 @@ class Text(Element):
             **self.style_config,
         }
         try:
-            kwargs['width'], kwargs['height'] = self._init_size
+            kwargs['width'], kwargs['height'] = self._init_size(kwargs.get('font'))
         except TypeError:
             pass
 
@@ -135,7 +136,7 @@ class Text(Element):
         }
         kwargs.setdefault('relief', 'flat')
         try:
-            kwargs['width'] = self._init_size[0]
+            kwargs['width'] = self._init_size(kwargs.get('font'))[0]
         except TypeError:
             pass
         self.widget = Entry(row.frame, **kwargs)
@@ -239,7 +240,7 @@ class Input(Interactive):
             'highlightthickness': 0,
             **style.get_map('input', state, bd='border_width', fg='fg', bg='bg', font='font', relief='relief'),
             **style.get_map('input', 'disabled', readonlybackground='bg'),
-            **style.get_map('insert', state, insertbackground='bg'),
+            **style.get_map('insert', state, insertbackground='bg'),  # Insert cursor (vertical line) color
             **self._style_config,
         }
 

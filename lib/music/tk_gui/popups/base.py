@@ -37,7 +37,7 @@ class Popup:
         *,
         parent: Window = None,
         bind_esc: Bool = False,
-        keep_on_top: Bool = True,
+        keep_on_top: Bool = False,
         can_minimize: Bool = False,
         **kwargs
     ):

@@ -33,7 +33,12 @@ def color_to_rgb(color: Color) -> Union[RGB, RGBA]:
 def pick_fg(bg: Optional[Color]) -> Optional[str]:
     if not bg:
         return None
-    elif get_lightness(bg) < 0.5:
+    try:
+        lightness = get_lightness(bg)
+    except ValueError:  # Not in rgb format
+        return '#000000'
+
+    if lightness < 0.5:
         return '#ffffff'
     else:
         return '#000000'

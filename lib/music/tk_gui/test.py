@@ -271,7 +271,7 @@ class GuiTest(Command):
         # Window(layout, anchor_elements='c', size=(300, 500), binds={'<Escape>': 'exit'}).run()
         # Window(layout, 'Test One', anchor_elements='c', binds={'<Escape>': 'exit'}).run()
         # results = Window(layout, binds={'<Escape>': 'exit'}, right_click_menu=RightClickMenu()).run().results
-        window = Window(layout, right_click_menu=RightClickMenu(), exit_on_esc=True, grab_anywhere=True)
+        window = Window(layout, 'Mixed Test', right_click_menu=RightClickMenu(), exit_on_esc=True, grab_anywhere=True)
         with gui_log_handler(multiline):
             results = window.run().results
         print(f'Results: {results}')

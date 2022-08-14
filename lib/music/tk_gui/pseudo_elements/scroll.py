@@ -144,8 +144,12 @@ def get_scrollable(widget: Widget) -> Optional[ScrollableBase]:
         if isinstance(widget, ScrollableBase):
             return widget
 
-        if (parent_name := widget.winfo_parent()) == '.':
-            break
+        try:
+            if (parent_name := widget.winfo_parent()) == '.':
+                break
+        except AttributeError:  # event.widget may be a string when scrolling in a ttk Combobox
+            return None
+
         widget = widget.nametowidget(parent_name)
 
     return None

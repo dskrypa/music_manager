@@ -26,13 +26,13 @@ from .exceptions import DuplicateKeyError
 from .positioning import positioner, Monitor
 from .pseudo_elements.row_container import RowContainer
 from .pseudo_elements.scroll import ScrollableToplevel
-from .style import Style
 from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata, extract_kwargs
 
 if TYPE_CHECKING:
     from pathlib import Path
     from PIL.Image import Image as PILImage
     from .elements.element import Element, ElementBase
+    from .style import StyleSpec
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
 
 __all__ = ['Window']
@@ -158,7 +158,7 @@ class Window(RowContainer):
         layout: Layout = None,
         title: str = None,
         *,
-        style: Style = None,
+        style: StyleSpec = None,
         size: XY = None,
         min_size: XY = (200, 50),
         position: XY = None,
@@ -215,10 +215,10 @@ class Window(RowContainer):
     ):
         self.title = title or ProgramMetadata('').name.replace('_', ' ').title()
         overrides = extract_kwargs(kwargs, _INIT_OVERRIDE_KEYS)
-        cfg = extract_kwargs(kwargs, {'size', 'position'})
+        cfg = extract_kwargs(kwargs, {'size', 'position', 'style'})
         self._config = (config_name or title, config_path, cfg if config is None else (config | cfg))
         self._min_size = min_size
-        super().__init__(layout, **kwargs)
+        super().__init__(layout, style=self.config.style, **kwargs)
 
         self._event_cbs: dict[BindEvent, EventCallback] = {}
         self._bound_for_events: set[str] = set()
@@ -985,6 +985,7 @@ def patch_call_wrapper():
                 args = self.subst(*args)
             return self.func(*args)
         except Exception:  # noqa
+            # The original implementation re-raises SystemExit, but uses a bare `except:` here
             # log.error('Error encountered during tkinter call:', exc_info=True)
             self.widget._report_exception()
 

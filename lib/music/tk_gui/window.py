@@ -27,7 +27,7 @@ from .positioning import positioner, Monitor
 from .pseudo_elements.row_container import RowContainer
 from .pseudo_elements.scroll import ScrollableToplevel
 from .style import Style
-from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata
+from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata, extract_kwargs
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -44,7 +44,10 @@ _GRAB_ANYWHERE_IGNORE = (
     Sizegrip, Scrollbar, Treeview,
     tk.Scale, tk.Scrollbar, tk.Entry, tk.Text, tk.PanedWindow, tk.Listbox, tk.OptionMenu, tk.Button,
 )
-
+_INIT_OVERRIDE_KEYS = {
+    'is_popup', 'resizable', 'keep_on_top', 'can_minimize', 'transparent_color', 'alpha_channel', 'no_title_bar',
+    'modal', 'scaling', 'margins', 'icon',
+}
 
 # region Event Handling Helpers
 
@@ -110,22 +113,42 @@ class MotionTracker:
 
 
 class Window(RowContainer):
-    config = WindowConfigProperty()  # TODO: Use
+    # region Class Attrs
+    config = WindowConfigProperty()
     __hidden_root = None
-    __focus_widget = None
     _tk_event_handlers: dict[str, str] = {}
     _always_bind_events: set[BindEvent] = set()
+    # endregion
+    # region Instance Attrs (with defaults)
+    __focus_widget: Optional[BaseWidget] = None
     _config: tuple[str, Union[str, Path, None], Optional[dict[str, Any]]] = None
-    _finalizer: finalize
-    _last_run: float = 0
+    _keep_on_top: bool = False
     _last_interrupt: Interrupt = Interrupt(time=0)
-    widget: Top = None
-    root: Union[Toplevel, Frame, None] = None
-    _root: Optional[Top] = None
+    _last_known_pos: Optional[XY] = None
+    _last_known_size: Optional[XY] = None
+    _last_run: float = 0
     _motion_tracker: MotionTracker = None
+    _motion_end_cb_id = None
+    _root: Optional[Top] = None
+    root: Union[Toplevel, Frame, None] = None
+    widget: Top = None
     grab_anywhere: GrabAnywhere = False                 #: Whether the window should move on mouse click + movement
     is_popup: bool = False                              #: Whether the window is a popup
+    closed: bool = False
+    icon: bytes = PYTHON_LOGO
+    resizable: bool = True
+    can_minimize: bool = True
+    transparent_color: str = None
+    alpha_channel: int = None
+    no_title_bar: bool = False
+    modal: bool = False
+    scaling: float = None
+    margins: XY = (10, 5)  # x, y
+    # endregion
+    # region Pure Instance Attrs
+    _finalizer: finalize
     element_map: dict[Key, Element]
+    # endregion
 
     # region Init Overload
 
@@ -154,7 +177,6 @@ class Window(RowContainer):
         element_padding: XY = None,
         element_size: XY = None,
         binds: BindMap = None,
-        handle_configure: Bool = False,
         exit_on_esc: Bool = False,
         scroll_y: Bool = False,
         scroll_x: Bool = False,
@@ -179,26 +201,12 @@ class Window(RowContainer):
         layout: Layout = None,
         title: str = None,
         *,
-        size: XY = None,
         min_size: XY = (200, 50),
-        position: XY = None,
-        resizable: Bool = True,
-        keep_on_top: Bool = False,
-        can_minimize: Bool = True,
-        transparent_color: str = None,
-        alpha_channel: int = None,
-        icon: bytes = None,
-        modal: Bool = False,
-        no_title_bar: Bool = False,
-        margins: XY = (10, 5),  # x, y
         binds: BindMap = None,
-        handle_configure: Bool = False,
         exit_on_esc: Bool = False,
         close_cbs: Iterable[Callable] = None,
         right_click_menu: Menu = None,
-        scaling: float = None,
         grab_anywhere: GrabAnywhere = False,
-        is_popup: Bool = False,
         config_name: str = None,
         config_path: Union[str, Path] = None,
         config: dict[str, Any] = None,
@@ -206,39 +214,27 @@ class Window(RowContainer):
         # kill_others_on_close: Bool = False,
     ):
         self.title = title or ProgramMetadata('').name.replace('_', ' ').title()
-        super().__init__(layout, **kwargs)
-        self._config = (config_name or title, config_path, config)
-        self._size = size
+        overrides = extract_kwargs(kwargs, _INIT_OVERRIDE_KEYS)
+        cfg = extract_kwargs(kwargs, {'size', 'position'})
+        self._config = (config_name or title, config_path, cfg if config is None else (config | cfg))
         self._min_size = min_size
-        self._position = position
+        super().__init__(layout, **kwargs)
+
         self._event_cbs: dict[BindEvent, EventCallback] = {}
         self._bound_for_events: set[str] = set()
-        self._motion_end_cb_id = None
-        self._last_known_pos: Optional[XY] = None
-        self._last_known_size: Optional[XY] = None
         self.element_map = {}
-        self.resizable = resizable
-        self._keep_on_top = keep_on_top
-        self.can_minimize = can_minimize
-        self.transparent_color = transparent_color
-        self.alpha_channel = alpha_channel
-        self.icon = icon or PYTHON_LOGO
-        self.modal = modal
-        self.scaling = scaling
-        self.no_title_bar = no_title_bar
-        self.margins = margins
-        self.binds = binds or {}
-        self.closed = False
+
+        for key, val in overrides.items():
+            setattr(self, key, val)
+
         self.close_cbs = list(close_cbs) if close_cbs is not None else []
+        self.binds = binds or {}
         if right_click_menu:
             self._right_click_menu = right_click_menu
             self.binds.setdefault(BindEvent.RIGHT_CLICK, None)
-        if handle_configure:
-            self.binds.setdefault(BindEvent.SIZE_CHANGED, None)
         if exit_on_esc:
             self.binds.setdefault('<Escape>', BindTargets.EXIT)
-        if is_popup:
-            self.is_popup = is_popup
+
         if grab_anywhere is True:
             self.grab_anywhere = True
         elif grab_anywhere:
@@ -418,12 +414,12 @@ class Window(RowContainer):
     def _set_init_size(self):
         if min_size := self._min_size:
             self.set_min_size(*min_size)
-        if self._size:
-            self.size = self._size
+        if size := self.config.size:
+            self.size = size
             return
 
         try:
-            x, y = self._position
+            x, y = self.config.position
         except TypeError:
             x, y = self.position
 
@@ -628,15 +624,15 @@ class Window(RowContainer):
     @keep_on_top.setter
     def keep_on_top(self, value: Bool):
         self._keep_on_top = bool(value)
-        root = self._root
-        if value and not ON_WINDOWS:
-            root.lift()  # Bring the window to the front first
-        # if value:  # Bring the window to the front first
-        #     if ON_WINDOWS:
-        #         root.wm_attributes('-topmost', 0)
-        #     else:
-        #         root.lift()
-        root.wm_attributes('-topmost', 1 if value else 0)
+        if (root := self._root) is not None:
+            if value and not ON_WINDOWS:
+                root.lift()  # Bring the window to the front first
+            # if value:  # Bring the window to the front first
+            #     if ON_WINDOWS:
+            #         root.wm_attributes('-topmost', 0)
+            #     else:
+            #         root.lift()
+            root.wm_attributes('-topmost', 1 if value else 0)
 
     # endregion
 
@@ -680,13 +676,13 @@ class Window(RowContainer):
         outer = self._init_root()
         self.pack_rows()
         if (inner := self.root) != outer:  # outer is scrollable
-            self.pack_container(outer, inner, self._size)
+            self.pack_container(outer, inner, self.config.size)
         else:
             outer.configure(padx=self.margins[0], pady=self.margins[1])
 
         self._set_init_size()
-        if self._position:
-            self.position = self._position
+        if pos := self.config.position:
+            self.position = pos
         else:
             self.move_to_center()
         return outer
@@ -780,12 +776,17 @@ class Window(RowContainer):
     # region Bind Methods
 
     def bind(self, event_pat: Bindable, cb: BindTarget):
+        """
+        Register a bind callback.  If :meth:`.show` was already called, it is applied immediately, otherwise it is
+        registered to be applied later.
+        """
         if self._root:
             self._bind(event_pat, cb)
         else:
             self.binds[event_pat] = cb
 
     def apply_binds(self):
+        """Called by :meth:`.show` to apply all registered callback bindings"""
         for event_pat, cb in self.binds.items():
             self._bind(event_pat, cb)
 
@@ -826,7 +827,7 @@ class Window(RowContainer):
     def _bind_event(self, bind_event: BindEvent, cb: Optional[EventCallback]):
         if cb is not None:
             self._event_cbs[bind_event] = cb
-        if (tk_event := bind_event.event) not in self._bound_for_events:
+        if (tk_event := getattr(bind_event, 'event', bind_event)) not in self._bound_for_events:
             method = getattr(self, self._tk_event_handlers[tk_event])
             log.debug(f'Binding event={tk_event!r} to {method=}')
             self._root.bind(tk_event, method)
@@ -836,7 +837,7 @@ class Window(RowContainer):
 
     # region Event Handling
 
-    @_tk_event_handler('<Configure>')
+    @_tk_event_handler('<Configure>', True)
     def handle_config_changed(self, event: Event):
         # log.debug(f'{self}: Config changed: {event=}')
         root = self._root
@@ -848,22 +849,29 @@ class Window(RowContainer):
     def _handle_motion_stopped(self, event: Event):
         # log.debug(f'Motion stopped: {event=}')
         self._motion_end_cb_id = None
-        new_size, new_pos = self.true_size_and_pos  # The event x/y/size are not the final pos/size
-        if new_pos != self._last_known_pos:
-            # log.debug(f'  Position changed: old={self._last_known_pos}, new={new_pos}')
-            self._last_known_pos = new_pos
-            if cb := self._event_cbs.get(BindEvent.POSITION_CHANGED):
-                cb(event, new_pos)
-        # else:
-        #     log.debug(f'  Position did not change: old={self._last_known_pos}, new={new_pos}')
+        with self.config as config:
+            new_size, new_pos = self.true_size_and_pos  # The event x/y/size are not the final pos/size
+            if new_pos != self._last_known_pos:
+                # log.debug(f'  Position changed: old={self._last_known_pos}, new={new_pos}')
+                self._last_known_pos = new_pos
+                if cb := self._event_cbs.get(BindEvent.POSITION_CHANGED):
+                    cb(event, new_pos)
+                # if not self.is_popup and config.remember_position:
+                if config.remember_position:
+                    config.position = new_pos
+            # else:
+            #     log.debug(f'  Position did not change: old={self._last_known_pos}, new={new_pos}')
 
-        if new_size != self._last_known_size:
-            # log.debug(f'  Size changed: old={self._last_known_size}, new={new_size}')
-            self._last_known_size = new_size
-            if cb := self._event_cbs.get(BindEvent.SIZE_CHANGED):
-                cb(event, new_size)
-        # else:
-        #     log.debug(f'  Size did not change: old={self._last_known_size}, new={new_size}')
+            if new_size != self._last_known_size:
+                # log.debug(f'  Size changed: old={self._last_known_size}, new={new_size}')
+                self._last_known_size = new_size
+                if cb := self._event_cbs.get(BindEvent.SIZE_CHANGED):
+                    cb(event, new_size)
+                # if not self.is_popup and config.remember_size:
+                if config.remember_size:
+                    config.size = new_size
+            # else:
+            #     log.debug(f'  Size did not change: old={self._last_known_size}, new={new_size}')
 
     @_tk_event_handler(BindEvent.RIGHT_CLICK)
     def handle_right_click(self, event: Event):

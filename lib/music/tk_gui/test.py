@@ -82,13 +82,12 @@ class GuiTest(Command):
             size=(300, 500),
             exit_on_esc=True,
             scroll_y=True,
-            # handle_configure=True,
         ).run()
 
     @action
     def max_size(self):
         layout = [[Text(f'test_{i:03d}')] for i in range(100)]
-        Window(layout, 'Auto Max Size Test', exit_on_esc=True, handle_configure=True).run()
+        Window(layout, 'Auto Max Size Test', exit_on_esc=True).run()
 
     @action
     def pick_folder(self):

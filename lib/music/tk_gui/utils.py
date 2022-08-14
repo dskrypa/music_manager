@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 __all__ = [
     'ON_WINDOWS', 'ON_LINUX', 'ON_MAC',
     'Inheritable', 'ClearableCachedPropertyMixin', 'ProgramMetadata', 'ViewLoggerAdapter',
-    'tcl_version', 'max_line_len', 'call_with_popped', 'resize_text_column',
+    'tcl_version', 'max_line_len', 'call_with_popped', 'resize_text_column', 'extract_kwargs',
 ]
 log = logging.getLogger(__name__)
 
@@ -197,7 +197,20 @@ def call_with_popped(func: Callable, keys: Iterable[str], kwargs: dict[str, Any]
 
 
 def extract_style(kwargs: dict[str, Any], keys: Collection[str] = STYLE_CONFIG_KEYS) -> dict[str, Any]:
-    return {key: kwargs.pop(key) for key in tuple(kwargs) if key in keys}
+    return extract_kwargs(kwargs, keys)
+
+
+def extract_kwargs(kwargs: dict[str, Any], keys: Collection[str]) -> dict[str, Any]:
+    if len(kwargs) < len(keys):
+        return {key: kwargs.pop(key) for key in tuple(kwargs) if key in keys}
+
+    extracted = {}
+    for key in keys:
+        try:
+            extracted[key] = kwargs.pop(key)
+        except KeyError:
+            pass
+    return extracted
 
 
 # endregion

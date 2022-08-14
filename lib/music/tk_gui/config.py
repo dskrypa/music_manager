@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
+from inspect import isclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Type, Union, Optional
+from typing import TYPE_CHECKING, Any, Type, Union, Optional, Callable, TypeVar, Generic
 
 from ..__version__ import __title__
 
@@ -21,28 +22,39 @@ log = logging.getLogger(__name__)
 
 _NotSet = object()
 DEFAULT_DIR = '~/.config'
-DEFAULT_NAME = 'gui_config.json'
+DEFAULT_NAME = 'tk_gui_config.json'
 DEFAULT_PATH = f'{DEFAULT_DIR}/{__title__}/{DEFAULT_NAME}'
 DEFAULT_SECTION = '__default__'
 
+T = TypeVar('T')
 
-class ConfigItem:
-    __slots__ = ('name', 'default')
 
-    def __init__(self, default):
+class ConfigItem(Generic[T]):
+    __slots__ = ('name', 'default', 'type', 'popup_dependent')
+
+    def __init__(self, default, type: Callable[[Any], T] = None, popup_dependent: bool = False):  # noqa
         self.default = default
+        self.type = type
+        self.popup_dependent = popup_dependent
 
     def __set_name__(self, owner: Type[WindowConfig], name: str):
         self.name = name
 
-    def __get__(self, instance: Optional[WindowConfig], owner: Type[WindowConfig]):
+    def get(self, instance: WindowConfig) -> Optional[T]:
         try:
-            return instance[self.name]
+            return instance._get(self.name, type=self.type)
         except KeyError:
+            if self.popup_dependent:
+                return self.default[instance.is_popup]
             return self.default
 
-    def __set__(self, instance: WindowConfig, value):
-        if value is not _NotSet:
+    def __get__(self, instance: Optional[WindowConfig], owner: Type[WindowConfig]) -> Union[T, None, ConfigItem]:
+        if instance is None:
+            return self
+        return self.get(instance)
+
+    def __set__(self, instance: WindowConfig, value: T):
+        if value is not _NotSet and self.get(instance) != value:
             instance[self.name] = value
 
     def __delete__(self, instance: WindowConfig):
@@ -50,24 +62,37 @@ class ConfigItem:
 
 
 class WindowConfig:
-    auto_save = ConfigItem(True)
-    remember_size = ConfigItem(True)
-    remember_position = ConfigItem(True)
-    style = ConfigItem(None)
+    auto_save = ConfigItem((True, False), bool, popup_dependent=True)
+    style = ConfigItem(None, str)
+    remember_size = ConfigItem((True, False), bool, popup_dependent=True)
+    remember_position = ConfigItem((True, False), bool, popup_dependent=True)
+    size = ConfigItem(None, tuple)
+    position = ConfigItem(None, tuple)
 
     def __init__(
         self,
         name: Optional[str],
         path: Union[str, Path] = None,
         defaults: dict[str, Any] = None,
-        auto_save: bool = _NotSet,
+        is_popup: bool = False,
     ):
-        self.name = name or DEFAULT_SECTION
-        self.path = normalize_path(path)
-        self.auto_save = auto_save
         self._all_data = None
         self._changed = set()
         self.defaults = defaults.copy() if defaults else {}
+        self._in_cm = False
+        self.is_popup = is_popup
+        self.name = name or DEFAULT_SECTION
+        self.path = normalize_path(path)
+
+    def __repr__(self) -> str:
+        try:
+            path = Path('~').joinpath(self.path.relative_to(Path.home())).as_posix()
+        except ValueError:
+            path = self.path.as_posix()
+
+        # cfg_str = ', '.join(f'{k}={self.get(k)!r}' for k in ('auto_save', 'style'))
+        cfg_str = ', '.join(f'{k}={getattr(self, k)!r}' for k in ('auto_save', 'style'))
+        return f'<{self.__class__.__name__}({self.name!r}, {path!r})[{cfg_str}]>'
 
     @property
     def _data(self) -> dict[str, dict[str, Any]]:
@@ -117,20 +142,23 @@ class WindowConfig:
                 pass
         raise KeyError(key)
 
-    def get(self, key: str, default=_NotSet, type: Type = None):  # noqa
+    def _get(self, key: str, default=_NotSet, type: Callable[[Any], T] = None) -> T:  # noqa
         try:
             value = self.data[key]
         except KeyError:
             if default is not _NotSet:
                 return default
-            try:
-                value = self.__missing__(key)
-            except KeyError:
-                return None
+            value = self.__missing__(key)
 
-        if type is None or isinstance(value, type):
+        if type is None or (isclass(type) and isinstance(value, type)):  # noqa
             return value
         return type(value)
+
+    def get(self, key: str, default=_NotSet, type: Callable[[Any], T] = None) -> T:  # noqa
+        try:
+            return self._get(key, default, type)
+        except KeyError:
+            return None
 
     def __setitem__(self, key: str, value: Any):
         try:
@@ -152,7 +180,18 @@ class WindowConfig:
         if self.auto_save:
             self.save()
 
+    def __enter__(self) -> WindowConfig:
+        self._in_cm = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._in_cm = False
+        if self.auto_save:
+            self.save()
+
     def save(self, force: bool = False):
+        if self._in_cm:
+            return
         all_data = self._all_data
         if not all_data or not (self._changed or force):
             return
@@ -172,10 +211,7 @@ class WindowConfigProperty:
             name, path, defaults = window._config
         except TypeError:
             name = path = defaults = None
-            auto_save = False
-        else:
-            auto_save = window.is_popup
-        return WindowConfig(name, path, defaults, auto_save)
+        return WindowConfig(name, path, defaults, window.is_popup)
 
 
 class GuiConfig:

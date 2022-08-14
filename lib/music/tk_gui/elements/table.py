@@ -183,8 +183,10 @@ class Table(Element):
 
         if alt_row_style := style.table_alt:
             font, fg, bg = alt_row_style.font.default, alt_row_style.fg.default, alt_row_style.bg.default
-            for row in range(0, len(self.data), 2):
-                tree_view.tag_configure(row, background=bg, foreground=fg, font=font)  # noqa
+            tc_kw = {k: v for k, v in {'background': bg, 'foreground': fg, 'font': font}.items() if v is not None}
+            if tc_kw:
+                for row in range(0, len(self.data), 2):
+                    tree_view.tag_configure(row, **tc_kw)  # noqa
 
         tree_view.configure(style=self._ttk_style()[0])
         # tree_view.bind('<<TreeviewSelect>>', self._treeview_selected)

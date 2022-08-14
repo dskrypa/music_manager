@@ -274,12 +274,14 @@ class Text(Element):
     def _enable_link(self):
         widget = self.widget
         widget.bind(self.__link.bind, self._open_link)
-        widget.configure(cursor='hand2', fg=self.style.link.fg.default)
+        link_style = self.style.link
+        widget.configure(cursor='hand2', fg=link_style.fg.default, font=link_style.font.default)
 
     def _disable_link(self, link_bind: str):
         widget = self.widget
         widget.unbind(link_bind)
-        widget.configure(cursor='', fg=self.style.text.fg.default)
+        text_style = self.style.text
+        widget.configure(cursor='', fg=text_style.fg.default, font=text_style.font.default)
 
     def _open_link(self, event: Event):
         if not (link := self.link) or self.should_ignore(event):

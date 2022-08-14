@@ -86,10 +86,13 @@ class Radio(Interactive, Generic[T]):
         style = self.style
         return {
             'highlightthickness': 1,
-            **style.get_map(
-                'radio', self.style_state, bd='border_width', font='font', highlightcolor='fg', fg='fg',
-                highlightbackground='bg', background='bg', activebackground='bg',
-            ),
+            # **style.get_map(
+            #     'radio', self.style_state, bd='border_width', font='font', highlightcolor='fg', fg='fg',
+            #     highlightbackground='bg', background='bg', activebackground='bg',
+            # ),
+            **style.get_map('radio', self.style_state, bd='border_width', font='font', fg='fg', background='bg'),
+            **style.get_map('radio', 'active', activebackground='bg', activeforeground='fg'),
+            **style.get_map('radio', 'highlight', highlightbackground='bg', highlightcolor='fg'),
             **style.get_map('selected', self.style_state, selectcolor='fg'),
             **self._style_config,
         }
@@ -299,6 +302,7 @@ def make_checkbox_grid(rows: list[Sequence[CheckBox]]):
 
 
 class Combo(Interactive):
+    """A form element that provides a drop down list of items to select.  Only 1 item may be selected."""
     widget: Combobox
     tk_var: Optional[StringVar] = None
 
@@ -334,7 +338,8 @@ class Combo(Interactive):
             **style.get_map('selected', state, selectforeground='fg', selectbackground='bg'),
         }
         ttk_style.configure(ttk_style_name, **style_kwargs)
-        ttk_style.map(ttk_style_name, fieldbackground=[('readonly', style.combo.bg[state])])
+        if ro_bg := style.combo.bg[state]:
+            ttk_style.map(ttk_style_name, fieldbackground=[('readonly', ro_bg)])
         return ttk_style_name
 
     @property

@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from .elements.element import Element, ElementBase
     from .style import StyleSpec
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
+    from .typing import TkContainer
 
 __all__ = ['Window']
 log = logging.getLogger(__name__)
@@ -130,7 +131,7 @@ class Window(RowContainer):
     _motion_tracker: MotionTracker = None
     _motion_end_cb_id = None
     _root: Optional[Top] = None
-    root: Union[Toplevel, Frame, None] = None
+    root: Optional[TkContainer] = None
     widget: Top = None
     grab_anywhere: GrabAnywhere = False                 #: Whether the window should move on mouse click + movement
     is_popup: bool = False                              #: Whether the window is a popup
@@ -304,7 +305,10 @@ class Window(RowContainer):
     def interrupt(self, event: Event = None, element: ElementBase = None):
         self._last_interrupt = Interrupt(event, element)
         # log.debug(f'Interrupting {self} due to {event=}')
+        # try:
         self._root.quit()  # exit the TK main loop, but leave the window open
+        # except AttributeError:  # May occur when closing windows out of order
+        #     pass
 
     def read(self, timeout: int) -> tuple[Optional[Key], dict[Key, Any], Optional[Event]]:
         self.run(timeout)
@@ -411,20 +415,27 @@ class Window(RowContainer):
             # height += 30  # Title bar size on Windows 10; more info would be needed for portability
         return width, height
 
-    def _set_init_size(self):
-        if min_size := self._min_size:
-            self.set_min_size(*min_size)
-        if size := self.config.size:
-            self.size = size
-            return
-
-        try:
-            x, y = self.config.position
-        except TypeError:
+    def _get_monitor(self, init: bool = False) -> Optional[Monitor]:
+        if init:
+            try:
+                x, y = self.config.position
+            except TypeError:
+                x, y = self.position
+        else:
             x, y = self.position
 
         if not (monitor := positioner.get_monitor(x, y)):
             log.debug(f'Could not find monitor for pos={x, y}')
+        return monitor
+
+    def _set_init_size(self):
+        if min_size := self._min_size:
+            self.set_min_size(*min_size)
+
+        if size := self.config.size:
+            self.size = size
+            return
+        elif not (monitor := self._get_monitor(True)):
             return
 
         root = self._root
@@ -672,11 +683,28 @@ class Window(RowContainer):
             root.tk.call('tk', 'scaling', scaling)
         return root
 
+    def _get_init_inner_size(self, inner: TkContainer) -> Optional[XY]:
+        if size := self.config.size:
+            return size
+        x_div, y_div = self._scroll_divisors()
+        if y_div <= 1 or not (monitor := self._get_monitor(True)):
+            return None
+
+        inner.update()
+        width: int = inner.winfo_reqwidth() // x_div  # noqa
+        height = inner.winfo_reqheight()
+        max_outer_height = monitor.height - 130
+        max_inner_height = max_outer_height - 50
+        if height > max_outer_height / 3:
+            height = min(max_inner_height, height // y_div)  # noqa
+
+        return width, height
+
     def _init_pack_root(self) -> Top:
         outer = self._init_root()
         self.pack_rows()
         if (inner := self.root) != outer:  # outer is scrollable
-            self.pack_container(outer, inner, self.config.size)
+            self.pack_container(outer, inner, self._get_init_inner_size(inner))
         else:
             outer.configure(padx=self.margins[0], pady=self.margins[1])
 
@@ -892,6 +920,7 @@ class Window(RowContainer):
 
     @classmethod
     def _close(cls, root: Toplevel):
+        # TODO: If closed out of order, make sure to exit
         log.debug(f'Closing: {root}')
         # log.debug('  Quitting...')
         # log.debug(f'  Quitting: {root}')
@@ -911,6 +940,7 @@ class Window(RowContainer):
 
     def close(self, event: Event = None):
         self.closed = True
+        # self.interrupt(event)  # Prevent `run` from waiting for an interrupt that will not come if closed out of order
         # if event and not self.has_focus:
         #     log.debug(f'Ignoring {event=} for window={self}')
         #     return

@@ -62,8 +62,8 @@ class RowContainer(ABC):
         element_size: XY = None,
         scroll_y: Bool = False,
         scroll_x: Bool = False,
-        scroll_y_div: float = 2,
-        scroll_x_div: float = 1,
+        scroll_y_div: float = None,
+        scroll_x_div: float = None,
     ):
         ...
 
@@ -87,8 +87,8 @@ class RowContainer(ABC):
         element_size: XY = None,
         scroll_y: Bool = False,
         scroll_x: Bool = False,
-        scroll_y_div: float = 2,
-        scroll_x_div: float = 1,
+        scroll_y_div: float = None,
+        scroll_x_div: float = None,
     ):
         self.anchor_elements = Anchor(anchor_elements)
         self.text_justification = Justify(text_justification)
@@ -196,13 +196,22 @@ class RowContainer(ABC):
             return item in self.widget_element_map
         return item in self.element_widgets_map
 
+    def _scroll_divisors(self) -> tuple[float, float]:
+        x_div, y_div = self.scroll_x_div, self.scroll_y_div
+        if x_div is None:
+            x_div = 1
+        if y_div is None:
+            y_div = 1.5
+        return x_div, y_div
+
     def pack_container(self, outer: ScrollableContainer, inner: TkContainer, size: Optional[XY]):
         inner.update()
         try:
             width, height = size
         except TypeError:
-            width = inner.winfo_reqwidth() // self.scroll_x_div
-            height = inner.winfo_reqheight() // self.scroll_y_div
+            x_div, y_div = self._scroll_divisors()
+            width = inner.winfo_reqwidth() // x_div
+            height = inner.winfo_reqheight() // y_div
 
         canvas = outer.canvas
         canvas.configure(scrollregion=canvas.bbox('all'), width=width, height=height)

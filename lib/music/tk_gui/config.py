@@ -30,23 +30,36 @@ T = TypeVar('T')
 
 
 class ConfigItem(Generic[T]):
-    __slots__ = ('name', 'default', 'type', 'popup_dependent')
+    __slots__ = ('name', 'default', 'type', 'popup_dependent', 'depends_on')
 
-    def __init__(self, default, type: Callable[[Any], T] = None, popup_dependent: bool = False):  # noqa
+    def __init__(
+        self,
+        default,
+        type: Callable[[Any], T] = None,  # noqa
+        popup_dependent: bool = False,
+        depends_on: ConfigItem = None,
+    ):
         self.default = default
         self.type = type
         self.popup_dependent = popup_dependent
+        self.depends_on = depends_on
+        if popup_dependent and depends_on:
+            raise ValueError('depends_on cannot be combined with popup_dependent')
 
     def __set_name__(self, owner: Type[WindowConfig], name: str):
         self.name = name
 
     def get(self, instance: WindowConfig) -> Optional[T]:
         try:
-            return instance._get(self.name, type=self.type)
+            value = instance._get(self.name, type=self.type)
         except KeyError:
             if self.popup_dependent:
                 return self.default[instance.is_popup]
             return self.default
+
+        if (depends_on := self.depends_on) and not depends_on.get(instance):
+            return self.default
+        return value
 
     def __get__(self, instance: Optional[WindowConfig], owner: Type[WindowConfig]) -> Union[T, None, ConfigItem]:
         if instance is None:
@@ -66,8 +79,8 @@ class WindowConfig:
     style = ConfigItem(None, str)
     remember_size = ConfigItem((True, False), bool, popup_dependent=True)
     remember_position = ConfigItem((True, False), bool, popup_dependent=True)
-    size = ConfigItem(None, tuple)
-    position = ConfigItem(None, tuple)
+    size = ConfigItem(None, tuple, depends_on=remember_size)
+    position = ConfigItem(None, tuple, depends_on=remember_position)
 
     def __init__(
         self,
@@ -212,77 +225,6 @@ class WindowConfigProperty:
         except TypeError:
             name = path = defaults = None
         return WindowConfig(name, path, defaults, window.is_popup)
-
-
-class GuiConfig:
-    # TODO: Remove
-    def __init__(self, path: Union[str, Path] = DEFAULT_PATH, auto_save: bool = False, defaults: dict[str, Any] = None):
-        self.path = path
-        self._data = None
-        self._changed = set()
-        self.defaults = defaults.copy() if defaults else {}
-        self.auto_save = auto_save
-
-    @property
-    def path(self) -> Path:
-        return self._path
-
-    @path.setter
-    def path(self, path: Union[str, Path]):
-        path = Path(path).expanduser()
-        if path.parent.as_posix() == '.':  # If only a file name was provided
-            path = Path(DEFAULT_PATH).expanduser().parent.joinpath(path)
-        if not path.parent.exists():
-            path.parent.mkdir(parents=True)
-        self._path = path
-
-    @property
-    def data(self) -> dict[str, Any]:
-        if self._data is None:
-            if self._path.is_file():
-                with self._path.open('r', encoding='utf-8') as f:
-                    self._data = json.load(f)
-            else:
-                self._data = {}
-
-            self._changed = set()
-        return self._data
-
-    def __getitem__(self, key: str):
-        try:
-            return self.data[key]
-        except KeyError:
-            if not self.defaults:
-                raise
-        return self.defaults[key]
-
-    def get(self, key: str, default=_NotSet, type: Type = None):  # noqa
-        try:
-            value = self.data[key]
-        except KeyError:
-            if default is _NotSet:
-                return self.defaults.get(key) if self.defaults else None
-            return default
-        else:
-            return type(value) if type is not None and not isinstance(value, type) else value
-
-    def __setitem__(self, key: str, value: Any):
-        self.data[key] = value
-        self._changed.add(key)
-        if self.auto_save:
-            self.save()
-
-    def save(self, force: bool = False):
-        if not self._data or not (self._changed or force):
-            return
-
-        changed = ', '.join(sorted(self._changed))
-        suffix = f' for keys={changed}' if changed else ''
-        log.debug(f'Saving state to {self._path}{suffix}')
-        with self._path.open('w', encoding='utf-8') as f:
-            json.dump(self._data, f, indent=4, sort_keys=True)
-
-        self._changed = set()
 
 
 def normalize_path(path: Union[str, Path, None]) -> Path:

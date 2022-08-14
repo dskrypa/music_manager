@@ -10,11 +10,13 @@ from functools import partial
 from typing import TYPE_CHECKING, Iterator
 
 from ..color import pick_fg
-from ..elements import Text, HorizontalSeparator
+from ..elements import Text, HorizontalSeparator, Combo
 from ..style import Style, StyleSpec, STATE_NAMES
+from ..window import Window
 from .base import Popup
 
 if TYPE_CHECKING:
+    from tkinter import Event
     from ..elements import Element
     from ..typing import Layout
 
@@ -22,15 +24,18 @@ __all__ = ['StylePopup']
 
 
 class StylePopup(Popup):
-    def __init__(self, style: StyleSpec = None, **kwargs):
+    def __init__(self, show_style: StyleSpec = None, **kwargs):
         kwargs.setdefault('bind_esc', True)
         kwargs.setdefault('scroll_y', True)
         kwargs.setdefault('title', 'Style')
+        kwargs.setdefault('style', show_style)
+        kwargs['show'] = False
         super().__init__(**kwargs)
-        self.style = Style.get_style(style)
+        self.show_style = Style.get_style(show_style)
+        self._next_style = None
 
-    def get_layout(self) -> Layout:
-        style = self.style
+    def _get_layout(self, window: Window) -> Layout:
+        style = self.show_style
         if parent := style.parent:
             def parent_cb(event=None):
                 self.__class__(parent).run()
@@ -40,15 +45,37 @@ class StylePopup(Popup):
             parent_kwargs = {}
 
         layout = [
-            [Text('Style:', size=(10, 1), anchor='e', selectable=False), Text(style.name)],
+            [
+                Text('Style:', size=(10, 1), anchor='e', selectable=False),
+                Combo(Style.style_names(), style.name, callback=self._style_selected),
+            ],
             [Text('Parent:', size=(10, 1), anchor='e', selectable=False), Text(**parent_kwargs)],
             [Text('TTK Theme:', size=(10, 1), anchor='e', selectable=False), Text(style.ttk_theme)],
         ]
-        layout.extend(self.build_rows())
+        layout.extend(self.build_rows(window))
         return layout
 
-    def build_rows(self) -> Iterator[list[Element]]:
-        style = self.style
+    def prepare_window(self) -> Window:
+        window = Window(title=self.title, is_popup=True, **self.window_kwargs)
+        window.add_rows(self._get_layout(window))
+        return window
+
+    def _run(self):
+        with self.window(take_focus=True) as window:
+            window.run()
+            if style := self._next_style:
+                popup = self.__class__(style)
+            else:
+                return window.results
+        return popup._run()
+
+    def _style_selected(self, event: Event):
+        if (choice := event.widget.get()) != self.show_style.name:
+            self._next_style = choice
+            self.window.interrupt()
+
+    def build_rows(self, window: Window) -> Iterator[list[Element]]:
+        style = window.style
         styles = {}
         text_keys = {'font', 'border_width', 'arrow_width', 'bar_width'}
         state_nums = range(len(STATE_NAMES))
@@ -58,7 +85,7 @@ class StylePopup(Popup):
         IText = partial(Text, size=(15, 1), justify='c')
         HText = partial(Text, size=(15, 1), justify='c', style=header_style)
 
-        for name, layer in style.iter_layers():
+        for name, layer in self.show_style.iter_layers():
             if not (layer_vals := dict(layer.iter_values())):
                 continue
 

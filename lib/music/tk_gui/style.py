@@ -24,20 +24,20 @@ if TYPE_CHECKING:
 __all__ = ['Style', 'StyleSpec']
 # log = logging.getLogger(__name__)
 
-StyleOptions = Mapping[str, Any]
-StyleSpec = Union[str, 'Style', StyleOptions, tuple[str, StyleOptions], None]
+DEFAULT_FONT = ('Helvetica', 10)
+STATE_NAMES = ('default', 'disabled', 'invalid', 'active', 'highlight')
 
-T = TypeVar('T')
-T_co = TypeVar('T_co', covariant=True)
-
+StateName = Literal['default', 'disabled', 'invalid', 'active', 'highlight']
 StyleAttr = Literal[
     'font', 'tk_font', 'fg', 'bg', 'border_width', 'relief',
     'frame_color', 'trough_color', 'arrow_color', 'arrow_width', 'bar_width',
 ]
-Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
-StateName = Literal['default', 'disabled', 'invalid', 'active', 'highlight']
-STATE_NAMES = ('default', 'disabled', 'invalid', 'active', 'highlight')
+StyleOptions = Mapping[str, Any]
+StyleSpec = Union[str, 'Style', StyleOptions, tuple[str, StyleOptions], None]
 StyleStateVal = Union[StyleState, StateName, Literal[0, 1, 2]]
+Relief = Optional[Literal['raised', 'sunken', 'flat', 'ridge', 'groove', 'solid']]
+T = TypeVar('T')
+T_co = TypeVar('T_co', covariant=True)
 
 OptStr = Optional[str]
 _OptStrTuple = Union[
@@ -201,36 +201,36 @@ class LayerStateValues(Generic[T_co]):
         return None
 
     def __get__(
-        self, instance: Optional[StyleLayer], owner: Type[StyleLayer]
+        self, layer: Optional[StyleLayer], layer_cls: Type[StyleLayer]
     ) -> Union[LayerStateValues, Optional[StateValues[T_co]]]:
-        if instance is None:
+        if layer is None:
             return self
 
-        # print(f'{instance.style}.{instance.layer.name}.{self.name}...')
-        if state_values := instance.__dict__.get(self.name):
+        # print(f'{layer.style}.{layer.prop.name}.{self.name}...')
+        if state_values := layer.__dict__.get(self.name):
             return state_values
 
-        layer_name = instance.prop.name
-        style = instance.style
+        layer_name = layer.prop.name
+        style = layer.style
         if state_values := self.get_parent_values(style.parent, layer_name):
             return state_values
-        elif (default_style := Style.default_style) and style not in default_style._family:
-            if state_values := self.get_values(default_style, layer_name):
-                return state_values
+        # elif (default_style := Style.default_style) and style not in default_style._family:
+        #     if state_values := self.get_values(default_style, layer_name):
+        #         return state_values
 
-        if layer_parent := instance.prop.parent:
+        if layer_parent := layer.prop.parent:
             return getattr(getattr(style, layer_parent), self.name)
-        elif not style.parent or style is default_style:
-            instance.__dict__[self.name] = state_values = StateValues(instance, self.name)
-            return state_values
+        # elif not style.parent or style is default_style:
+        #     layer.__dict__[self.name] = state_values = StateValues(layer, self.name)
+        #     return state_values
+        layer.__dict__[self.name] = state_values = StateValues(layer, self.name)
+        return state_values
 
-        return None
-
-    def __set__(self, instance: StyleLayer, value: RawStateValues):
+    def __set__(self, layer: StyleLayer, value: RawStateValues):
         if value is None:
-            instance.__dict__[self.name] = None
+            layer.__dict__[self.name] = None
         else:
-            instance.__dict__[self.name] = StateValues.new(instance, self.name, value)
+            layer.__dict__[self.name] = StateValues.new(layer, self.name, value)
 
 
 class FontStateValues(LayerStateValues):
@@ -305,11 +305,11 @@ class StyleLayer:
         return f'<{self.__class__.__name__}[{self.style.name}: {self.prop.name}]>'
 
     @classmethod
-    def new(cls, style: Style, layer: StyleLayerProperty, values: LayerValues = None) -> StyleLayer:
+    def new(cls, style: Style, prop: StyleLayerProperty, values: LayerValues = None) -> StyleLayer:
         if not values:
-            return cls(style, layer)
+            return cls(style, prop)
         try:
-            return cls(style, layer, **values)
+            return cls(style, prop, **values)
         except TypeError:
             pass
         raise TypeError(f'Invalid type={values.__class__.__name__!r} to initialize {cls.__name__}')
@@ -340,7 +340,6 @@ class StyleLayer:
 
     def as_dict(self) -> dict[str, StateValues]:
         return dict(self._iter_values())
-        # return {key: getattr(val, 'values', None) for key, val in self.__dict__.items() if key in self._fields}
 
     def iter_values(self) -> Iterator[tuple[str, StateValues]]:
         for key, values in self._iter_values():
@@ -363,20 +362,26 @@ class StyleProperty(Generic[T]):
     def get_parent_part(self, style: Optional[Style]) -> Optional[T]:
         while style:
             if part := style.__dict__.get(self.name):
+                # log.debug(f'get_parent_part: found {part=} for {self.name=} from {style=}')
                 return part
 
             style = style.parent
 
+        # log.debug(f'get_parent_part: returning None for property={self.name!r} for {style=}')
         return None
 
     def __get__(self, instance: Optional[Style], owner: Type[Style]) -> Union[StyleProperty, T, None]:
         if instance is None:
             return self
         elif part := self.get_parent_part(instance):
+            # log.debug(f'__get__: Found {part=} for {self.name=} from a parent of {instance=}')
             return part
-        elif (default_style := owner.default_style) and default_style is not instance:
-            if part := default_style.__dict__.get(self.name):
-                return part
+        # elif (default_style := owner.default_style) and default_style is not instance:
+        #     if part := default_style.__dict__.get(self.name):
+        #         log.debug(f'__get__: Found {part=} for {self.name=} from {default_style=}')
+        #         return part
+        #     log.debug(f'__get__: No part found for {self.name=} from {default_style=}')
+        # log.debug(f'__get__: Returning {self.default=} for {self.name=}')
         return self.default
 
     def __set__(self, instance: Style, value: T):
@@ -401,12 +406,19 @@ class StyleLayerProperty(StyleProperty[StyleLayer]):
         if instance is None:
             return self
         elif part := super().__get__(instance, owner):
+            # log.debug(f'  > Using {part=} from super().__get__')
             return part
-        elif not instance.parent or not (default := owner.default_style) or instance is default:  # noqa
+        # elif not instance.parent or not (default := owner.default_style) or instance is default:  # noqa
+        #     print(f'Creating a new layer for {self.name=} on {instance=}')
+        #     instance.__dict__[self.name] = part = StyleLayer(instance, self)
+        #     return part
+        else:
+            # log.debug(f'Creating a new layer for {self.name=} on {instance=}')
             instance.__dict__[self.name] = part = StyleLayer(instance, self)
             return part
 
-        return None
+        # log.debug(f'Returning None for layer={self.name!r} for {instance=}')
+        # return None
 
     def __set__(self, instance: Style, value: LayerValues):
         instance.__dict__[self.name] = StyleLayer.new(instance, self, value)
@@ -468,6 +480,10 @@ class Style(ClearableCachedPropertyMixin):
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
+
+    @classmethod
+    def style_names(cls) -> list[str]:
+        return [name for name in cls._instances if name and not name.startswith('_')]
 
     @cached_property
     def _family(self) -> set[Style]:
@@ -580,7 +596,9 @@ class Style(ClearableCachedPropertyMixin):
         include_none: Bool = False,
         **dst_src_map
     ) -> dict[str, FinalValue]:
+        # log.debug(f'{self}.get_map: {layer=}')
         layer: StyleLayer = getattr(self, layer)
+        # log.debug(f'  > {layer=}')
         if attrs is not None:
             dst_src_map.update((a, a) for a in attrs)
 
@@ -622,22 +640,45 @@ class Style(ClearableCachedPropertyMixin):
 
 
 # States: (default, disabled, invalid, active, highlight)
+_common = {
+    'font': DEFAULT_FONT,
+    'ttk_theme': 'default',
+    'border_width': 1,
+    'link_fg': '#3a78f2',
+    'link_font': (*DEFAULT_FONT, 'underline'),
+}
+# Style('SystemDefault', **_common, table_alt_bg='#cccdcf')
 Style(
-    'default',
-    font=('Helvetica', 10),
-    ttk_theme='default',
-    border_width=1,
-    tooltip_fg='#000000',
-    tooltip_bg='#ffffe0',  # light yellow
+    'SystemDefault',
+    **_common,
+    table_alt_bg='#cccdcf',
+    # fg=('SystemButtonText', 'SystemDisabledText', None, 'SystemButtonText', 'SystemHighlightText'),
+    # bg=('SystemButtonFace', 'SystemButtonFace', None, 'SystemButtonFace', 'SystemHighlight'),
+    # radio_fg=('SystemWindowText', 'SystemDisabledText', None, 'SystemWindowText', 'SystemWindowFrame'),
+    # radio_bg=('SystemButtonFace', 'SystemButtonFace', None, 'SystemButtonFace', 'SystemButtonFace'),
+    # selected_fg='SystemHighlightText',
+    # selected_bg='SystemHighlight',
+    # listbox_bg='SystemWindow',
+    # input_fg=('SystemWindowText', 'SystemDisabledText', None, None, 'SystemWindowFrame'),
+    # input_bg=('SystemWindow', 'SystemButtonFace', None, None, 'SystemButtonFace'),
+    # # text_fg=('SystemButtonText', 'SystemDisabledText', None, 'SystemButtonText', 'SystemWindowFrame'),  # Label
+    # checkbox_fg=('SystemWindowText', 'SystemDisabledText', None, 'SystemWindowText', 'SystemWindowFrame'),
+    # # checkbox_bg=('SystemButtonFace', None, None, 'SystemButtonFace', 'SystemButtonFace',),
+    # scroll_trough_color='SystemScrollbar',
 )
-Style('_dark_base', parent='default', insert_bg='#FFFFFF')
-Style('_light_base', parent='default', insert_bg='#000000')
+Style(
+    '__base__',
+    tooltip_fg='#000000',
+    tooltip_bg='#ffffe0',   # light yellow
+    **_common,
+)
+Style('_dark_base', parent='__base__', insert_bg='#FFFFFF')
+Style('_light_base', parent='__base__', insert_bg='#000000')
 Style(
     'DarkGrey10',
     parent='_dark_base',
     fg=('#cccdcf', '#000000', '#FFFFFF'),               # light grey, black, white
     bg=('#1c1e23', '#a2a2a2', '#781F1F'),               # dark grey, med grey, maroonish red
-    link_fg='#3a78f2',                                  # blue
     selected_fg=('#1c1e23', '#a2a2a2', '#781F1F'),      # dark grey, med grey, maroonish red [Inverse of non-selected]
     selected_bg=('#cccdcf', '#000000', '#FFFFFF'),      # light grey, black, white
     input_fg=('#8b9fde', '#000000', '#FFFFFF'),         # cobaltish blue, black, white

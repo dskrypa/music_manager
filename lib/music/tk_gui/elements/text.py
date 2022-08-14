@@ -14,6 +14,7 @@ from functools import cached_property, partial
 from tkinter import TclError, StringVar, Label, Event, Entry, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Any
 
+from ..constants import LEFT_CLICK, CTRL_LEFT_CLICK
 from ..enums import Justify, Anchor
 from ..pseudo_elements.scroll import ScrollableText
 from ..style import Style, Font
@@ -27,8 +28,6 @@ if TYPE_CHECKING:
 __all__ = ['Text', 'Link', 'Input', 'Multiline', 'GuiTextHandler', 'gui_log_handler']
 log = logging.getLogger(__name__)
 
-LINK_BIND_DEFAULT = '<Control-ButtonRelease-1>'
-
 
 class Text(Element):
     widget: Union[Label, Entry]
@@ -37,11 +36,11 @@ class Text(Element):
     def __init__(
         self,
         value: Any = '',
-        link: Union[bool, str] = None,
+        link: Union[bool, str, BindTarget] = None,
         *,
         justify: Union[str, Justify] = None,
         anchor: Union[str, Anchor] = None,
-        link_bind: str = LINK_BIND_DEFAULT,
+        link_bind: str = None,
         selectable: Bool = True,
         auto_size: Bool = True,
         **kwargs,
@@ -77,7 +76,7 @@ class Text(Element):
             pass
         else:
             return width, size
-        if not self._auto_size:
+        if not self._auto_size or not self._value:
             return None
         lines = self._value.splitlines()
         width = max(map(len, lines))
@@ -103,7 +102,7 @@ class Text(Element):
             self._pack_label(row)
 
         self.pack_widget()
-        if self.url:
+        if self.url or callable(self._link):
             self._enable_link()
 
     def _pack_label(self, row: Row):
@@ -160,7 +159,7 @@ class Text(Element):
 
         link_text = 'link' if self._link is True else url
         prefix = f'{tooltip}; open' if tooltip else 'Open'
-        suffix = ' with ctrl + click' if self._link_bind == LINK_BIND_DEFAULT else ''
+        suffix = ' with ctrl + click' if self._link_bind in (CTRL_LEFT_CLICK, None) else ''
         return f'{prefix} {link_text} in a browser{suffix}'
 
     # region Link Handling
@@ -172,38 +171,46 @@ class Text(Element):
             return url if url.startswith(('http://', 'https://')) else None
         return None
 
-    def update_link(self, link: Union[bool, str]):
-        old = self._link
-        self._link = link
-        self.clear_cached_properties('url', 'tooltip_text')
+    @cached_property
+    def link_bind(self) -> str:
+        if bind_str := self._link_bind:
+            return bind_str
+        return CTRL_LEFT_CLICK if self.url else LEFT_CLICK
+
+    def update_link(self, link: Union[bool, str, BindTarget]):
+        old, self._link = self._link, link
+        link_bind = self.link_bind  # Store a reference before resetting it
+        self.clear_cached_properties('url', 'tooltip_text', 'link_bind')
         self.add_tooltip(self.tooltip_text)
         if link and not old:
             self._enable_link()
         elif old and not link:
-            self._disable_link()
+            self._disable_link(link_bind)
 
     def _enable_link(self):
         widget = self.widget
-        widget.bind(self._link_bind, self._open_link)
+        widget.bind(self.link_bind, self._open_link)
         widget.configure(cursor='hand2', fg=self.style.link.fg.default)
 
-    def _disable_link(self):
+    def _disable_link(self, link_bind: str):
         widget = self.widget
-        widget.unbind(self._link_bind)
+        widget.unbind(link_bind)
         widget.configure(cursor='', fg=self.style.text.fg.default)
 
     def _open_link(self, event: Event = None):
-        if not (url := self.url):
-            return
         width, height = self.size_and_pos[0]
-        if 0 <= event.x <= width and 0 <= event.y <= height:
+        if not (0 <= event.x <= width and 0 <= event.y <= height):
+            return
+        elif url := self.url:
             webbrowser.open(url)
+        elif callable(cb := self._link):
+            cb(event)
 
     # endregion
 
 
 class Link(Text):
-    def __init__(self, value: Any = '', link: Union[bool, str] = True, link_bind: str = '<ButtonRelease-1>', **kwargs):
+    def __init__(self, value: Any = '', link: Union[bool, str] = True, link_bind: str = LEFT_CLICK, **kwargs):
         super().__init__(value, link=link, link_bind=link_bind, **kwargs)
 
 

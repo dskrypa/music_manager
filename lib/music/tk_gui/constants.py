@@ -1,3 +1,6 @@
+LEFT_CLICK = '<ButtonRelease-1>'
+CTRL_LEFT_CLICK = '<Control-ButtonRelease-1>'
+
 STYLE_CONFIG_KEYS = frozenset({
     'activebackground',
     'activeforeground',

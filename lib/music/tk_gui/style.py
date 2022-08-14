@@ -628,7 +628,7 @@ Style(
     ttk_theme='default',
     border_width=1,
     tooltip_fg='#000000',
-    tooltip_bg='#ffffe0',
+    tooltip_bg='#ffffe0',  # light yellow
 )
 Style('_dark_base', parent='default', insert_bg='#FFFFFF')
 Style('_light_base', parent='default', insert_bg='#000000')

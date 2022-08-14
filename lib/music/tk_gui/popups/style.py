@@ -31,9 +31,17 @@ class StylePopup(Popup):
 
     def get_layout(self) -> Layout:
         style = self.style
+        if parent := style.parent:
+            def parent_cb(event=None):
+                self.__class__(parent).run()
+
+            parent_kwargs = {'value': parent.name, 'link': parent_cb, 'tooltip': f'View style: {parent.name}'}
+        else:
+            parent_kwargs = {}
+
         layout = [
             [Text('Style:', size=(10, 1), anchor='e', selectable=False), Text(style.name)],
-            [Text('Parent:', size=(10, 1), anchor='e', selectable=False), Text(style.parent.name)],
+            [Text('Parent:', size=(10, 1), anchor='e', selectable=False), Text(**parent_kwargs)],
             [Text('TTK Theme:', size=(10, 1), anchor='e', selectable=False), Text(style.ttk_theme)],
         ]
         layout.extend(self.build_rows())
@@ -47,8 +55,8 @@ class StylePopup(Popup):
         name_style = style.sub_style(text_font=style.text.sub_font('default', None, None, 'bold'))
         header_style = style.sub_style(text_font=style.text.sub_font('default', None, None, 'bold', 'underline'))
 
-        IText = partial(Text, size=(10, 1), justify='c')
-        HText = partial(Text, size=(10, 1), justify='c', style=header_style)
+        IText = partial(Text, size=(15, 1), justify='c')
+        HText = partial(Text, size=(15, 1), justify='c', style=header_style)
 
         for name, layer in style.iter_layers():
             if not (layer_vals := dict(layer.iter_values())):

@@ -142,7 +142,7 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
 
     def update_style(self):
         config = self.style_config
-        print(f'{self}: Updating style: {config}')
+        # print(f'{self}: Updating style: {config}')
         # self.widget.configure(**self.style_config)
         self.widget.configure(**config)
 

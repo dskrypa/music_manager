@@ -615,11 +615,14 @@ class Window(RowContainer):
 
     def enable_title_bar(self):
         self.no_title_bar = False
+        root = self._root
+        root.wm_title(self.title)
+        root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
         try:
             # if ON_LINUX:
-            #     self._root.wm_attributes('-type', 'dock')
+            #     root.wm_attributes('-type', 'dock')
             # else:
-            self._root.wm_overrideredirect(False)
+            root.wm_overrideredirect(False)
         except (TclError, RuntimeError):
             log.warning('Error while enabling title bar:', exc_info=True)
 
@@ -741,8 +744,7 @@ class Window(RowContainer):
         if self.no_title_bar:
             self.disable_title_bar()
         else:
-            root.wm_title(self.title)
-            root.tk.call('wm', 'iconphoto', root._w, PhotoImage(data=self.icon))  # noqa
+            self.enable_title_bar()
 
         self.set_alpha(1 if self.alpha_channel is None else self.alpha_channel)
         if self.no_title_bar:

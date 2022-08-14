@@ -27,6 +27,7 @@ class ClockView(AnimatedPopup):
         self._img_size = img_size
         self._toggle_slim_on_click = '<Button-2>'
         kwargs.setdefault('title', 'Clock')
+        kwargs.setdefault('config_name', self.__class__.__name__)
         kwargs.setdefault('margins', (0, 0))
         kwargs.setdefault('style', Style(bg='#000000'))
         kwargs.setdefault('alpha_channel', 0.8)

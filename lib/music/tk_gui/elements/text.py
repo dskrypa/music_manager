@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import tkinter.constants as tkc
 import webbrowser
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from functools import cached_property, partial
 from tkinter import TclError, StringVar, Label, Event, Entry, BaseWidget
@@ -28,8 +29,85 @@ if TYPE_CHECKING:
 __all__ = ['Text', 'Link', 'Input', 'Multiline', 'GuiTextHandler', 'gui_log_handler']
 log = logging.getLogger(__name__)
 
+_Link = Union[bool, str, 'BindTarget', None]
+
+# region Link Targets
+
+
+class LinkTarget(ABC):
+    __slots__ = ('bind', '_tooltip')
+
+    def __init__(self, bind: str, tooltip: str = None):
+        self.bind = bind
+        self._tooltip = tooltip
+
+    @property
+    def tooltip(self) -> Optional[str]:
+        return self._tooltip
+
+    @abstractmethod
+    def open(self, event: Event):
+        raise NotImplementedError
+
+    @classmethod
+    def new(cls, value: _Link, bind: str = None, tooltip: str = None, text: str = None) -> Optional[LinkTarget]:
+        if not value:
+            return None
+        elif isinstance(value, LinkTarget):
+            return value
+        elif value is True:
+            value = text
+
+        if isinstance(value, str):
+            if value.startswith(('http://', 'https://')):
+                return UrlLink(value, bind, tooltip, url_in_tooltip=value != text)
+            else:
+                log.debug(f'Ignoring invalid url={value!r}')
+                return None
+        else:
+            return CallbackLink(value, bind, tooltip)
+
+
+class UrlLink(LinkTarget):
+    __slots__ = ('url', 'url_in_tooltip')
+
+    def __init__(self, url: str = None, bind: str = None, tooltip: str = None, url_in_tooltip: bool = False):
+        super().__init__(CTRL_LEFT_CLICK if not bind and url else bind, tooltip)
+        self.url = url
+        self.url_in_tooltip = url_in_tooltip
+
+    @property
+    def tooltip(self) -> str:
+        tooltip = self._tooltip
+        if not (url := self.url):
+            return tooltip
+
+        link_text = url if self.url_in_tooltip else 'link'
+        prefix = f'{tooltip}; open' if tooltip else 'Open'
+        suffix = ' with ctrl + click' if self.bind == CTRL_LEFT_CLICK else ''
+        return f'{prefix} {link_text} in a browser{suffix}'
+
+    def open(self, event: Event):
+        if url := self.url:
+            webbrowser.open(url)
+
+
+class CallbackLink(LinkTarget):
+    __slots__ = ('callback',)
+
+    def __init__(self, callback: BindTarget, bind: str = None, tooltip: str = None):
+        super().__init__(bind or LEFT_CLICK, tooltip)
+        self.callback = callback
+
+    def open(self, event: Event):
+        self.callback(event)
+
+
+# endregion
+
 
 class Text(Element):
+    __link: Optional[LinkTarget] = None
     widget: Union[Label, Entry]
     string_var: Optional[StringVar] = None
 
@@ -51,9 +129,8 @@ class Text(Element):
             if not selectable:
                 anchor = Justify.LEFT.as_anchor()
         super().__init__(justify_text=justify, anchor=anchor, **kwargs)
-        self._link_bind = link_bind
         self._value = str(value)
-        self._link = link or link is None
+        self.link = (link_bind, link)
         self._selectable = selectable
         self._auto_size = auto_size
 
@@ -102,7 +179,7 @@ class Text(Element):
             self._pack_label(row)
 
         self.pack_widget()
-        if self.url or callable(self._link):
+        if self.__link:
             self._enable_link()
 
     def _pack_label(self, row: Row):
@@ -151,45 +228,52 @@ class Text(Element):
     def value(self):
         return self.string_var.get()
 
-    @cached_property
+    @property
     def tooltip_text(self) -> str:
-        tooltip = self._tooltip_text
-        if not (url := self.url):
-            return tooltip
+        try:
+            return self.__link.tooltip
+        except AttributeError:
+            return self._tooltip_text
 
-        link_text = 'link' if self._link is True else url
-        prefix = f'{tooltip}; open' if tooltip else 'Open'
-        suffix = ' with ctrl + click' if self._link_bind in (CTRL_LEFT_CLICK, None) else ''
-        return f'{prefix} {link_text} in a browser{suffix}'
+    def should_ignore(self, event: Event) -> bool:
+        """Return True if the event ended with the cursor outside this element, False otherwise"""
+        width, height = self.size_and_pos[0]
+        return not (0 <= event.x <= width and 0 <= event.y <= height)
 
     # region Link Handling
 
-    @cached_property
-    def url(self) -> Optional[str]:
-        if link := self._link:
-            url = link if isinstance(link, str) else self._value
-            return url if url.startswith(('http://', 'https://')) else None
-        return None
+    @property
+    def link(self) -> Optional[LinkTarget]:
+        return self.__link
 
-    @cached_property
-    def link_bind(self) -> str:
-        if bind_str := self._link_bind:
-            return bind_str
-        return CTRL_LEFT_CLICK if self.url else LEFT_CLICK
+    @link.setter
+    def link(self, value: Union[LinkTarget, _Link, tuple[Optional[str], _Link]]):
+        if isinstance(value, LinkTarget):
+            self.__link = value
+            return
+        elif isinstance(value, tuple):
+            bind, value = value
+        else:
+            bind = getattr(self.__link, 'bind', None)
+
+        self.__link = LinkTarget.new(value, bind, self._tooltip_text, self._value)
 
     def update_link(self, link: Union[bool, str, BindTarget]):
-        old, self._link = self._link, link
-        link_bind = self.link_bind  # Store a reference before resetting it
-        self.clear_cached_properties('url', 'tooltip_text', 'link_bind')
-        self.add_tooltip(self.tooltip_text)
-        if link and not old:
+        old = self.__link
+        self.__link = new = LinkTarget.new(link, getattr(old, 'bind', None), self._tooltip_text, self._value)
+        self.add_tooltip(new.tooltip if new else self._tooltip_text)
+        if old and new and old.bind != new.bind:
+            widget = self.widget
+            widget.unbind(old.bind)
+            widget.bind(new.bind, self._open_link)
+        elif new and not old:
             self._enable_link()
-        elif old and not link:
-            self._disable_link(link_bind)
+        elif old and not new:
+            self._disable_link(old.bind)
 
     def _enable_link(self):
         widget = self.widget
-        widget.bind(self.link_bind, self._open_link)
+        widget.bind(self.__link.bind, self._open_link)
         widget.configure(cursor='hand2', fg=self.style.link.fg.default)
 
     def _disable_link(self, link_bind: str):
@@ -197,14 +281,10 @@ class Text(Element):
         widget.unbind(link_bind)
         widget.configure(cursor='', fg=self.style.text.fg.default)
 
-    def _open_link(self, event: Event = None):
-        width, height = self.size_and_pos[0]
-        if not (0 <= event.x <= width and 0 <= event.y <= height):
+    def _open_link(self, event: Event):
+        if not (link := self.link) or self.should_ignore(event):
             return
-        elif url := self.url:
-            webbrowser.open(url)
-        elif callable(cb := self._link):
-            cb(event)
+        link.open(event)
 
     # endregion
 

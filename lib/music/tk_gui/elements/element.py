@@ -136,6 +136,16 @@ class ElementBase(ClearableCachedPropertyMixin, ABC):
         }
         self.widget.pack(**pack_kwargs)
 
+    @property
+    def style_config(self) -> dict[str, Any]:
+        return self._style_config
+
+    def update_style(self):
+        config = self.style_config
+        print(f'{self}: Updating style: {config}')
+        # self.widget.configure(**self.style_config)
+        self.widget.configure(**config)
+
     # endregion
 
 
@@ -223,10 +233,6 @@ class Element(ElementBase, ABC):
         return None
 
     # region Pack Methods / Attributes
-
-    @property
-    def style_config(self) -> dict[str, Any]:
-        return self._style_config
 
     def pack_into_row(self, row: RowBase, column: int):
         self.parent = row

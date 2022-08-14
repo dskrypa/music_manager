@@ -14,7 +14,7 @@ from tkinter import Toplevel, Frame, BaseWidget
 from typing import TYPE_CHECKING, Optional, Union, Any, overload
 
 from ..enums import Anchor, Justify, Side
-from ..style import Style
+from ..style import Style, StyleSpec
 from ..utils import call_with_popped
 from .row import Row, RowBase
 
@@ -54,7 +54,7 @@ class RowContainer(ABC):
         self,
         layout: Layout = None,
         *,
-        style: Style = None,
+        style: StyleSpec = None,
         anchor_elements: Union[str, Anchor] = None,
         text_justification: Union[str, Justify] = None,
         element_side: Union[str, Side] = None,
@@ -69,7 +69,7 @@ class RowContainer(ABC):
 
     # endregion
 
-    def __init__(self, layout: Layout = None, *, style: Style = None, **kwargs):
+    def __init__(self, layout: Layout = None, *, style: StyleSpec = None, **kwargs):
         self._id = next(self._counter)
         self.style = Style.get_style(style)
         self.init_container(layout, **kwargs)
@@ -100,6 +100,11 @@ class RowContainer(ABC):
         self.scroll_x = scroll_x
         self.scroll_y_div = scroll_y_div
         self.scroll_x_div = scroll_x_div
+
+    def add_rows(self, layout: Layout):
+        rows = self.rows
+        for i, row in enumerate(layout, len(rows)):
+            rows.append(Row(self, row, i))
 
     @property
     @abstractmethod
@@ -158,6 +163,12 @@ class RowContainer(ABC):
             except AttributeError:
                 pass
         return id_ele_map
+
+    @cached_property
+    def all_elements(self) -> list[Union[ElementBase, Row]]:
+        from ..elements.element import ElementBase
+
+        return [e for e in self.widget_element_map.values() if isinstance(e, (ElementBase, Row))]
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self._id}]>'

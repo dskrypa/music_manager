@@ -141,3 +141,7 @@ class Row(RowBase):
         frame.pack(side=tkc.TOP, anchor=anchor, padx=0, pady=0, expand=expand, fill=fill)
         if bg := self.style.base.bg.default:
             frame.configure(background=bg)
+
+    def update_style(self):
+        if bg := self.style.base.bg.default:
+            self.frame.configure(background=bg)

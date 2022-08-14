@@ -26,13 +26,13 @@ from .exceptions import DuplicateKeyError
 from .positioning import positioner, Monitor
 from .pseudo_elements.row_container import RowContainer
 from .pseudo_elements.scroll import ScrollableToplevel
+from .style import Style, StyleSpec
 from .utils import ON_LINUX, ON_WINDOWS, ProgramMetadata, extract_kwargs
 
 if TYPE_CHECKING:
     from pathlib import Path
     from PIL.Image import Image as PILImage
     from .elements.element import Element, ElementBase
-    from .style import StyleSpec
     from .typing import XY, BindCallback, EventCallback, Key, BindTarget, Bindable, BindMap, Layout, Bool, HasValue
     from .typing import TkContainer
 
@@ -191,6 +191,7 @@ class Window(RowContainer):
         config_name: str = None,                            #: Name used in config files (defaults to title)
         config_path: Union[str, Path] = None,
         config: dict[str, Any] = None,
+        show: Bool = True,
         # kill_others_on_close: Bool = False,
     ):
         ...
@@ -211,23 +212,23 @@ class Window(RowContainer):
         config_name: str = None,
         config_path: Union[str, Path] = None,
         config: dict[str, Any] = None,
+        style: StyleSpec = None,
+        show: Bool = True,
         **kwargs,
         # kill_others_on_close: Bool = False,
     ):
         self.title = title or ProgramMetadata('').name.replace('_', ' ').title()
-        overrides = extract_kwargs(kwargs, _INIT_OVERRIDE_KEYS)
-        cfg = extract_kwargs(kwargs, {'size', 'position', 'style'})
+        cfg = extract_kwargs(kwargs, {'size', 'position'})
         self._config = (config_name or title, config_path, cfg if config is None else (config | cfg))
         self._min_size = min_size
-        super().__init__(layout, style=self.config.style, **kwargs)
 
+        for key, val in extract_kwargs(kwargs, _INIT_OVERRIDE_KEYS).items():
+            setattr(self, key, val)  # This needs to happen before touching self.config to have is_popup set
+
+        super().__init__(layout, style=style or self.config.style, **kwargs)
         self._event_cbs: dict[BindEvent, EventCallback] = {}
         self._bound_for_events: set[str] = set()
         self.element_map = {}
-
-        for key, val in overrides.items():
-            setattr(self, key, val)
-
         self.close_cbs = list(close_cbs) if close_cbs is not None else []
         self.binds = binds or {}
         if right_click_menu:
@@ -244,7 +245,7 @@ class Window(RowContainer):
             else:
                 raise ValueError(f'Unexpected {grab_anywhere=} value')
         # self.kill_others_on_close = kill_others_on_close
-        if self.rows:
+        if show and self.rows:
             self.show()
 
     @property
@@ -333,6 +334,8 @@ class Window(RowContainer):
             with self.window(take_focus=True) as window:
                 window.run()
         """
+        if self._root is None:
+            self.show()
         if take_focus:
             self.take_focus()
         return self
@@ -474,9 +477,12 @@ class Window(RowContainer):
     @position.setter
     def position(self, pos: XY):
         root = self._root
-        root.geometry('+{}+{}'.format(*pos))
-        # root.x root.y = pos
-        root.update_idletasks()
+        try:
+            root.geometry('+{}+{}'.format(*pos))
+            # root.x root.y = pos
+            root.update_idletasks()
+        except AttributeError:  # root has not been created yet
+            self.config.position = pos
 
     @property
     def true_position(self) -> XY:
@@ -576,7 +582,11 @@ class Window(RowContainer):
 
     @property
     def has_focus(self) -> bool:
-        if (focus_widget := self._root.focus_get()) is None:
+        try:
+            focus_widget = self._root.focus_get()
+        except KeyError:
+            focus_widget = None
+        if focus_widget is None:  # focus_get may also return None
             return False
         return focus_widget.winfo_toplevel() == self._root
 
@@ -645,6 +655,11 @@ class Window(RowContainer):
             #         root.lift()
             root.wm_attributes('-topmost', 1 if value else 0)
 
+    def update_style(self, style: StyleSpec):
+        self.style = Style.get_style(style)
+        for element in self.all_elements:
+            element.update_style()
+
     # endregion
 
     # region Show Window Methods
@@ -657,7 +672,7 @@ class Window(RowContainer):
             self.widget = self._root = self.root = root = Toplevel(**kwargs)
             return root
 
-        kwargs['inner_kwargs'] = kwargs.copy()
+        kwargs['inner_kwargs'] = kwargs.copy()  # noqa
         self.widget = self._root = root = ScrollableToplevel(
             scroll_y=scroll_y, scroll_x=scroll_x, style=style, pad=self.margins, **kwargs
         )

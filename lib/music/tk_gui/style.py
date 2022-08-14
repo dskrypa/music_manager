@@ -8,6 +8,7 @@ from __future__ import annotations
 
 # import logging
 from collections import namedtuple
+from functools import cached_property
 from itertools import count
 from tkinter.font import Font as TkFont
 from tkinter.ttk import Style as TtkStyle
@@ -213,7 +214,7 @@ class LayerStateValues(Generic[T_co]):
         style = instance.style
         if state_values := self.get_parent_values(style.parent, layer_name):
             return state_values
-        elif (default_style := Style.default_style) and style not in (default_style, default_style.parent):
+        elif (default_style := Style.default_style) and style not in default_style._family:
             if state_values := self.get_values(default_style, layer_name):
                 return state_values
 
@@ -468,6 +469,14 @@ class Style(ClearableCachedPropertyMixin):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{self.name!r}, parent={self.parent.name if self.parent else None}]>'
 
+    @cached_property
+    def _family(self) -> set[Style]:
+        ancestors = {self}
+        style = self
+        while style := style.parent:
+            ancestors.add(style)
+        return ancestors
+
     # region Configuration / Init
 
     def _configure(self, kwargs: StyleOptions):
@@ -613,24 +622,30 @@ class Style(ClearableCachedPropertyMixin):
 
 
 # States: (default, disabled, invalid, active, highlight)
-Style('default', font=('Helvetica', 10), ttk_theme='default', border_width=1)
 Style(
-    'DarkGrey10',
-    parent='default',
-    fg=('#cccdcf', '#000000', '#FFFFFF'),
-    bg=('#1c1e23', '#a2a2a2', '#781F1F'),
-    link_fg='#3a78f2',
-    selected_fg=('#1c1e23', '#a2a2a2', '#781F1F'),  # Inverse of non-selected
-    selected_bg=('#cccdcf', '#000000', '#FFFFFF'),
-    insert_bg='#FFFFFF',
-    input_fg=('#8b9fde', '#000000', '#FFFFFF'),
-    input_bg=('#272a31', '#a2a2a2', '#781F1F'),
-    menu_fg=('#8b9fde', '#616161', None, '#8b9fde'),
-    menu_bg=('#272a31', '#272a31', None, '#000000'),
-    button_fg=('#f5f5f6', None, None, '#000000'),
-    button_bg=('#2e3d5a', None, None, '#8b9fde'),
+    'default',
+    font=('Helvetica', 10),
+    ttk_theme='default',
+    border_width=1,
     tooltip_fg='#000000',
     tooltip_bg='#ffffe0',
-    table_alt_fg='#8b9fde',
-    table_alt_bg='#272a31',
+)
+Style('_dark_base', parent='default', insert_bg='#FFFFFF')
+Style('_light_base', parent='default', insert_bg='#000000')
+Style(
+    'DarkGrey10',
+    parent='_dark_base',
+    fg=('#cccdcf', '#000000', '#FFFFFF'),               # light grey, black, white
+    bg=('#1c1e23', '#a2a2a2', '#781F1F'),               # dark grey, med grey, maroonish red
+    link_fg='#3a78f2',                                  # blue
+    selected_fg=('#1c1e23', '#a2a2a2', '#781F1F'),      # dark grey, med grey, maroonish red [Inverse of non-selected]
+    selected_bg=('#cccdcf', '#000000', '#FFFFFF'),      # light grey, black, white
+    input_fg=('#8b9fde', '#000000', '#FFFFFF'),         # cobaltish blue, black, white
+    input_bg=('#272a31', '#a2a2a2', '#781F1F'),         # dark grey, med grey, maroonish red
+    menu_fg=('#8b9fde', '#616161', None, '#8b9fde'),    # cobaltish blue, med/dark grey, -, cobaltish blue
+    menu_bg=('#272a31', '#272a31', None, '#000000'),    # med grey, med grey, -, black
+    button_fg=('#f5f5f6', None, None, '#000000'),       # whiteish, -, -, black
+    button_bg=('#2e3d5a', None, None, '#8b9fde'),       # dark blue, -, -, cobaltish blue
+    table_alt_fg='#8b9fde',                             # cobaltish blue
+    table_alt_bg='#272a31',                             # med grey
 ).make_default()

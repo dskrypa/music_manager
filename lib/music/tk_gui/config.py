@@ -94,7 +94,7 @@ class WindowConfig:
         self.defaults = defaults.copy() if defaults else {}
         self._in_cm = False
         self.is_popup = is_popup
-        self.name = name or DEFAULT_SECTION
+        self.name = name
         self.path = normalize_path(path)
 
     def __repr__(self) -> str:
@@ -104,7 +104,7 @@ class WindowConfig:
             path = self.path.as_posix()
 
         # cfg_str = ', '.join(f'{k}={self.get(k)!r}' for k in ('auto_save', 'style'))
-        cfg_str = ', '.join(f'{k}={getattr(self, k)!r}' for k in ('auto_save', 'style'))
+        cfg_str = ', '.join(f'{k}={getattr(self, k)!r}' for k in ('auto_save', 'style', 'is_popup'))
         return f'<{self.__class__.__name__}({self.name!r}, {path!r})[{cfg_str}]>'
 
     @property
@@ -119,7 +119,14 @@ class WindowConfig:
             self._changed = set()
         return self._all_data
 
-    def _get_section(self, name: str) -> dict[str, Any]:
+    def _get_section(self, name: Optional[str]) -> dict[str, Any]:
+        if name is None:
+            try:
+                return self.__data  # noqa
+            except AttributeError:
+                self.__data = data = {}
+                return data
+
         all_data = self._data
         try:
             return all_data[name]
@@ -165,6 +172,8 @@ class WindowConfig:
 
         if type is None or (isclass(type) and isinstance(value, type)):  # noqa
             return value
+        elif value is None and type is str:
+            return value
         return type(value)
 
     def get(self, key: str, default=_NotSet, type: Callable[[Any], T] = None) -> T:  # noqa
@@ -203,7 +212,7 @@ class WindowConfig:
             self.save()
 
     def save(self, force: bool = False):
-        if self._in_cm:
+        if self._in_cm or self.name is None:
             return
         all_data = self._all_data
         if not all_data or not (self._changed or force):
@@ -219,12 +228,23 @@ class WindowConfig:
 
 
 class WindowConfigProperty:
+    __slots__ = ('name',)
+
+    def __set_name__(self, owner: Type[Window], name: str):
+        self.name = name
+
     def __get__(self, window: Optional[Window], window_cls: Type[Window]) -> WindowConfig:
+        try:
+            return window.__dict__[self.name]
+        except KeyError:
+            pass
         try:
             name, path, defaults = window._config
         except TypeError:
             name = path = defaults = None
-        return WindowConfig(name, path, defaults, window.is_popup)
+
+        window.__dict__[self.name] = config = WindowConfig(name, path, defaults, window.is_popup)
+        return config
 
 
 def normalize_path(path: Union[str, Path, None]) -> Path:

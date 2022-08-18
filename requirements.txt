@@ -1,6 +1,7 @@
 requests_client@ git+https://github.com/dskrypa/requests_client
 wiki_nodes@ git+https://github.com/dskrypa/wiki_nodes
 ds_tools[images,J2R]@ git+https://github.com/dskrypa/ds_tools
+tk_gui@ git+https://github.com/dskrypa/tk_gui
 beautifulsoup4
 cachetools
 cli_command_parser

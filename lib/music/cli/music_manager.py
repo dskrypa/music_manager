@@ -134,7 +134,7 @@ class ShowProcessed(Show, choice='processed', help='Show processed album info'):
 # endregion
 
 
-class Path2Tag(MusicManager, help='Update tags based on the path to each file'):
+class Path2Tag(MusicManager, choice='path2tag', help='Update tags based on the path to each file'):
     path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
     title = Flag('-t', help='Update title based on filename')
     yes = Flag('-y', help='Skip confirmation prompts')
@@ -180,39 +180,38 @@ class Bpm(MusicManager, help='Add BPM info to the specified files'):
         add_track_bpm(self.path, self.parallel, self.dry_run)
 
 
-class Update(MusicManager, help='Set the value of the given tag on all music files in the given path'):
-    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+class ApplyUpdates(MusicManager, choice='apply updates', help='Apply updates from a file'):
     no_album_move = Flag('-M', help='Do not rename the album directory (only applies to --load/-L)')
     replace_genre = Flag('-G', help='Replace genre instead of combining genres')
-
-    with ParamGroup(mutually_exclusive=True):
-        with ParamGroup('Load File'):
-            load = Option('-L', metavar='PATH', required=True, help='Load updates from a json file (may not be combined with other options)')
-            destination = Option('-d', metavar='PATH', help=f"Destination base directory for sorted files (default: based on today's date)")
-        with ParamGroup('Tag Update'):
-            tag = Option('-t', nargs='+', required=True, help='Tag ID(s) to modify (required)')
-            value = Option('-V', required=True, help='Value to replace existing values with (required)')
-            replace = Option('-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
-            partial = Flag('-p', help='Update only parts of tags that match a pattern specified via --replace/-r')
-            regex = Flag('-R', help='Treat the provided --replace / -r values as regex patterns (default: glob)')
+    load = Option('-L', metavar='PATH', required=True, help='Load updates from a json file (may not be combined with other options)')
+    destination = Option('-d', metavar='PATH', help=f"Destination base directory for sorted files (default: based on today's date)")
 
     def main(self):
-        if self.load:
-            from datetime import date
-            from music.manager.update import AlbumInfo
+        from datetime import date
+        from music.manager.update import AlbumInfo
 
-            AlbumInfo.load(self.load).update_and_move(
-                dest_base_dir=self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d')),
-                dry_run=self.dry_run,
-                no_album_move=self.no_album_move,
-                add_genre=not self.replace_genre,
-            )
-        else:
-            from music.manager.file_update import update_tags_with_value
+        AlbumInfo.load(self.load).update_and_move(
+            dest_base_dir=self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d')),
+            dry_run=self.dry_run,
+            no_album_move=self.no_album_move,
+            add_genre=not self.replace_genre,
+        )
 
-            update_tags_with_value(
-                self.path, self.tag, self.value, self.replace, self.partial, dry_run=self.dry_run, regex=self.regex
-            )
+
+class Update(MusicManager, help='Set the value of the given tag on all music files in the given path'):
+    path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
+    tag = Option('-t', nargs='+', required=True, help='Tag ID(s) to modify (required)')
+    value = Option('-V', required=True, help='Value to replace existing values with (required)')
+    replace = Option('-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
+    partial = Flag('-p', help='Update only parts of tags that match a pattern specified via --replace/-r')
+    regex = Flag('-R', help='Treat the provided --replace / -r values as regex patterns (default: glob)')
+
+    def main(self):
+        from music.manager.file_update import update_tags_with_value
+
+        update_tags_with_value(
+            self.path, self.tag, self.value, self.replace, self.partial, dry_run=self.dry_run, regex=self.regex
+        )
 
 
 class Dump(MusicManager, help='Dump tag info about the specified files to json'):

@@ -194,6 +194,7 @@ class Update(MusicManager, help='Set the value of the given tag on all music fil
             value = Option('-V', required=True, help='Value to replace existing values with (required)')
             replace = Option('-r', nargs='+', help='If specified, only replace tag values that match the given patterns(s)')
             partial = Flag('-p', help='Update only parts of tags that match a pattern specified via --replace/-r')
+            regex = Flag('-R', help='Treat the provided --replace / -r values as regex patterns (default: glob)')
 
     def main(self):
         if self.load:
@@ -209,7 +210,9 @@ class Update(MusicManager, help='Set the value of the given tag on all music fil
         else:
             from music.manager.file_update import update_tags_with_value
 
-            update_tags_with_value(self.path, self.tag, self.value, self.replace, self.partial, self.dry_run)
+            update_tags_with_value(
+                self.path, self.tag, self.value, self.replace, self.partial, dry_run=self.dry_run, regex=self.regex
+            )
 
 
 class Dump(MusicManager, help='Dump tag info about the specified files to json'):

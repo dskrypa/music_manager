@@ -82,6 +82,9 @@ class RatingSynchronizer:
         else:
             func, tracks = self._sync_to_file, self.plex.find_songs_by_rating_gte(1, **kwargs)
 
+        if not tracks:
+            log.warning(f'No tracks found with path_filter={self.path_filter!r}')
+
         with ThreadPoolExecutor(max_workers=self.parallel) as executor:
             futures = (executor.submit(func, track) for track in tracks)
             for future in as_completed(futures):
@@ -101,6 +104,7 @@ class RatingSynchronizer:
     def _sync_to_plex(self, track):
         file = SongFile.for_plex_track(track, self.plex.server_root)
         if (file_stars := file.star_rating_10) is None:
+            log.log(9, f'No rating is stored for {file}')
             return
 
         plex_stars = track.userRating

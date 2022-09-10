@@ -291,7 +291,7 @@ def _get_plex(plex: 'LocalPlexServer' = None) -> 'LocalPlexServer':
     return plex
 
 
-def _track_diff(a: set[Track], b: set[Track]) -> set[Track]:
+def _track_diff(a: set[Track], b: set[Track]) -> list[str]:
     """
     Considers tracks with the same ID or with the same artist name + album name + title to be the same track.
 
@@ -299,11 +299,21 @@ def _track_diff(a: set[Track], b: set[Track]) -> set[Track]:
     :param b: A set of tracks
     :return: The set of tracks that are in set A that are not in set B
     """
-    a_dict = {(t.grandparentTitle, t.parentTitle, t.title): t for t in a}
-    b_titles = {(t.grandparentTitle, t.parentTitle, t.title) for t in b}
+    # a_dict = {(t.grandparentTitle, t.parentTitle, t.title): t for t in a}
+    # b_titles = {(t.grandparentTitle, t.parentTitle, t.title) for t in b}
+    a_dict = {_track_key(t): (i, t) for i, t in enumerate(a, 1)}
+    b_titles = {_track_key(t) for t in b}
     if title_diff := set(a_dict).difference(b_titles):
-        diff_id_map = {t._int_key: t for t in (a_dict[k] for k in title_diff)}
+        diff_id_map = {t._int_key: (i, t) for i, t in (a_dict[k] for k in title_diff)}
         keep_ids = set(diff_id_map).difference(t._int_key for t in b)
-        return {diff_id_map[i] for i in keep_ids}
+        return ['[{:04d}] {}'.format(*diff_id_map[i]) for i in keep_ids]
     else:
-        return set()
+        return []
+
+
+def _norm_title(title: str) -> str:
+    return ''.join(title.split()).casefold()
+
+
+def _track_key(track: Track) -> tuple[str, str, str]:
+    return _norm_title(track.grandparentTitle), _norm_title(track.parentTitle), _norm_title(track.title)

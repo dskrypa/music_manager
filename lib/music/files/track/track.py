@@ -980,35 +980,50 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         for tag_id in tag_ids:
             if names_by_type := TYPED_TAG_MAP.get(tag_id):
                 tag_id = names_by_type[self.tag_type]
-            if not (tag_name := ID3_TAG_DISPLAY_NAME_MAP.get(tag_id)):
-                raise ValueError(f'Invalid tag ID: {tag_id}')
+
             norm_name = self.normalize_tag_name(tag_id)
-
-            if current_vals := self.tags_for_id(tag_id):
-                if len(current_vals) > 1:
-                    log.warning(f'Found multiple values for {tag_id}/{tag_name} in {self} - using first value')
-
-                current_val = current_vals[0]
-                if tag_id.startswith('WXXX:'):
-                    current_text = current_val.url[0]
-                else:
-                    current_text = current_val.text[0]
-
-                new_text = current_text
+            if file_val := self.tag_text(tag_id, default=None):
+                new_text = file_val
                 if partial:
                     for pat in patterns:
                         new_text = pat.sub(value, new_text)
                 else:
                     if patterns:
-                        if any(pat.search(current_text) for pat in patterns):
+                        if any(pat.search(file_val) for pat in patterns):
                             new_text = value
                     else:
                         new_text = value
 
-                if new_text != current_text:
+                if new_text != file_val:
                     to_update[norm_name] = new_text
             else:
                 to_update[norm_name] = value
+
+            # if current_vals := self.tags_for_id(tag_id):
+            #     if len(current_vals) > 1:
+            #         log.warning(f'Found multiple values for {tag_id}/{norm_name} in {self} - using first value')
+            #
+            #     current_val = current_vals[0]
+            #     if tag_id.startswith('WXXX:'):
+            #         current_text = current_val.url[0]
+            #     else:
+            #         current_text = current_val.text[0]
+            #
+            #     new_text = current_text
+            #     if partial:
+            #         for pat in patterns:
+            #             new_text = pat.sub(value, new_text)
+            #     else:
+            #         if patterns:
+            #             if any(pat.search(current_text) for pat in patterns):
+            #                 new_text = value
+            #         else:
+            #             new_text = value
+            #
+            #     if new_text != current_text:
+            #         to_update[norm_name] = new_text
+            # else:
+            #     to_update[norm_name] = value
 
         return to_update
 

@@ -24,7 +24,10 @@ def update_tags_with_value(paths: Paths, tag_ids, value, replace_pats=None, part
     if partial and not patterns:
         raise ValueError('When using --partial/-p, --replace/-r must also be specified')
 
-    for music_obj in iter_albums_or_files(paths):
+    for n, music_obj in enumerate(iter_albums_or_files(paths)):
+        if n:
+            print()
+
         music_obj.update_tags_with_value(tag_ids, value, patterns=patterns, partial=partial, dry_run=dry_run)
 
 

@@ -17,8 +17,7 @@ class MusicManager(Command, description='Music Manager'):
         dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
         match_log = Flag(help='Enable debug logging for the album match processing logger')
 
-    def _before_main_(self):
-        super()._before_main_()
+    def _init_command_(self):
         import logging
         from ds_tools.logging import init_logging
 

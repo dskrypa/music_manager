@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 __all__ = ['AlbumDiffView']
 
+# TODO: Wiki update of an album that has ratings results in erasing ratings
+
 
 class AlbumDiffView(MainView, view_name='album_diff'):
     def __init__(

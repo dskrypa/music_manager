@@ -4,6 +4,8 @@ Song File / Audio Track
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import struct
@@ -15,7 +17,7 @@ from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern
 from urllib.parse import quote
 
 from mutagen import File, FileType
@@ -36,7 +38,7 @@ from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
 from ...common.ratings import stars_to_256, stars_from_256, stars
-from ...constants import ID3_TAG_DISPLAY_NAME_MAP, TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
+from ...constants import TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
 from ...text.name import Name
 from ..cover import prepare_cover_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
@@ -53,9 +55,11 @@ if TYPE_CHECKING:
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
+
 ON_WINDOWS = system().lower() == 'windows'
 MP4_STR_ENCODINGS = {AtomDataType.UTF8: 'utf-8', AtomDataType.UTF16: 'utf-16be'}  # noqa
 MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover.FORMAT_PNG}
+
 MutagenFile = Union[MP3, MP4, FLAC, FileType]
 ImageTag = Union[APIC, MP4Cover, Picture]
 
@@ -972,7 +976,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             log.log(none_level, f'No changes to make for {self.extended_repr}')
 
-    def get_tag_updates(self, tag_ids, value, patterns=None, partial=False):
+    def get_tag_updates(
+        self,
+        tag_ids: Iterable[str],
+        value: str,
+        patterns: Iterable[Union[str, Pattern]] = None,
+        partial: bool = False,
+    ):
         if partial and not patterns:
             raise ValueError('Unable to perform partial tag update without any patterns')
         patterns = compiled_fnmatch_patterns(patterns)

@@ -4,6 +4,7 @@
 
 import re
 from fnmatch import translate as fnmatch_to_regex_str
+from typing import Iterable, Pattern, Union
 
 __all__ = [
     'ALBUM_CLEANUP_RE_FUNCS', 'EXTRACT_PART_MATCH', 'GROUP_TITLE_MATCH_FUNCS', 'LYRIC_URL_MATCH', 'SAMPLE_RATE_PAT',
@@ -33,7 +34,7 @@ LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
 SAMPLE_RATE_PAT = re.compile(r'\((\d+(?:\.\d+)?)\s*kHz\)', re.IGNORECASE)
 
 
-def compiled_fnmatch_patterns(patterns):
+def compiled_fnmatch_patterns(patterns: Iterable[Union[str, Pattern]]) -> list[Pattern]:
     if patterns:
         return [re.compile(fnmatch_to_regex_str(p)[4:-3]) if isinstance(p, str) else p for p in patterns]
     return []

@@ -11,7 +11,7 @@ from datetime import date
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection
+from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Pattern
 
 from mutagen.id3 import TDRC, ID3
 
@@ -120,6 +120,8 @@ class AlbumDir(ClearableCachedPropertyMixin):
     @cached_property
     def path_track_map(self) -> dict[Path, SongFile]:
         return {track.path: track for track in self.songs}
+
+    # region Tag-based Properties
 
     @cached_property
     def title(self) -> Optional[str]:
@@ -253,6 +255,8 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 log.debug('Multiple dates found in {}: {}'.format(self, ', '.join(sorted(map(str, dates)))))
         return None
 
+    # endregion
+
     def fix_song_tags(self, dry_run: bool = False, add_bpm: bool = False, callback: Callable = None):
         self._fix_song_tags(self.songs, dry_run=dry_run, add_bpm=add_bpm, callback=callback)
 
@@ -338,7 +342,14 @@ class AlbumDir(ClearableCachedPropertyMixin):
             mid = f'songs in {tracks}' if isinstance(tracks, cls) else 'provided songs'
             log.debug(f'None of the {mid} had any tags that needed to be removed')
 
-    def update_tags_with_value(self, tag_ids, value, patterns=None, partial=False, dry_run=False):
+    def update_tags_with_value(
+        self,
+        tag_ids: Iterable[str],
+        value: str,
+        patterns: Iterable[Union[str, Pattern]] = None,
+        partial: bool = False,
+        dry_run: bool = False,
+    ):
         updates = {file: file.get_tag_updates(tag_ids, value, patterns=patterns, partial=partial) for file in self}
         if any(values for values in updates.values()):
             common_changes = get_common_changes(self, updates, dry_run=dry_run)

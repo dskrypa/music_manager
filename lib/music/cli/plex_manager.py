@@ -53,10 +53,12 @@ class PlexManager(Command, description=DESCRIPTION):
 class SyncRatings(PlexManager, choice='sync ratings', help='Sync song rating information between Plex and files'):
     direction = Positional(choices=('to_files', 'from_files'), help='Direction to sync information')
     path_filter = Option('-f', help='If specified, paths that will be synced must contain the given text (not case sensitive)')
+    parallel: int = Option('-P', default=4, help='Number of workers to use in parallel')
 
     def main(self, *args, **kwargs):
         from music.plex.ratings import sync_ratings
-        sync_ratings(self.plex, self.direction, self.path_filter)
+
+        sync_ratings(self.plex, self.direction, self.path_filter, self.parallel)
 
 
 class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists with custom filters'):

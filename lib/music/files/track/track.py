@@ -35,7 +35,7 @@ from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 from tz_aware_dt import format_duration
-from ...common.ratings import stars_to_256, stars_from_256
+from ...common.ratings import stars_to_256, stars_from_256, stars
 from ...constants import ID3_TAG_DISPLAY_NAME_MAP, TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
 from ...text.name import Name
 from ..cover import prepare_cover_image
@@ -702,6 +702,21 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # endregion
 
     # region Tag-Related Properties
+
+    @property
+    def common_tag_info(self) -> dict[str, Union[str, int, float, bool, None]]:
+        return {
+            'album artist': self.tag_album_artist,
+            'artist': self.tag_artist,
+            'album': self.tag_album,
+            'disk': self.disk_num,
+            'track': self.track_num,
+            'title': self.tag_title,
+            'rating': stars(self.star_rating_10) if self.star_rating_10 is not None else '',
+            'genre': self.tag_genre,
+            'date': str(self.date) if self.date else None,
+            'bpm': self.bpm(calculate=False),
+        }
 
     @cached_property
     def all_artists(self) -> set[Name]:

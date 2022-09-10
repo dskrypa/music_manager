@@ -1,6 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, ParamGroup, main
 
 from ..__version__ import __author_email__, __version__  # noqa
+
+if TYPE_CHECKING:
+    from music.files.album import AlbumDir
 
 
 class MusicManager(Command, description='Music Manager'):
@@ -61,10 +68,49 @@ class ShowCount(Show, choice='count', help='Count tracks by tag'):
 class ShowTable(Show, choice='table', help='Show tags in a table'):
     path = Positional(nargs='*', help='Paths for music files or directories containing music files')
     tags = Option('-t', nargs='+', help='The tags to display')
+    summary = Flag('-s', help='Show a summary of each album instead of the full table')
 
     def main(self):
+        from music.files.album import iter_album_dirs
         from music.manager.file_info import table_song_tags
-        table_song_tags(self.path or '.', self.tags)
+
+        if self.summary:
+            for n, album_dir in enumerate(iter_album_dirs(self.path or '.')):
+                if n:
+                    print('\n')
+
+                self.show_album_summary(album_dir)
+        else:
+            table_song_tags(self.path or '.', self.tags)
+
+    def show_album_summary(self, album_dir: AlbumDir):  # noqa
+        from ds_tools.output.color import colored
+        from ds_tools.output.table import Table, SimpleColumn
+
+        artist = album_dir.album_artist or album_dir.artist or ', '.join(map(str, sorted(album_dir.all_artists)))
+        title = album_dir.title
+        print(f'Location: {album_dir.relative_path}')
+        print(f'Album: {colored(str(title), 10)}, Artist: {colored(str(artist), 11)}')
+        for key, url in {'Artist': album_dir.artist_url, 'Album': album_dir.album_url}.items():
+            if url:
+                print(f'{key} URL: {url}')
+
+        rows = [{'file': f.path.name, **f.common_tag_info} for f in album_dir]
+        try:
+            columns = list(rows[0])
+        except IndexError:
+            print('No tracks found')
+            return
+
+        columns.remove('album artist')
+        columns.remove('album')
+        artists = {f.tag_artist for f in album_dir}
+        if len(artists) == 1 and next(iter(artists)) == str(artist):
+            columns.remove('artist')
+
+        print()
+        tbl = Table(*(SimpleColumn(key) for key in columns), update_width=True)
+        tbl.print_rows(rows)
 
 
 class ShowUnique(Show, choice='unique', help='Count tracks with unique tag values'):

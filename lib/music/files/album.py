@@ -64,11 +64,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         self._album_score = -1
 
     def __repr__(self) -> str:
-        try:
-            rel_path = self.path.relative_to(Path('.').resolve()).as_posix()
-        except Exception:
-            rel_path = self.path.as_posix()
-        return '<{}({!r})>'.format(type(self).__name__, rel_path)
+        return f'<{self.__class__.__name__}({self.relative_path!r})>'
 
     def __iter__(self) -> Iterator[SongFile]:
         return iter(self.songs)
@@ -85,6 +81,13 @@ class AlbumDir(ClearableCachedPropertyMixin):
             pass
         path = path.resolve()
         return self.path_track_map[path]
+
+    @property
+    def relative_path(self) -> str:
+        try:
+            return self.path.relative_to(Path.cwd().resolve()).as_posix()
+        except Exception:  # noqa
+            return self.path.as_posix()
 
     def move(self, dest_path: Union[Path, str]):
         if not isinstance(dest_path, Path):

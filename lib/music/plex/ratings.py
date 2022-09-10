@@ -6,6 +6,7 @@ Plex Track rating utilities
 
 import logging
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Union, Iterable
 
 from ..common.ratings import stars
@@ -13,7 +14,7 @@ from ..files.track.track import SongFile
 from .server import LocalPlexServer
 from .utils import parse_filters
 
-__all__ = ['find_and_rate', 'sync_ratings', 'sync_ratings_to_files', 'sync_ratings_from_files', 'adjust_track_ratings']
+__all__ = ['find_and_rate', 'sync_ratings', 'adjust_track_ratings']
 log = logging.getLogger(__name__)
 
 
@@ -52,61 +53,63 @@ def find_and_rate(
                 obj.edit(**{'userRating.value': rating})
 
 
-def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None):
-    if direction == 'to_files':
-        sync_ratings_to_files(plex, path_filter)
-    elif direction == 'from_files':
-        sync_ratings_from_files(plex, path_filter)
-    else:
-        raise ValueError(f'Invalid rating sync {direction=}')
-
-
-def sync_ratings_to_files(plex: LocalPlexServer, path_filter: str = None):
+def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None, parallel: int = 4):
     """
     Sync the song ratings from this Plex server to the files
 
     :param plex: A :class:`LocalPlexServer`
+    :param direction: ``from_files`` to sync from files to Plex, ``to_files`` to sync from Plex to files
     :param path_filter: String that file paths must contain to be sync'd
+    :param parallel: Number of workers to use in parallel
     """
-    if plex.server_root is None:
-        raise ValueError(f"The custom.server_path_root is missing from {plex._config_path} and wasn't provided")
-    prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
-    kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
+    RatingSynchronizer(plex, path_filter, parallel).sync(direction == 'from_files')
 
-    for track in plex.find_songs_by_rating_gte(1, **kwargs):
-        file = SongFile.for_plex_track(track, plex.server_root)
+
+class RatingSynchronizer:
+    def __init__(self, plex: LocalPlexServer, path_filter: str = None, parallel: int = 4):
+        if plex.server_root is None:
+            raise ValueError(f"The custom.server_path_root is missing from {plex._config_path} and wasn't provided")
+        self.plex = plex
+        self.dry_run = plex.dry_run
+        self.path_filter = path_filter
+        self.prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
+        self.parallel = parallel
+
+    def sync(self, to_plex: bool):
+        kwargs = {'media__part__file__icontains': self.path_filter} if self.path_filter else {}
+        if to_plex:
+            func, tracks = self._sync_to_plex, self.plex.get_tracks(**kwargs)
+        else:
+            func, tracks = self._sync_to_file, self.plex.find_songs_by_rating_gte(1, **kwargs)
+
+        with ThreadPoolExecutor(max_workers=self.parallel) as executor:
+            futures = (executor.submit(func, track) for track in tracks)
+            for future in as_completed(futures):
+                future.result()
+
+    def _sync_to_file(self, track):
+        file = SongFile.for_plex_track(track, self.plex.server_root)
         file_stars = file.star_rating_10
         plex_stars = track.userRating
         if file_stars == plex_stars:
             log.log(9, f'Rating is already correct for {file}')
         else:
-            log.info(f'{prefix} rating from {file_stars} to {plex_stars} for {file}')
-            if not plex.dry_run:
+            log.info(f'{self.prefix} rating from {file_stars} to {plex_stars} for {file}')
+            if not self.dry_run:
                 file.star_rating_10 = plex_stars
 
+    def _sync_to_plex(self, track):
+        file = SongFile.for_plex_track(track, self.plex.server_root)
+        if (file_stars := file.star_rating_10) is None:
+            return
 
-def sync_ratings_from_files(plex: LocalPlexServer, path_filter: str = None):
-    """
-    Sync the song ratings on this Plex server with the ratings in the files
-
-    :param plex: A :class:`LocalPlexServer`
-    :param path_filter: String that file paths must contain to be sync'd
-    """
-    if plex.server_root is None:
-        raise ValueError(f"The custom.server_path_root is missing from {plex._config_path} and wasn't provided")
-    prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
-    kwargs = {'media__part__file__icontains': path_filter} if path_filter else {}
-    for track in plex.get_tracks(**kwargs):
-        file = SongFile.for_plex_track(track, plex.server_root)
-        file_stars = file.star_rating_10
-        if file_stars is not None:
-            plex_stars = track.userRating
-            if file_stars == plex_stars:
-                log.log(9, f'Rating is already correct for {file}')
-            else:
-                log.info(f'{prefix} rating from {plex_stars} to {file_stars} for {file}')
-                if not plex.dry_run:
-                    track.edit(**{'userRating.value': file_stars})
+        plex_stars = track.userRating
+        if file_stars == plex_stars:
+            log.log(9, f'Rating is already correct for {file}')
+        else:
+            log.info(f'{self.prefix} rating from {plex_stars} to {file_stars} for {file}')
+            if not self.dry_run:
+                track.edit(**{'userRating.value': file_stars})
 
 
 def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating: int = 10, offset: int = -1):

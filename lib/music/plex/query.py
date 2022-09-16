@@ -2,13 +2,16 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from collections import defaultdict
-from itertools import chain
+# from itertools import chain
 from operator import eq
 from typing import TYPE_CHECKING, Collection, Optional, Any, Union, Iterator
-from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import Element, tostring
+
 
 from plexapi.library import LibrarySection
 from plexapi.utils import PLEXOBJECTS
@@ -32,7 +35,7 @@ CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsreg
 
 
 class QueryResults:
-    def __init__(self, plex: 'LocalPlexServer', obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
+    def __init__(self, plex: LocalPlexServer, obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
         self.plex = plex
         self._type = obj_type
         self._data = data
@@ -45,14 +48,14 @@ class QueryResults:
 
     @classmethod
     def new(
-        cls, plex: 'LocalPlexServer', obj_type: PlexObjTypes, section: LibSection = None, **kwargs
-    ) -> 'QueryResults':
+        cls, plex: LocalPlexServer, obj_type: PlexObjTypes, section: LibSection = None, **kwargs
+    ) -> QueryResults:
         section = plex.get_lib_section(section, obj_type)
         params = _resolve_query_filters(obj_type, section, kwargs)
         data = section._server.query(plex._ekey(obj_type, section), params=params)
         return cls(plex, obj_type, data, section.key).filter(**kwargs)
 
-    def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> 'QueryResults':
+    def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> QueryResults:
         return self.__class__(self.plex, obj_type or self._type, data, self._library_section_id)
 
     def __iter__(self) -> Iterator[Element]:
@@ -67,7 +70,7 @@ class QueryResults:
     def __len__(self):
         return len(self._data)
 
-    def __validate(self, other: 'QueryResults', op):
+    def __validate(self, other: QueryResults, op):
         if not isinstance(other, self.__class__):
             raise TypeError(f'Unable to {op} results with type={other.__class__.__name__}')
         elif self._type != other._type:
@@ -117,7 +120,7 @@ class QueryResults:
     def key_map(self, trim=None) -> dict[str, Element]:
         return dict(self.items(trim))
 
-    def in_playlist(self, name: str) -> 'QueryResults':
+    def in_playlist(self, name: str) -> QueryResults:
         if not self._type == 'track':
             raise InvalidQueryFilter('in_playlist() is only implemented for track results')
 
@@ -125,7 +128,7 @@ class QueryResults:
         track_keys = {track.key for track in playlist.items()}          # Note: .items() is a Playlist method, not dict
         return self._new([obj for key, obj in self.items() if key in track_keys])
 
-    def with_genre(self, **kwargs) -> 'QueryResults':
+    def with_genre(self, **kwargs) -> QueryResults:
         for key in list(kwargs):
             if key.startswith('genre') and not key.startswith('genre__tag'):
                 kwargs[key.replace('genre', 'genre__tag', 1)] = kwargs.pop(key)
@@ -163,7 +166,7 @@ class QueryResults:
         else:
             raise InvalidQueryFilter(f'of_show() is only permitted for season and episode results')
 
-    def _apply_custom_filters(self, kwargs) -> 'QueryResults':
+    def _apply_custom_filters(self, kwargs) -> QueryResults:
         result = self
         if in_playlist := kwargs.pop('in_playlist', None):
             result = result.in_playlist(in_playlist)
@@ -186,7 +189,7 @@ class QueryResults:
         log.debug(f'Applying {msg} filters to {self._type}s:\n{final_filters}')
         return [elem for elem in data if check_attrs(elem, **kwargs)]
 
-    def filter(self, **kwargs) -> 'QueryResults':
+    def filter(self, **kwargs) -> QueryResults:
         if not kwargs:
             return self
 
@@ -224,7 +227,7 @@ class QueryResults:
                 return obj
         return None
 
-    def artists(self, **kwargs) -> 'QueryResults':
+    def artists(self, **kwargs) -> QueryResults:
         if self._type == 'artist':
             return self.filter(**kwargs)
         elif self._type == 'album':
@@ -235,7 +238,7 @@ class QueryResults:
             raise InvalidQueryFilter(f'artists() is only permitted for track, album, and artist results')
         return self._query('artist', key__in=artist_keys, **kwargs)
 
-    def albums(self, **kwargs) -> 'QueryResults':
+    def albums(self, **kwargs) -> QueryResults:
         if self._type == 'album':
             return self.filter(**kwargs)
         elif self._type == 'artist':
@@ -245,7 +248,7 @@ class QueryResults:
         else:
             raise InvalidQueryFilter(f'albums() is only permitted for track, album, and artist results')
 
-    def tracks(self, **kwargs) -> 'QueryResults':
+    def tracks(self, **kwargs) -> QueryResults:
         if self._type == 'track':
             return self.filter(**kwargs)
         elif self._type == 'artist':
@@ -255,12 +258,12 @@ class QueryResults:
         else:
             raise InvalidQueryFilter(f'tracks() is only permitted for track, album, and artist results')
 
-    def with_rating(self, rating, op=eq) -> 'QueryResults':
+    def with_rating(self, rating, op=eq) -> QueryResults:
         return self._new({obj for obj in self._data if op(float(obj.attrib.get('userRating', 0)), rating)})
 
     def unique(
         self, rated: bool = True, fuzzy: bool = True, latest: bool = True, singles: bool = False
-    ) -> 'QueryResults':
+    ) -> QueryResults:
         """
         :param rated: When multiple versions of a track with a given name exist, and one of them has a rating, keep the
           one with the rating.  If False, ignore ratings.
@@ -305,27 +308,29 @@ class QueryResults:
                             f'Error processing track name for {artist_key=} {title=} in {parent=}: {track=}',
                             extra={'color': 'red'}
                         )
+                        continue
                         # raise
 
                     keep = track
                     if match := next(filter(track_name.matches, artist_uniq), None):
                         existing = artist_uniq.pop(match)
-                        # log.debug(f'Found {match=!r} / {existing=} for {track_name=!r} / {track=}', extra={'color': 13})
+                        # log.debug(f'Found {match=} / {existing=} for {track_name=} / {track=}', extra={'color': 13})
                         keep = _pick_uniq_track(existing, track, self.plex, rated, latest, singles)
                         keep_name = match if keep == existing else track_name
                     else:
-                        # log.debug(f'{track_name=!r} / {track=} did not match any other tracks from {artist_key=!r}')
+                        # log.debug(f'{track_name=} / {track=} did not match any other tracks from {artist_key=}')
                         keep_name = track_name
 
                     artist_uniq[keep_name] = keep
                 results.update(artist_uniq.values())
         else:
-            results = set(chain.from_iterable(artist_title_obj_map.values()))
+            results = {track for title_obj_map in artist_title_obj_map.values() for track in title_obj_map}
+            # results = set(chain.from_iterable(artist_title_obj_map.values()))
 
         return self._new(results)
 
 
-def _pick_uniq_track(existing: Element, track: Element, plex: 'LocalPlexServer', rated, latest, singles) -> Element:
+def _pick_uniq_track(existing: Element, track: Element, plex: LocalPlexServer, rated, latest, singles) -> Element:
     if rated:
         if existing.attrib.get('userRating') and not track.attrib.get('userRating'):
             # log.debug(f'Keeping {existing=} instead of {track=} because of rating', extra={'color': 11})

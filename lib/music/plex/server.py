@@ -45,9 +45,11 @@ class LocalPlexServer:
         tv_library: str = None,
         movie_library: str = None,
         dry_run: bool = False,
+        apply_patches: bool = True,
     ):
         disable_urllib3_warnings()
-        apply_plex_patches()
+        if apply_patches:
+            apply_plex_patches()
         self._config_path = Path(config_path).expanduser().resolve()
         log.debug(f'Reading PlexAPI config from {self._config_path}')
         if not self._config_path.exists():

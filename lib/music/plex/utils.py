@@ -36,9 +36,12 @@ def parse_filters(
     log.debug(f'parse_filters({obj_type=}, {title=}, {filters=}, {escape=}, {allow_inst=})')
     obj_type = obj_type[:-1] if obj_type.endswith('s') else obj_type
     escape_tbl = str.maketrans({c: '\\' + c for c in '()[]{}^$+*.?|\\' if c in escape})
-    regexcape = lambda text: text.translate(escape_tbl)
+
+    def escape_regex(text: str) -> str:
+        return text.translate(escape_tbl)
+
     title = [title] if isinstance(title, str) else title
-    title = regexcape(' '.join(title)) if title else None
+    title = escape_regex(' '.join(title)) if title else None
 
     if isinstance(filters, str):
         parser = ArgParser()
@@ -50,11 +53,11 @@ def parse_filters(
     for key, val in filters.items():
         try:
             op = key.rsplit('__', 1)[1]
-        except Exception:
+        except Exception:  # noqa
             pass
         else:
             if op in ('regex', 'iregex', 'like', 'like_exact', 'not_like'):
-                filters[key] = regexcape(val)
+                filters[key] = escape_regex(val)
 
     if title and title != '.*':
         if not any(c in title for c in '()[]{}^$+*.?' if c not in escape):
@@ -65,5 +68,5 @@ def parse_filters(
     if not allow_inst:
         filters.setdefault('title__not_like', r'inst(?:\.?|rumental)')
 
-    log.debug('obj_type={}, title={!r} => query={}'.format(obj_type, title, filters))
+    log.debug(f'obj_type={obj_type}, title={title!r} => query={filters}')
     return obj_type, filters  # noqa

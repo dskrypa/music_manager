@@ -279,11 +279,11 @@ def _apply_perf_patches(skip_changed: bool = True):
 
     real_get_attribute = object.__getattribute__
 
-    def get_attribute(self, attr):
+    def get_attribute(self: PlexPartialObject, attr: str):
         # Dragons inside.. :-/
         value = real_get_attribute(self, attr)
         # Check a few cases where we don't want to reload
-        if value is not None or attr in no_reload or attr.startswith('_') or value != []:
+        if attr in no_reload or attr.startswith('_') or value not in (None, []):
             return value
         elif not self.key or (self._details_key or self.key) == self._initpath:  # == self.isFullObject()
             return value

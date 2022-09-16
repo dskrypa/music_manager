@@ -76,7 +76,9 @@ class RatingSynchronizer:
         self.parallel = parallel
 
     def sync(self, to_plex: bool):
-        kwargs = {'media__part__file__icontains': self.path_filter} if self.path_filter else {}
+        kwargs = {'mood__ne': 'Duplicate Rating'}
+        if self.path_filter:
+            kwargs['media__part__file__icontains'] = self.path_filter
         if to_plex:
             func, tracks = self._sync_to_plex, self.plex.get_tracks(**kwargs)
         else:

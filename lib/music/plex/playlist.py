@@ -4,6 +4,8 @@ Plex playlist management utilities
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import gzip
 import json
 import logging
@@ -32,7 +34,7 @@ Tracks = Union[Collection[Track], QueryResults]
 
 
 class PlexPlaylist:
-    def __init__(self, name: str, plex: 'LocalPlexServer' = None, playlist: Playlist = None):
+    def __init__(self, name: str, plex: LocalPlexServer = None, playlist: Playlist = None):
         self.plex = _get_plex(plex)
         self.name = name
         self._playlist = playlist
@@ -58,7 +60,7 @@ class PlexPlaylist:
         return self.playlist is not None
 
     @classmethod
-    def new(cls, name: str, plex: 'LocalPlexServer' = None, content: Tracks = None, **criteria) -> 'PlexPlaylist':
+    def new(cls, name: str, plex: LocalPlexServer = None, content: Tracks = None, **criteria) -> PlexPlaylist:
         self = cls(name, plex)
         self.create(content, **criteria)
         return self
@@ -156,7 +158,7 @@ class PlexPlaylist:
             msg = f'{self} contains {size:,d} tracks and is already in sync with the given criteria'
             log.info(msg, extra={'color': 11})
 
-    def compare_tracks(self, other: 'PlexPlaylist', strict: bool = False):
+    def compare_tracks(self, other: PlexPlaylist, strict: bool = False):
         self_tracks = set(self.playlist.items())
         other_tracks = set(other.playlist.items())
         print(f'{self} contains {len(self_tracks)} tracks, {other} contains {len(other_tracks)} tracks')
@@ -179,7 +181,7 @@ class PlexPlaylist:
     # region Serialization
 
     def dumps(self) -> dict[str, Union[str, list[str]]]:
-        playlist = tostring(self.playlist._data, encoding='unicode')
+        playlist = tostring(self.playlist._data, encoding='unicode')  # noqa
         tracks = [tostring(track._data, encoding='unicode') for track in self.playlist.items()]
         return {'playlist': playlist, 'tracks': tracks}
 
@@ -191,7 +193,7 @@ class PlexPlaylist:
             json.dump(self.dumps(), f, indent=4, sort_keys=True)
 
     @classmethod
-    def dump_all(cls, path: PathLike, plex: 'LocalPlexServer' = None, compress: bool = True):
+    def dump_all(cls, path: PathLike, plex: LocalPlexServer = None, compress: bool = True):
         playlists = {name: playlist.dumps() for name, playlist in _get_plex(plex).playlists.items()}
         path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'))
         log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
@@ -200,14 +202,14 @@ class PlexPlaylist:
             json.dump(playlists, f, indent=4, sort_keys=True)
 
     @classmethod
-    def loads(cls, playlist_data: str, track_data: Collection[str], plex: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+    def loads(cls, playlist_data: str, track_data: Collection[str], plex: LocalPlexServer = None) -> PlexPlaylist:
         plex = _get_plex(plex)
-        playlist = Playlist(plex.server, fromstring(playlist_data.encode('utf-8')))
-        playlist._items = [Track(plex.server, fromstring(td.encode('utf-8'))) for td in track_data]
+        playlist = Playlist(plex.server, fromstring(playlist_data.encode('utf-8')))  # noqa
+        playlist._items = [Track(plex.server, fromstring(td.encode('utf-8'))) for td in track_data]  # noqa
         return cls(playlist.title, plex, playlist)
 
     @classmethod
-    def load(cls, path: PathLike, plex: 'LocalPlexServer' = None) -> 'PlexPlaylist':
+    def load(cls, path: PathLike, plex: LocalPlexServer = None) -> PlexPlaylist:
         path = Path(path).expanduser()
         open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
         with open_func(path, mode, encoding='utf-8') as f:
@@ -215,7 +217,7 @@ class PlexPlaylist:
         return cls.loads(data['playlist'], data['tracks'], plex)
 
     @classmethod
-    def load_all(cls, path: PathLike, plex: 'LocalPlexServer' = None) -> dict[str, 'PlexPlaylist']:
+    def load_all(cls, path: PathLike, plex: LocalPlexServer = None) -> dict[str, PlexPlaylist]:
         path = Path(path).expanduser()
         open_func, mode = (gzip.open, 'rt') if path.suffix == '.gz' else (open, 'r')
         with open_func(path, mode, encoding='utf-8') as f:
@@ -233,14 +235,14 @@ class PlexPlaylist:
 
 # region Public Functions
 
-def dump_playlists(plex: 'LocalPlexServer', path: Union[str, Path], name: str = None, compress: bool = True):
+def dump_playlists(plex: LocalPlexServer, path: Union[str, Path], name: str = None, compress: bool = True):
     if name:
         plex.playlist(name).dump(path, compress)
     else:
         PlexPlaylist.dump_all(path, plex, compress)
 
 
-def compare_playlists(plex: 'LocalPlexServer', path: Union[str, Path], name: str = None, strict: bool = False):
+def compare_playlists(plex: LocalPlexServer, path: Union[str, Path], name: str = None, strict: bool = False):
     file_playlists = PlexPlaylist.load_all(path, plex)
     if name:
         try:
@@ -259,14 +261,14 @@ def compare_playlists(plex: 'LocalPlexServer', path: Union[str, Path], name: str
             current.compare_tracks(playlist, strict)
 
 
-def list_playlists(plex: 'LocalPlexServer', path: Union[str, Path]):
+def list_playlists(plex: LocalPlexServer, path: Union[str, Path]):
     for name in sorted(PlexPlaylist.load_all(path, plex)):
         print(name)
 
 # endregion
 
 
-def _get_tracks(plex: 'LocalPlexServer', content: Tracks = None, **criteria) -> set[Track]:
+def _get_tracks(plex: LocalPlexServer, content: Tracks = None, **criteria) -> set[Track]:
     if content is not None:
         if isinstance(content, QueryResults):
             if content._type != 'track':
@@ -283,7 +285,7 @@ def _get_tracks(plex: 'LocalPlexServer', content: Tracks = None, **criteria) -> 
     raise ValueError('Query results or criteria, or an iterable containing one or more tracks/items are required')
 
 
-def _get_plex(plex: 'LocalPlexServer' = None) -> 'LocalPlexServer':
+def _get_plex(plex: LocalPlexServer = None) -> LocalPlexServer:
     """Workaround for the circular dependency"""
     if plex is None:
         from .server import LocalPlexServer

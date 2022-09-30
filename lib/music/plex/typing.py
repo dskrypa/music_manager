@@ -3,7 +3,8 @@
 """
 
 import logging
-from typing import Literal, Union
+from pathlib import Path
+from typing import Literal, Union, Iterable
 
 from plexapi.audio import Audio, Album, Artist, Track
 from plexapi.library import LibrarySection
@@ -20,3 +21,6 @@ PlexObjTypes = Literal[     # SEARCHTYPES keys
     'photo', 'photoalbum', 'playlist', 'playlistFolder', 'collection', 'userPlaylistItem'
 ]
 LibSection = Union[str, int, LibrarySection]
+
+StrOrStrs = Union[str, Iterable[str]]
+PathLike = Union[str, Path]

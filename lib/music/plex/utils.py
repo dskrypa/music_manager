@@ -1,14 +1,21 @@
+"""
+Utils for dumping raw Plex object data and parsing query filters.
+"""
+
+from __future__ import annotations
 
 import json
 import logging
 from argparse import REMAINDER
-from typing import Union, Iterable
+from typing import TYPE_CHECKING, Union
 
-from ds_tools.argparsing.argparser import ArgParser
-from .typing import PlexObjTypes
+if TYPE_CHECKING:
+    from .typing import PlexObjTypes, StrOrStrs
 
 __all__ = ['pprint', 'parse_filters']
 log = logging.getLogger(__name__)
+
+Filters = dict[str, str]
 
 
 def pprint(plex_obj):
@@ -23,8 +30,8 @@ def _extract(element):
 
 
 def parse_filters(
-    obj_type: str, title: Union[str, Iterable[str]], filters: Union[dict[str, str], str], escape: str, allow_inst: bool
-) -> tuple['PlexObjTypes', dict[str, str]]:
+    obj_type: str, title: StrOrStrs, filters: Union[Filters, str], escape: str, allow_inst: bool
+) -> tuple[PlexObjTypes, Filters]:
     """
     :param obj_type: Type of Plex object to find (tracks, albums, artists, etc)
     :param title: Parts of the name of the object(s) to find, if searching by title__like2
@@ -44,6 +51,8 @@ def parse_filters(
     title = escape_regex(' '.join(title)) if title else None
 
     if isinstance(filters, str):
+        from ds_tools.argparsing.argparser import ArgParser
+
         parser = ArgParser()
         parser.add_argument('ignore')
         parser.add_argument('query', nargs=REMAINDER)

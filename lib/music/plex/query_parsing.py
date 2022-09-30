@@ -90,7 +90,7 @@ class PlexQuery:
     @cached_property
     def _parsed_tree(self):
         try:
-            return self.parser.parse(self._query)
+            return self.parser.parse(self._query)  # noqa
         except (UnexpectedEOF, UnexpectedInput) as e:
             raise InvaidQuery(self._query, e) from e
         except Exception as e:

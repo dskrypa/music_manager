@@ -1,5 +1,5 @@
 """
-Read directly from a copy of Plex's Sqlite3 DB
+Read directly from a copy of Plex's Sqlite3 DB.
 """
 
 from __future__ import annotations
@@ -57,6 +57,12 @@ class PlexDB:
 
     @classmethod
     def from_remote_server(cls, name: str = DEFAULT_FILE_NAME, max_age: int = 180, **kwargs) -> PlexDB:
+        """
+        SCPs the db file from the server to a local path, then initializes this class with that file.
+
+        Uses SCP instead of ``PlexServer.downloadDatabases()`` because SCP is faster.  The REST call is relatively slow,
+        and requires an extra decompression step.
+        """
         path = get_db_file(name, max_age)
         return cls(path, **kwargs)
 

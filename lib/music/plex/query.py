@@ -7,11 +7,9 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
-# from itertools import chain
 from operator import eq
 from typing import TYPE_CHECKING, Collection, Optional, Any, Union, Iterator
-from xml.etree.ElementTree import Element, tostring
-
+from xml.etree.ElementTree import Element
 
 from plexapi.library import LibrarySection
 from plexapi.utils import PLEXOBJECTS
@@ -19,6 +17,7 @@ from plexapi.utils import PLEXOBJECTS
 from ds_tools.output import short_repr
 from ..files.track.track import SongFile
 from ..text.name import Name
+from .config import config
 from .exceptions import InvalidQueryFilter
 from .filters import check_attrs
 from .typing import PlexObjTypes, PlexObj, LibSection
@@ -48,27 +47,54 @@ class QueryResults:
 
     @classmethod
     def new(
-        cls, plex: LocalPlexServer, obj_type: PlexObjTypes, section: LibSection = None, **kwargs
+        cls,
+        plex: LocalPlexServer,
+        obj_type: PlexObjTypes,
+        section: LibSection = None,
+        full: bool = False,
+        check_files: bool = False,
+        **kwargs,
     ) -> QueryResults:
         section = plex.get_lib_section(section, obj_type)
         params = _resolve_query_filters(obj_type, section, kwargs)
-        data = section._server.query(plex._ekey(obj_type, section), params=params)
+        log.debug(f'Beginning new query for {obj_type=} in {section=} ({full=}, {check_files=}) with {params=}')
+        data = section._server.query(plex._ekey(obj_type, section, full, check_files), params=params)
         return cls(plex, obj_type, data, section.key).filter(**kwargs)
 
     def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> QueryResults:
         return self.__class__(self.plex, obj_type or self._type, data, self._library_section_id)
 
+    # region Dunder Methods
+
     def __iter__(self) -> Iterator[Element]:
         return iter(self._data)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[{len(self._data):,d} {self._type}s]>'
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self._data)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._data)
+
+    def __add__(self, other: QueryResults) -> QueryResults:
+        self.__validate(other, 'combine')
+        return self._new(set(self._data).union(other._data))
+
+    def __iadd__(self, other: QueryResults) -> QueryResults:
+        self.__validate(other, 'combine')
+        self._data = set(self._data).union(other._data)
+        return self
+
+    def __sub__(self, other: QueryResults) -> QueryResults:
+        self.__validate(other, 'remove')
+        return self._new(set(self._data).difference(other._data))
+
+    def __isub__(self, other: QueryResults) -> QueryResults:
+        self.__validate(other, 'remove')
+        self._data = set(self._data).difference(other._data)
+        return self
 
     def __validate(self, other: QueryResults, op):
         if not isinstance(other, self.__class__):
@@ -78,23 +104,7 @@ class QueryResults:
         elif self.plex != other.plex:
             raise ValueError(f'Unable to {op} results from different servers ({self.plex}, {other.plex})')
 
-    def __add__(self, other):
-        self.__validate(other, 'combine')
-        return self._new(set(self._data).union(other._data))
-
-    def __iadd__(self, other):
-        self.__validate(other, 'combine')
-        self._data = set(self._data).union(other._data)
-        return self
-
-    def __sub__(self, other):
-        self.__validate(other, 'remove')
-        return self._new(set(self._data).difference(other._data))
-
-    def __isub__(self, other):
-        self.__validate(other, 'remove')
-        self._data = set(self._data).difference(other._data)
-        return self
+    # endregion
 
     def _query(self, obj_type: PlexObjTypes, **kwargs):
         log.debug(f'Submitting query for {obj_type=} {kwargs=}')
@@ -287,7 +297,7 @@ class QueryResults:
             title_obj_map = artist_title_obj_map[artist]
             lc_title = td['title'].lower()
             if existing := title_obj_map.get(lc_title):
-                keep = _pick_uniq_track(existing, track, self.plex, rated, latest, singles)
+                keep = _pick_uniq_track(existing, track, rated, latest, singles)
             else:
                 keep = track
 
@@ -315,7 +325,7 @@ class QueryResults:
                     if match := next(filter(track_name.matches, artist_uniq), None):
                         existing = artist_uniq.pop(match)
                         # log.debug(f'Found {match=} / {existing=} for {track_name=} / {track=}', extra={'color': 13})
-                        keep = _pick_uniq_track(existing, track, self.plex, rated, latest, singles)
+                        keep = _pick_uniq_track(existing, track, rated, latest, singles)
                         keep_name = match if keep == existing else track_name
                     else:
                         # log.debug(f'{track_name=} / {track=} did not match any other tracks from {artist_key=}')
@@ -330,7 +340,7 @@ class QueryResults:
         return self._new(results)
 
 
-def _pick_uniq_track(existing: Element, track: Element, plex: LocalPlexServer, rated, latest, singles) -> Element:
+def _pick_uniq_track(existing: Element, track: Element, rated, latest, singles) -> Element:
     if rated:
         if existing.attrib.get('userRating') and not track.attrib.get('userRating'):
             # log.debug(f'Keeping {existing=} instead of {track=} because of rating', extra={'color': 11})
@@ -338,7 +348,7 @@ def _pick_uniq_track(existing: Element, track: Element, plex: LocalPlexServer, r
         elif not existing.attrib.get('userRating') and track.attrib.get('userRating'):
             # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
             return track
-        elif latest and (latest_track := _get_latest(existing, track, plex.server_root, singles)):
+        elif latest and (latest_track := _get_latest(existing, track, config.server_root, singles)):
             # if latest_track == existing:
             #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
             # else:
@@ -347,7 +357,7 @@ def _pick_uniq_track(existing: Element, track: Element, plex: LocalPlexServer, r
             return latest_track
         else:                                                           # Ensure the chosen value is stable between runs
             return min(existing, track, key=lambda e: int(e.attrib['ratingKey']))
-    elif latest and (latest_track := _get_latest(existing, track, plex.server_root, singles)):
+    elif latest and (latest_track := _get_latest(existing, track, config.server_root, singles)):
         # if latest_track == existing:
         #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
         # else:

@@ -11,6 +11,7 @@ from typing import Union, Iterable
 
 from ..common.ratings import stars
 from ..files.track.track import SongFile
+from .config import config
 from .server import LocalPlexServer
 from .utils import parse_filters
 
@@ -43,13 +44,13 @@ def find_and_rate(
         log.warning('No results.')
         return
 
-    prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
+    prefix = '[DRY RUN] Would update' if config.dry_run else 'Updating'
     for obj in objects:
         if obj.userRating == rating:
             log.info(f'No changes necessary for {obj}')
         else:
             log.info(f"{prefix} {obj}'s rating => {stars(rating)}")
-            if not plex.dry_run:
+            if not config.dry_run:
                 obj.edit(**{'userRating.value': rating})
 
 
@@ -67,8 +68,8 @@ def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None,
 
 class RatingSynchronizer:
     def __init__(self, plex: LocalPlexServer, path_filter: str = None, parallel: int = 4):
-        if plex.server_root is None:
-            raise ValueError(f"The custom.server_path_root is missing from {plex._config_path} and wasn't provided")
+        if config.server_root is None:
+            raise ValueError(f"The custom.server_path_root is missing from {config.path} and wasn't provided")
         self.plex = plex
         self.dry_run = plex.dry_run
         self.path_filter = path_filter
@@ -93,7 +94,7 @@ class RatingSynchronizer:
                 future.result()
 
     def _sync_to_file(self, track):
-        file = SongFile.for_plex_track(track, self.plex.server_root)
+        file = SongFile.for_plex_track(track, config.server_root)
         file_stars = file.star_rating_10
         plex_stars = track.userRating
         if file_stars == plex_stars:
@@ -104,7 +105,7 @@ class RatingSynchronizer:
                 file.star_rating_10 = plex_stars
 
     def _sync_to_plex(self, track):
-        file = SongFile.for_plex_track(track, self.plex.server_root)
+        file = SongFile.for_plex_track(track, config.server_root)
         if (file_stars := file.star_rating_10) is None:
             log.log(9, f'No rating is stored for {file}')
             return
@@ -120,6 +121,7 @@ class RatingSynchronizer:
 
 def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating: int = 10, offset: int = -1):
     from ..common.ratings import stars
+
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
     for track in plex.get_tracks(userRating__gte=min_rating, userRating__lte=max_rating):
         rating = track.userRating + offset

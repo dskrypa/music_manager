@@ -4,23 +4,23 @@ Local Plex server client implementation.
 :author: Doug Skrypa
 """
 
-import logging
-from configparser import NoSectionError
-from functools import cached_property
-from pathlib import Path
-from typing import Optional, Union
+from __future__ import annotations
 
-from plexapi import PlexConfig, DEFAULT_CONFIG_PATH
+import logging
+from functools import cached_property
+from typing import Optional, Union
+from urllib.parse import urlencode
+
+from plexapi import DEFAULT_CONFIG_PATH
 from plexapi.audio import Track, Artist, Album
 from plexapi.exceptions import Unauthorized
 from plexapi.library import Library, LibrarySection, MusicSection, ShowSection, MovieSection
-from plexapi.myplex import MyPlexAccount
 from plexapi.server import PlexServer
-from plexapi.utils import SEARCHTYPES
+from plexapi.utils import SEARCHTYPES, PLEXOBJECTS
 from requests import Session, Response
 from urllib3 import disable_warnings as disable_urllib3_warnings
 
-from ..common.prompts import get_input, getpass, UIMode
+from .config import config
 from .constants import TYPE_SECTION_MAP
 from .patches import apply_plex_patches
 from .playlist import PlexPlaylist
@@ -29,6 +29,8 @@ from .typing import PlexObjTypes, PlexObj, LibSection
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
+
+PLEX_TYPE_CLS_MAP = {cls.TYPE: cls for cls in PLEXOBJECTS.values() if cls.TYPE}
 
 Section = Union[MusicSection, ShowSection, MovieSection]
 
@@ -50,21 +52,20 @@ class LocalPlexServer:
         disable_urllib3_warnings()
         if apply_patches:
             apply_plex_patches()
-        self._config_path = Path(config_path).expanduser().resolve()
-        log.debug(f'Reading PlexAPI config from {self._config_path}')
-        if not self._config_path.exists():
-            self._config_path.parent.mkdir(parents=True, exist_ok=True)
-            self._config_path.touch()
-        self._config = PlexConfig(self._config_path)  # noqa
-        self.url = self._get_config('auth', 'server_baseurl', 'server url', url, required=True)
-        need_user = not self._config.get('auth.server_token')
-        self.user = self._get_config('auth', 'myplex_username', 'username', user, required=need_user)
-        server_path_root = self._get_config('custom', 'server_path_root', new_value=server_path_root)
-        self.server_root = Path(server_path_root) if server_path_root else None
-        libs = {'music': (music_library, 'Music'), 'tv': (tv_library, 'TV Shows'), 'movies': (movie_library, 'Movies')}
-        self.primary_lib_names = {
-            k: self._get_config('custom', f'{k}_lib_name', new_value=name) or d for k, (name, d) in libs.items()
-        }
+
+        config.update(
+            config_path,
+            dry_run=dry_run,
+            url=url,
+            user=user,
+            server_root=server_path_root,
+            music_lib_name=music_library,
+            tv_lib_name=tv_library,
+            movies_lib_name=movie_library,
+        )
+        self.user = config.user
+        self.url = config.url
+        self.primary_lib_names = config.primary_lib_names
         self.dry_run = dry_run
 
     def __repr__(self) -> str:
@@ -73,77 +74,24 @@ class LocalPlexServer:
     def __eq__(self, other) -> bool:
         return self.user == other.user and self.url == other.url
 
-    # region Configs
-
-    @cached_property
-    def _token(self) -> str:
-        token = self._get_config('auth', 'server_token')
-        if not token:
-            if UIMode.current() == UIMode.GUI:
-                prompt = (
-                    f'Please enter the Plex password for account={self.user}\n'
-                    f'Note: your password will not be stored - it will only be used to obtain a server token.\n'
-                    f'That token will be stored in {self._config_path.as_posix()}'
-                )
-            else:
-                prompt = 'Plex password:'
-            if password := getpass(prompt, title='Plex Manager - Authentication Required'):
-                account = MyPlexAccount(self.user, password)
-                del password
-            else:
-                raise RuntimeError('Password was not provided')
-            token = account._token
-            self._set_config('auth', 'server_token', token)
-        return token
-
-    def _get_config(self, section: str, key: str, name: str = None, new_value=None, required: bool = False):
-        name = name or key
-        cfg_value = self._config.get(f'{section}.{key}')
-        if cfg_value and new_value:
-            msg = f'Found {name}={cfg_value!r} in {self._config_path} - overwrite with {name}={new_value!r}?'
-            if get_input(msg):
-                self._set_config(section, key, new_value)
-        elif required and not cfg_value and not new_value:
-            try:
-                new_value = get_input(f'Please enter your Plex {name}: ', parser=lambda s: s.strip() if s else s)
-            except EOFError as e:
-                raise RuntimeError('Unable to read stdin (this is often caused by piped input)') from e
-            if not new_value:
-                raise ValueError(f'Invalid {name}')
-            self._set_config(section, key, new_value)
-        return new_value or cfg_value
-
-    def _set_config(self, section: str, key: str, value):
-        try:
-            self._config.set(section, key, value)
-        except NoSectionError:
-            self._config.add_section(section)
-            self._config.set(section, key, value)
-        log.debug(f'Saving Plex config to {self._config_path.as_posix()}')
-        with self._config_path.open('w', encoding='utf-8') as f:
-            self._config.write(f)
-
-    # endregion
-
     @cached_property
     def server(self) -> PlexServer:
         session = Session()
         session.verify = False
         try:
-            return PlexServer(self.url, self._token, session=session)
+            return PlexServer(self.url, config.token, session=session)
         except Unauthorized as e:
             log.warning(f'Token expired: {e}')
-            log.debug(f'Deleting old token from config in {self._config_path.as_posix()}')
-            self._config.remove_option('auth', 'server_token')
-            with self._config_path.open('w', encoding='utf-8') as f:
-                self._config.write(f)
-            del self.__dict__['_token']
-            return PlexServer(self.url, self._token, session=session)
+            config.reset_token()
+            return PlexServer(self.url, config.token, session=session)
 
     def request(self, method: str, endpoint: str, **kwargs) -> Response:
         server = self.server
         url = f'{server._baseurl}/{endpoint[1:] if endpoint.startswith("/") else endpoint}'
-        return server._session.request(method, url, headers=server._headers(), **kwargs)
+        req_headers = server._headers()
+        if headers := kwargs.pop('headers'):
+            req_headers.update(headers)
+        return server._session.request(method, url, headers=req_headers, **kwargs)
 
     @property
     def library(self) -> Library:
@@ -207,9 +155,22 @@ class LocalPlexServer:
 
     # endregion
 
-    def _ekey(self, obj_type: PlexObjTypes, section: LibSection = None) -> str:
+    def _ekey(
+        self, obj_type: PlexObjTypes, section: LibSection = None, full: bool = False, check_files: bool = False
+    ) -> str:
         section = self.get_lib_section(section, obj_type)
         ekey = f'/library/sections/{section.key}/all?type={SEARCHTYPES[obj_type]}'
+        if full:  # Note: This doesn't end up populating the gain/loudness/etc info
+            try:
+                includes = PLEX_TYPE_CLS_MAP[obj_type]._INCLUDES
+            except (KeyError, AttributeError):
+                pass
+            else:
+                if not check_files:
+                    includes = {k: v for k, v in includes.items() if k != 'checkFiles'}
+                if includes:
+                    ekey += '&' + urlencode(sorted(includes.items()))
+
         # log.debug(f'Resolved {obj_type=!r} => {ekey=!r}')
         return ekey
 

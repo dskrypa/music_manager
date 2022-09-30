@@ -29,9 +29,9 @@ class PlexManager(Command, description=DESCRIPTION):
         config_path = Option('-c', metavar='PATH', default='~/.config/plexapi/config.ini', help='Config file in which your token and server_path_root / server_url are stored')
         music_library = Option('-m', default=None, help='Name of the Music library to use (default: Music)')
 
-    def __init__(self):
+    def _init_command_(self):
         from ds_tools.logging import init_logging
-        init_logging(self.verbose, log_path=None, names=None, millis=True)
+        init_logging(self.verbose, log_path=None, names=None, millis=True, set_levels={'paramiko.transport': 50})
 
         from music.files.patches import apply_mutagen_patches
         apply_mutagen_patches()
@@ -219,11 +219,40 @@ class List(Playlist, help='List playlists in a dump'):
 # endregion
 
 
-class ShowDupeRatings(PlexManager, help='Show duplicate ratings'):
-    def main(self, *args, **kwargs):
+# region Reports
+
+class Report(PlexManager, help='Show A report'):
+    sub_cmd = SubCommand(help='The report to show')
+
+
+class ShowDupeRatings(Report, choice='dupe ratings', help='Show duplicate ratings'):
+    def main(self):
         from music.plex.ratings import print_dupe_ratings_by_artist
 
         print_dupe_ratings_by_artist(self.plex)
+
+
+class ShowMissingAnalysis(
+    Report, choice='missing analysis', help='Report showing albums that are missing loudness analysis'
+):
+    format = Option('-f', choices=PRINTER_FORMATS, default='yaml', help='Output format')
+    max_age: int = Option('-A', default=180, help='Max age (in seconds) for the local DB cache before refreshing it')
+
+    def main(self):
+        from ds_tools.output.printer import Printer
+        from ds_tools.output.table import Table, SimpleColumn as Col
+        from music.plex.db import PlexDB
+
+        db = PlexDB.from_remote_server(max_age=self.max_age)
+        if self.format == 'table':
+            columns = ('lib_section', 'artist_id', 'artist', 'album_id', 'album', 'track_num', 'track', 'track_id')
+            table = Table(*(Col(c) for c in columns), sort_by=columns[:3], sort=True, update_width=True)
+            table.print_rows(db.find_missing_analysis_table())
+        else:
+            Printer(self.format).pprint(db.find_missing_analysis_name_map())
+
+
+# endregion
 
 
 class FixBlankTitles(PlexManager, choice='fix blank titles', help='Fix albums containing tracks with blank titles'):

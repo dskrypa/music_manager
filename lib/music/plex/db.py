@@ -11,15 +11,20 @@ from enum import Enum
 from functools import cached_property
 from pathlib import Path
 from sqlite3 import Row, connect
-from typing import Union, Iterable
+from typing import TYPE_CHECKING, Union, Iterable, Any
 from urllib.parse import parse_qsl
 
 from paramiko import SSHClient, AutoAddPolicy
 from scp import SCPClient
 
 from ds_tools.fs.paths import get_user_temp_dir
+# from ds_tools.utils.sqlite3 import Sqlite3Database
 
 from .config import config
+
+if TYPE_CHECKING:
+    from plexapi.audio import Track
+    from .server import LocalPlexServer
 
 __all__ = ['PlexDB', 'StreamType']
 log = logging.getLogger(__name__)
@@ -94,28 +99,66 @@ class PlexDB:
     def __contains__(self, name: str) -> bool:
         return name in self.table_names
 
+    @cached_property
+    def library_sections(self) -> dict[int, dict[str, Any]]:
+        return {row['id']: dict(row) for row in self.execute('SELECT * from library_sections')}
+
     def find_media_streams(self, stream_type: Stream_Type):
         params = (StreamType(stream_type).value,)
         query = 'SELECT id, media_item_id, media_part_id, extra_data FROM media_streams WHERE stream_type_id=?'
         return self.execute(query, params)
 
-    def find_audio_streams_missing_analysis(self) -> dict[str, list[str]]:
+    def _find_tracks_missing_analysis(self):
         query = (
-            'SELECT tracks.title AS track_title, albums.title AS album_title'
+            'SELECT'
+            ' tracks.id AS track_id,'
+            ' tracks."index" AS track_num,'
+            ' tracks.title AS track_title,'
+            ' albums.id AS album_id,'
+            ' albums.title AS album_title,'
+            ' artists.id AS artist_id,'
+            ' artists.title AS artist,'
+            ' library_sections.id AS lib_section_id,'
+            ' library_sections.name AS lib_section'
+            #
             ' FROM media_streams'
             ' INNER JOIN media_items ON media_items.id = media_streams.media_item_id'
             ' INNER JOIN metadata_items AS tracks ON tracks.id = media_items.metadata_item_id'
             ' INNER JOIN metadata_items AS albums ON albums.id = tracks.parent_id'
+            ' INNER JOIN metadata_items AS artists ON artists.id = albums.parent_id'
+            ' INNER JOIN library_sections ON library_sections.id = artists.library_section_id'
             # Note: metadata_type values can be found in `from plexapi.utils import SEARCHTYPES`
-            ' WHERE media_streams.stream_type_id = 2'               # StreamType.AUDIO.value
-            ' AND albums.metadata_type = 9'                         # SEARCHTYPES['album']
-            ' AND tracks.metadata_type = 10'                        # SEARCHTYPES['track']
+            ' WHERE media_streams.stream_type_id = 2'  # StreamType.AUDIO.value
+            ' AND tracks.metadata_type = 10'  # SEARCHTYPES['track']
+            ' AND albums.metadata_type = 9'  # SEARCHTYPES['album']
+            ' AND artists.metadata_type = 8'  # SEARCHTYPES['artist']
             ' AND num_loudness_keys(media_streams.extra_data) = 0'
         )
+        return self.execute(query)
+
+    def find_missing_analysis_name_map(self) -> dict[str, dict[str, dict[str, list[str]]]]:
         albums = {}
-        for row in self.execute(query):
-            albums.setdefault(row['album_title'], []).append(row['track_title'])
+        for row in self._find_tracks_missing_analysis():
+            track_id, track_num, track, album_id, album, artist_id, artist, lib_section_id, lib_section = row
+            albums.setdefault(lib_section, {}).setdefault(artist, {}).setdefault(album, []).append(track)
         return albums
+
+    def find_missing_analysis_table(self) -> list[dict[str, Any]]:
+        columns = (
+            'track_id', 'track_num', 'track', 'album_id', 'album', 'artist_id', 'artist', 'section_id', 'lib_section'
+        )
+        return [dict(zip(columns, row)) for row in self._find_tracks_missing_analysis()]
+
+    def find_missing_analysis_tracks(self, plex: LocalPlexServer) -> dict[int, list[Track]]:
+        section_track_ids_map = {}
+        for row in self._find_tracks_missing_analysis():
+            section_track_ids_map.setdefault(row['lib_section_id'], []).append(row['track_id'])
+
+        section_tracks_map = {}
+        for section_id, track_ids in section_track_ids_map.items():
+            section = plex.get_lib_section(section_id)
+            section_tracks_map[section.title] = [section.fetchItem(tid) for tid in track_ids]
+        return section_tracks_map
 
 
 def num_loudness_keys(extra_data: str) -> int:

@@ -21,6 +21,7 @@ optional_dependencies = {
     ],
     'ipod': ['pypod@ git+https://github.com/dskrypa/pypod'],
     'gui': ['filelock', 'psutil', 'pysimplegui', 'screeninfo', 'lark'],
+    'plex_db': ['paramiko', 'scp'],
 }
 optional_dependencies['ALL'] = sorted(set(chain.from_iterable(optional_dependencies.values())))
 

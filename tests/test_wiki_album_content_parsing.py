@@ -1,19 +1,14 @@
 #!/usr/bin/env python
 
-import logging
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 from typing import Iterable
 
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from wiki_nodes.nodes import as_node, Link
 from wiki_nodes.page import WikiPage
 from music.test_common import NameTestCaseBase, main
 from music.wiki.album import DiscographyEntry, Soundtrack
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 
-log = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.joinpath('data', Path(__file__).stem)
 
 parse_kf_track_name = KpopFandomParser.parse_track_name

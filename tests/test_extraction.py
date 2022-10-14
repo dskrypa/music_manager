@@ -1,17 +1,9 @@
 #!/usr/bin/env python
 
-import logging
-import sys
-from pathlib import Path
-
 from ds_tools.test_common import main, TestCaseBase
 
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
-from music.text.extraction import (
-    partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed, strip_enclosed, _get_unpaired
-)
-
-log = logging.getLogger(__name__)
+from music.text.extraction import partition_enclosed, split_enclosed, has_unpaired, get_unpaired, ends_with_enclosed
+from music.text.extraction import strip_enclosed, _get_unpaired
 
 
 class MiscExtractionTestCase(TestCaseBase):

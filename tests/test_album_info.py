@@ -1,17 +1,11 @@
 #!/usr/bin/env python
 
-import logging
-import sys
 from datetime import date
-from pathlib import Path
 
 from ds_tools.test_common import main, TestCaseBase
 
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.common.disco_entry import DiscoEntryType
-from music.manager.update import AlbumInfo, TrackInfo, normalize_case
-
-log = logging.getLogger(__name__)
+from music.manager.update import AlbumInfo, normalize_case
 
 
 class AlbumInfoTest(TestCaseBase):

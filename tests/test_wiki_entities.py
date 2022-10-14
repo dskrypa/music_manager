@@ -1,20 +1,16 @@
 #!/usr/bin/env python
 
-import logging
 import sys
-from pathlib import Path
 
 from ds_tools.test_common import main, TestCaseBase
-
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.page import WikiPage
+
 from music.wiki.base import WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries
 from music.wiki.artist import Artist, Singer, Group
 from music.wiki.album import DiscographyEntry, Album, Single, Soundtrack
 from music.wiki.discography import Discography
 from music.wiki.exceptions import EntityTypeError
 
-log = logging.getLogger(__name__)
 ENTITY_TYPES = {
     WikiEntity, PersonOrGroup, Agency, SpecialEvent, TVSeries, Artist, Singer, Group, Discography, DiscographyEntry,
     Album, Single, Soundtrack

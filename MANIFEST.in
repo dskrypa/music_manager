@@ -1,0 +1,11 @@
+include *.rst
+include *.txt
+include *.json
+include *.woff
+include *.md
+include *.png
+include *.gif
+include *.xz
+include README*
+include LICENSE
+include MANIFEST.in

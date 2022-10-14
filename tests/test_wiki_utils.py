@@ -1,15 +1,7 @@
 #!/usr/bin/env python
 
-import logging
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock
-
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.test_common import main, TestCaseBase
 from music.wiki.parsing.utils import replace_lang_abbrev
-
-log = logging.getLogger(__name__)
 
 
 class MiscUtilsTest(TestCaseBase):

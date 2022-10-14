@@ -1,15 +1,8 @@
 #!/usr/bin/env python
 
-import logging
-import sys
-from pathlib import Path
-
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.files.parsing import split_artists
 from music.text.name import Name
 from music.test_common import NameTestCaseBase, main
-
-log = logging.getLogger(__name__)
 
 
 class FileArtistParsingTest(NameTestCaseBase):

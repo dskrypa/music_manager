@@ -1,7 +1,7 @@
 import logging
 from functools import cached_property
 
-from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, PassThru, ParamGroup
+from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, PassThru, ParamGroup, main
 
 from ..__version__ import __author_email__, __version__  # noqa
 from ds_tools.output.constants import PRINTER_FORMATS

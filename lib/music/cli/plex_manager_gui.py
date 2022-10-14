@@ -1,4 +1,4 @@
-from cli_command_parser import Command, Counter
+from cli_command_parser import Command, Counter, main
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 

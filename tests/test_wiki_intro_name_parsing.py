@@ -1,17 +1,12 @@
 #!/usr/bin/env python
 
-import logging
-import sys
-from pathlib import Path
 from unittest import skip
 
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.nodes import as_node
+
 from music.test_common import main, NameTestCaseBase, fake_page
 from music.text.name import Name
 from music.wiki.parsing.utils import PageIntro
-
-log = logging.getLogger(__name__)
 
 
 class IntroNameParsingTest(NameTestCaseBase):

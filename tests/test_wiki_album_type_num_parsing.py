@@ -1,16 +1,9 @@
 #!/usr/bin/env python
 
-import logging
-import sys
-from pathlib import Path
-
 from ds_tools.test_common import main, TestCaseBase
 
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from wiki_nodes.page import WikiPage
 from music.wiki.parsing.generasia import GenerasiaParser
-
-log = logging.getLogger(__name__)
 
 parse_generasia_album_number = GenerasiaParser.parse_album_number
 
@@ -23,7 +16,7 @@ class GenerasiaAlbumTypeParsingTest(TestCaseBase):
     def test_album_with_repackage_1(self):
         page = page_with_info("""
         ''Perfect Velvet'' is the second full-length album released by [[Red Velvet]]. The song "[[Peek-A-Boo]]" was used as the lead track
-        
+
         A repackage album was released two months later, titled ''The Perfect Red Velvet''. The song "[[Bad Boy (Red Velvet)|Bad Boy]]" was used as the lead track.
         """)
         num = parse_generasia_album_number(page)

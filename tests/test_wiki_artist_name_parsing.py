@@ -1,21 +1,15 @@
 #!/usr/bin/env python
 
-import logging
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock
 
 from wiki_nodes.nodes import as_node
 
-sys.path.append(Path(__file__).parents[1].joinpath('lib').as_posix())
 from music.text.name import Name
 from music.test_common import main, NameTestCaseBase
 from music.wiki.parsing.utils import PageIntro
 from music.wiki.parsing.drama_wiki import DramaWikiParser
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
-
-log = logging.getLogger(__name__)
 
 parse_generasia_artist_name = GenerasiaParser.parse_artist_name
 parse_kf_artist_name = KpopFandomParser.parse_artist_name

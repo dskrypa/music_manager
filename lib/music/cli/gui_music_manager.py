@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option
+from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, main
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
@@ -15,7 +15,7 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
         verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
         match_log = Flag(help='Enable debug logging for the album match processing logger')
 
-    def __init__(self):
+    def _init_command_(self):
         from ds_tools.logging import init_logging
         init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
@@ -25,7 +25,7 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
     def run_gui(self, init_event=None):
         from music.gui.music_manager_views.main import MainView
 
-        patch_and_set_mode(self.match_log)
+        self.patch_and_set_mode()
 
         try:
             MainView.start(
@@ -38,6 +38,19 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
         except Exception:
             log.critical('Exiting run_gui due to unhandled exception', exc_info=True)
             raise
+
+    def patch_and_set_mode(self):
+        from music.common.prompts import set_ui_mode, UIMode
+        from music.files.patches import apply_mutagen_patches
+        from music.gui.patches import patch_all
+
+        apply_mutagen_patches()
+        patch_all()
+        # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
+        if self.match_log:
+            logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
+
+        set_ui_mode(UIMode.GUI)
 
 
 class Open(MusicManagerGui, help='Open directly to the Album view for the given path'):
@@ -69,20 +82,6 @@ class Configure(MusicManagerGui, help='Configure registry entries for right-clic
 
     def main(self):
         configure(self.dry_run)
-
-
-def patch_and_set_mode(match_log: bool):
-    from music.common.prompts import set_ui_mode, UIMode
-    from music.files.patches import apply_mutagen_patches
-    from music.gui.patches import patch_all
-
-    apply_mutagen_patches()
-    patch_all()
-    # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
-    if match_log:
-        logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
-
-    set_ui_mode(UIMode.GUI)
 
 
 def get_clean_paths(max_wait: int, arg_paths):

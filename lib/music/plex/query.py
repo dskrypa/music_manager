@@ -20,10 +20,10 @@ from ..text.name import Name
 from .config import config
 from .exceptions import InvalidQueryFilter
 from .filters import check_attrs
-from .typing import PlexObjTypes, PlexObj, LibSection
 
 if TYPE_CHECKING:
     from .server import LocalPlexServer
+    from .typing import PlexObjTypes, PlexObj, LibSection, Bool
 
 __all__ = ['QueryResults']
 log = logging.getLogger(__name__)
@@ -459,23 +459,32 @@ def _resolve_custom_ops(kwargs):
     return kwargs
 
 
+_MOOD_FIELD_KEY_MAP = {'mood__ne': 'mood!', 'mood': 'mood', 'mood!': 'mood!'}
+
+
 def _resolve_query_filters(obj_type: PlexObjTypes, section: LibrarySection, kwargs):
     params = {}
     if mood_filters := _prefixed_filters('mood', kwargs):
         mood_id_map = {m.title: m.key for m in section.listFilterChoices('mood', obj_type)}
         for field in mood_filters:
-            if (key := 'mood!' if field == 'mood__ne' else 'mood' if field == 'mood' else None) is None:
-                raise ValueError(f'Invalid mood filter key={field!r}')
+            if (key := _MOOD_FIELD_KEY_MAP.get(field)) is None:
+                expected = ', '.join(sorted(_MOOD_FIELD_KEY_MAP))
+                raise ValueError(f'Invalid mood filter key={field!r} - expected one of: {expected}')
+
             val = kwargs.pop(field)
             try:
                 params[f'{obj_type}.{key}'] = mood_id_map[val]
             except KeyError as e:
-                mood_names = ', '.join(sorted(mood_id_map))
-                raise ValueError(f'Invalid mood filter value={val!r} - must be one of: {mood_names}') from e
+                if key == 'mood!':  # If the value does not exist, then filtering it out is not necessary
+                    log.debug(f"Ignoring {obj_type}.{key}={val!r} filter - that mood doesn't exist in this section")
+                else:
+                    mood_names = ', '.join(sorted(mood_id_map))
+                    raise ValueError(f'Invalid mood filter value={val!r} - must be one of: [{mood_names}]') from e
+
     return params
 
 
-def _merge_filters(kwargs: dict[str, Any], key: str, value: Any, union=False):
+def _merge_filters(kwargs: dict[str, Any], key: str, value: Any, union: Bool = False):
     if key in kwargs:
         current = kwargs[key]
         if key.endswith('__in'):

@@ -67,6 +67,8 @@ def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None,
 
 
 class RatingSynchronizer:
+    __slots__ = ('plex', 'dry_run', 'path_filter', 'prefix', 'parallel')
+
     def __init__(self, plex: LocalPlexServer, path_filter: str = None, parallel: int = 4):
         if config.server_root is None:
             raise ValueError(f"The custom.server_path_root is missing from {config.path} and wasn't provided")

@@ -4,7 +4,7 @@
 
 import logging
 from pathlib import Path
-from typing import Literal, Union, Iterable
+from typing import Literal, Union, Iterable, Any
 
 from plexapi.audio import Audio, Album, Artist, Track
 from plexapi.library import LibrarySection
@@ -22,5 +22,6 @@ PlexObjTypes = Literal[     # SEARCHTYPES keys
 ]
 LibSection = Union[str, int, LibrarySection]
 
-StrOrStrs = Union[str, Iterable[str]]
+Bool = Union[bool, Any]
 PathLike = Union[str, Path]
+StrOrStrs = Union[str, Iterable[str]]

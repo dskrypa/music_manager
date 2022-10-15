@@ -14,6 +14,7 @@ from plexapi import DEFAULT_CONFIG_PATH, PlexConfig as PlexApiConfig
 from plexapi.myplex import MyPlexAccount
 
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.output.color import colored
 
 from ..common.prompts import get_input, getpass, UIMode
 
@@ -57,14 +58,21 @@ class ConfigEntry:
         required = required.__get__(instance, instance.__class__)
         return not required if self.inverse else required
 
-    def get_value(self, instance: PlexConfig) -> Any:
-        if '.' in self.section:
-            return instance._config.data.get(self.section, {}).get(self.key)
-        return instance._config.get(f'{self.section}.{self.key}')
+    def get_value(self, instance: PlexConfig, allow_temp: bool = True) -> Any:
+        section, key = self.section, self.key
+        if allow_temp:
+            try:
+                return instance._temp_overrides[(section, key)]
+            except KeyError:
+                pass
+        if '.' in section:
+            return instance._config.data.get(section, {}).get(key)
+        return instance._config.get(f'{section}.{key}')
 
     def prompt_for_value(self, instance: PlexConfig) -> Any:
+        prompt = f'Please enter your Plex {colored(self.name, 11)}: '
         try:
-            value = get_input(f'Please enter your Plex {self.name}: ', parser=lambda s: s.strip() if s else s)
+            value = get_input(prompt, parser=lambda s: s.strip() if s else s)
         except EOFError as e:
             raise RuntimeError('Unable to read stdin (this is often caused by piped input)') from e
         if not value:
@@ -73,14 +81,23 @@ class ConfigEntry:
         return value
 
     def set_value(self, instance: PlexConfig, value: Any):
+        """Save a new value for this config option.  If a temporary override existed, it will be cleared."""
+        section, key = self.section, self.key
+        try:
+            del instance._temp_overrides[(section, key)]
+        except KeyError:
+            pass
         cfg = instance._config
         try:
-            cfg.set(self.section, self.key, value)
+            cfg.set(section, key, value)
         except NoSectionError:
-            cfg.add_section(self.section)
-            cfg.set(self.section, self.key, value)
+            cfg.add_section(section)
+            cfg.set(section, key, value)
 
         instance.save()
+
+    def set_temp_value(self, instance: PlexConfig, value: Any):
+        instance._temp_overrides[(self.section, self.key)] = value
 
     def __get__(self, instance: Optional[PlexConfig], owner: Type[PlexConfig]):
         if instance is None:
@@ -95,16 +112,26 @@ class ConfigEntry:
         return value
 
     def __set__(self, instance: PlexConfig, value: Any):
-        old_value = self.get_value(instance)
+        old_value = self.get_value(instance, False)
         if old_value and value:
-            if get_input(f'Found {self.name}={old_value!r} in {instance.path} - overwrite with {self.name}={value!r}?'):
+            old, new = colored(repr(old_value), 9), colored(repr(value), 10)
+            config_loc = colored(instance.path, 11)
+            if get_input(f'Found {self.name}={old} in {config_loc} - overwrite with {self.name}={new}?'):
                 self.set_value(instance, value)
+            else:
+                self.set_temp_value(instance, value)
+        elif value:
+            self.set_value(instance, value)
         elif not old_value and not value and self.required(instance):
             self.prompt_for_value(instance)
 
     def __delete__(self, instance: PlexConfig):
-        instance._config.remove_option(self.section, self.key)
-        instance.save()
+        section, key = self.section, self.key
+        try:
+            del instance._temp_overrides[(section, key)]
+        except KeyError:  # If it wasn't in temp overrides, then it should be removed from the file
+            instance._config.remove_option(section, key)
+            instance.save()
 
 
 class PlexConfig(ClearableCachedPropertyMixin):
@@ -130,6 +157,7 @@ class PlexConfig(ClearableCachedPropertyMixin):
     db_remote_host: Optional[str] = ConfigEntry('custom.db', 'remote_host')
 
     def __init__(self, path: PathLike = DEFAULT_CONFIG_PATH, dry_run: bool = False):
+        self._temp_overrides = {}  # Overrides that should be used, but not saved
         self.load(path, dry_run)
 
     def save(self):

@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
@@ -27,7 +29,7 @@ class DiscographyMixin(ABC):
         return iter(self.discography)
 
     @abstractmethod
-    def _finder_with_entries(self) -> 'DiscographyEntryFinder':
+    def _finder_with_entries(self) -> DiscographyEntryFinder:
         """
         Return a DiscographyEntryFinder instance that has DiscoEntry entries added, but has not yet processed links
         """
@@ -79,7 +81,9 @@ class DiscographyMixin(ABC):
 
 class DiscographyEntryFinder:
     """Internal-use class that handles common discography entry page discovery; used by Discography and Artist"""
-    def __init__(self, artist: 'Artist' = None):
+    __slots__ = ('artist', 'created_entry', 'remaining', 'entries_by_site', 'no_link_entries')
+
+    def __init__(self, artist: Artist = None):
         self.artist = artist
         self.created_entry = defaultdict(lambda: False)
         self.remaining = Counter()

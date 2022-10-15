@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from itertools import chain
 from functools import partialmethod, cached_property
@@ -19,12 +21,13 @@ if TYPE_CHECKING:
 
 __all__ = ['Track']
 log = logging.getLogger(__name__)
+
 EXTRA_VALUE_MAP = {'instrumental': 'Inst.', 'acoustic': 'Acoustic'}
 ARTISTS_SUFFIXES = {1: 'solo', 2: 'duet'}
 
 
 class Track:
-    def __init__(self, num: int, name: Name, album_part: Optional['DiscographyEntryPart']):
+    def __init__(self, num: int, name: Name, album_part: Optional[DiscographyEntryPart]):
         self.num = num                  # type: int
         self.name = name                # type: Name
         self.album_part = album_part    # type: Optional[DiscographyEntryPart]
@@ -37,7 +40,7 @@ class Track:
 
     __repr__ = partialmethod(_repr, True)
 
-    def __lt__(self, other: 'Track') -> bool:
+    def __lt__(self, other: Track) -> bool:
         return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)
 
     def __getitem__(self, item: str) -> Any:

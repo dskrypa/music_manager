@@ -4,14 +4,16 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
-from functools import cached_property
 from itertools import chain
-from typing import Iterable, Optional, Union, Iterator, Type, Collection, Mapping
+from typing import Iterable, Optional, Union, Iterator, Type, Collection, Mapping, MutableMapping
 
-from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
+
 from ..text.name import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
@@ -30,10 +32,13 @@ WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography art
 
 
 class WikiEntity(ClearableCachedPropertyMixin):
+    __slots__ = ('_name', '_pages', '__name')
     _categories = ()
     _not_categories = ()
     _category_classes = {}
     _subclasses = {}
+    _name: str
+    _pages: MutableMapping[str, WikiPage]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -46,33 +51,37 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     def __init__(self, name: Optional[str], pages: Pages = None):
         """
-        :param str|None name: The name of this entity
-        :param WikiPage|DiscoEntry|dict|iterable pages: One or more WikiPage objects
+        :param name: The name of this entity
+        :param pages: One or more WikiPage objects
         """
         if name is not None and not isinstance(name, str):
             raise TypeError(f'Unexpected {name=!r} with {pages=}')
         self._name = name
-        if isinstance(pages, dict):
-            self._pages = pages         # type: dict[str, WikiPage]
-        else:
-            self._pages = {}            # type: dict[str, WikiPage]
-            if pages and not isinstance(pages, DiscoEntry):
-                if isinstance(pages, str):
-                    raise TypeError(f'pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
-                elif isinstance(pages, WikiPage):
-                    self._pages[pages.site] = pages
-                elif isinstance(pages, Iterable):
-                    for page in pages:
-                        self._pages[page.site] = page
+        if isinstance(pages, MutableMapping):
+            self._pages = pages
+        elif pages:
+            if isinstance(pages, str):
+                raise TypeError(f'pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
+            try:
+                self._pages = {page.site: page for page in pages}  # noqa
+            except (TypeError, AttributeError):
+                if isinstance(pages, WikiPage):
+                    self._pages = {pages.site: pages}
                 else:
-                    raise ValueError(f'Unexpected pages value: {pages!r}')
+                    raise ValueError(f'Unexpected pages value: {pages!r}') from None
+        else:
+            self._pages = {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.name!r})[pages: {len(self._pages)}]>'
 
-    @cached_property
+    @property
     def name(self) -> Name:
-        return Name.from_enclosed(self._name)
+        try:
+            return self.__name
+        except AttributeError:
+            self.__name = name = Name.from_enclosed(self._name)  # noqa
+            return name
 
     def _add_page(self, page: WikiPage):
         self._pages[page.site] = page
@@ -90,7 +99,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
 
-    def page_parsers(self, method: str = None) -> Iterator[tuple[WikiPage, 'WikiParser']]:
+    def page_parsers(self, method: str = None) -> Iterator[tuple[WikiPage, WikiParser]]:
         for site, page in sorted(self._pages.items(), key=_site_page_key):
             if parser := WikiParser.for_site(site, method):
                 yield page, parser
@@ -440,6 +449,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
 class EntertainmentEntity(WikiEntity):
     """An entity that may be related to the entertainment industry in some way.  Used to filter out irrelevant pages."""
+    __slots__ = ()
     _categories = ()
 
     @classmethod
@@ -451,6 +461,7 @@ class EntertainmentEntity(WikiEntity):
 
 
 class PersonOrGroup(EntertainmentEntity):
+    __slots__ = ()
     _categories = ()
 
     @classmethod
@@ -469,14 +480,17 @@ class PersonOrGroup(EntertainmentEntity):
 
 
 class Agency(PersonOrGroup):
+    __slots__ = ()
     _categories = ('agency', 'agencies', 'record label')
 
 
 class SpecialEvent(EntertainmentEntity):
+    __slots__ = ()
     _categories = ('competition',)
 
 
 class TVSeries(EntertainmentEntity):
+    __slots__ = ()
     _categories = ('television program', 'television series', 'drama', 'survival show', 'music shows')
 
     def soundtrack_links(self) -> list[Link]:
@@ -490,7 +504,7 @@ class TemplateEntity(WikiEntity):
     _categories = ()
 
     @classmethod
-    def from_name(cls, name: str, site: str) -> 'TemplateEntity':
+    def from_name(cls, name: str, site: str) -> TemplateEntity:
         page = MediaWikiClient(site).get_page(f'Template:{name}')
         return cls._by_category(page)
 

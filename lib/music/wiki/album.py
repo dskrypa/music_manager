@@ -2,12 +2,13 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from datetime import datetime, date
-from functools import cached_property, reduce
+from functools import cached_property
 from itertools import chain
-from operator import xor
 from typing import Optional, Sequence, Iterator, MutableSet, Union, Iterable, Any
 
 from ordered_set import OrderedSet
@@ -32,7 +33,9 @@ __all__ = [
     'Album', 'Single',
 ]
 log = logging.getLogger(__name__)
+
 OST_MATCH = re.compile(r'^(.*? OST) (PART.?\s?\d+)$').match
+
 NodeOrNodes = Union[Node, Iterable[Node], None]
 ListOrLists = Union[ListNode, Iterable[ListNode], None]
 NameType = Union[str, Name, None]
@@ -52,9 +55,9 @@ class DiscographyEntry(EntertainmentEntity):
         self,
         name: str = None,
         pages: Pages = None,
-        disco_entry: 'DiscoEntry' = None,
-        artist: 'Artist' = None,
-        entry_type: 'DiscoEntryType' = None,
+        disco_entry: DiscoEntry = None,
+        artist: Artist = None,
+        entry_type: DiscoEntryType = None,
     ):
         """
         :param name: The name of this discography entry
@@ -105,10 +108,10 @@ class DiscographyEntry(EntertainmentEntity):
         name_str = str(Name(self._name))
         return f'<[{date_str}]{self.cls_type_name}({name_str!r})[{page_str}]>'
 
-    def __lt__(self, other: 'DiscographyEntry') -> bool:
+    def __lt__(self, other: DiscographyEntry) -> bool:
         return self._sort_key < other._sort_key
 
-    def __iter__(self) -> Iterator['DiscographyEntryEdition']:
+    def __iter__(self) -> Iterator[DiscographyEntryEdition]:
         """Iterate over every edition part in this DiscographyEntry"""
         return iter(self.editions)
 
@@ -116,7 +119,7 @@ class DiscographyEntry(EntertainmentEntity):
         return bool(self.editions)
 
     @cached_property
-    def artists(self) -> set['Artist']:
+    def artists(self) -> set[Artist]:
         artists = set()
         if isinstance(self._artist, Artist):
             artists.add(self._artist)
@@ -125,7 +128,7 @@ class DiscographyEntry(EntertainmentEntity):
         return artists
 
     @cached_property
-    def artist(self) -> Optional['Artist']:
+    def artist(self) -> Optional[Artist]:
         if isinstance(self._artist, Artist):
             return self._artist
         elif artists := self.artists:
@@ -138,7 +141,7 @@ class DiscographyEntry(EntertainmentEntity):
         return None
 
     @cached_property
-    def type(self) -> Optional['DiscoEntryType']:
+    def type(self) -> Optional[DiscoEntryType]:
         if isinstance(self._type, DiscoEntryType):
             return self._type
         for edition in self.editions:
@@ -156,7 +159,7 @@ class DiscographyEntry(EntertainmentEntity):
         return self.year or date.year, date, self.name
 
     @cached_property
-    def _merge_key(self) -> tuple[Optional[int], str, Optional['DiscoEntryType']]:
+    def _merge_key(self) -> tuple[Optional[int], str, Optional[DiscoEntryType]]:
         uc_name = self._name.upper()
         if ost_match := OST_MATCH(uc_name):
             uc_name = ost_match.group(1)
@@ -186,13 +189,13 @@ class DiscographyEntry(EntertainmentEntity):
                 self._date = min(edition.date for edition in self.editions) if self.editions else None
         return self._date
 
-    def _merge(self, other: 'DiscographyEntry'):
+    def _merge(self, other: DiscographyEntry):
         self._pages.update(other._pages)
         self.disco_entries.extend(other.disco_entries)
         self.clear_cached_properties()
 
     @classmethod
-    def from_disco_entry(cls, disco_entry: 'DiscoEntry', **kwargs) -> 'DiscographyEntry':
+    def from_disco_entry(cls, disco_entry: DiscoEntry, **kwargs) -> DiscographyEntry:
         log.debug(f'Creating {cls.__name__} from {disco_entry} with {kwargs=}', extra={'color': 14})
         try:
             return cls._by_category(disco_entry, disco_entry=disco_entry, **kwargs)
@@ -202,13 +205,13 @@ class DiscographyEntry(EntertainmentEntity):
             raise
 
     @cached_property
-    def editions(self) -> list['DiscographyEntryEdition']:
+    def editions(self) -> list[DiscographyEntryEdition]:
         editions = []
         for entry_page, parser in self.page_parsers('process_album_editions'):
             editions.extend(parser.process_album_editions(self, entry_page))
         return editions
 
-    def parts(self) -> Iterator['DiscographyEntryPart']:
+    def parts(self) -> Iterator[DiscographyEntryPart]:
         for edition in self.editions:
             yield from edition
 
@@ -224,7 +227,7 @@ class Album(DiscographyEntry):
     _categories = ('album', 'extended play', ' eps', '-language eps', 'mixtape')
 
     @classmethod
-    def from_name(cls, name: str) -> 'Album':
+    def from_name(cls, name: str) -> Album:
         client = MediaWikiClient('kpop.fandom.com')
         # results = client.get_pages(name, search=True, gsrwhat='text')
         results = client.get_pages(name, search=True)
@@ -267,7 +270,7 @@ class Soundtrack(DiscographyEntry):
         return full, parts, extras
 
     @classmethod
-    def from_name(cls, name: str) -> 'Soundtrack':
+    def from_name(cls, name: str) -> Soundtrack:
         client = MediaWikiClient('wiki.d-addicts.com')
         results = client.get_pages(name, search=True, gsrwhat='text')
         log.debug(f'Search results for {name=!r}: {results}')
@@ -298,11 +301,11 @@ class Soundtrack(DiscographyEntry):
 # noinspection PyUnresolvedReferences
 class _ArtistMixin:
     @property
-    def track_artists(self) -> set['Artist']:
+    def track_artists(self) -> set[Artist]:
         return set()
 
     @cached_property
-    def _artists(self) -> set['Artist']:
+    def _artists(self) -> set[Artist]:
         log.debug(f'{self._basic_repr}: Processing {self._artist}', extra={'color': 13})
         artists = set()
         if isinstance(self._artist, Artist):
@@ -339,7 +342,7 @@ class _ArtistMixin:
         return artists
 
     @cached_property
-    def artists(self) -> set['Artist']:
+    def artists(self) -> set[Artist]:
         if artists := self._artists:
             return artists
         elif artists := self.track_artists:
@@ -347,7 +350,7 @@ class _ArtistMixin:
         return set()
 
     @cached_property
-    def artist(self) -> Optional['Artist']:
+    def artist(self) -> Optional[Artist]:
         if artists := self.artists:
             if len(artists) == 1:
                 return next(iter(artists))
@@ -365,7 +368,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         name: NameType,
         page: WikiPage,
         entry: DiscographyEntry,
-        entry_type: 'DiscoEntryType',
+        entry_type: DiscoEntryType,
         artist: NodeOrNodes,
         release_dates: Sequence[date],
         content: Any,
@@ -411,9 +414,9 @@ class DiscographyEntryEdition(_ArtistMixin):
         return self.__class__ == other.__class__ and self.page == other.page and self.edition == other.edition
 
     def __hash__(self) -> int:
-        return reduce(xor, map(hash, (self.__class__, self.page, self.edition)))
+        return hash(self.__class__) ^ hash(self.page) ^ hash(self.edition)
 
-    def __iter__(self) -> Iterator['DiscographyEntryPart']:
+    def __iter__(self) -> Iterator[DiscographyEntryPart]:
         return iter(self.parts)
 
     def __bool__(self) -> bool:
@@ -423,7 +426,7 @@ class DiscographyEntryEdition(_ArtistMixin):
     def __cmp_tuple(self):
         return self.page, self.artist, self.date, self._name, self.edition
 
-    def __lt__(self, other: 'DiscographyEntryEdition') -> bool:
+    def __lt__(self, other: DiscographyEntryEdition) -> bool:
         return self.__cmp_tuple < other.__cmp_tuple
 
     @cached_property
@@ -481,11 +484,11 @@ class DiscographyEntryEdition(_ArtistMixin):
             return None
 
     @cached_property
-    def track_artists(self) -> set['Artist']:
+    def track_artists(self) -> set[Artist]:
         return set(chain.from_iterable(part.track_artists for part in self.parts))
 
     @cached_property
-    def parts(self) -> list['DiscographyEntryPart']:
+    def parts(self) -> list[DiscographyEntryPart]:
         if parser := WikiParser.for_site(self.page.site, 'process_edition_parts'):
             return list(parser.process_edition_parts(self))
         else:
@@ -560,21 +563,21 @@ class DiscographyEntryPart:
 
     def __repr__(self) -> str:
         ed = self.edition
-        date = ed.release_dates[0].strftime('%Y-%m-%d')
+        date_str = ed.release_dates[0].strftime('%Y-%m-%d')
         edition = f'[edition={ed.edition!r}]' if ed.edition else ''
         name = f'[{self._name}]' if self._name else ''
-        return f'<[{date}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}>'
+        return f'<[{date_str}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}>'
 
-    def __lt__(self, other: 'DiscographyEntryPart') -> bool:
+    def __lt__(self, other: DiscographyEntryPart) -> bool:
         return (self.edition, self._name) < (other.edition, other._name)
 
     def __eq__(self, other) -> bool:
         return self.__class__ == other.__class__ and self._name == other._name and self.edition == other.edition
 
     def __hash__(self) -> int:
-        return reduce(xor, map(hash, (self.__class__, self._name, self.edition)))
+        return hash(self.__class__) ^ hash(self._name) ^ hash(self.edition)
 
-    def __iter__(self) -> Iterator['Track']:
+    def __iter__(self) -> Iterator[Track]:
         return iter(self.tracks)
 
     def __bool__(self) -> bool:
@@ -622,7 +625,7 @@ class DiscographyEntryPart:
         return full_name
 
     @cached_property
-    def track_artists(self) -> set['Artist']:
+    def track_artists(self) -> set[Artist]:
         return set(chain.from_iterable(track.artists for track in self.tracks))
 
     @cached_property
@@ -645,7 +648,7 @@ class DiscographyEntryPart:
         return []
 
     @cached_property
-    def tracks(self) -> list['Track']:
+    def tracks(self) -> list[Track]:
         tracks = [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
         eng_non_eng_map = {}
         for track in tracks:
@@ -677,14 +680,18 @@ def _name_parts(
     base: Name, edition: str = None, hide_edition: bool = False, part: str = None
 ) -> tuple[tuple[str, ...], ...]:
     eng, non_eng = (_strip(base.english), _strip(base.non_eng))
-    edition = None if hide_edition else edition
-    part_filter = lambda *parts: tuple(filter(None, parts))
+    if hide_edition:
+        edition = None
     if eng and non_eng:
-        return part_filter(part_filter(eng, part, edition), part_filter(non_eng, part, edition))
+        return _part_filter(_part_filter(eng, part, edition), _part_filter(non_eng, part, edition))
     elif name := eng or non_eng:
-        return part_filter(part_filter(name, part, edition))
+        return _part_filter(_part_filter(name, part, edition))
     else:
-        return part_filter(part_filter(part, edition))
+        return _part_filter(_part_filter(part, edition))
+
+
+def _part_filter(*parts):
+    return tuple(part for part in parts if part)
 
 
 # Down here due to circular dependency

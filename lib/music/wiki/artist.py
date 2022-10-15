@@ -4,6 +4,8 @@ Artist wiki pages.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from functools import cached_property
 from itertools import chain
@@ -114,7 +116,7 @@ class Singer(Artist):
     _not_categories = ('groups', 'record labels')
 
     @cached_property
-    def groups(self) -> list['Group']:
+    def groups(self) -> list[Group]:
         links = set(chain.from_iterable(
             parser.parse_member_of(page) for page, parser in self.page_parsers('parse_member_of')
         ))
@@ -136,7 +138,7 @@ class Group(Artist):
         return None
 
     @cached_property
-    def sub_units(self) -> Optional[list['Group']]:
+    def sub_units(self) -> Optional[list[Group]]:
         for page, parser in self.page_parsers('parse_group_members'):
             members_dict = parser.parse_group_members(page)
             if sub_units := members_dict.get('sub_units'):
@@ -144,7 +146,7 @@ class Group(Artist):
                 return sorted(groups.values())
         return None
 
-    def _find_member(self, mem_type: str, name: Union[Name, str]) -> Union[Singer, 'Group', None]:
+    def _find_member(self, mem_type: str, name: Union[Name, str]) -> Union[Singer, Group, None]:
         if members := getattr(self, mem_type + 's'):
             for member in members:
                 log.debug(f'Comparing {mem_type}={member} to {name=}')
@@ -156,5 +158,5 @@ class Group(Artist):
     def find_member(self, name: Union[Name, str]) -> Optional[Singer]:
         return self._find_member('member', name)
 
-    def find_sub_unit(self, name: Union[Name, str]) -> Optional['Group']:
+    def find_sub_unit(self, name: Union[Name, str]) -> Optional[Group]:
         return self._find_member('sub_unit', name)

@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from functools import cached_property
 from typing import Optional, Union, Mapping, Iterable

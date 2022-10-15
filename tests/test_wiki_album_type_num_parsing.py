@@ -5,7 +5,7 @@ from ds_tools.test_common import main, TestCaseBase
 from wiki_nodes.page import WikiPage
 from music.wiki.parsing.generasia import GenerasiaParser
 
-parse_generasia_album_number = GenerasiaParser.parse_album_number
+parse_generasia_album_number = GenerasiaParser().parse_album_number
 
 
 def page_with_info(info):

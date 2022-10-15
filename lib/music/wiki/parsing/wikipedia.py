@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
 __all__ = ['WikipediaParser']
 log = logging.getLogger(__name__)
 
-SECTION_BLACKLIST = {
+IGNORE_SECTIONS = {
     'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums', 'guest appearances',
     'other charted songs', 'other appearances'
 }
@@ -31,32 +33,28 @@ short_repr = partial(_short_repr, containers_only=False)
 
 
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
-    @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
+    __slots__ = ()
+
+    def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         try:
             yield from PageIntro(artist_page).names()
         except ValueError as e:
             log.debug(e)
         yield Name(artist_page.title)
 
-    @classmethod
-    def parse_album_name(cls, node: N) -> Name:
+    def parse_album_name(self, node: N) -> Name:
         raise NotImplementedError
 
-    @classmethod
-    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_track_name(cls, node: N) -> Name:
+    def parse_track_name(self, node: N) -> Name:
         raise NotImplementedError
 
-    @classmethod
-    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+    def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
 
-    @classmethod
-    def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         try:
             section = artist_page.sections.find('Discography')
         except KeyError:
@@ -92,30 +90,24 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             else:
                 log.debug(f'Unexpected discography section format on {artist_page}')
         else:
-            cls._parse_disco_page_entries(artist_page, _disco_sections(section), finder)
+            self._parse_disco_page_entries(artist_page, _disco_sections(section), finder)
 
-    @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError
 
-    @classmethod
-    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
-        cls._parse_disco_page_entries(disco_page, _disco_sections(disco_page.sections), finder)
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
+        self._parse_disco_page_entries(disco_page, _disco_sections(disco_page.sections), finder)
 
-    @classmethod
-    def _parse_disco_page_entries(cls, page: WikiPage, sections: list[Section], finder: 'DiscographyEntryFinder'):
+    def _parse_disco_page_entries(self, page: WikiPage, sections: list[Section], finder: DiscographyEntryFinder):
         alb_types = []
         last_depth = -1
         for section in sections:
@@ -143,7 +135,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                             except AttributeError:  # Usually caused by a footnote about the table
                                 pass
                         else:
-                            cls._process_disco_row(page, finder, row, alb_types, lang)
+                            self._process_disco_row(page, finder, row, alb_types, lang)
                     except TitleNotFound:
                         log.debug(f'Unable to find title column in {section=} on {page} in row={short_repr(row)}')
                         break           # Skip additional rows in this section
@@ -152,9 +144,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             except Exception:
                 log.error(f'Unexpected error processing {section=} on {page}:', exc_info=True, extra={'color': 9})
 
-    @classmethod
     def _process_disco_row(
-        cls, page: WikiPage, finder: 'DiscographyEntryFinder', row, alb_types: Sequence[str], lang: Optional[str]
+        self, page: WikiPage, finder: DiscographyEntryFinder, row, alb_types: Sequence[str], lang: Optional[str]
     ) -> None:
         # TODO: re-released => repackage: https://en.wikipedia.org/wiki/Exo_discography
         if not (title := next(filter(None, (row.get(key) for key in ('Title', 'Song', ''))), None)):
@@ -208,12 +199,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                     disco_entry.title = title[0].value
                 finder.add_entry(disco_entry, row, not expected)
 
-    @classmethod
-    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+    def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
+    def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
 
 
@@ -224,7 +213,7 @@ class TitleNotFound(Exception):
 def _disco_sections(section_iter: Iterable[Section]) -> list[Section]:
     sections = []
     for section in section_iter:
-        if section.title.lower() in SECTION_BLACKLIST:
+        if section.title.lower() in IGNORE_SECTIONS:
             break
         elif section.depth == 1:
             sections.extend(section)

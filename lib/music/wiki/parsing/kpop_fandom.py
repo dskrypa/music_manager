@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from datetime import datetime, date
@@ -43,8 +45,9 @@ VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECA
 
 
 class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
-    @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
+    __slots__ = ()
+
+    def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         yield from PageIntro(artist_page).names()
         if _infobox := artist_page.infobox:
             # log.debug(f'Found infobox for {artist_page}')
@@ -78,19 +81,16 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         else:
             log.debug(f'No infobox found for {artist_page}')
 
-    @classmethod
-    def parse_album_name(cls, node: N) -> Name:
+    def parse_album_name(self, node: N) -> Name:
         # For discography page/section entries
         raise NotImplementedError
 
-    @classmethod
-    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         if intro := entry_page.intro():
             return find_ordinal(intro.raw.string)
         return None
 
-    @classmethod
-    def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         try:
             section = artist_page.sections.find('Discography')
         except KeyError:
@@ -103,7 +103,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     log.debug(f'Skipping {alb_type=!r}')
                     continue
                 try:
-                    cls._process_disco_section(artist_page, finder, alb_type_section, alb_type)
+                    self._process_disco_section(artist_page, finder, alb_type_section, alb_type)
                 except Exception:
                     log.error(err_msg, exc_info=True, extra={'color': 'red'})
         elif section.depth == 2:  # key = language, value = sub-section
@@ -114,15 +114,14 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                         continue
                     # log.debug(f'{alb_type}: {alb_type_section.content}')
                     try:
-                        cls._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
+                        self._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
                     except Exception:
                         log.error(err_msg, exc_info=True, extra={'color': 'red'})
         else:
             log.warning(f'Unexpected section depth: {section.depth} on {artist_page}')
 
-    @classmethod
     def _process_disco_section(
-        cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder', section: Section, alb_type: str, lang: str = None
+        self, artist_page: WikiPage, finder: DiscographyEntryFinder, section: Section, alb_type: str, lang: str = None
     ) -> None:
         content = section.content
         # log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
@@ -165,7 +164,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                         # {primary artist} - {album or single} [(with collabs)] (year)
                         if isinstance(entry[1], String):
                             entry_1 = entry[1].value.strip()
-                            if entry_1 == '-' and cls._check_type(entry, 2, Link):
+                            if entry_1 == '-' and self._check_type(entry, 2, Link):
                                 link = entry[2]
                                 links = [link]
                                 disco_entry.title = link.show
@@ -193,8 +192,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 else:
                     log.warning(f'On page={artist_page}, unexpected type for {entry=!r}')
 
-    @classmethod
-    def _album_page_name(cls, page: WikiPage) -> Name:
+    def _album_page_name(self, page: WikiPage) -> Name:
         if (names := list(PageIntro(page).names())) and len(names) > 0:
             return names[0]
         else:
@@ -204,18 +202,16 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             except KeyError:
                 return Name(page.title)
 
-    @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         log.debug(f'Processing album editions for page={entry_page}')
         try:
-            name = cls._album_page_name(entry_page)
+            name = self._album_page_name(entry_page)
         except Exception as e:
             raise RuntimeError(f'Error parsing page name from {entry_page=}') from e
 
         yield from EditionFinder(name, entry, entry_page).editions()
 
-    @classmethod
-    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         content = edition._content
         if content.__class__ is CompoundNode and isinstance(content[0], List):
             if len(content) % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
@@ -252,8 +248,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             except AttributeError:
                 log.warning(f'Unexpected type for {edition!r}._content: {content!r}')
 
-    @classmethod
-    def parse_track_name(cls, node: N) -> Name:
+    def parse_track_name(self, node: N) -> Name:
         if isinstance(node, String):
             # log.debug(f'Processing track name from String {node=}')
             return _process_track_string(node.value)
@@ -273,9 +268,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         else:
             log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
 
-    @classmethod
-    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
-        name = cls._album_page_name(page)
+    def parse_single_page_track_name(self, page: WikiPage) -> Name:
+        name = self._album_page_name(page)
         # if not isinstance(name, Name):
         #     name = Name.from_enclosed(name)
 
@@ -298,8 +292,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
         return name
 
-    @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
         try:
             members_section = artist_page.sections.find('Members')
         except (KeyError, AttributeError):
@@ -342,8 +335,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
         return members
 
-    @classmethod
-    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
         if intro := artist_page.intro():
             log.debug(f'Looking for groups in intro for {artist_page}', extra={'color': 11})
             try:
@@ -361,13 +353,11 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                         if any(artist_page == page for m in members for page in m.pages):
                             yield link
 
-    @classmethod
-    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         # This site does not use discography pages.
         return None
 
-    @classmethod
-    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+    def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         try:
             links_section = page.sections.find('Discography')
         except (KeyError, AttributeError):
@@ -376,8 +366,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
         yield from links_section.find_all(Link, True)
 
-    @classmethod
-    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
+    def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
 
 

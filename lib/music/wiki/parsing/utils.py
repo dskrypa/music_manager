@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from typing import Optional, Iterator
@@ -64,6 +66,8 @@ def _strify_node(node: CompoundNode):
 
 
 class PageIntro:
+    __slots__ = ('page', 'raw_intro', 'intro')
+
     def __init__(self, page: WikiPage):
         self.page = page
         self.raw_intro = intro = page.intro(True)

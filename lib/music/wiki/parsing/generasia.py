@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from datetime import datetime, date
@@ -45,8 +47,9 @@ https://www.generasia.com/wiki/Map_of_the_Soul:_7
 
 
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
-    @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
+    __slots__ = ()
+
+    def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         yield from PageIntro(artist_page).names()
         try:
             section = artist_page.sections.find('Profile')
@@ -87,8 +90,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     yield Name.from_enclosed(value)
 
-    @classmethod
-    def parse_album_name(cls, node: N) -> Name:
+    def parse_album_name(self, node: N) -> Name:
         # log.debug(f'Processing node: {node}')
         _node = node
         if not isinstance(node, list) and type(node) is not CompoundNode:
@@ -251,12 +253,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     parse_track_name = parse_album_name
 
-    @classmethod
-    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+    def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
 
-    @classmethod
-    def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder'):
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder):
         for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
             try:
                 section = artist_page.sections.find(f'{section_prefix}Discography')
@@ -277,7 +277,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     continue
                 for entry in content.iter_flat():
                     try:
-                        cls._process_disco_entry(artist_page, finder, de_type, entry, lang)
+                        self._process_disco_entry(artist_page, finder, de_type, entry, lang)
                     except InvalidEntry as e:
                         log.debug(e)
                     except Exception:
@@ -286,16 +286,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                             extra={'color': 9}, exc_info=True
                         )
 
-    @classmethod
     def _process_disco_entry(
-        cls,
+        self,
         artist_page: WikiPage,
-        finder: 'DiscographyEntryFinder',
+        finder: DiscographyEntryFinder,
         de_type: DiscoEntryType,
         entry: CompoundNode,
         lang: Optional[str],
     ):
-        name = cls.parse_album_name(entry)
+        name = self.parse_album_name(entry)
         log.log(9, f'Processing {name!r}')
         entry_type = de_type  # Except for collabs with a different primary artist
         if isinstance(entry, String):
@@ -322,15 +321,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         elif parts >= 3:
             if isinstance(entry[2], String):
                 entry_2 = entry[2].value
-                if cls._check_type(entry, 3, Link) and de_type == DiscoEntryType.Collaboration:
+                if self._check_type(entry, 3, Link) and de_type == DiscoEntryType.Collaboration:
                     if entry_2 == '-':
                         # 1st link = primary artist, 2nd link = disco entry
                         entry_type = DiscoEntryType.Feature
                         entry_link = entry[3]
-                        if cls._check_type(entry, 4, String) and not entry[4].lower.startswith('(feat'):
+                        if self._check_type(entry, 4, String) and not entry[4].lower.startswith('(feat'):
                             # [date] primary - album (song (feat artists))
                             song_title = entry[4].value[1:].partition('(')[0]
-                    elif entry_2 == '(' and cls._check_type(entry, 4, String) and entry[4].lower.startswith('feat'):
+                    elif entry_2 == '(' and self._check_type(entry, 4, String) and entry[4].lower.startswith('feat'):
                         # [date] single (primary feat collaborators)
                         pass
 
@@ -352,8 +351,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 disco_entry.title = entry[1].value
             finder.add_entry(disco_entry, entry)
 
-    @classmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         processed = entry_page.sections.processed()
         langs = set()
         for cat in entry_page.categories:
@@ -369,16 +367,15 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         for node in processed:
             if isinstance(node, MappingNode) and 'Artist' in node:
                 try:
-                    yield from cls._process_album_edition(entry, entry_page, node, langs, repackage)
+                    yield from self._process_album_edition(entry, entry_page, node, langs, repackage)
                 except Exception as e:
                     log.debug(f'Error processing edition on {entry_page=}: {e}', extra={'color': 9})
                     # log.debug(f'Error processing edition on {entry_page=} node={node.pformat()}', exc_info=True, extra={'color': 9})
                 else:
                     repackage = True
 
-    @classmethod
     def _process_album_edition(
-        cls, entry: 'DiscographyEntry', entry_page: WikiPage, node: MappingNode, langs: set, repackage: bool = False
+        self, entry: DiscographyEntry, entry_page: WikiPage, node: MappingNode, langs: set, repackage: bool = False
     ) -> EditionIterator:
         artist_link = node['Artist'].value
         name_key = list(node.keys())[1]  # Works because of insertion order being maintained
@@ -476,16 +473,14 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     find_language(value, lang, langs), repackage
                 )
 
-    @classmethod
-    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         if (tracks := edition._content) and tracks[0].children:
             for node in tracks:
                 yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
         else:
             yield DiscographyEntryPart(None, edition, edition._content)
 
-    @classmethod
-    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         entry_page.sections.processed()                     # Necessary to populate the Information section
         try:
             info = entry_page.sections['Information'].content
@@ -495,8 +490,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         else:
             return find_ordinal(info.raw.string)
 
-    @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
         try:
             members_section = artist_page.sections.find('Members')
         except (KeyError, AttributeError):
@@ -517,8 +511,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
         return members
 
-    @classmethod
-    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
         if external_links := artist_page.sections.find('External Links', None):
             if isinstance(external_links.content, CompoundNode):
                 for node in external_links.content:
@@ -539,17 +532,14 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     break
         """
 
-    @classmethod
-    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         # This site does not use discography pages.
         return None
 
-    @classmethod
-    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+    def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
+    def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
 
 

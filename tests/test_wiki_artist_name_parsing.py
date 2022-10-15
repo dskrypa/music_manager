@@ -11,9 +11,9 @@ from music.wiki.parsing.drama_wiki import DramaWikiParser
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 
-parse_generasia_artist_name = GenerasiaParser.parse_artist_name
-parse_kf_artist_name = KpopFandomParser.parse_artist_name
-parse_dw_artist_name = DramaWikiParser.parse_artist_name
+parse_generasia_artist_name = GenerasiaParser().parse_artist_name
+parse_kf_artist_name = KpopFandomParser().parse_artist_name
+parse_dw_artist_name = DramaWikiParser().parse_artist_name
 
 
 def fake_page(intro):

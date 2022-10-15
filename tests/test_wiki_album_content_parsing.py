@@ -11,7 +11,7 @@ from music.wiki.parsing.kpop_fandom import KpopFandomParser
 
 DATA_DIR = Path(__file__).parent.joinpath('data', Path(__file__).stem)
 
-parse_kf_track_name = KpopFandomParser.parse_track_name
+parse_kf_track_name = KpopFandomParser().parse_track_name
 
 
 def get_data(title: str) -> str:

@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from collections import Counter
@@ -29,9 +31,10 @@ YEAR_MATCH = re.compile(r'-?(.*?)\(((?:19|20)\d{2})\)$').match
 
 
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
+    __slots__ = ()
+
     # TODO: Date for part is not being picked up
-    @classmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
+    def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         if profile := get_section_map(artist_page, 'Profile'):
             for key in ('Name', 'Real name', 'Group name'):
                 if value := profile.get(key):
@@ -43,16 +46,13 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     else:
                         yield Name.from_parts(parts)
 
-    @classmethod
-    def parse_album_name(cls, node: N) -> Name:
+    def parse_album_name(self, node: N) -> Name:
         raise NotImplementedError
 
-    @classmethod
-    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_track_name(cls, node: N) -> Name:
+    def parse_track_name(self, node: N) -> Name:
         if not isinstance(node, MappingNode):
             raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=!r}')
         title = node['Song Title']
@@ -83,12 +83,10 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             extra['instrumental'] = True
         return Name.from_parts((eng, non_eng), extra=extra)
 
-    @classmethod
-    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+    def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
 
-    @classmethod
-    def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         try:
             section = artist_page.sections.find('TV Show Theme Songs')
         except KeyError:
@@ -147,9 +145,8 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                         log.debug(f'  > Adding {entry=!r}')
                         finder.add_entry(disco_entry, entry)
 
-    @classmethod
     def _process_parts_edition(
-        cls, entry: 'Soundtrack', entry_page: WikiPage, ost_name: str, edition_name: str, parts: list[Section]
+        self, entry: Soundtrack, entry_page: WikiPage, ost_name: str, edition_name: str, parts: list[Section]
     ) -> SoundtrackEdition:
         log.debug(f'Found {len(parts)} {edition_name} on {entry_page=}')
         name, languages, dates, artists = None, Counter(), set(), set()
@@ -161,16 +158,15 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             name, entry_page, entry, entry._type, artists, sorted(dates), parts, f'[{edition_name}]', language
         )
 
-    @classmethod
-    def process_album_editions(cls, entry: 'Soundtrack', entry_page: WikiPage) -> EditionIterator:
+    def process_album_editions(self, entry: Soundtrack, entry_page: WikiPage) -> EditionIterator:
         ost_parts, ost_full, ost_name, other_parts = split_sections(entry_page)
         if not (ost_full or ost_parts):
             log.warning(f'Did not find any OST content for entry={entry._basic_repr} / {entry_page!r}')
 
         if ost_parts:
-            yield cls._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)
+            yield self._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)
         if other_parts:
-            yield cls._process_parts_edition(entry, entry_page, ost_name, 'Extra Parts', other_parts)
+            yield self._process_parts_edition(entry, entry_page, ost_name, 'Extra Parts', other_parts)
         if ost_full:
             log.debug(f'Found full OST section on {entry_page=}')
             try:
@@ -187,8 +183,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     '[Full OST]', language
                 )
 
-    @classmethod
-    def _process_parts_edition_parts(cls, edition: 'SoundtrackEdition', numbered: bool) -> Iterator['SoundtrackPart']:
+    def _process_parts_edition_parts(self, edition: SoundtrackEdition, numbered: bool) -> Iterator[SoundtrackPart]:
         for i, section in enumerate(edition._content, 1):
             content = section.content
             info = get_info_map(content)
@@ -203,12 +198,11 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             else:
                 yield SoundtrackPart(None, section.title, edition, content[4], artist=artist, release_date=rel_date)
 
-    @classmethod
-    def process_edition_parts(cls, edition: 'SoundtrackEdition') -> Iterator['SoundtrackPart']:
+    def process_edition_parts(self, edition: SoundtrackEdition) -> Iterator[SoundtrackPart]:
         if edition.edition == '[OST Parts]':
-            yield from cls._process_parts_edition_parts(edition, True)
+            yield from self._process_parts_edition_parts(edition, True)
         elif edition.edition == '[Extra Parts]':
-            yield from cls._process_parts_edition_parts(edition, False)
+            yield from self._process_parts_edition_parts(edition, False)
         elif edition.edition == '[Full OST]':
             section = edition._content
             content = section.content
@@ -230,23 +224,19 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         else:
             log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
 
-    @classmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
         raise NotImplementedError
 
-    @classmethod
-    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
         if trivia := get_section_map(artist_page, 'Trivia'):
             group_info = trivia.get('KPOP group')
             if isinstance(group_info, ContainerNode):
                 yield from group_info.find_all(Link, True)
 
-    @classmethod
-    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         raise NotImplementedError
 
-    @classmethod
-    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+    def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         if details := get_section_map(page, 'Details'):
             if ost_link := details.get('Original Soundtrack'):
                 if isinstance(ost_link, Link):
@@ -254,8 +244,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 else:
                     log.warning(f'An {ost_link=!r} was found on {page=!r} but it was not a Link')
 
-    @classmethod
-    def parse_source_show(cls, page: WikiPage) -> Optional[TVSeries]:
+    def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         info = get_info_map(next(iter(page.sections)).content)
         link = next(iter(info['Title'].find_all(Link, True)), None)
         return TVSeries.from_link(link) if link else None

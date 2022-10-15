@@ -14,8 +14,8 @@ from music.wiki.track import Track
 
 log = logging.getLogger(__name__)
 
-parse_generasia_track_name = GenerasiaParser.parse_track_name
-parse_kf_track_name = KpopFandomParser.parse_track_name
+parse_generasia_track_name = GenerasiaParser().parse_track_name
+parse_kf_track_name = KpopFandomParser().parse_track_name
 
 
 class KpopFandomTrackNameParsingTest(NameTestCaseBase):

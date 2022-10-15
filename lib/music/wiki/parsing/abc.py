@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Iterator, Optional
@@ -21,21 +23,25 @@ EditionIterator = Iterator['DiscographyEntryEdition']
 
 
 class WikiParser(ABC):
+    __slots__ = ()
     _site_parsers = {}
     _domain_parsers = {}
     client = None
 
-    # noinspection PyMethodOverriding
-    def __init_subclass__(cls, site: str, domain: Optional[str] = None):
-        WikiParser._site_parsers[site] = cls
+    def __init_subclass__(cls, site: str, domain: Optional[str] = None, **kwargs):  # noqa
+        super().__init_subclass__(**kwargs)
+        cls._site_parsers[site] = cls
         if domain:
-            WikiParser._domain_parsers['.' + domain] = cls
+            cls._domain_parsers['.' + domain] = cls
         cls.client = MediaWikiClient(site)
 
     @classmethod
-    def for_site(cls, site: str, method: Optional[str] = None) -> Optional['WikiParser']:
+    def for_site(cls, site: str, method: Optional[str] = None) -> Optional[WikiParser]:
         if not (parser := cls._site_parsers.get(site)):
             parser = next((p for domain, p, in cls._domain_parsers.items() if site.endswith(domain)), None)
+
+        if parser:
+            parser = parser()
 
         if parser and method:
             try:
@@ -47,69 +53,56 @@ class WikiParser(ABC):
                     return None
         return parser
 
-    @classmethod
     @abstractmethod
-    def parse_artist_name(cls, artist_page: WikiPage) -> Iterator[Name]:
+    def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_album_name(cls, node: N) -> Name:
+    def parse_album_name(self, node: N) -> Name:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_album_number(cls, entry_page: WikiPage) -> Optional[int]:
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_track_name(cls, node: N) -> Name:
+    def parse_track_name(self, node: N) -> Name:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_single_page_track_name(cls, page: WikiPage) -> Name:
+    def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def process_disco_sections(cls, artist_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def process_album_editions(cls, entry: 'DiscographyEntry', entry_page: WikiPage) -> EditionIterator:
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def process_edition_parts(cls, edition: 'DiscographyEntryEdition') -> Iterator['DiscographyEntryPart']:
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_group_members(cls, artist_page: WikiPage) -> dict[str, list[str]]:
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_member_of(cls, artist_page: WikiPage) -> Iterator[Link]:
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_disco_page_entries(cls, disco_page: WikiPage, finder: 'DiscographyEntryFinder') -> None:
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_soundtrack_links(cls, page: WikiPage) -> Iterator[Link]:
+    def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
-    @classmethod
     @abstractmethod
-    def parse_source_show(cls, page: WikiPage) -> Optional['TVSeries']:
+    def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
 
     @classmethod

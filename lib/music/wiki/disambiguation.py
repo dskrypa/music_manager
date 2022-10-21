@@ -161,7 +161,7 @@ def _disambiguation_links(section: Section) -> Iterator[Link]:
     content = section.content
     if isinstance(content, List):
         yield from _disambiguation_entries(content)
-    elif isinstance(content, CompoundNode):
+    else:
         for link_list in content.find_all(List):
             yield from _disambiguation_entries(link_list)
 
@@ -174,6 +174,14 @@ def _disambiguation_entries(list_node: List) -> Iterator[Link]:
     for entry in list_node.iter_flat():
         if isinstance(entry, Link):
             yield entry
-        elif isinstance(entry, CompoundNode):
-            if isinstance(entry[0], Link):
-                yield entry[0]
+        else:
+            try:
+                entry = entry[0]
+            except TypeError:
+                pass
+            else:
+                if isinstance(entry, Link):
+                    yield entry
+        # elif isinstance(entry, CompoundNode):
+        #     if isinstance(entry[0], Link):
+        #         yield entry[0]

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from unittest.mock import MagicMock
-from typing import Iterable
+from typing import Collection
 
 from wiki_nodes.page import WikiPage
 from music.test_common import NameTestCaseBase, main
@@ -24,7 +24,7 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
     _interwiki_map = {'w': 'https://community.fandom.com/wiki/$1'}
     root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
 
-    def _get_page(self, title: str, categories: Iterable[str] = None) -> WikiPage:
+    def _get_page(self, title: str, categories: Collection[str] = None) -> WikiPage:
         data = get_data(title.replace(' ', '_'))
         return WikiPage(title, self._site, data, categories=categories, interwiki_map=self._interwiki_map)
 

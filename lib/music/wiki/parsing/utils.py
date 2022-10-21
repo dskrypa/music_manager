@@ -9,7 +9,7 @@ import re
 from typing import Optional, Iterator
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode
 from ...text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
 from ...text.name import Name
 
@@ -46,7 +46,7 @@ WIKI_STYLE_SEARCHES = (
 )
 
 
-def _strify_node(node: CompoundNode):
+def _strify_node(node: ContainerNode):
     # log.debug(f'_strify_node({node!r})')
     parts = []
     for n in node:
@@ -71,7 +71,7 @@ class PageIntro:
     def __init__(self, page: WikiPage):
         self.page = page
         self.raw_intro = intro = page.intro(True)
-        if isinstance(intro, CompoundNode):
+        if isinstance(intro, ContainerNode):
             self.intro = _strify_node(intro)
         elif isinstance(intro, String):
             self.intro = intro.value

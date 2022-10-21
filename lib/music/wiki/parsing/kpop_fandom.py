@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, Iterator, Optional, Any, Union, Type
 
 from ds_tools.unicode import LangCat
 from wiki_nodes.exceptions import SiteDoesNotExist
-from wiki_nodes.nodes import (
-    N, AnyNode, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator, Template, Tag, List
-)
+from wiki_nodes.nodes import N, AnyNode, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator
+from wiki_nodes.nodes import Template, Tag, List, ContainerNode
 from wiki_nodes.page import WikiPage
 from ...common.disco_entry import DiscoEntryType
 from ...text.extraction import split_enclosed, ends_with_enclosed, has_unpaired
@@ -55,7 +54,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             if birth_name := infobox.get('birth_name'):
                 if isinstance(birth_name, String):
                     yield Name.from_enclosed(birth_name.value)
-                elif isinstance(birth_name, CompoundNode):
+                elif isinstance(birth_name, ContainerNode):
                     for line in birth_name:
                         if isinstance(line, String):
                             yield Name.from_enclosed(line.value)
@@ -68,7 +67,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     if node := infobox.get(script):
                         if isinstance(node, String):
                             non_eng_vals.append((script, node.value))
-                        elif isinstance(node, CompoundNode):    # Example: GWSN - Kanji with Japanese + Chinese
+                        elif isinstance(node, ContainerNode):    # Example: GWSN - Kanji with Japanese + Chinese
                             for sub_node in node:
                                 if isinstance(sub_node, String):
                                     non_eng_vals.append((script, sub_node.value))
@@ -104,7 +103,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     continue
                 try:
                     self._process_disco_section(artist_page, finder, alb_type_section, alb_type)
-                except Exception:
+                except Exception:  # noqa
                     log.error(err_msg, exc_info=True, extra={'color': 'red'})
         elif section.depth == 2:  # key = language, value = sub-section
             for lang, lang_section in section.children.items():
@@ -115,7 +114,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     # log.debug(f'{alb_type}: {alb_type_section.content}')
                     try:
                         self._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
-                    except Exception:
+                    except Exception:  # noqa
                         log.error(err_msg, exc_info=True, extra={'color': 'red'})
         else:
             log.warning(f'Unexpected section depth: {section.depth} on {artist_page}')
@@ -299,11 +298,8 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             log.debug(f'Members section not found for {artist_page}')
             return {}
 
-        if (
-            type(members_section.content) is CompoundNode
-            and (tables := list(members_section.find_all(Table)))
-            and len(tables) == 1  # noqa
-        ):
+        # if type(members_section.content) is CompoundNode and
+        if (tables := list(members_section.find_all(Table))) and len(tables) == 1:
             log.debug(f'Members section {members_section} => {tables[0]}')
             members_node = tables[0]
         else:
@@ -336,22 +332,22 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         return members
 
     def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
-        if intro := artist_page.intro():
-            log.debug(f'Looking for groups in intro for {artist_page}', extra={'color': 11})
-            try:
-                links = intro.find_all(Link, recurse=True)
-            except AttributeError:
-                log.debug(f'Error finding links on page={artist_page!r} in {intro=}')
-            else:
-                for link, entity in EntertainmentEntity.from_links(links, strict=0).items():
-                    if entity._categories == GROUP_CATEGORIES:
-                        log.debug(f'Found link from {artist_page} to group={entity}', extra={'color': 11})
-                    if entity._categories == GROUP_CATEGORIES and (members := entity.members):  # noqa
-                        log.debug(
-                            f'Found link from {artist_page} to group={entity} with {members=}', extra={'color': 11}
-                        )
-                        if any(artist_page == page for m in members for page in m.pages):
-                            yield link
+        if not (intro := artist_page.intro()):
+            return
+
+        log.debug(f'Looking for groups in intro for {artist_page}', extra={'color': 11})
+        try:
+            links = intro.find_all(Link, recurse=True)
+        except AttributeError:
+            log.debug(f'Error finding links on page={artist_page!r} in {intro=}')
+        else:
+            for link, entity in EntertainmentEntity.from_links(links, strict=0).items():
+                # if entity._categories == GROUP_CATEGORIES:
+                #     log.debug(f'Found link from {artist_page} to group={entity}', extra={'color': 11})
+                if entity._categories == GROUP_CATEGORIES and (members := entity.members):  # noqa
+                    log.debug(f'Found link from {artist_page} to group={entity} with {members=}', extra={'color': 11})
+                    if any(artist_page == page for m in members for page in m.pages):
+                        yield link
 
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         # This site does not use discography pages.
@@ -523,7 +519,7 @@ class ComplexTrackName:
 
 
 class EditionFinder:
-    def __init__(self, name: Name, entry: 'DiscographyEntry', entry_page: WikiPage):
+    def __init__(self, name: Name, entry: DiscographyEntry, entry_page: WikiPage):
         self.name = name
         self.entry = entry
         self.entry_page = entry_page
@@ -595,33 +591,33 @@ class EditionFinder:
 
     @cached_property
     def artists(self) -> set[Link]:
-        if infobox := self.entry_page.infobox:
-            try:
-                all_links = {link.title: link for link in self.entry_page.find_all(Link)}
-            except Exception as e:
-                raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
-            artist_links = set()
-            if artists := infobox.value.get('artist'):
-                if isinstance(artists, String):
-                    artists_str = artists.value
-                    if artists_str.lower() not in ('various', 'various artists'):
-                        for artist in map(str.strip, artists_str.split(', ')):
-                            if artist.startswith('& '):
-                                artist = artist[1:].strip()
-                            if artist_link := all_links.get(artist):
-                                artist_links.add(artist_link)
-                elif isinstance(artists, Link):
-                    artist_links.add(artists)
-                elif isinstance(artists, CompoundNode):
-                    for artist in artists:
-                        if isinstance(artist, Link):
-                            artist_links.add(artist)
-                        elif isinstance(artist, String):
-                            if artist_link := all_links.get(artist.value):
-                                artist_links.add(artist_link)
-            return artist_links
-        else:
+        if not (infobox := self.entry_page.infobox):
             return set()
+        try:
+            all_links = {link.title: link for link in self.entry_page.find_all(Link)}
+        except Exception as e:
+            raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
+
+        artist_links = set()
+        if artists := infobox.value.get('artist'):
+            if isinstance(artists, String):
+                artists_str = artists.value
+                if artists_str.lower() not in ('various', 'various artists'):
+                    for artist in map(str.strip, artists_str.split(', ')):
+                        if artist.startswith('& '):
+                            artist = artist[1:].strip()
+                        if artist_link := all_links.get(artist):
+                            artist_links.add(artist_link)
+            elif isinstance(artists, Link):
+                artist_links.add(artists)
+            elif isinstance(artists, ContainerNode):
+                for artist in artists:
+                    if isinstance(artist, Link):
+                        artist_links.add(artist)
+                    elif isinstance(artist, String):
+                        if artist_link := all_links.get(artist.value):
+                            artist_links.add(artist_link)
+        return artist_links
 
     @cached_property
     def dates(self) -> list[date]:
@@ -645,7 +641,7 @@ class EditionFinder:
         return langs
 
 
-def _init_ost_edition_parts(edition: 'DiscographyEntryEdition', list_nodes: list[List]):
+def _init_ost_edition_parts(edition: DiscographyEntryEdition, list_nodes: list[List]):
     for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
         if not isinstance(node, (String, Link)):  # Likely a CompoundNode with ele 0 being a String
             node = node[0]

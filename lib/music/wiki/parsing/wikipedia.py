@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable
 
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes.nodes import N, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
+from wiki_nodes.nodes import ContainerNode
 from wiki_nodes.page import WikiPage
 from ...text.name import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
@@ -61,36 +62,36 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.debug(f'No discography section found for {artist_page}')
             return
 
-        if section.content:
-            try:
-                disco_link_tmpl = section.content[0]
-            except Exception as e:
-                log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
+        if not section.content:
+            self._parse_disco_page_entries(artist_page, _disco_sections(section), finder)
+            return
+        try:
+            disco_link_tmpl = section.content[0]
+        except Exception as e:
+            log.debug(f'Unexpected error finding the discography page link on {artist_page}: {e}')
+            return
+
+        if not (isinstance(disco_link_tmpl, Template) and disco_link_tmpl.name.lower() == 'main'):
+            log.debug(f'Unexpected discography section format on {artist_page}')
+            return
+
+        try:
+            disco_page_link = disco_link_tmpl.value
+        except Exception as e:
+            log.debug(f'Unexpected error finding the discography link on {artist_page} from {disco_link_tmpl}: {e}')
+            return
+
+        if not isinstance(disco_page_link, Link):
+            if isinstance(disco_page_link, MappingNode):
+                disco_page_link = Link.from_title(disco_page_link['1'].value, artist_page)
+            elif isinstance(disco_page_link, list):
+                disco_page_link = Link.from_title(disco_page_link[0].value, artist_page)
+            else:
+                log.debug(f'Unexpected {disco_page_link=} format on {artist_page}')
                 return
 
-            if isinstance(disco_link_tmpl, Template) and disco_link_tmpl.name.lower() == 'main':
-                try:
-                    disco_page_link = disco_link_tmpl.value
-                except Exception as e:
-                    log.debug(
-                        f'Unexpected error finding the discography link on {artist_page} from {disco_link_tmpl}: {e}'
-                    )
-                else:
-                    if not isinstance(disco_page_link, Link):
-                        if isinstance(disco_page_link, MappingNode):
-                            disco_page_link = Link.from_title(disco_page_link['1'].value, artist_page)
-                        elif isinstance(disco_page_link, list):
-                            disco_page_link = Link.from_title(disco_page_link[0].value, artist_page)
-                        else:
-                            log.debug(f'Unexpected {disco_page_link=} format on {artist_page}')
-                            return
-
-                    disco_entity = Discography.from_link(disco_page_link, artist=finder.artist)
-                    disco_entity._process_entries(finder)
-            else:
-                log.debug(f'Unexpected discography section format on {artist_page}')
-        else:
-            self._parse_disco_page_entries(artist_page, _disco_sections(section), finder)
+        disco_entity = Discography.from_link(disco_page_link, artist=finder.artist)
+        disco_entity._process_entries(finder)
 
     def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError
@@ -126,23 +127,30 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                     continue
 
             try:
-                for row in content:
-                    try:
-                        # log.debug(f'Processing alb_type={alb_types} row={row}')
-                        if isinstance(row, TableSeparator):
-                            try:
-                                lang = row.value.value
-                            except AttributeError:  # Usually caused by a footnote about the table
-                                pass
-                        else:
-                            self._process_disco_row(page, finder, row, alb_types, lang)
-                    except TitleNotFound:
-                        log.debug(f'Unable to find title column in {section=} on {page} in row={short_repr(row)}')
-                        break           # Skip additional rows in this section
-                    except Exception:
-                        log.error(f'Error processing {section=} on {page} row={short_repr(row)}:', exc_info=True, extra={'color': 9})
-            except Exception:
+                self._parse_disco_page_entry_row(content, alb_types, lang, page, section, finder)
+            except Exception:  # noqa
                 log.error(f'Unexpected error processing {section=} on {page}:', exc_info=True, extra={'color': 9})
+
+    def _parse_disco_page_entry_row(
+        self, content, alb_types, lang, page: WikiPage, section: Section, finder: DiscographyEntryFinder
+    ):
+        for row in content:
+            try:
+                # log.debug(f'Processing alb_type={alb_types} row={row}')
+                if isinstance(row, TableSeparator):
+                    try:
+                        lang = row.value.value
+                    except AttributeError:  # Usually caused by a footnote about the table
+                        pass
+                else:
+                    self._process_disco_row(page, finder, row, alb_types, lang)
+            except TitleNotFound:
+                log.debug(f'Unable to find title column in {section=} on {page} in row={short_repr(row)}')
+                break  # Skip additional rows in this section
+            except Exception:  # noqa
+                log.error(
+                    f'Error processing {section=} on {page} row={short_repr(row)}:', exc_info=True, extra={'color': 9}
+                )
 
     def _process_disco_row(
         self, page: WikiPage, finder: DiscographyEntryFinder, row, alb_types: Sequence[str], lang: Optional[str]
@@ -162,13 +170,13 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                 except Exception as e:
                     log.debug(f'Unexpected error extracting track list from disco row={row}: {e}')
 
-            if type(details) is CompoundNode:
+            if details.__class__ is CompoundNode:
                 details = details[0]
             details = details.as_dict(multiline=False)
             if date := details.get('Released', details.get('To be released')):
                 if isinstance(date, String):
                     date = date.value
-                elif type(date) is CompoundNode and isinstance(date[0], String):
+                elif date.__class__ is CompoundNode and isinstance(date[0], String):
                     date = date[0].value
 
                 if '(' in date:
@@ -227,7 +235,7 @@ def node_to_link_dict(node: Node) -> Optional[dict[str, Optional[Node]]]:
         return None
     elif not isinstance(node, Node):
         raise TypeError(f'Unexpected node type={node.__class__.__name__}')
-    elif isinstance(node, Template) and node.name.lower() == 'n/a':
+    elif isinstance(node, Template) and node.lc_name == 'n/a':
         return None
 
     as_dict = {}
@@ -235,7 +243,7 @@ def node_to_link_dict(node: Node) -> Optional[dict[str, Optional[Node]]]:
         as_dict[node.value] = None
     elif isinstance(node, Link):
         as_dict[node.show] = node
-    elif isinstance(node, CompoundNode):
+    elif isinstance(node, ContainerNode):
         if len(node) == 2:
             a, b = node
             if isinstance(a, Link) and isinstance(b, String):

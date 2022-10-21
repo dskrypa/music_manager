@@ -229,8 +229,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
         if trivia := get_section_map(artist_page, 'Trivia'):
-            group_info = trivia.get('KPOP group')
-            if isinstance(group_info, ContainerNode):
+            if group_info := trivia.get('KPOP group'):
                 yield from group_info.find_all(Link, True)
 
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
@@ -332,7 +331,7 @@ def get_basic_info(
     if part_date := info.get('Release Date'):
         dates.add(parse_date(part_date.value))
     if artist := info.get('Artist'):
-        if isinstance(artist, CompoundNode):
+        if isinstance(artist, ContainerNode):
             artist = String(' '.join(map(str, artist)))
         artists.add(artist)
 

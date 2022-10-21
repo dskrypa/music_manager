@@ -9,7 +9,7 @@ from itertools import chain
 from functools import partialmethod, cached_property
 from typing import TYPE_CHECKING, Any, Optional, Iterable
 
-from wiki_nodes import CompoundNode, String, Link
+from wiki_nodes import String, Link, ContainerNode
 from ..text.extraction import strip_enclosed
 from ..text.name import Name
 from ..text.utils import combine_with_parens
@@ -52,7 +52,7 @@ class Track:
     @cached_property
     def artists(self) -> set[Artist]:
         if (extras := self.name.extra) and (artists := extras.get('artists')):
-            if isinstance(artists, CompoundNode):  # noqa
+            if isinstance(artists, ContainerNode):
                 link_artist_map = Artist.from_links(artists.find_all(Link))  # noqa
                 return set(link_artist_map.values())
             elif isinstance(artists, Link):
@@ -75,7 +75,7 @@ class Track:
         parts = []
         if extras := self.name.extra:
             if feat := extras.get('feat'):
-                if isinstance(feat, CompoundNode):
+                if isinstance(feat, ContainerNode):
                     feat = artist_string(feat)[0]
                 elif isinstance(feat, Link):
                     try:
@@ -87,12 +87,12 @@ class Track:
 
                 parts.append(f'feat. {feat}')
             if collab := extras.get('collabs'):
-                if isinstance(collab, CompoundNode):
+                if isinstance(collab, ContainerNode):
                     collab = artist_string(collab)[0]
                 parts.append(f'with {collab}')
 
             if artists := extras.get('artists'):
-                if isinstance(artists, CompoundNode):
+                if isinstance(artists, ContainerNode):
                     artists, found = artist_string(artists)
                     if suffixes and (suffix := ARTISTS_SUFFIXES.get(found)):
                         artists = f'{artists} {suffix}'  # noqa
@@ -156,7 +156,7 @@ class Track:
         return {}
 
 
-def artist_string(node: CompoundNode) -> tuple[str, int]:
+def artist_string(node: ContainerNode) -> tuple[str, int]:
     found = 0
     link_artist_map = Artist.from_links(node.find_all(Link))
     # log.debug(f'Found {link_artist_map=}')

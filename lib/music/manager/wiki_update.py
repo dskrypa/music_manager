@@ -508,7 +508,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                 if self._init_artist:
                     return self._init_artist
                 # TODO: Prompt for artist override?
-                raise NoArtistFoundError(self.album, self._artists_source)
+                raise NoArtistFoundError(self.album, self._artists_source) from None
 
         return artist
 
@@ -516,29 +516,35 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
     def artist(self) -> ArtistType:
         if self._init_artist is not None:
             return self._init_artist
-        artist = self._artist
-        if (
-            self.ost
-            and not self.edition.full_ost
-            and not self._artist_from_tag
-            and not isinstance(artist, ArtistSet)
-            and not any('fandom' in site for site in artist._pages)
-        ):
-            # log.debug(f'Replacing {artist=} with pages={artist._pages}')
-            if name := artist.name.english or artist.name.non_eng:
-                try:
-                    return Artist.from_title(
-                        name,
-                        sites=[
-                            'kpop.fandom.com',
-                            'www.generasia.com',
-                        ],
-                        name=artist.name,
-                        entity=artist,
-                    )
-                except Exception as e:
-                    log.warning(f'Error finding alternate version of {artist=!r}: {e}')
+
+        src = self._artists_source
+        retryable = self.ost and not self.edition.full_ost and not isinstance(src, str)
+        try:
+            artist = self._artist
+        except NoArtistFoundError:
+            if not retryable or 'fandom' in src.page.site:
+                raise
+            if not (artist := self._retry_artist_discovery(None)):
+                raise
+        else:
+            if retryable and not isinstance(artist, ArtistSet) and not any('fandom' in site for site in artist._pages):
+                if alt_artist := self._retry_artist_discovery(artist):
+                    artist = alt_artist
+
         return artist
+
+    def _retry_artist_discovery(self, artist: Optional[Artist]) -> Optional[Artist]:
+        if not artist:
+            return None  # TODO: implement handling
+
+        # log.debug(f'Replacing {artist=} with pages={artist._pages}')
+        if name := artist.name.english or artist.name.non_eng:
+            try:
+                return Artist.from_title(
+                    name, sites=['kpop.fandom.com', 'www.generasia.com'], name=artist.name, entity=artist
+                )
+            except Exception as e:
+                log.warning(f'Error finding alternate version of {artist=!r}: {e}')
 
     @cached_property
     def _edition_client(self):

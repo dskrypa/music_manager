@@ -630,6 +630,10 @@ class DiscographyEntryPart:
 
     _basic_repr = property(__repr__)
 
+    @property
+    def page(self) -> WikiPage:
+        return self.edition.page
+
     @cached_property
     def date(self) -> Optional[date]:
         if self._date:

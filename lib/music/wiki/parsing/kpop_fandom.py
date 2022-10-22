@@ -7,24 +7,25 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, date
-from functools import cached_property
 from typing import TYPE_CHECKING, Iterator, Optional, Any, Union, Type
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.unicode import LangCat
 from wiki_nodes.exceptions import SiteDoesNotExist
 from wiki_nodes.nodes import N, AnyNode, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator
 from wiki_nodes.nodes import Template, Tag, List, ContainerNode
 from wiki_nodes.page import WikiPage
+
 from ...common.disco_entry import DiscoEntryType
 from ...text.extraction import split_enclosed, ends_with_enclosed, has_unpaired
 from ...text.name import Name
 from ...text.time import parse_date
 from ...text.utils import combine_with_parens, find_ordinal
-from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
+from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart, SoundtrackPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import PageIntro, get_artist_title, LANG_ABBREV_MAP, find_language
+from .utils import PageIntro, get_artist_title, LANG_ABBREV_MAP, find_language, find_nodes
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -41,6 +42,7 @@ RELEASE_DATE_FINDITER = re.compile(r'((?:[a-z]+(?: \d+)?, )?\d{4})', re.IGNORECA
 REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
 UNCLOSED_PAREN_MATCH = re.compile(r'^(.+?)(\([^()]*)$').match
 VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
+PART_NUM_SEARCH = re.compile(r'\bpart\.?\s*(\d+)', re.IGNORECASE).search
 
 
 class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
@@ -212,6 +214,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         content = edition._content
+        # log.debug(f'process_edition_parts: content={content.pformat()}')
         if content.__class__ is CompoundNode and isinstance(content[0], List):
             if len(content) % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
                 yield from _init_ost_edition_parts(edition, content)
@@ -248,6 +251,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 log.warning(f'Unexpected type for {edition!r}._content: {content!r}')
 
     def parse_track_name(self, node: N) -> Name:
+        # log.debug(f'parse_track_name({node!r})')
         if isinstance(node, String):
             # log.debug(f'Processing track name from String {node=}')
             return _process_track_string(node.value)
@@ -527,42 +531,60 @@ class EditionFinder:
     def editions(self) -> EditionIterator:
         entry_page = self.entry_page
         tl_keys = ('Track list', 'Tracklist')
-        if track_list_section := next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None):
-            try:
-                track_section_content = track_list_section.processed(False, False, False, False, True)
-            except Exception:
-                orig = track_list_section.pformat('content')
-                log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
-                return
-
-            if track_section_content:  # edition or version = None
-                yield self._edition(track_section_content, None, self.find_language(track_section_content))
-
-            discs = []
-            for section in track_list_section:
-                log.debug(f'Processing {section=}')
-                title = section.title
-                lc_title = title.lower()
-                if lc_title == 'cd':  # edition or version = None
-                    yield self._edition(section.content, None, self.find_language(section.content))
-                elif lc_title.startswith(('cd', 'disc', 'disk')):
-                    discs.append((section.content, self.find_language(section.content)))
-                elif not lc_title.startswith('dvd'):
-                    edition, lang = _process_album_version(title)
-                    content = section.content or section.children
-                    yield self._edition(content, edition, self.find_language(section.content, lang))
-
-            if discs:
-                # log.debug(f'For {entry_page=} found {discs=}')
-                ed_lang = None
-                if ed_langs := set(filter(None, {disc[1] for disc in discs})):
-                    if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
-                        log.debug(f'Found multiple languages for {entry_page} discs: {ed_langs}')
-
-                yield self._edition([d[0] for d in discs], None, ed_lang)  # edition or version = None
-        else:
+        track_list_section = next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None)
+        if not track_list_section:
             # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
             yield self._edition(None, None, self.find_language(entry_page))
+            return
+
+        try:
+            track_section_content = track_list_section.processed(False, False, False, False, True)
+        except Exception:  # noqa
+            orig = track_list_section.pformat('content')
+            log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
+            return
+
+        if track_section_content:  # edition or version = None
+            yield self._edition(track_section_content, None, self.find_language(track_section_content))
+
+        discs = []
+        for section in track_list_section:
+            log.debug(f'Processing {section=}')
+            title = section.title
+            lc_title = title.lower()
+            if lc_title == 'cd':  # edition or version = None
+                yield self._edition(section.content, None, self.find_language(section.content))
+            elif lc_title.startswith(('cd', 'disc', 'disk')):
+                discs.append((section.content, self.find_language(section.content)))
+            elif not lc_title.startswith('dvd'):
+                edition, lang = self._process_album_version(title)
+                # content = section.content or section.children
+                content = section.children or section.content
+                yield self._edition(content, edition, self.find_language(section.content, lang))
+
+        if discs:
+            # log.debug(f'For {entry_page=} found {discs=}')
+            ed_lang = None
+            if ed_langs := set(filter(None, {disc[1] for disc in discs})):
+                if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
+                    log.debug(f'Found multiple languages for {entry_page} discs: {ed_langs}')
+
+            yield self._edition([d[0] for d in discs], None, ed_lang)  # edition or version = None
+
+    def _process_album_version(self, title: str):
+        if self.entry.type == DiscoEntryType.Soundtrack and title.lower() == 'pre-releases':
+            return None, None
+        elif ends_with_enclosed(title):
+            _name, _ver = split_enclosed(title, reverse=True, maxsplit=1)
+            lc_ver = _ver.lower()
+            if 'ver' in lc_ver and (lang := LANG_ABBREV_MAP.get(lc_ver.split(maxsplit=1)[0])):
+                return _name, lang
+        else:
+            lc_title = title.lower()
+            if 'ver' in lc_title and (lang := LANG_ABBREV_MAP.get(lc_title.split(maxsplit=1)[0])):
+                return None, lang
+
+        return title, None
 
     def _edition(self, content, edition, language) -> DiscographyEntryEdition:
         edition_obj = DiscographyEntryEdition(
@@ -641,12 +663,18 @@ class EditionFinder:
         return langs
 
 
+# region OST Edition Parts
+
+
 def _init_ost_edition_parts(edition: DiscographyEntryEdition, list_nodes: list[List]):
     for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
+        # log.debug(f'_init_ost_edition_parts: {node=}, {artist_nodes=}')
         if not isinstance(node, (String, Link)):  # Likely a CompoundNode with ele 0 being a String
             node = node[0]
         name = node.show if isinstance(node, Link) else node.value
-        yield DiscographyEntryPart(name, edition, track_list)
+        artists = set(find_nodes(artist_nodes, Link)) if artist_nodes else None
+        # yield DiscographyEntryPart(name, edition, track_list)
+        yield SoundtrackPart(_parse_ost_part_num(name), name, edition, track_list, artist=artists)
 
 
 def _process_ost_part_lists(list_nodes: list[List]):
@@ -659,6 +687,18 @@ def _process_ost_part_lists(list_nodes: list[List]):
             artist_nodes = None
 
         yield node, artist_nodes, next(i_list_nodes)
+
+
+def _parse_ost_part_num(name) -> Optional[int]:
+    if m := PART_NUM_SEARCH(str(name).lower()):
+        return int(m.group(1))
+    return None
+
+
+# endregion
+
+
+# region Track Processing
 
 
 def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[WikiPage, N]):
@@ -812,15 +852,4 @@ def _process_track_extras(text: str) -> Iterator[tuple[str, Any]]:
         yield extra_type or 'misc', part
 
 
-def _process_album_version(title: str):
-    if ends_with_enclosed(title):
-        _name, _ver = split_enclosed(title, reverse=True, maxsplit=1)
-        lc_ver = _ver.lower()
-        if 'ver' in lc_ver and (lang := LANG_ABBREV_MAP.get(lc_ver.split(maxsplit=1)[0])):
-            return _name, lang
-    else:
-        lc_title = title.lower()
-        if 'ver' in lc_title and (lang := LANG_ABBREV_MAP.get(lc_title.split(maxsplit=1)[0])):
-            return None, lang
-
-    return title, None
+# endregion

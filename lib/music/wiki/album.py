@@ -7,12 +7,12 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, date
-from functools import cached_property
 from itertools import chain
 from typing import Optional, Sequence, Iterator, MutableSet, Union, Iterable, Any
 
 from ordered_set import OrderedSet
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.utils.misc import num_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
 from wiki_nodes.exceptions import BadLinkError
@@ -326,14 +326,13 @@ class Soundtrack(DiscographyEntry):
         return None
 
 
-# noinspection PyUnresolvedReferences
 class _ArtistMixin:
     @property
     def track_artists(self) -> set[Artist]:
         return set()
 
     @cached_property
-    def _artists(self) -> set[Artist]:
+    def _artists(self: Union[_ArtistMixin, DiscographyEntryEdition, SoundtrackPart]) -> set[Artist]:
         log.debug(f'{self._basic_repr}: Processing {self._artist}', extra={'color': 13})
         artists = set()
         if isinstance(self._artist, Artist):
@@ -378,7 +377,7 @@ class _ArtistMixin:
         return set()
 
     @cached_property
-    def artist(self) -> Optional[Artist]:
+    def artist(self: Union[_ArtistMixin, DiscographyEntryEdition, SoundtrackPart]) -> Optional[Artist]:
         if artists := self.artists:
             if len(artists) == 1:
                 return next(iter(artists))
@@ -415,6 +414,8 @@ class DiscographyEntryEdition(_ArtistMixin):
         self.repackage = repackage                                                          # type: bool
         self._lang = lang                                                                   # type: Optional[str]
         # log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r} {entry_type=!r}')
+
+    # region Internal Methods
 
     @property
     def _basic_repr(self) -> str:
@@ -456,6 +457,8 @@ class DiscographyEntryEdition(_ArtistMixin):
 
     def __lt__(self, other: DiscographyEntryEdition) -> bool:
         return self.__cmp_tuple < other.__cmp_tuple
+
+    # endregion
 
     @cached_property
     def lang(self) -> Optional[str]:
@@ -556,6 +559,10 @@ class DiscographyEntryEdition(_ArtistMixin):
 
         return None
 
+    @property
+    def full_ost(self) -> bool:
+        return self.edition in {'[Full OST]', 'Full OST'}
+
 
 class SoundtrackEdition(DiscographyEntryEdition):
     """An edition of a soundtrack (full / parts / extras)"""
@@ -573,15 +580,11 @@ class SoundtrackEdition(DiscographyEntryEdition):
         return name_base
 
     @property
-    def full_ost(self) -> bool:
-        return self.edition == '[Full OST]'
-
-    @property
     def ost_extras(self) -> bool:
         return self.edition == '[Extra Parts]'
 
 
-class DiscographyEntryPart:
+class DiscographyEntryPart(_ArtistMixin):
     ost = False
     _disc_match = re.compile(r'(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
 
@@ -592,16 +595,20 @@ class DiscographyEntryPart:
         tracks: TrackNodes,
         disc: int = None,
         release_date: date = None,
+        artist: NodeOrNodes = None,
     ):
         self._name = name                                   # type: Optional[str]
         self.edition = edition                              # type: DiscographyEntryEdition
         self._tracks = tracks                               # type: TrackNodes
         self._date = release_date                           # type: Optional[date]
+        self._artist = artist
         if disc is not None:
             self.disc = disc                                # type: int
         else:
             m = self._disc_match(name) if name else None
             self.disc = int(m.group(1)) if m else 1         # type: int
+
+    # region Internal Methods
 
     def __repr__(self) -> str:
         ed = self.edition
@@ -630,9 +637,17 @@ class DiscographyEntryPart:
 
     _basic_repr = property(__repr__)
 
+    # endregion
+
     @property
     def page(self) -> WikiPage:
         return self.edition.page
+
+    @property
+    def is_ost(self) -> bool:
+        if self.ost:
+            return True
+        return self.edition.type == DiscoEntryType.Soundtrack
 
     @cached_property
     def date(self) -> Optional[date]:
@@ -706,19 +721,19 @@ class DiscographyEntryPart:
         return tracks
 
 
-class SoundtrackPart(DiscographyEntryPart, _ArtistMixin):
+class SoundtrackPart(DiscographyEntryPart):
     """A part of a multi-part soundtrack"""
     ost = True
 
-    def __init__(self, part: Optional[int], *args, artist: NodeOrNodes = None, **kwargs):
+    def __init__(self, part: Optional[int], *args, **kwargs):
         DiscographyEntryPart.__init__(self, *args, **kwargs)
         self.part = part
-        self._artist = artist
 
 
 DEEdition = Union[DiscographyEntryEdition, SoundtrackEdition]
 DEPart = Union[DiscographyEntryPart, SoundtrackPart]
 DiscoObj = Union[DiscographyEntry, DEPart, DEEdition]
+DEEntryOrEdition = Union[DiscographyEntry, DiscographyEntryEdition]
 
 
 def _strip(text: str) -> str:

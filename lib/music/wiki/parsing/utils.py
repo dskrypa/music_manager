@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional, Iterator
+from typing import Optional, Iterator, Type
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, N
+
 from ...text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
 from ...text.name import Name
 
@@ -22,6 +23,7 @@ __all__ = [
     'LANGUAGES',
     'replace_lang_abbrev',
     'PageIntro',
+    'find_nodes',
 ]
 log = logging.getLogger(__name__)
 
@@ -264,3 +266,27 @@ def get_artist_title(node: Node, entry_page: WikiPage):
 
 def rm_lang_prefix(text: str) -> str:
     return LANG_PREFIX_SUB('', text).strip()
+
+
+def find_nodes(nodes, node_cls: Type[N]) -> list[N]:
+    if not nodes:
+        return []
+    elif isinstance(nodes, node_cls):
+        return [nodes]
+    try:
+        return list(nodes.find_all(node_cls))  # noqa
+    except AttributeError:
+        pass
+    try:
+        nodes = tuple(nodes)
+    except TypeError:  # It's not iterable, and it's not a Node
+        return []
+
+    found = [node for node in nodes if isinstance(node, node_cls)]
+    for node in nodes:
+        try:
+            found.extend(node.find_all(node_cls))
+        except AttributeError:
+            pass
+
+    return found

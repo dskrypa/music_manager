@@ -5,3 +5,4 @@ ipod_shell = music.cli.ipod_shell:main
 music_manager = music.cli.music_manager:main
 plex_manager = music.cli.plex_manager:main
 plex_manager_gui = music.cli.plex_manager_gui:main
+wiki.py = music.cli.wiki:main

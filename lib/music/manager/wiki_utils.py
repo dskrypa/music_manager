@@ -2,15 +2,10 @@
 :author: Doug Skrypa
 """
 
-import logging
-from typing import Union
-
 from ..common.prompts import choose_item
-from ..wiki import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
+from ..wiki.album import DiscoObj, DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 
-__all__ = ['get_disco_part', 'DiscoObj']
-log = logging.getLogger(__name__)
-DiscoObj = Union[DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart]
+__all__ = ['get_disco_part']
 
 
 def get_disco_part(entry: DiscoObj) -> DiscographyEntryPart:

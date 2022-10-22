@@ -237,7 +237,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         if details := get_section_map(page, 'Details'):
-            if ost_link := details.get('Original Soundtrack'):
+            if ost_link := details.get('Original Soundtrack', case_sensitive=False):
                 if isinstance(ost_link, Link):
                     yield ost_link
                 else:

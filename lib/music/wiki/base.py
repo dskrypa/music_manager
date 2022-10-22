@@ -18,6 +18,7 @@ from ..text.name import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError
+from .exceptions import NoLinkedPagesFoundError
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, page_name, titles_and_title_name_map, multi_site_page_map
 
@@ -409,11 +410,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
             raise
 
     @classmethod
-    def find_from_links(cls: Type[WE], links: Iterable[Link]) -> WE:
+    def find_from_links(cls: Type[WE], links: Collection[Link]) -> WE:
         """
         :param links: An iterable that yields Link nodes.
-        :return: The first instance of this class for a link that has a valid category for this class or a subclass
-          thereof
+        :return: The first instance of this class for a link with a valid category for this class or a subclass thereof.
         """
         last_exc = None
         client_title_link_map = site_titles_map(links)
@@ -432,7 +432,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
         if last_exc:
             raise last_exc
-        raise ValueError(f'No pages were found')
+        raise NoLinkedPagesFoundError(links)
 
     @classmethod
     def from_links(cls: Type[WE], links: Iterable[Link], strict: int = 2) -> dict[Link, WE]:

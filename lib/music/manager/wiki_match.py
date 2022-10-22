@@ -17,7 +17,7 @@ from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Alb
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousWikiPageError
 from ..wiki.typing import StrOrStrs
-from .exceptions import NoArtistFoundException
+from .exceptions import NoArtistMatchFoundException
 from .wiki_info import print_de_part
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
         uprint(f'- Album: {album_dir}')
         try:
             artists = find_artists(album_dir, sites=sites)
-        except NoArtistFoundException:
+        except NoArtistMatchFoundException:
             log.error(f'    - Artist: No artist could be found', extra={'color': 11})
         except Exception as e:
             log.error(f'    - Artist: {e}', extra={'color': 'red'}, exc_info=True)
@@ -65,7 +65,7 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
                 artist = artists[0]
                 try:
                     uprint(f'    - Artist: {artist} / {artist.names}')
-                except Exception:
+                except Exception:  # noqa
                     log.error(f'    - Artist: Error parsing name:', extra={'color': 'red'}, exc_info=True)
             else:
                 uprint(f'    - Artists ({len(artists)}):')
@@ -122,7 +122,7 @@ def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> list[Artist]:
 
         return artist_objs
 
-    raise NoArtistFoundException(album_dir)
+    raise NoArtistMatchFoundException(album_dir)
 
 
 def find_album(album_dir: AlbumDir, artists: Iterable[Artist] = None, sites: StrOrStrs = None) -> DiscographyEntryPart:

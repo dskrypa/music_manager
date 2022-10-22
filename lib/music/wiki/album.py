@@ -17,18 +17,19 @@ from ds_tools.utils.misc import num_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
 from wiki_nodes.exceptions import BadLinkError
 from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table, Template
+
 from ..common.disco_entry import DiscoEntryType
 from ..text.extraction import strip_enclosed
 from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, AmbiguousWikiPageError
+from .exceptions import EntityTypeError, AmbiguousWikiPageError, NoLinkedPagesFoundError
 from .parsing import WikiParser
 from .utils import short_site
 
 __all__ = [
-    'DiscographyEntry', 'DiscographyEntryEdition', 'DiscographyEntryPart',
+    'DiscographyEntry', 'DiscographyEntryEdition', 'DiscographyEntryPart', 'DEEdition', 'DEPart', 'DiscoObj',
     'Soundtrack', 'SoundtrackEdition', 'SoundtrackPart',
     'Album', 'Single',
 ]
@@ -48,8 +49,20 @@ class DiscographyEntry(EntertainmentEntity):
     collaborations.
 
     Individual tracks are represented by :class:`Track<.track.Track>` objects.
+
+    :param name: The name of this discography entry
+    :param pages: One or more WikiPage objects
+    :param disco_entry: The :class:`DiscoEntry<.disco_entry.DiscoEntry>` containing the Node and metadata
+      from the artist or Discography page about this entry.
+    :param artist: The :class:`Artist<.artist.Artist>` whose page contained this entry
+    :param entry_type: The :class:`DiscoEntryType<.common.disco_entry.DiscoEntryType>` from the discography section
+      containing this entry
     """
     _categories = ()
+    disco_entries: list[DiscoEntry]
+    _date: Optional[date]
+    _artist: Optional[Artist]
+    _type: Optional[DiscoEntryType]
 
     def __init__(
         self,
@@ -59,22 +72,71 @@ class DiscographyEntry(EntertainmentEntity):
         artist: Artist = None,
         entry_type: DiscoEntryType = None,
     ):
-        """
-        :param name: The name of this discography entry
-        :param pages: One or more WikiPage objects
-        :param disco_entry: The :class:`DiscoEntry<.disco_entry.DiscoEntry>` containing the Node and metadata
-          from the artist or Discography page about this entry.
-        :param artist: The :class:`Artist<.artist.Artist>` whose page contained this entry
-        :param entry_type: The :class:`DiscoEntryType<.common.disco_entry.DiscoEntryType>` from the discography section
-          containing this entry
-        """
-        if name and name.startswith('"') and name.endswith('"'):
+        if name and name[0] == name[-1] == '"':
             name = name[1:-1]
         super().__init__(name, pages)
-        self.disco_entries = [disco_entry] if disco_entry else []   # type: list[DiscoEntry]
-        self._date = None                                           # type: Optional[date]
-        self._artist = artist                                       # type: Optional[Artist]
-        self._type = entry_type                                     # type: Optional[DiscoEntryType]
+        self.disco_entries = [disco_entry] if disco_entry else []
+        self._date = None
+        self._artist = artist
+        self._type = entry_type
+
+    @classmethod
+    def from_disco_entry(cls, disco_entry: DiscoEntry, **kwargs) -> DiscographyEntry:
+        log.debug(f'Creating {cls.__name__} from {disco_entry} with {kwargs=}', extra={'color': 14})
+        try:
+            return cls._by_category(disco_entry, disco_entry=disco_entry, **kwargs)
+        except EntityTypeError as e:
+            log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', extra={'color': 9})
+            # log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', stack_info=True, extra={'color': 9})
+            raise
+
+    # region Internal Methods
+
+    def __repr__(self) -> str:
+        sites = ', '.join(sorted(short_site(site) for site in self._pages))
+        page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
+        return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[{page_str}]>'
+
+    @property
+    def _basic_repr(self) -> str:
+        # Used in logs to avoid circular references that depend on editions being set
+        sites = ', '.join(sorted(short_site(site) for site in self._pages))
+        page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
+        date_str = self._date.strftime('%Y-%m-%d') if self._date else str(self.year)
+        name_str = str(Name(self._name))
+        return f'<[{date_str}]{self.cls_type_name}({name_str!r})[{page_str}]>'
+
+    @cached_property
+    def _sort_key(self) -> tuple[int, date, Name]:
+        release_date = self.date or datetime.fromtimestamp(0).date()
+        return self.year or release_date.year, release_date, self.name
+
+    def __lt__(self, other: DiscographyEntry) -> bool:
+        return self._sort_key < other._sort_key
+
+    def __iter__(self) -> Iterator[DiscographyEntryEdition]:
+        """Iterate over every edition part in this DiscographyEntry"""
+        return iter(self.editions)
+
+    def __bool__(self) -> bool:
+        return bool(self.editions)
+
+    @cached_property
+    def _merge_key(self) -> tuple[Optional[int], str, Optional[DiscoEntryType]]:
+        """Used by :meth:`.DiscographyMixin.discography`"""
+        uc_name = self._name.upper()
+        if ost_match := OST_MATCH(uc_name):
+            uc_name = ost_match.group(1)
+        return self.year, uc_name, self.type
+
+    def _merge(self, other: DiscographyEntry):
+        self._pages.update(other._pages)
+        self.disco_entries.extend(other.disco_entries)
+        self.clear_cached_properties()
+
+    # endregion
+
+    # region Name
 
     @cached_property
     def name(self) -> Name:
@@ -94,29 +156,9 @@ class DiscographyEntry(EntertainmentEntity):
         names = self.names or [self.name]
         return ' / '.join(map(str, names))
 
-    def __repr__(self) -> str:
-        sites = ', '.join(sorted(short_site(site) for site in self._pages))
-        page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
-        return f'<[{self.date_str}]{self.cls_type_name}({self.names_str!r})[{page_str}]>'
+    # endregion
 
-    @property
-    def _basic_repr(self) -> str:
-        # Used in logs to avoid circular references that depend on editions being set
-        sites = ', '.join(sorted(short_site(site) for site in self._pages))
-        page_str = 'pages (0)' if not sites else f'pages ({len(self._pages)}): {sites}'
-        date_str = self._date.strftime('%Y-%m-%d') if self._date else str(self.year)
-        name_str = str(Name(self._name))
-        return f'<[{date_str}]{self.cls_type_name}({name_str!r})[{page_str}]>'
-
-    def __lt__(self, other: DiscographyEntry) -> bool:
-        return self._sort_key < other._sort_key
-
-    def __iter__(self) -> Iterator[DiscographyEntryEdition]:
-        """Iterate over every edition part in this DiscographyEntry"""
-        return iter(self.editions)
-
-    def __bool__(self) -> bool:
-        return bool(self.editions)
+    # region Artist, Type, Number
 
     @cached_property
     def artists(self) -> set[Artist]:
@@ -154,16 +196,14 @@ class DiscographyEntry(EntertainmentEntity):
         return self.type.name if self.type else self.__class__.__name__
 
     @cached_property
-    def _sort_key(self) -> tuple[int, date, Name]:
-        date = self.date or datetime.fromtimestamp(0).date()
-        return self.year or date.year, date, self.name
+    def number(self) -> Optional[int]:
+        for page, parser in self.page_parsers('parse_album_number'):
+            return parser.parse_album_number(page)
+        return None
 
-    @cached_property
-    def _merge_key(self) -> tuple[Optional[int], str, Optional[DiscoEntryType]]:
-        uc_name = self._name.upper()
-        if ost_match := OST_MATCH(uc_name):
-            uc_name = ost_match.group(1)
-        return self.year, uc_name, self.type
+    # endregion
+
+    # region Release Date
 
     @cached_property
     def year(self) -> Optional[int]:
@@ -189,20 +229,7 @@ class DiscographyEntry(EntertainmentEntity):
                 self._date = min(edition.date for edition in self.editions) if self.editions else None
         return self._date
 
-    def _merge(self, other: DiscographyEntry):
-        self._pages.update(other._pages)
-        self.disco_entries.extend(other.disco_entries)
-        self.clear_cached_properties()
-
-    @classmethod
-    def from_disco_entry(cls, disco_entry: DiscoEntry, **kwargs) -> DiscographyEntry:
-        log.debug(f'Creating {cls.__name__} from {disco_entry} with {kwargs=}', extra={'color': 14})
-        try:
-            return cls._by_category(disco_entry, disco_entry=disco_entry, **kwargs)
-        except EntityTypeError as e:
-            log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', extra={'color': 9})
-            # log.error(f'Failed to create {cls.__name__} from {disco_entry}: {e}', stack_info=True, extra={'color': 9})
-            raise
+    # endregion
 
     @cached_property
     def editions(self) -> list[DiscographyEntryEdition]:
@@ -214,12 +241,6 @@ class DiscographyEntry(EntertainmentEntity):
     def parts(self) -> Iterator[DiscographyEntryPart]:
         for edition in self.editions:
             yield from edition
-
-    @cached_property
-    def number(self) -> Optional[int]:
-        for page, parser in self.page_parsers('parse_album_number'):
-            return parser.parse_album_number(page)
-        return None
 
 
 class Album(DiscographyEntry):
@@ -274,6 +295,7 @@ class Soundtrack(DiscographyEntry):
         client = MediaWikiClient('wiki.d-addicts.com')
         results = client.get_pages(name, search=True, gsrwhat='text')
         log.debug(f'Search results for {name=!r}: {results}')
+        last_error = None
         for title, page in results.items():
             try:
                 return cls._by_category(page)
@@ -283,8 +305,14 @@ class Soundtrack(DiscographyEntry):
                 except EntityTypeError:
                     log.debug(f'Found {page=!r} that is neither an OST or a TVSeries')
                 else:
-                    return cls.find_from_links(show.soundtrack_links())
+                    try:
+                        return cls.find_from_links(show.soundtrack_links())
+                    except NoLinkedPagesFoundError as e:
+                        e.source = page
+                        last_error = e
 
+        if last_error is not None:
+            raise last_error
         raise ValueError(f'No pages were found for OSTs matching {name!r}')
 
     @cached_property
@@ -439,21 +467,34 @@ class DiscographyEntryEdition(_ArtistMixin):
             lang = lang or artist.language
         return 'Korean' if not lang and self.page.site == 'kpop.fandom.com' else lang
 
-    def _get_lang_from_artist_template(self) -> Optional[str]:
+    def _get_artist_template_page(self) -> Optional[WikiPage]:
         for tmpl in self.page.sections.find_all(Template, True):
             if tmpl.name == self.artist.name.english and tmpl.value is None:
                 mwc = MediaWikiClient(tmpl.root.site)
-                template = mwc.get_page(f'Template:{tmpl.name}').sections.content.zipped
-                for section, values in template.items():
-                    if lang := next((val for val in ('Korean', 'Japanese') if section.startswith(val)), None):
-                        if isinstance(values, Link):
-                            if self.page.title == values.title:
+                return mwc.get_page(f'Template:{tmpl.name}')
+
+        return None
+
+    def _get_lang_from_artist_template(self) -> Optional[str]:
+        if not (page := self._get_artist_template_page()):
+            return None
+
+        for section, values in page.sections.content.zipped.items():
+            if lang := next((val for val in ('Korean', 'Japanese') if section.startswith(val)), None):
+                if isinstance(values, Link):
+                    if self.page.title == values.title:
+                        return lang
+                elif isinstance(values, Node):
+                    if values.find_one(Link, recurse=True, title=self.page.title):
+                        return lang
+                else:
+                    try:
+                        for obj in values:  # noqa
+                            if isinstance(obj, Link) and self.page.title == obj.title:
                                 return lang
-                        else:
-                            for node in values:
-                                if isinstance(node, Link) and self.page.title == node.title:
-                                    return lang
-                break
+                    except TypeError:
+                        pass
+
         return None
 
     @cached_property
@@ -519,6 +560,7 @@ class DiscographyEntryEdition(_ArtistMixin):
 class SoundtrackEdition(DiscographyEntryEdition):
     """An edition of a soundtrack (full / parts / extras)"""
     entry: Soundtrack
+    parts: list[SoundtrackPart]
 
     @cached_property
     def name_base(self) -> Name:
@@ -668,6 +710,11 @@ class SoundtrackPart(DiscographyEntryPart, _ArtistMixin):
         DiscographyEntryPart.__init__(self, *args, **kwargs)
         self.part = part
         self._artist = artist
+
+
+DEEdition = Union[DiscographyEntryEdition, SoundtrackEdition]
+DEPart = Union[DiscographyEntryPart, SoundtrackPart]
+DiscoObj = Union[DiscographyEntry, DEPart, DEEdition]
 
 
 def _strip(text: str) -> str:

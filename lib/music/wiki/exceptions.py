@@ -1,8 +1,12 @@
 """
+Exceptions used during wiki parsing/processing.
+
 :author: Doug Skrypa
 """
 
-from typing import TYPE_CHECKING, Mapping, Sequence
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Mapping, Sequence, Collection
 
 if TYPE_CHECKING:
     from wiki_nodes import WikiPage, Link
@@ -11,6 +15,7 @@ __all__ = [
     'MusicWikiException',
     'EntityTypeError',
     'NoPagesFoundError',
+    'NoLinkedPagesFoundError',
     'AmbiguousWikiPageError',
     'AmbiguousPageError',
     'AmbiguousPagesError',
@@ -78,3 +83,17 @@ class EntityTypeError(MusicWikiException, TypeError):
 
 class NoPagesFoundError(MusicWikiException):
     """No pages could be found for a given title, on any site"""
+
+
+class NoLinkedPagesFoundError(MusicWikiException, ValueError):
+    """No pages could be found from the given links"""
+
+    def __init__(self, links: Collection[Link], source: str = None):
+        self.links = links
+        self.source = source
+
+    def __str__(self) -> str:
+        message = f'No pages were found from links={self.links}'
+        if source := self.source:
+            message += f' from source={source}'
+        return message

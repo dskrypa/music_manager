@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import webbrowser
@@ -12,22 +14,23 @@ from typing import Union, Optional, Iterator
 
 from ds_tools.fs.paths import Paths, get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
+
 from ..common.prompts import choose_item
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.track.track import SongFile
 from ..wiki import Track, Artist, Singer, Group
-from ..wiki.album import DiscographyEntry, DiscographyEntryPart, DiscographyEntryEdition
-from ..wiki.album import Soundtrack, SoundtrackEdition, SoundtrackPart
+from ..wiki.album import DiscographyEntry, DEEdition, DEPart, DiscoObj, Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from ..wiki.typing import StrOrStrs
 from .enums import CollabMode
-from .exceptions import MatchException
+from .exceptions import MatchException, NoArtistFoundError
 from .update import AlbumInfo, TrackInfo, normalize_case
 from .wiki_match import find_album, find_artists
-from .wiki_utils import get_disco_part, DiscoObj
+from .wiki_utils import get_disco_part
 
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)
+
 ArtistType = Union[Artist, Group, Singer, 'ArtistSet']
 
 CONFIG_DIR = Path('~/.config/music_manager/').expanduser()
@@ -64,6 +67,7 @@ class WikiUpdater:
     Variables are split so that those used during discovery are provided in init, and those used during updating are
     provided in update.
     """
+
     def __init__(
         self,
         paths: Paths,
@@ -112,7 +116,7 @@ class WikiUpdater:
             else:
                 album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
 
-    def get_album_info(self, album_url: Optional[str], artist_only: bool) -> tuple[AlbumDir, 'ArtistInfoProcessor']:
+    def get_album_info(self, album_url: Optional[str], artist_only: bool) -> tuple[AlbumDir, ArtistInfoProcessor]:
         if album_url:
             return self._from_album_url(album_url)
         else:
@@ -161,7 +165,7 @@ class WikiUpdater:
             album_dir = get_album_dir(self.paths, 'load path')
         return album_dir, album_info
 
-    def _from_album_url(self, album_url: str) -> tuple[AlbumDir, 'AlbumInfoProcessor']:
+    def _from_album_url(self, album_url: str) -> tuple[AlbumDir, AlbumInfoProcessor]:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
         processor = AlbumInfoProcessor(
@@ -176,7 +180,7 @@ class WikiUpdater:
         )
         return album_dir, processor
 
-    def _from_artist(self) -> Iterator[tuple[AlbumDir, 'ArtistInfoProcessor']]:
+    def _from_artist(self) -> Iterator[tuple[AlbumDir, ArtistInfoProcessor]]:
         for album_dir in iter_album_dirs(self.paths):
             processor = ArtistInfoProcessor(album_dir, self.artist, self.soloist, self.title_case)
             yield album_dir, processor
@@ -232,7 +236,7 @@ class ArtistInfoProcessor:
         soloist: bool = False,
         title_case: bool = False,
         sites: StrOrStrs = None,
-    ) -> 'ArtistInfoProcessor':
+    ) -> ArtistInfoProcessor:
         try:
             artists = find_artists(album_dir, sites=sites)
         except Exception as e:
@@ -352,7 +356,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         title_case: bool = False,
         sites: StrOrStrs = None,
         update_cover: bool = False,
-    ) -> 'AlbumInfoProcessor':
+    ) -> AlbumInfoProcessor:
         try:
             album = find_album(album_dir, sites=sites)
         except Exception as e:
@@ -414,7 +418,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return album_info
 
     @cached_property
-    def disco_part(self) -> Union[DiscographyEntryPart, SoundtrackPart]:
+    def disco_part(self) -> DEPart:
         if isinstance(self.album, Soundtrack):
             self.hide_edition = True
             full, parts, extras = self.album.split_editions()
@@ -431,7 +435,6 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                 entry = entry.parts[0]
             elif alb_part := self.album_dir.name.part:
                 for part in entry.parts:
-                    # noinspection PyUnresolvedReferences
                     if part.part == alb_part:
                         entry = part
                         break
@@ -439,18 +442,18 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return get_disco_part(entry)
 
     @cached_property
-    def edition(self) -> Union[DiscographyEntryEdition, SoundtrackEdition]:
+    def edition(self) -> DEEdition:
         edition = self.disco_part.edition
         if isinstance(edition, SoundtrackEdition):
             self.hide_edition = True
         return edition
 
     @cached_property
-    def ost(self):
+    def ost(self) -> bool:
         return isinstance(self.disco_part, SoundtrackPart)
 
     @cached_property
-    def full_ost(self):
+    def full_ost(self) -> bool:
         return self.ost and self.edition.full_ost
 
     @cached_property
@@ -458,18 +461,26 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return TrackZip(self.album_dir, self.disco_part).zip()
 
     @cached_property
-    def _artists(self):
+    def _artists_source(self) -> Union[str, DEPart, DEEdition]:
         if artist_url := self.album_dir.artist_url:
             self._artist_from_tag = True
             # log.debug(f'Found artist URL via tag for {self.album_dir}: {artist_url}', extra={'color': 10})
-            return [Artist.from_url(artist_url)]
+            return artist_url
         elif isinstance(self.disco_part, SoundtrackPart):
-            return sorted(self.disco_part.artists)
-        return sorted(self.edition.artists)
+            return self.disco_part
+        else:
+            return self.edition
+
+    @cached_property
+    def _artists(self) -> list[Artist]:
+        try:
+            return sorted(self._artists_source.artists)
+        except AttributeError:
+            return [Artist.from_url(self._artists_source)]
 
     @cached_property
     def _artist(self) -> ArtistType:
-        artists = self._artists
+        artists: list[Artist | str] = self._artists
         if len(artists) > 1:
             others = set(artists)
             if len(artists) > 1 and getattr(self.disco_part.edition, 'full_ost', False):
@@ -496,7 +507,8 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             except IndexError:
                 if self._init_artist:
                     return self._init_artist
-                raise RuntimeError(f'No artist could be found for {self.album}')
+                # TODO: Prompt for artist override?
+                raise NoArtistFoundError(self.album, self._artists_source)
 
         return artist
 
@@ -623,7 +635,7 @@ def get_album_dir(paths: Paths, message: str) -> AlbumDir:
 
 
 class TrackZip:
-    def __init__(self, album_dir: AlbumDir, disco_part: Union[DiscographyEntryPart, SoundtrackPart]):
+    def __init__(self, album_dir: AlbumDir, disco_part: DEPart):
         self.album_dir = album_dir
         self.disco_part = disco_part
         self.files = album_dir.songs

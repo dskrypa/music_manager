@@ -2,18 +2,20 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
-from typing import TYPE_CHECKING, Iterable, Optional, Collection
+from typing import TYPE_CHECKING, Union, Iterable, Iterator, Collection
 
 from ds_tools.fs.paths import Paths
 from ds_tools.output.terminal import uprint
 from ds_tools.unicode import LangCat
 from wiki_nodes.http import URL_MATCH
-from ..common.disco_entry import DiscoEntryType
+
 from ..common.prompts import choose_item
 from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album, DEEntryOrEdition
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousWikiPageError
 from ..wiki.typing import StrOrStrs
@@ -23,10 +25,12 @@ from .wiki_info import print_de_part
 if TYPE_CHECKING:
     from ..files.parsing import AlbumName
 
-__all__ = ['show_matches', 'find_artists', 'find_album', 'test_match']
+__all__ = ['show_matches', 'find_artists', 'AlbumFinder', 'test_match']
 log = logging.getLogger(__name__)
 mlog = logging.getLogger(f'{__name__}.matching')
 mlog.setLevel(logging.WARNING)
+
+DEPartOrEntry = Union[DiscographyEntryPart, DiscographyEntry]
 
 
 def test_match(paths: Paths, identifier: str):
@@ -73,7 +77,7 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
                     uprint(f'        - {artist} / {artist.names}')
 
             try:
-                album = find_album(album_dir, artists)
+                album = AlbumFinder(album_dir, artists, sites).find_album()
             except Exception as e:
                 log.error(f'    - Album: {e}', extra={'color': 'red'}, exc_info=True)
             else:
@@ -125,89 +129,122 @@ def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> list[Artist]:
     raise NoArtistMatchFoundException(album_dir)
 
 
-def find_album(album_dir: AlbumDir, artists: Iterable[Artist] = None, sites: StrOrStrs = None) -> DiscographyEntryPart:
-    if album_url := album_dir.album_url:
-        log.debug(f'Found album URL via tag for {album_dir}: {album_url}', extra={'color': 10})
+class AlbumFinder:
+    __slots__ = ('album_dir', 'album_name', 'artists', 'sites')
+    album_dir: AlbumDir
+    album_name: AlbumName
+    artists: Iterable[Artist]
+    sites: StrOrStrs
+
+    def __init__(self, album_dir: AlbumDir, artists: Iterable[Artist] = None, sites: StrOrStrs = None):
+        self.album_dir = album_dir
+        self.album_name = album_dir.name
+        self.artists = artists
+        self.sites = sites
+
+    def find_album(self) -> DiscographyEntryPart:
+        if album_url := self.album_dir.album_url:
+            return self._from_album_dir_url(album_url)
+        elif self.album_name:
+            return self._from_album_name()
+        else:
+            raise ValueError(f'Directories with multiple album names are not currently handled.')
+
+    def _choose_candidate(self, candidates, name=None) -> DEPartOrEntry:
+        before = f'\nFound multiple possible matches for {name or self.album_dir}'
+        return choose_item(candidates, 'candidate', before=before, before_color=14)
+
+    def _from_album_dir_url(self, album_url: str) -> DEPartOrEntry:
+        log.debug(f'Found album URL via tag for {self.album_dir}: {album_url}', extra={'color': 10})
         candidates = list(DiscographyEntry.from_url(album_url).parts())
         if len(candidates) > 1:
             _candidates = candidates.copy()
-            candidates = _filter_candidates(album_dir, candidates) or _candidates
+            candidates = _filter_candidates(self.album_dir, candidates) or _candidates
 
-        return choose_item(
-            candidates, 'candidate', before=f'\nFound multiple possible matches for {album_dir}', before_color=14
+        return self._choose_candidate(candidates)
+
+    def _from_album_name(self) -> DEPartOrEntry:
+        album_dir, album_name = self.album_dir, self.album_name
+        name: Name = album_name.name
+        artists = self.artists or find_artists(album_dir, sites=self.sites)
+        log.debug(
+            f'Processing album for {album_dir} with {album_name=} (repackage={album_name.repackage}) and {artists=}',
+            extra={'color': (0, 14)}
         )
 
-    if not (album_name := album_dir.name):  # type: AlbumName
-        raise ValueError(f'Directories with multiple album names are not currently handled.')
+        if candidates := self._find_candidates(name, artists):
+            return self._choose_candidate(candidates, album_name)
+        elif name.eng_lang == LangCat.MIX and name.eng_langs.intersection(LangCat.non_eng_cats):
+            split = name.split()
+            log.log(19, f'Re-attempting album match with name={split.full_repr()}', extra={'color': (0, 11)})
+            candidates = self._find_candidates(split, artists)
 
-    repackage = album_name.repackage
-    alb_name = album_name.name  # type: Name
+        return self._choose_candidate(candidates, album_name)
 
-    artists = artists or find_artists(album_dir, sites=sites)
-    log.debug(
-        f'Processing album for {album_dir} with {album_name=} ({repackage=}) and {artists=}', extra={'color': (0, 14)}
-    )
-    candidates = _find_album(album_dir, alb_name, artists, album_dir.type, repackage, album_name.number)
-    if not candidates and alb_name.eng_lang == LangCat.MIX and alb_name.eng_langs.intersection(LangCat.non_eng_cats):
-        split = alb_name.split()
-        log.log(19, f'Re-attempting album match with name={split.full_repr()}', extra={'color': (0, 11)})
-        candidates = _find_album(album_dir, split, artists, album_dir.type, repackage, album_name.number)
+    def _find_candidates(self, name: Name, artists: Iterable[Artist]) -> set[DEPartOrEntry]:
+        if candidates := self._get_artist_candidates(name, artists):
+            return _filter_candidates(self.album_dir, candidates) if len(candidates) > 1 else candidates
+        elif not (name_str := name.english or name.non_eng):
+            return candidates
 
-    return choose_item(
-        candidates, 'candidate', before=f'\nFound multiple possible matches for {album_name}', before_color=14
-    )
-
-
-def _find_album(
-    album_dir: AlbumDir, alb_name: Name, artists: Iterable[Artist], alb_type: Optional[DiscoEntryType], repackage, num
-) -> set[DiscographyEntryPart]:
-    track_count = len(album_dir)
-    candidates = set()
-    for artist in artists:
-        for entry in artist.all_discography_entries_editions:
-            if not alb_type or alb_type.compatible_with(entry.type):
-                if alb_name and alb_name.matches(entry.name):
-                    entry_parts = list(entry.parts() if isinstance(entry, DiscographyEntry) else entry)
-                    pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
-                    # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
-                    if pkg_match_parts:
-                        mlog.debug(
-                            f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}',
-                            extra={'color': 11}
-                        )
-                        for part in pkg_match_parts:
-                            if (
-                                track_count == len(part)
-                                or any(pt.name.matches(at.tag_title) for pt, at in zip(part, album_dir))
-                            ):
-                                mlog.debug(f'{part=} matches {alb_name}', extra={'color': 11})
-                                candidates.add(part)
-                    else:
-                        if entry_parts:
-                            pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
-                            mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}', extra={'color': 8})
-                        else:
-                            mlog.debug(f'Found no parts for {entry=}', extra={'color': 8})
-                elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
-                    if parts := list(entry.parts() if isinstance(entry, DiscographyEntry) else entry):
-                        mlog.debug(f'{entry=} has {len(parts)} parts that match by type + number', extra={'color': 11})
-                        candidates.update(parts)
-                else:
-                    mlog.debug(f'{alb_name!r} does not match {entry._basic_repr}', extra={'color': 8})
-
-    if not candidates and (name_str := alb_name.english or alb_name.non_eng):
-        cls = Soundtrack if album_dir.name.ost else Album
-        # noinspection PyUnboundLocalVariable
+        cls = Soundtrack if self.album_name.ost else Album
         log.debug(f'No candidates found - attempting {cls.__name__} search for {name_str=}', extra={'color': (0, 13)})
         try:
-            # noinspection PyUnboundLocalVariable
             candidates.add(cls.from_name(name_str))
-        except Exception as e:
+        except Exception:  # noqa
             log.debug(f'Error finding {cls.__name__} for {name_str=!r}:', exc_info=True, extra={'color': (0, 9)})
 
-    if len(candidates) > 1:
-        candidates = _filter_candidates(album_dir, candidates)
-    return candidates
+        return _filter_candidates(self.album_dir, candidates) if len(candidates) > 1 else candidates
+
+    def _get_artist_candidates(self, name: Name, artists: Iterable[Artist]) -> set[DEPartOrEntry]:
+        alb_type = self.album_dir.type
+        album_name = self.album_name
+        repackage, num = album_name.repackage, album_name.number
+        track_count = len(self.album_dir)
+
+        candidates = set()
+        for artist in artists:
+            for entry in artist.all_discography_entries_editions:
+                if not alb_type or alb_type.compatible_with(entry.type):
+                    candidates.update(self._artist_candidates(name, repackage, num, track_count, entry))
+
+        return candidates
+
+    def _artist_candidates(
+        self, name: Name, repackage: bool, num: int, track_count: int, entry: DEEntryOrEdition
+    ) -> Iterator[DEPartOrEntry]:
+        alb_dir = self.album_dir
+        alb_type = alb_dir.type
+        if name and name.matches(entry.name):
+            entry_parts = tuple(entry.parts() if isinstance(entry, DiscographyEntry) else entry)
+            pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
+            # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
+            if pkg_match_parts:
+                mlog.debug(
+                    f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}',
+                    extra={'color': 11}
+                )
+                for part in pkg_match_parts:
+                    if self._tracks_match(part, track_count):
+                        mlog.debug(f'{part=} matches {name}', extra={'color': 11})
+                        yield part
+            else:
+                if entry_parts:
+                    pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
+                    mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}', extra={'color': 8})
+                else:
+                    mlog.debug(f'Found no parts for {entry=}', extra={'color': 8})
+        elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
+            if parts := tuple(entry.parts() if isinstance(entry, DiscographyEntry) else entry):
+                mlog.debug(f'{entry=} has {len(parts)} parts that match by type + number', extra={'color': 11})
+                yield from parts
+        else:
+            mlog.debug(f'{name!r} does not match {entry._basic_repr}', extra={'color': 8})
+
+    def _tracks_match(self, part, track_count: int) -> bool:
+        if track_count == len(part):
+            return True
+        return any(part_track.name.matches(alb_track.tag_title) for part_track, alb_track in zip(part, self.album_dir))
 
 
 def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEntryPart]) -> set[DiscographyEntryPart]:
@@ -251,52 +288,3 @@ def _sites_for(album_dir: AlbumDir) -> tuple[str, ...]:
         # return ('kpop.fandom.com', 'wiki.d-addicts.com')
     return ('kpop.fandom.com', 'www.generasia.com')
     # return ('kpop.fandom.com',)
-
-
-"""
-Notes from old find_ost function:
-
-if title.endswith(' OST'):
-    show_title = ' '.join(title.split()[:-1])
-elif LangCat.categorize(title) == LangCat.MIX and 'OST' in title.upper():
-    show_title = re.sub(r'\sOST(?!$|[!a-zA-Z])', ' ', title, flags=re.IGNORECASE)
-    show_title = ' '.join(show_title.split())
-else:
-    show_title = title
-
-search_title = show_title
-if 'love' in show_title.lower():
-    search_title = '|'.join([show_title, re.sub('love', 'luv', show_title, flags=re.IGNORECASE)])
-elif 'luv' in show_title.lower():
-    search_title = '|'.join([show_title, re.sub('luv', 'love', show_title, flags=re.IGNORECASE)])
-
-try:
-    series = WikiTVSeries(link_uri_path, client)
-except WikiTypeError:
-    actor = WikiArtist(link_uri_path, client)
-    for _series in actor.tv_shows:
-        if _series.matches(show_title):
-            series = _series
-            break
-
-if not series.matches(show_title):
-    log.debug('{} does not match {!r}'.format(series, show_title))
-elif series.ost_hrefs:
-    for ost_href in series.ost_hrefs:
-        ost = WikiSongCollection(ost_href, d_client, disco_entry=disco_entry, artist_context=artist)
-        if len(series.ost_hrefs) == 1 or ost.matches(title):
-            return ost
-
-for alt_title in series.aka:
-    if alt_uri_path := d_client.normalize_name(alt_title + ' OST'):
-        log.debug('Found alternate uri_path for {!r}: {!r}'.format(title, alt_uri_path))
-        return WikiSongCollection(alt_uri_path, d_client, disco_entry=disco_entry, artist_context=artist)
-
-if results := w_client.search(show_title):   # At this point, there was no exact match for this search
-    series = WikiTVSeries(results[0][1], w_client)
-    if series.matches(show_title):
-        if alt_uri_path := d_client.normalize_name(series.name + ' OST'):
-            log.debug('Found alternate uri_path for {!r}: {!r}'.format(title, alt_uri_path))
-            return WikiSongCollection(alt_uri_path, d_client, disco_entry=disco_entry, artist_context=artist)
-
-"""

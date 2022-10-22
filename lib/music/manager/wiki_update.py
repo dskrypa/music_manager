@@ -7,15 +7,16 @@ from __future__ import annotations
 import json
 import logging
 import webbrowser
-from functools import cached_property
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Union, Optional, Iterator
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.fs.paths import Paths, get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 
+from ..common.disco_entry import DiscoEntryType
 from ..common.prompts import choose_item
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.track.track import SongFile
@@ -26,7 +27,7 @@ from ..wiki.typing import StrOrStrs
 from .enums import CollabMode
 from .exceptions import MatchException, NoArtistFoundError
 from .update import AlbumInfo, TrackInfo, normalize_case
-from .wiki_match import find_album, find_artists
+from .wiki_match import AlbumFinder, find_artists
 from .wiki_utils import get_disco_part
 
 __all__ = ['update_tracks']
@@ -376,7 +377,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         update_cover: bool = False,
     ) -> AlbumInfoProcessor:
         try:
-            album = find_album(album_dir, sites=sites)
+            album = AlbumFinder(album_dir, sites=sites).find_album()
         except Exception as e:
             if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
                 raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e
@@ -472,7 +473,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
     @cached_property
     def is_ost(self) -> bool:
-        return isinstance(self.disco_part, SoundtrackPart)
+        return self.edition.type == DiscoEntryType.Soundtrack
 
     @cached_property
     def full_ost(self) -> bool:
@@ -492,17 +493,18 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             self._artist_from_tag = True
             # log.debug(f'Found artist URL via tag for {self.album_dir}: {artist_url}', extra={'color': 10})
             return artist_url
-        elif isinstance(self.disco_part, SoundtrackPart):
+        elif self.disco_part.is_ost:
             return self.disco_part
         else:
             return self.edition
 
     @cached_property
     def _artists(self) -> list[Artist]:
-        try:
-            return sorted(self._artists_source.artists)
-        except AttributeError:
+        source = self._artists_source
+        log.debug(f'Processing artists from {source=}')
+        if isinstance(source, str):
             return [Artist.from_url(self._artists_source)]
+        return sorted(self._artists_source.artists)
 
     @cached_property
     def _artist(self) -> ArtistType:

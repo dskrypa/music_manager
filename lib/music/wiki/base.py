@@ -69,7 +69,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 if isinstance(pages, WikiPage):
                     self._pages = {pages.site: pages}
                 else:
-                    raise ValueError(f'Unexpected pages value: {pages!r}') from None
+                    raise ValueError(f'{self.__class__.__name__}: Unexpected value for {pages=}') from None
         else:
             self._pages = {}
 
@@ -135,8 +135,9 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 if cls in (WikiEntity, TemplateEntity):
                     return TemplateEntity, obj
                 raise EntityTypeError(f'{obj} is a Template page, which is not compatible with {cls.__name__}')
+
         page_cats = obj.categories
-        err_fmt = '{} is incompatible with {} due to category={{!r}} [{{!r}}]'.format(obj, cls.__name__)
+        err_fmt = f'{obj} is incompatible with {cls.__name__} due to category={{!r}} [{{!r}}]'
         error = None
         for cls_cat, cat_cls in cls._category_classes.items():
             bad_cats = cat_cls._not_categories
@@ -163,6 +164,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
                         log.debug(f'The disambiguation link was not found: {e}')
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
             raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
+
         return cls, obj
 
     @classmethod
@@ -214,8 +216,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
     @classmethod
     def _by_category(cls: Type[WE], obj: PageEntry, name: Name = None, *args, **kwargs) -> WE:
         cat_cls, obj = cls._validate(obj, name=name)
-        entity_name = obj.title if isinstance(obj, DiscoEntry) else page_name(obj)
-        return cat_cls(entity_name, obj, *args, **kwargs)
+        if isinstance(obj, DiscoEntry):
+            entity_name, page = obj.title, None
+        else:
+            entity_name, page = page_name(obj), obj
+        return cat_cls(entity_name, page, *args, **kwargs)
 
     @classmethod
     def from_page(cls: Type[WE], page: WikiPage, *args, **kwargs) -> WE:

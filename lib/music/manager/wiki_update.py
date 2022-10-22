@@ -8,6 +8,7 @@ import json
 import logging
 import webbrowser
 from functools import cached_property
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Union, Optional, Iterator
@@ -433,6 +434,10 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return album_info
 
     @cached_property
+    def file_track_map(self) -> dict[SongFile, Track]:
+        return TrackZip(self.album_dir, self.disco_part).zip()
+
+    @cached_property
     def disco_part(self) -> DEPart:
         if isinstance(self.album, Soundtrack):
             self.hide_edition = True
@@ -463,6 +468,8 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             self.hide_edition = True
         return edition
 
+    # region OST Properties
+
     @cached_property
     def is_ost(self) -> bool:
         return isinstance(self.disco_part, SoundtrackPart)
@@ -475,9 +482,9 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
     def is_ost_part(self) -> bool:
         return self.is_ost and not self.edition.full_ost
 
-    @cached_property
-    def file_track_map(self) -> dict[SongFile, Track]:
-        return TrackZip(self.album_dir, self.disco_part).zip()
+    # endregion
+
+    # region Artist Discovery
 
     @cached_property
     def _artists_source(self) -> Union[str, DEPart, DEEdition]:
@@ -565,10 +572,13 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
         return artist
 
+    # endregion
+
+    # region Album Cover Methods
+
     @cached_property
-    def _edition_client(self):
-        page = self.edition.page
-        return MediaWikiClient(page.site)
+    def _edition_client(self) -> MediaWikiClient:
+        return MediaWikiClient(self.edition.page.site)
 
     def get_album_cover_urls(self) -> Optional[dict[str, str]]:
         page = self.edition.page
@@ -582,58 +592,54 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         elif not (urls := self.get_album_cover_urls()):
             return None
 
-        cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
-        tmp_dir = TemporaryDirectory()
-        _tmp_dir = Path(tmp_dir.name)
-        tmp_html = _tmp_dir.joinpath('options.html')
-        try:
-            song_file = next(iter(self.album_dir))  # type: SongFile
-            cover_data, ext = song_file.get_cover_data()
-        except Exception as e:
-            log.error(f'Unable to extract current album art: {e}')
-            tmp_img = None
-        else:
-            tmp_img = _tmp_dir.joinpath(f'current.{ext}')
-            with tmp_img.open('wb') as f:
-                f.write(cover_data)
-
-        with tmp_html.open('w', encoding='utf-8', newline='\n') as f:
-            text = (
-                '<html>\n<head><title>Album Cover Options</title></head>\n<body>\n'
-                + (
-                    f'<h1>Current Cover</h1><img src="file:///{tmp_img.as_posix()}" style="max-width: 800;"></img>'
-                    if tmp_img else ''
-                )
-                + '<h1>Album Cover Options</h1>\n<ul>\n'
-                + ''.join(
-                    f'<li><div>{title}</div><img src="{url}" style="max-width: 800;"></img></li>\n'
-                    for title, url in urls.items()
-                )
-                + '</ul>\n</body>\n</html>\n'
-            )
-            f.write(text)
-            f.flush()
-
-        webbrowser.open(f'file:///{tmp_html.as_posix()}')
-
-        try:
-            title = choose_item(list(urls) + ['[Keep Current]'], 'album cover image')
-        finally:
-            if tmp_dir is not None:
-                tmp_dir.cleanup()
-
+        title = self._get_album_cover_choice(urls)
         if title == '[Keep Current]':
             return None
 
         name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
-        path = cover_dir.joinpath(name)
+        path = Path(get_user_cache_dir('music_manager/cover_art')).joinpath(name)
         if path.is_file():
             return path.as_posix()
 
-        img_data = self._edition_client.get_image(title)
-        with path.open('wb') as f:
-            f.write(img_data)
+        path.write_bytes(self._edition_client.get_image(title))
         return path.as_posix()
+
+    def _get_album_cover_choice(self, urls: dict[str, str]) -> Optional[str]:
+        with TemporaryDirectory() as td:
+            tmp_dir = Path(td)
+            try:
+                song_file: SongFile = next(iter(self.album_dir))
+                cover_data, ext = song_file.get_cover_data()
+            except Exception as e:
+                log.error(f'Unable to extract current album art: {e}')
+                tmp_img = None
+            else:
+                tmp_img = tmp_dir.joinpath(f'current.{ext}')
+                tmp_img.write_bytes(cover_data)
+
+            tmp_html = tmp_dir.joinpath('options.html')
+            with tmp_html.open('w', encoding='utf-8', newline='\n') as f:
+                f.write(_render_album_cover_options_html(tmp_img, urls))
+                f.flush()
+
+            webbrowser.open(f'file:///{tmp_html.as_posix()}')
+            return choose_item(list(urls) + ['[Keep Current]'], 'album cover image')
+
+    # endregion
+
+
+def _render_album_cover_options_html(img_path: Optional[Path], urls: dict[str, str]) -> str:
+    sio = StringIO()
+    sio.write('<html>\n<head><title>Album Cover Options</title></head>\n<body>\n')
+    if img_path:
+        sio.write(f'<h1>Current Cover</h1><img src="file:///{img_path.as_posix()}" style="max-width: 800;"></img>')
+
+    sio.write('<h1>Album Cover Options</h1>\n<ul>\n')
+    for title, url in urls.items():
+        sio.write(f'<li><div>{title}</div><img src="{url}" style="max-width: 800;"></img></li>\n')
+
+    sio.write('</ul>\n</body>\n</html>\n')
+    return sio.getvalue()
 
 
 class ArtistSet:

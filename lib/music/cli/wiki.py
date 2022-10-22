@@ -89,7 +89,7 @@ class Update(Wiki, help=''):
         from music.manager.wiki_update import update_tracks
         from music.common.utils import can_add_bpm
 
-        sites = self.sites or ['wiki.d-addicts.com'] if self.ost else self._ALL_SITES
+        sites = self.sites or (['wiki.d-addicts.com'] if self.ost else self._ALL_SITES)
         destination = self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
 
         bpm = can_add_bpm() if not self.bpm and self.no_bpm else self.bpm

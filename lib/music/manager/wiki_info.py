@@ -7,6 +7,7 @@ from typing import Optional, Iterable
 
 from ds_tools.output.terminal import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
+
 from ..common.disco_entry import DiscoEntryType
 # from ..text.name import Name
 from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEntryPart, TVSeries

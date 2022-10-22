@@ -7,11 +7,13 @@ Artist wiki pages.
 from __future__ import annotations
 
 import logging
-from functools import cached_property
+
 from itertools import chain
 from typing import MutableSet, Optional, Union
 
 from ordered_set import OrderedSet
+
+from ds_tools.caching.decorators import cached_property
 
 from ..text.name import Name
 from .base import PersonOrGroup, GROUP_CATEGORIES, SINGER_CATEGORIES

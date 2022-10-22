@@ -12,16 +12,17 @@ import logging
 import re
 from dataclasses import dataclass, fields, field
 from datetime import datetime, date
-from functools import cached_property
 from itertools import chain
 from pathlib import Path
 from typing import Union, Optional, Mapping, Any, Iterator, Collection
 
 from PIL import Image
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
+
 from ..common.disco_entry import DiscoEntryType
 from ..common.ratings import stars_to_256
 from ..files.album import iter_album_dirs, AlbumDir

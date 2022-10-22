@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Iterator, Optional
 
 from wiki_nodes import MediaWikiClient, WikiPage, Link
 from wiki_nodes.nodes import N
+
 from ...text.name import Name
 
 if TYPE_CHECKING:

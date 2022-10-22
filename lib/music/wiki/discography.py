@@ -7,12 +7,13 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
-from functools import cached_property
-from typing import TYPE_CHECKING, Iterable, Iterator, Union
+from typing import TYPE_CHECKING, Iterable, Iterator
 
+from ds_tools.caching.decorators import cached_property
 from wiki_nodes import MediaWikiClient, Link
 from wiki_nodes.exceptions import SiteDoesNotExist
-from .album import DiscographyEntry, DiscographyEntryEdition
+
+from .album import DiscographyEntry, DiscographyEntryEdition, DEEntryOrEdition
 from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, AmbiguousPageError
@@ -51,7 +52,7 @@ class DiscographyMixin(ABC):
                 yield from entry
 
     @property
-    def all_discography_entries_editions(self) -> Iterator[Union[DiscographyEntry, DiscographyEntryEdition]]:
+    def all_discography_entries_editions(self) -> Iterator[DEEntryOrEdition]:
         for site, entries in self.discography_entries.items():
             for entry in entries:
                 yield entry

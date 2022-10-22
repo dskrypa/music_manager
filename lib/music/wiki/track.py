@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import logging
 from itertools import chain
-from functools import partialmethod, cached_property
+from functools import partialmethod
 from typing import TYPE_CHECKING, Any, Optional, Iterable
 
+from ds_tools.caching.decorators import cached_property
 from wiki_nodes import String, Link, ContainerNode
+
 from ..text.extraction import strip_enclosed
 from ..text.name import Name
 from ..text.utils import combine_with_parens

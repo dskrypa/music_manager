@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import logging
-from functools import cached_property
 from typing import Optional, Union, Mapping, Iterable
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.unicode import LangCat
 from wiki_nodes.nodes import N, Link
 from wiki_nodes.page import WikiPage
+
 from ..common.disco_entry import DiscoEntryType
 from ..text.name import Name
 from ..text.time import parse_date, DateObj, DateResult

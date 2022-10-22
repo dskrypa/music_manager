@@ -11,6 +11,7 @@ from typing import Union
 from PIL import Image
 
 from ds_tools.fs.paths import Paths
+
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.exceptions import TagException
 from ..files.paths import sanitize_path

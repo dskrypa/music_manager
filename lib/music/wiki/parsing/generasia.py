@@ -14,6 +14,7 @@ from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import N, Link, String, CompoundNode, MappingNode, Template, ListEntry, List
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
+
 from ...common.disco_entry import DiscoEntryType
 from ...text.extraction import parenthesized, split_enclosed, ends_with_enclosed
 from ...text.name import Name

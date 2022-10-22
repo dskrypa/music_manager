@@ -12,6 +12,7 @@ from typing import Iterable
 from ds_tools.fs.paths import Paths
 from ds_tools.input import get_input
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
+
 from ..files.album import iter_album_dirs, iter_albums_or_files
 from ..files.exceptions import TagException
 from ..files.track.track import iter_music_files, SongFile

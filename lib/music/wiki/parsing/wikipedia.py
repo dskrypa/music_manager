@@ -12,6 +12,7 @@ from ds_tools.output import short_repr as _short_repr
 from wiki_nodes.nodes import N, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
 from wiki_nodes.nodes import ContainerNode
 from wiki_nodes.page import WikiPage
+
 from ...text.name import Name
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TVSeries

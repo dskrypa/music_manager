@@ -119,27 +119,26 @@ class WikiUpdater:
     def get_album_info(self, album_url: Optional[str], artist_only: bool) -> tuple[AlbumDir, ArtistInfoProcessor]:
         if album_url:
             return self._from_album_url(album_url)
-        else:
-            if artist_only:
-                if self.artist:
-                    return next(iter(self._from_artist()))
-                else:
-                    album_dir = next(iter(iter_album_dirs(self.paths)))
-                    processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
-                    return album_dir, processor
+        elif artist_only:
+            if self.artist:
+                return next(iter(self._from_artist()))
             else:
                 album_dir = next(iter(iter_album_dirs(self.paths)))
-                processor = AlbumInfoProcessor.for_album_dir(
-                    album_dir,
-                    self.artist,
-                    self.soloist,
-                    self.hide_edition,
-                    self.collab_mode,
-                    self.title_case,
-                    self.sites,
-                    self.update_cover,
-                )
+                processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
                 return album_dir, processor
+        else:
+            album_dir = next(iter(iter_album_dirs(self.paths)))
+            processor = AlbumInfoProcessor.for_album_dir(
+                album_dir,
+                self.artist,
+                self.soloist,
+                self.hide_edition,
+                self.collab_mode,
+                self.title_case,
+                self.sites,
+                self.update_cover,
+            )
+            return album_dir, processor
 
     def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         if load_path:
@@ -222,12 +221,14 @@ class ArtistInfoProcessor:
         artist: Optional[Artist] = None,
         soloist: bool = False,
         title_case: bool = False,
+        sites: StrOrStrs = None,
     ):
         self.album_dir = album_dir
         self.title_case = title_case
         self._soloist = soloist
         self._init_artist = artist
         self._artist_from_tag = False
+        self._sites = sites
 
     @classmethod
     def for_album_dir(
@@ -247,10 +248,13 @@ class ArtistInfoProcessor:
         else:
             artist = choose_item(artists, 'artist', before=f'Found multiple artists for {album_dir}')
             log.info(f'Matched {album_dir}\'s artist to {artist}')
-            return cls(album_dir, artist, soloist, title_case)
+            return cls(album_dir, artist, soloist, title_case, sites)
 
     def to_album_info(self) -> AlbumInfo:
         album_info = AlbumInfo.from_album_dir(self.album_dir)
+        return self.set_artist_album_info(album_info)
+
+    def set_artist_album_info(self, album_info: AlbumInfo) -> AlbumInfo:
         album_info.artist = self.album_artist_name
         album_info.parent = self.normalize_artist(self.album_artist.name.english)
         album_info.singer = self.normalize_artist(self.artist.name.english)
@@ -262,6 +266,8 @@ class ArtistInfoProcessor:
 
         return album_info
 
+    # region Configurable Overrides
+
     @cached_property
     def artist_name_overrides(self) -> dict[str, str]:
         overrides_path = CONFIG_DIR.joinpath('artist_name_overrides.json')
@@ -270,17 +276,6 @@ class ArtistInfoProcessor:
             with overrides_path.open('r', encoding='utf-8') as f:
                 return json.load(f)
         return {}
-
-    def normalize_artist(self, artist) -> str:
-        artist_name = str(artist)
-        if override := self.artist_name_overrides.get(artist_name):
-            log.debug(f'Overriding {artist_name=!r} with {override!r}')
-            return override
-        return artist_name
-
-    @cached_property
-    def artist(self) -> ArtistType:
-        return self._init_artist
 
     @cached_property
     def _soloist_overrides(self) -> dict[str, str]:
@@ -291,8 +286,20 @@ class ArtistInfoProcessor:
                 return json.load(f)
         return {}
 
+    # endregion
+
+    # region Artist / Group Methods
+
     @cached_property
-    def soloist(self):
+    def artist(self) -> ArtistType:
+        return self._init_artist
+
+    @cached_property
+    def album_artist(self) -> ArtistType:
+        return self._artist_group or self.artist
+
+    @cached_property
+    def soloist(self) -> bool:
         if self._soloist:
             return True
         return self._soloist_overrides.get(str(self.artist.name), False)
@@ -304,9 +311,9 @@ class ArtistInfoProcessor:
             return choose_item(artist.groups, 'group', before=f'Found multiple groups for {artist}')
         return None
 
-    @cached_property
-    def album_artist(self) -> ArtistType:
-        return self._artist_group or self.artist
+    # endregion
+
+    # region Name Methods
 
     @cached_property
     def album_artist_name(self) -> str:
@@ -326,6 +333,15 @@ class ArtistInfoProcessor:
             name = normalize_case(name)
         return name.strip()
 
+    def normalize_artist(self, artist) -> str:
+        artist_name = str(artist)
+        if override := self.artist_name_overrides.get(artist_name):
+            log.debug(f'Overriding {artist_name=!r} with {override!r}')
+            return override
+        return artist_name
+
+    # endregion
+
 
 class AlbumInfoProcessor(ArtistInfoProcessor):
     def __init__(
@@ -338,8 +354,9 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         collab_mode: CollabMode = CollabMode.ARTIST,
         title_case: bool = False,
         update_cover: bool = False,
+        sites: StrOrStrs = None,
     ):
-        super().__init__(album_dir, artist, soloist, title_case)
+        super().__init__(album_dir, artist, soloist, title_case, sites)
         self.hide_edition = hide_edition
         self.collab_mode = collab_mode
         self.album = album
@@ -366,12 +383,11 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                 raise MatchException(40, f'Error finding an album match for {album_dir}: {e}') from e
         else:
             log.info(f'Matched {album_dir} to {album}')
-            return cls(album_dir, album, artist, soloist, hide_edition, collab_mode, title_case, update_cover)
+            return cls(album_dir, album, artist, soloist, hide_edition, collab_mode, title_case, update_cover, sites)
 
     def to_album_info(self) -> AlbumInfo:
         log.info(f'Artist for {self.edition}: {self.artist}')
         if (ed_lang := self.edition.lang) and (lang := LANG_ABBREV_MAP.get(ed_lang.lower())):
-            # noinspection PyUnboundLocalVariable
             genre = f'{lang[0]}-Pop' if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin') else None
         else:
             genre = None
@@ -397,14 +413,13 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             wiki_artist=getattr(self.album_artist, 'url', None),
         )
 
-        common_artist = self.ost and not self.full_ost
+        common_artist = self.is_ost and not self.full_ost
         collabs_in_title = self.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
         collabs_in_artist = self.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             title = self._normalize_name(track.full_name(collabs_in_title))
             if common_artist and (extras := track.name.extra):
-                # noinspection PyUnboundLocalVariable
                 extras.pop('artists', None)
 
             album_info.tracks[file.path.as_posix()] = TrackInfo(
@@ -449,12 +464,16 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return edition
 
     @cached_property
-    def ost(self) -> bool:
+    def is_ost(self) -> bool:
         return isinstance(self.disco_part, SoundtrackPart)
 
     @cached_property
     def full_ost(self) -> bool:
-        return self.ost and self.edition.full_ost
+        return self.is_ost and self.edition.full_ost
+
+    @cached_property
+    def is_ost_part(self) -> bool:
+        return self.is_ost and not self.edition.full_ost
 
     @cached_property
     def file_track_map(self) -> dict[SongFile, Track]:
@@ -480,35 +499,50 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
     @cached_property
     def _artist(self) -> ArtistType:
-        artists: list[Artist | str] = self._artists
+        artists = self._artists
         if len(artists) > 1:
-            others = set(artists)
-            if len(artists) > 1 and getattr(self.disco_part.edition, 'full_ost', False):
-                artist = 'Various Artists'
-            else:
-                artist = choose_item(artists + ['[combine all]', 'Various Artists'], 'artist', self.disco_part)
-            if artist == '[combine all]':
-                path_artist = choose_item(
-                    artists + ['Various Artists'], 'artist', before_color=13,
-                    before='\nWhich artist\'s name should be used in the file path?'
-                )
-                if path_artist != 'Various Artists':
-                    path_artist = path_artist.name.english
-                artist = ArtistSet(artists, path_artist)
-            elif artist == 'Various Artists':
-                artist = ArtistSet(artists, 'Various Artists', 'Various Artists')
-            else:
-                others.remove(artist)
-                for track in self.file_track_map.values():
-                    track.add_collabs(others)
+            return self._prepare_artist_from_many(artists)
         else:
-            try:
-                artist = artists[0]
-            except IndexError:
-                if self._init_artist:
-                    return self._init_artist
-                # TODO: Prompt for artist override?
-                raise NoArtistFoundError(self.album, self._artists_source) from None
+            return self._prepare_artist(artists)
+
+    def _prepare_artist(self, artists: list[Artist]) -> ArtistType:
+        try:
+            return artists[0]
+        except IndexError:
+            pass
+
+        if self._init_artist:
+            return self._init_artist
+
+        src = self._artists_source
+        if self.is_ost_part and not isinstance(src, str) and 'fandom' not in src.page.site:
+            processor = ArtistInfoProcessor.for_album_dir(self.album_dir, self._soloist, self.title_case, self._sites)
+            return processor.artist
+
+        # TODO: Prompt for artist override?
+        raise NoArtistFoundError(self.album, self._artists_source)
+
+    def _prepare_artist_from_many(self, artists: list[Artist]) -> ArtistType:
+        others = set(artists)
+        if len(artists) > 1 and getattr(self.disco_part.edition, 'full_ost', False):
+            artist = 'Various Artists'
+        else:
+            artist = choose_item(artists + ['[combine all]', 'Various Artists'], 'artist', self.disco_part)  # noqa
+
+        if artist == '[combine all]':
+            path_artist = choose_item(
+                artists + ['Various Artists'], 'artist', before_color=13,  # noqa
+                before='\nWhich artist\'s name should be used in the file path?'
+            )
+            if path_artist != 'Various Artists':
+                path_artist = path_artist.name.english
+            artist = ArtistSet(artists, path_artist)
+        elif artist == 'Various Artists':
+            artist = ArtistSet(artists, 'Various Artists', 'Various Artists')
+        else:
+            others.remove(artist)
+            for track in self.file_track_map.values():
+                track.add_collabs(others)
 
         return artist
 
@@ -517,34 +551,19 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         if self._init_artist is not None:
             return self._init_artist
 
-        src = self._artists_source
-        retryable = self.ost and not self.edition.full_ost and not isinstance(src, str)
-        try:
-            artist = self._artist
-        except NoArtistFoundError:
-            if not retryable or 'fandom' in src.page.site:
-                raise
-            if not (artist := self._retry_artist_discovery(None)):
-                raise
-        else:
-            if retryable and not isinstance(artist, ArtistSet) and not any('fandom' in site for site in artist._pages):
-                if alt_artist := self._retry_artist_discovery(artist):
-                    artist = alt_artist
+        artist = self._artist
+        retryable = self.is_ost_part and not isinstance(self._artists_source, str)
+        if retryable and not isinstance(artist, ArtistSet) and not any('fandom' in site for site in artist._pages):
+            # log.debug(f'Replacing {artist=} with pages={artist._pages}')
+            if name := artist.name.english or artist.name.non_eng:
+                try:
+                    artist = Artist.from_title(
+                        name, sites=['kpop.fandom.com', 'www.generasia.com'], name=artist.name, entity=artist
+                    )
+                except Exception as e:
+                    log.warning(f'Error finding alternate version of {artist=!r}: {e}')
 
         return artist
-
-    def _retry_artist_discovery(self, artist: Optional[Artist]) -> Optional[Artist]:
-        if not artist:
-            return None  # TODO: implement handling
-
-        # log.debug(f'Replacing {artist=} with pages={artist._pages}')
-        if name := artist.name.english or artist.name.non_eng:
-            try:
-                return Artist.from_title(
-                    name, sites=['kpop.fandom.com', 'www.generasia.com'], name=artist.name, entity=artist
-                )
-            except Exception as e:
-                log.warning(f'Error finding alternate version of {artist=!r}: {e}')
 
     @cached_property
     def _edition_client(self):
@@ -618,13 +637,15 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
 
 class ArtistSet:
-    def __init__(self, artists, english, _str=None):
+    __slots__ = ('name', 'artists', 'english', '_str')
+
+    def __init__(self, artists, english, _str: str = None):
         self.name = self            # Prevent needing to have a separate class for the fake Name
         self.artists = artists
         self.english = english
         self._str = _str
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self._str:
             return self._str
         return ', '.join(str(a.name) for a in self.artists)
@@ -641,6 +662,12 @@ def get_album_dir(paths: Paths, message: str) -> AlbumDir:
 
 
 class TrackZip:
+    __slots__ = ('album_dir', 'disco_part', 'files', 'tracks')
+    album_dir: AlbumDir
+    disco_part: DEPart
+    files: list[SongFile]
+    tracks: list[Track]
+
     def __init__(self, album_dir: AlbumDir, disco_part: DEPart):
         self.album_dir = album_dir
         self.disco_part = disco_part
@@ -651,7 +678,7 @@ class TrackZip:
         ft_iter = zip(sorted(self.files, key=lambda sf: sf.track_num), self.tracks)
         return {song_file: wiki_track for song_file, wiki_track in ft_iter}
 
-    def _zip_by_number(self, tracks: list[Track], src: str):
+    def _zip_by_number(self, tracks: list[Track], src: str) -> dict[SongFile, Track]:
         file_track_map = {}
         for song_file in self.files:
             try:
@@ -663,13 +690,13 @@ class TrackZip:
     def _by_number(self) -> dict[SongFile, Track]:
         return self._zip_by_number(self.tracks, str(self.disco_part))
 
-    def _by_number_and_availability(self):
+    def _by_number_and_availability(self) -> dict[SongFile, Track]:
         tracks = [track for track in self.tracks if 'availability' not in track.extras]
         if (available := len(tracks)) != (file_count := len(self.files)):
             raise TrackZipError(f'Tracks that are {available=} != {file_count=}')
         return self._zip_by_number(tracks, f'available tracks in {self.disco_part}')
 
-    def zip(self):
+    def zip(self) -> dict[SongFile, Track]:
         if len(self.files) != len(self.tracks):
             for method in (self._by_number_and_availability, self._by_number):
                 try:
@@ -680,4 +707,4 @@ class TrackZip:
 
 
 class TrackZipError(Exception):
-    pass
+    """Used internally; intended to be caught by :meth:`TrackZip.zip`"""

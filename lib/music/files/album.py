@@ -8,21 +8,21 @@ import atexit
 import logging
 import os
 from collections import defaultdict, Counter
-from concurrent import futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
-from functools import cached_property
 from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Pattern
 
 from mutagen.id3 import TDRC, ID3
 
-from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.core.patterns import FnMatcher, ReMatcher
 from ds_tools.fs.paths import iter_paths, Paths
-from tz_aware_dt import format_duration
-from ..common.disco_entry import DiscoEntryType
-from ..text.name import Name
+
+from music.common.disco_entry import DiscoEntryType
+from music.common.utils import format_duration
+from music.text.name import Name
 from .changes import get_common_changes
 from .cover import prepare_cover_image
 from .exceptions import InvalidAlbumDir
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
-EXECUTOR = None     # type: Optional[futures.ThreadPoolExecutor]
+EXECUTOR = None     # type: Optional[ThreadPoolExecutor]
 
 
 class AlbumDir(ClearableCachedPropertyMixin):
@@ -300,10 +300,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
 
             global EXECUTOR
             if EXECUTOR is None:
-                EXECUTOR = futures.ThreadPoolExecutor(max_workers=8)
+                EXECUTOR = ThreadPoolExecutor(max_workers=8)
                 atexit.register(EXECUTOR.shutdown)
 
-            for future in futures.as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
+            for future in as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
                 future.result()
 
     def remove_bad_tags(self, dry_run: bool = False, callback: Callable = None, extras: Collection[str] = None):

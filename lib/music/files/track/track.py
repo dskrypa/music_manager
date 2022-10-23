@@ -10,7 +10,6 @@ import logging
 import os
 import struct
 from datetime import date
-from functools import cached_property
 from hashlib import sha256
 from io import BytesIO
 from itertools import chain
@@ -33,13 +32,15 @@ from mutagen.oggopus import OggOpus
 from mutagen.wave import WAVE, _WaveID3
 from plexapi.audio import Track
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.caching.mixins import ClearableCachedPropertyMixin
 from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
-from tz_aware_dt import format_duration
-from ...common.ratings import stars_to_256, stars_from_256, stars
-from ...constants import TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
-from ...text.name import Name
+
+from music.common.ratings import stars_to_256, stars_from_256, stars
+from music.common.utils import format_duration
+from music.constants import TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
+from music.text.name import Name
 from ..cover import prepare_cover_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
@@ -51,7 +52,9 @@ from .patterns import (
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
 if TYPE_CHECKING:
+    from numpy import ndarray
     from PIL import Image
+    from pydub import AudioSegment
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
@@ -66,7 +69,7 @@ ImageTag = Union[APIC, MP4Cover, Picture]
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
-    __instances = {}                                                    # type: dict[Path, 'SongFile']
+    __instances = {}                                                    # type: dict[Path, SongFile]
     _bpm = None                                                         # type: Optional[int]
     _f = None                                                           # type: Optional[MutagenFile]
     _path = None                                                        # type: Optional[Path]
@@ -123,12 +126,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self._in_album_dir = False
             self.__initialized = True
 
-    def _init(self, mutagen_file: MutagenFile, path: Path):
-        self._f = mutagen_file
-        self._path = path
-
     @classmethod
-    def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> 'SongFile':
+    def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> SongFile:
         if ON_WINDOWS:
             if isinstance(root, Path):  # Path does not work for network shares in Windows
                 root = root.as_posix()
@@ -139,14 +138,20 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             rel_path = track_or_rel_path
         else:
             rel_path = track_or_rel_path.media[0].parts[0].file
+
         path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
         return cls(path)
+
+    # region Internal Methods
+
+    def _init(self, mutagen_file: MutagenFile, path: Path):
+        self._f = mutagen_file
+        self._path = path
 
     def __getitem__(self, item: str):
         return self._f[item]
 
     def __getnewargs__(self):
-        # noinspection PyRedundantParentheses
         return (self.path.as_posix(),)
 
     def __getstate__(self):
@@ -155,11 +160,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.rel_path!r})>'
 
+    # endregion
+
     @cached_property
     def extended_repr(self) -> str:
         try:
             info = f'[{self.tag_title!r} by {self.tag_artist}, in {self.album_name_cleaned!r}]'
-        except Exception:
+        except Exception:  # noqa
             info = ''
         return f'<{self.__class__.__name__}({self.rel_path!r}){info}>'
 
@@ -902,6 +909,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # endregion
 
+    # region BPM
+
     def bpm(self, save: bool = True, calculate: bool = True) -> Optional[int]:
         """
         :param save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
@@ -915,19 +924,27 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 bpm = self._calculate_bpm(save)
             else:
                 bpm = None
+
         if bpm == 0 and calculate:
             bpm = self._calculate_bpm(save)
+
         return bpm
 
     def _calculate_bpm(self, save: bool = True):
         from .bpm import get_bpm
+
         if not (bpm := self._bpm):
             bpm = self._bpm = get_bpm(self.path, self.sample_rate)
         if save:
             self.set_text_tag('bpm', bpm)
             log.debug(f'Saving {bpm=} for {self}')
             self.save()
+
         return bpm
+
+    # endregion
+
+    # region Tag Updates
 
     def update_tags(self, name_value_map, dry_run=False, no_log=None, none_level=19, add_genre=False):
         """
@@ -1041,6 +1058,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         updates = self.get_tag_updates(tag_ids, value, patterns, partial)
         self.update_tags(updates, dry_run)
 
+    # endregion
+
     # region Cover Image Methods
 
     def get_cover_tag(self):
@@ -1066,7 +1085,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         else:
             raise TypeError(f'{self} has unexpected type={self.tag_type!r} for album cover extraction')
 
-    def get_cover_image(self, extras: bool = False) -> Union['Image.Image', tuple['Image.Image', bytes, str]]:
+    def get_cover_image(self, extras: bool = False) -> Union[Image.Image, tuple[Image.Image, bytes, str]]:
         from PIL import Image
 
         data, ext = self.get_cover_data()
@@ -1094,11 +1113,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         log.info(f'{set_prefix} cover image to {self}: [{readable_bytes(size)}] {cover!r}')
         return not dry_run
 
-    def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, max_width: int = 1200):
+    def set_cover_data(self, image: Image.Image, dry_run: bool = False, max_width: int = 1200):
         image, data, mime_type = prepare_cover_image(image, self.tag_type, max_width)
         self._set_cover_data(image, data, mime_type, dry_run)
 
-    def _set_cover_data(self, image: 'Image.Image', data: bytes, mime_type: str, dry_run: bool = False):
+    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
         if self.tag_type == 'id3':
             current = self.tags_for_id('APIC')
             cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
@@ -1131,9 +1150,27 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # endregion
 
+    # region Experimental
+
+    @cached_property
+    def decibels(self) -> ndarray:
+        from librosa import load, stft, amplitude_to_db
+
+        data, sample_rate = load(self.path, sr=None, mono=False)
+        stft_coefficients = stft(data)  # short-term Fourier transform coefficients
+        return amplitude_to_db(abs(stft_coefficients))
+
+    @cached_property
+    def audio_segment(self) -> AudioSegment:
+        from pydub import AudioSegment
+
+        return AudioSegment.from_file(self.path)
+
+    # endregion
+
 
 def iter_music_files(paths: Paths) -> Iterator[SongFile]:
-    non_music_exts = {'jpg', 'jpeg', 'png', 'jfif', 'part', 'pdf', 'zip', 'webp'}
+    non_music_exts = {'.jpg', '.jpeg', '.png', '.jfif', '.part', '.pdf', '.zip', '.webp'}
     for file_path in iter_files(paths):
         music_file = SongFile(file_path)
         if music_file:
@@ -1154,4 +1191,5 @@ def _extract_album_part(title: str) -> tuple[str, Optional[str]]:
 
 if __name__ == '__main__':
     from ..patches import apply_mutagen_patches
+
     apply_mutagen_patches()

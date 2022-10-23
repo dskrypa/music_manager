@@ -388,7 +388,7 @@ class TrackFormatter:
     def file_name(self) -> str:
         return self.track.path.name
 
-    def key_for(self, type: str, field: str, suffix: str = None):
+    def key_for(self, type: str, field: str, suffix: str = None):  # noqa
         return f'{type}::{self.path_str}::{field}::{suffix}' if suffix else f'{type}::{self.path_str}::{field}'
 
     def get_tag_rows(self, editable: bool = True) -> tuple[Layout, EleBinds]:

@@ -6,13 +6,16 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
+from datetime import date
 from pathlib import Path
 from typing import Optional, Any, Type, Union, Iterable
 
 from PySimpleGUI import Button, Element, Column, Text, Image, Menu
 
-from tz_aware_dt.tz_aware_dt import now
 from ds_tools.core.decorate import classproperty
+
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ..base_view import event_handler, GuiView, Layout, Event, EventData, RenderArgs
@@ -30,7 +33,7 @@ DEFAULT_CONFIG = {'output_base_dir': '~/Music/'}
 class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
     back_tooltip = 'Go back to previous view'
 
-    def __init__(self, *, last_view: 'MainView' = None, expand_on_resize: Iterable[str] = None, **kwargs):
+    def __init__(self, *, last_view: MainView = None, expand_on_resize: Iterable[str] = None, **kwargs):
         super().__init__(binds=kwargs.get('binds'))
         self.last_view = last_view
         self.menu = [
@@ -57,12 +60,13 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
             return self.handle_event(self._next_key, data)
 
     @classproperty
-    def output_base_dir(cls) -> Path:
+    def output_base_dir(cls) -> Path:  # noqa
         return Path(cls.config['output_base_dir']).expanduser()
 
     @classproperty
-    def output_sorted_dir(cls) -> Path:
-        return cls.output_base_dir.joinpath('sorted_{}'.format(now('%Y-%m-%d')))
+    def output_sorted_dir(cls) -> Path:  # noqa
+        date_str = date.today().strftime('%Y-%m-%d')
+        return cls.output_base_dir.joinpath(f'sorted_{date_str}')
 
     def get_render_args(self) -> RenderArgs:
         layout = [[Menu(self.menu)]]
@@ -90,7 +94,7 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
                 element.expand(True, True, True)
 
     @classmethod
-    def _get_last_dir(cls, type: str = None) -> Optional[Path]:
+    def _get_last_dir(cls, type: str = None) -> Optional[Path]:  # noqa
         if last_dir := cls.config.get(f'last_dir:{type}' if type else 'last_dir'):
             last_dir = Path(last_dir)
             if not last_dir.exists():
@@ -221,11 +225,11 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
                 # self.log.debug(f'Expanding {column=}')
                 column.expand(True, True)
 
-    def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
+    def _back_kwargs(self, last: MainView) -> dict[str, Any]:
         return {}
 
     @event_handler('btn::back')
-    def back(self, event: Event, data: EventData, default_cls: Type['MainView'] = None):
+    def back(self, event: Event, data: EventData, default_cls: Type[MainView] = None):
         if ((last := self.last_view) is not None) or default_cls is not None:
             kwargs = {'last_view': self, **self._back_kwargs(last)}
             to_copy = [

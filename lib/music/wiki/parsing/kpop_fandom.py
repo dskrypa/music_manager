@@ -214,7 +214,11 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         content = edition._content
-        # log.debug(f'process_edition_parts: content={content.pformat()}')
+        # try:
+        #     log.debug(f'process_edition_parts: content={content.pformat()}')
+        # except AttributeError:
+        #     log.debug(f'process_edition_parts: content={content!r}')
+
         if content.__class__ is CompoundNode and isinstance(content[0], List):
             if len(content) % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
                 yield from _init_ost_edition_parts(edition, content)
@@ -523,27 +527,41 @@ class ComplexTrackName:
 
 
 class EditionFinder:
+    name: Name
+    entry: DiscographyEntry
+    entry_page: WikiPage
+
     def __init__(self, name: Name, entry: DiscographyEntry, entry_page: WikiPage):
         self.name = name
         self.entry = entry
         self.entry_page = entry_page
 
+    def get_track_list_section(self) -> Optional[Section]:
+        root = self.entry_page.sections
+        for key in ('Track list', 'Tracklist'):
+            try:
+                return root.get(key, case_sensitive=False)
+            except KeyError:
+                pass
+
+        return None
+
     def editions(self) -> EditionIterator:
-        entry_page = self.entry_page
-        tl_keys = ('Track list', 'Tracklist')
-        track_list_section = next(filter(None, (entry_page.sections.find(key, None) for key in tl_keys)), None)
-        if not track_list_section:
+        track_list_section = self.get_track_list_section()
+        # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
+        if track_list_section is None:
             # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
-            yield self._edition(None, None, self.find_language(entry_page))
+            yield self._edition(None, None, self.find_language(self.entry_page))
             return
 
         try:
-            track_section_content = track_list_section.processed(False, False, False, False, True)
+            track_section_content = track_list_section.processed(False, False, False, False, fix_dl_key_as_header=True)
         except Exception:  # noqa
             orig = track_list_section.pformat('content')
-            log.error(f'Error processing track list on {entry_page}:\n{orig}', exc_info=True)
+            log.error(f'Error processing track list on page={self.entry_page}:\n{orig}', exc_info=True)
             return
 
+        # log.debug(f'Found {track_section_content=}')
         if track_section_content:  # edition or version = None
             yield self._edition(track_section_content, None, self.find_language(track_section_content))
 
@@ -558,21 +576,23 @@ class EditionFinder:
                 discs.append((section.content, self.find_language(section.content)))
             elif not lc_title.startswith('dvd'):
                 edition, lang = self._process_album_version(title)
-                # content = section.content or section.children
-                content = section.children or section.content
+                content = section.content or section.children
+                if isinstance(content, String) and section.children:
+                    content = section.children
                 yield self._edition(content, edition, self.find_language(section.content, lang))
 
         if discs:
-            # log.debug(f'For {entry_page=} found {discs=}')
+            # log.debug(f'For page={self.entry_page} found {discs=}')
             ed_lang = None
             if ed_langs := set(filter(None, {disc[1] for disc in discs})):
                 if not (ed_lang := next(iter(ed_langs)) if len(ed_langs) == 1 else None):
-                    log.debug(f'Found multiple languages for {entry_page} discs: {ed_langs}')
+                    log.debug(f'Found multiple languages for page={self.entry_page} discs: {ed_langs}')
 
             yield self._edition([d[0] for d in discs], None, ed_lang)  # edition or version = None
 
     def _process_album_version(self, title: str):
-        if self.entry.type == DiscoEntryType.Soundtrack and title.lower() == 'pre-releases':
+        # log.debug(f'_process_album_version({title=})')
+        if title.lower() == 'pre-releases' and getattr(self.entry, '_type', None) == DiscoEntryType.Soundtrack:
             return None, None
         elif ends_with_enclosed(title):
             _name, _ver = split_enclosed(title, reverse=True, maxsplit=1)
@@ -591,10 +611,10 @@ class EditionFinder:
             self.name, self.entry_page, self.entry, self.entry_type, self.artists, self.dates,
             content, edition, language, self.is_repackage_page
         )
-        # log.debug(f'Created edition with name={self.name} page={self.entry_page} {edition=} {language=}')
+        # log.debug(f'Created edition with name={self.name} page={self.entry_page} {edition=} {language=} {content=}')
         return edition_obj
 
-    def find_language(self, content, lang=None):
+    def find_language(self, content, lang: str = None) -> Optional[str]:
         return find_language(content, lang, self.languages)
 
     @cached_property

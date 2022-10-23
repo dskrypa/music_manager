@@ -573,7 +573,6 @@ class SoundtrackEdition(DiscographyEntryEdition):
     def name_base(self) -> Name:
         name_base = super().name_base
         if name_base.has_romanization(name_base.english) and (tv_series := self.entry.tv_series):
-            # noinspection PyUnboundLocalVariable
             if (series_eng := tv_series.name.english) and not name_base.english.startswith(series_eng):
                 ost_suffix = ' OST' if name_base.english.endswith(' OST') else ''
                 return name_base.with_part(_english=series_eng + ost_suffix)

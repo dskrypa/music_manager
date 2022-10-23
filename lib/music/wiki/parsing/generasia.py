@@ -15,11 +15,11 @@ from wiki_nodes.nodes import N, Link, String, CompoundNode, MappingNode, Templat
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
 
-from ...common.disco_entry import DiscoEntryType
-from ...text.extraction import parenthesized, split_enclosed, ends_with_enclosed
-from ...text.name import Name
-from ...text.spellcheck import is_english
-from ...text.utils import find_ordinal
+from music.common.disco_entry import DiscoEntryType
+from music.text.extraction import parenthesized, split_enclosed, ends_with_enclosed
+from music.text.name import Name
+from music.text.spellcheck import is_english
+from music.text.utils import find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TemplateEntity, EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
@@ -28,6 +28,7 @@ from .utils import LANG_ABBREV_MAP, PageIntro, get_artist_title, find_language
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
+    from ..typing import OptStr, StrDateMap
 
 __all__ = ['GenerasiaParser']
 log = logging.getLogger(__name__)
@@ -368,111 +369,12 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         for node in processed:
             if isinstance(node, MappingNode) and 'Artist' in node:
                 try:
-                    yield from self._process_album_edition(entry, entry_page, node, langs, repackage)
+                    yield from EditionProcessor(entry, entry_page, node, langs, repackage)
                 except Exception as e:
                     log.debug(f'Error processing edition on {entry_page=}: {e}', extra={'color': 9})
                     # log.debug(f'Error processing edition on {entry_page=} node={node.pformat()}', exc_info=True, extra={'color': 9})
                 else:
                     repackage = True
-
-    def _process_album_edition(
-        self, entry: DiscographyEntry, entry_page: WikiPage, node: MappingNode, langs: set, repackage: bool = False
-    ) -> EditionIterator:
-        artist_link = node['Artist'].value
-        name_key = list(node.keys())[1]  # Works because of insertion order being maintained
-        entry_type = DiscoEntryType.for_name(name_key)
-        album_name_node = node[name_key].value
-
-        if isinstance(album_name_node, String):
-            album_name = album_name_node.value
-        elif album_name_node is None:
-            album_name_node = node[name_key]
-            if isinstance(album_name_node, ListEntry) and album_name_node.children:
-                try:
-                    # Example: https://www.generasia.com/wiki/The_Best_(Girls%27_Generation)
-                    names = [c.value for c in album_name_node.sub_list.iter_flat()]
-                except AttributeError:
-                    # TODO:
-                    # https://www.generasia.com/wiki/Miina_(Bonamana)
-                    # https://www.generasia.com/wiki/The_SHINee_World
-                    # log.error(f'Unexpected value for {album_name_node=!r} on {entry_page}')
-                    raise ValueError(f'Unexpected value for {album_name_node=!r}')
-
-                if prefix := clean_common_prefix(names):
-                    log.debug(f'Using album={prefix!r} for {album_name_node} on {entry_page=}')
-                    album_name = prefix
-                else:
-                    raise ValueError(f'Unexpected album_name_node={node[name_key]}')
-            else:
-                raise ValueError(f'Unexpected album_name_node={node[name_key]}')
-        else:
-            album_name = album_name_node[0].value
-            if isinstance(album_name, String):
-                album_name = album_name.value
-            if album_name.endswith('('):
-                album_name = album_name[:-1].strip()
-
-        log.log(9, f'Processing edition entry with {album_name=!r} {entry_type=!r} {artist_link=!r}')
-        lang, version, edition = None, None, None
-        lc_album_name = album_name.lower()
-        if ver_ed_indicator := next((val for val in ('ver.', 'edition') if val in lc_album_name), None):
-            try:
-                album_name, ver_ed_value = split_enclosed(album_name, True, maxsplit=1)
-            except ValueError:
-                log.debug(f'Found \'ver.\' in album name on {entry_page} but could not split it: {album_name!r}')
-            else:
-                if ver_ed_indicator == 'edition':
-                    edition = ver_ed_value
-                else:
-                    version = ver_ed_value
-                try:
-                    lang = LANG_ABBREV_MAP[ver_ed_value.split(maxsplit=1)[0].lower()]
-                except KeyError:
-                    pass
-
-        try:
-            release_dates_node = node['Released']
-        except KeyError:
-            for disco_entry in entry.disco_entries:
-                if disco_entry.date:
-                    release_dates = [disco_entry.date]
-                    break
-            else:
-                release_dates = []
-        else:
-            if release_dates_node.children:
-                release_dates = []
-                for r_date in release_dates_node.sub_list.iter_flat():
-                    r_date_str = r_date.value if isinstance(r_date, String) else r_date[0].value
-                    release_dates.append(datetime.strptime(r_date_str, '%Y.%m.%d').date())
-            else:
-                value = release_dates_node.value
-                if isinstance(value, CompoundNode):
-                    value = value[0]
-                value = value.value
-                try:
-                    release_dates = [datetime.strptime(value[:10], '%Y.%m.%d').date()]
-                except Exception:
-                    log.error(f'Error processing dates from {release_dates_node.value!r}', extra={'color': 9})
-                    raise
-
-        for key, value in node.items():
-            # Traverse the dl of Artist/Album/Tracklist/etc; may have multiple Tracklist entries for editions
-            # `value` is the List node containing track info
-            lc_key = key.lower().strip()
-            if 'tracklist' in lc_key and not lc_key.startswith('dvd '):
-                _edition = edition
-                if lc_key != 'tracklist':
-                    tl_edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
-                    if tl_edition.lower() == 'cd':
-                        tl_edition = None
-                    if tl_edition:
-                        _edition = f'{edition} - {tl_edition}' if edition else tl_edition
-
-                yield DiscographyEntryEdition(
-                    album_name, entry_page, entry, entry_type, artist_link, release_dates, value, _edition or version,
-                    find_language(value, lang, langs), repackage
-                )
 
     def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         if (tracks := edition._content) and tracks[0].children:
@@ -542,6 +444,146 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
 
     def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
+
+
+class EditionProcessor:
+    __slots__ = ('entry', 'entry_page', 'node', 'langs', 'repackage')
+    entry: DiscographyEntry
+    entry_page: WikiPage
+    node: MappingNode
+    langs: set[str]
+    repackage: bool
+
+    def __init__(
+        self, entry: DiscographyEntry, entry_page: WikiPage, node: MappingNode, langs: set[str], repackage: bool = False
+    ):
+        self.entry = entry
+        self.entry_page = entry_page
+        self.node = node
+        self.langs = langs
+        self.repackage = repackage
+
+    def __iter__(self) -> EditionIterator:
+        yield from self.editions()
+
+    def editions(self) -> EditionIterator:
+        name_key = list(self.node.keys())[1]  # Works because of insertion order being maintained
+        entry_type = DiscoEntryType.for_name(name_key)
+        artist_link = self.node['Artist'].value
+        album_name = self.get_album_name(name_key)
+
+        log.log(9, f'Processing edition entry with {album_name=!r} {entry_type=!r} {artist_link=!r}')
+        lang, version, edition = self.get_name_info(album_name)
+        release_dates = self.get_release_dates()
+        for key, value in self.node.items():
+            # Traverse the dl of Artist/Album/Tracklist/etc; may have multiple Tracklist entries for editions
+            # `value` is the List node containing track info
+            lc_key = key.lower().strip()
+            if 'tracklist' not in lc_key or lc_key.startswith('dvd '):
+                continue
+
+            _edition = edition
+            if lc_key != 'tracklist':
+                tl_edition = strip_style(key.rsplit(maxsplit=1)[0]).strip('"')
+                if tl_edition.lower() == 'cd':
+                    tl_edition = None
+                if tl_edition:
+                    _edition = f'{edition} - {tl_edition}' if edition else tl_edition
+
+            yield DiscographyEntryEdition(
+                album_name,
+                self.entry_page,
+                self.entry,
+                entry_type,
+                artist_link,
+                release_dates,
+                value,
+                _edition or version,
+                find_language(value, lang, self.langs),
+                self.repackage,
+            )
+
+    def get_album_name(self, name_key: str) -> str:
+        album_name_node = self.node[name_key].value
+        if isinstance(album_name_node, String):
+            return album_name_node.value
+        elif album_name_node is not None:
+            album_name = album_name_node[0].value
+            if isinstance(album_name, String):
+                album_name = album_name.value
+            if album_name.endswith('('):
+                album_name = album_name[:-1].strip()
+            return album_name
+
+        album_name_node = self.node[name_key]
+        if isinstance(album_name_node, ListEntry) and album_name_node.children:
+            try:
+                # Example: https://www.generasia.com/wiki/The_Best_(Girls%27_Generation)
+                names = [c.value for c in album_name_node.sub_list.iter_flat()]
+            except AttributeError:
+                # TODO:
+                # https://www.generasia.com/wiki/Miina_(Bonamana)
+                # https://www.generasia.com/wiki/The_SHINee_World
+                log.error(f'Unexpected value for {album_name_node=!r} on page={self.entry_page}')
+            else:
+                if prefix := clean_common_prefix(names):
+                    log.debug(f'Using album={prefix!r} for {album_name_node} on page={self.entry_page}')
+                    return prefix
+
+        raise ValueError(f'Unexpected {album_name_node=}')
+
+    def get_name_info(self, album_name: str) -> tuple[OptStr, OptStr, OptStr]:
+        lang, version, edition = None, None, None
+        lc_album_name = album_name.lower()
+        if ver_ed_indicator := next((val for val in ('ver.', 'edition') if val in lc_album_name), None):
+            try:
+                album_name, ver_ed_value = split_enclosed(album_name, True, maxsplit=1)
+            except ValueError:
+                log.debug(f"Found 'ver.' in {album_name=} on page={self.entry_page} but could not split it")
+            else:
+                if ver_ed_indicator == 'edition':
+                    edition = ver_ed_value
+                else:
+                    version = ver_ed_value
+                try:
+                    lang = LANG_ABBREV_MAP[ver_ed_value.split(maxsplit=1)[0].lower()]
+                except KeyError:
+                    pass
+
+        return lang, version, edition
+
+    def get_release_dates(self) -> StrDateMap:
+        try:
+            release_dates_node = self.node['Released']
+        except KeyError:
+            for disco_entry in self.entry.disco_entries:
+                if disco_entry.date:
+                    return {None: disco_entry.date}
+            else:
+                return {}
+        else:
+            if release_dates_node.children:
+                release_dates = []
+                for r_date in release_dates_node.sub_list.iter_flat():
+                    r_date_str = r_date.value if isinstance(r_date, String) else r_date[0].value
+                    release_dates.append(datetime.strptime(r_date_str, '%Y.%m.%d').date())
+
+                if not release_dates:
+                    return {}
+                if len(release_dates) > 1:
+                    log.debug(f'Using first value after finding multiple {release_dates=}')
+
+                return {None: release_dates[0]}
+            else:
+                value = release_dates_node.value
+                if isinstance(value, CompoundNode):
+                    value = value[0]
+                value = value.value
+                try:
+                    return {None: datetime.strptime(value[:10], '%Y.%m.%d').date()}
+                except Exception:
+                    log.error(f'Error processing dates from {release_dates_node.value!r}', extra={'color': 9})
+                    raise
 
 
 def clean_common_prefix(strs) -> str:

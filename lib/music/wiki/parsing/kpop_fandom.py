@@ -16,11 +16,11 @@ from wiki_nodes.nodes import N, AnyNode, Link, String, CompoundNode, Section, Ta
 from wiki_nodes.nodes import Template, Tag, List, ContainerNode
 from wiki_nodes.page import WikiPage
 
-from ...common.disco_entry import DiscoEntryType
-from ...text.extraction import split_enclosed, ends_with_enclosed, has_unpaired
-from ...text.name import Name
-from ...text.time import parse_date
-from ...text.utils import combine_with_parens, find_ordinal
+from music.common.disco_entry import DiscoEntryType
+from music.text.extraction import split_enclosed, ends_with_enclosed, has_unpaired, is_enclosed, partition_enclosed
+from music.text.name import Name
+from music.text.time import parse_date
+from music.text.utils import combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart, SoundtrackPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
@@ -29,6 +29,7 @@ from .utils import PageIntro, get_artist_title, LANG_ABBREV_MAP, find_language, 
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
+    from ..typing import OptStr, StrDateMap
 
 __all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ NodeTypes = Union[Type[AnyNode], tuple[Type[AnyNode], ...]]
 DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
 ORD_ALBUM_MATCH = re.compile(r'^\S+(?:st|nd|rd|th)\s+album:?$', re.IGNORECASE).match
-RELEASE_DATE_FINDITER = re.compile(r'((?:[a-z]+(?: \d+)?, )?\d{4})', re.IGNORECASE).finditer
+RELEASE_DATE_PAT = re.compile(r'((?:[a-z]+(?: \d+)?, )?\d{4})', re.IGNORECASE)
 REMAINDER_ARTIST_EXTRA_TYPE_MAP = {'(': 'artists', '(feat.': 'feat', '(sung by': 'artists', '(with': 'collabs'}
 UNCLOSED_PAREN_MATCH = re.compile(r'^(.+?)(\([^()]*)$').match
 VERSION_SEARCH = re.compile(r'^(.*?(?<!\S)ver(?:\.|sion)?)\)?(.*)$', re.IGNORECASE).match
@@ -461,7 +462,7 @@ class ComplexTrackName:
 
         return base_name, remainder
 
-    def _process_base_name_part_2(self, base_name: str, remainder: Optional[str]) -> tuple[str, Optional[str]]:
+    def _process_base_name_part_2(self, base_name: str, remainder: OptStr) -> tuple[str, Optional[str]]:
         if not remainder and self.nodes:
             self.node = node = self.nodes.pop(0)
             if isinstance(node, Template) and isinstance((tmpl_value := node.value), Link):
@@ -611,13 +612,21 @@ class EditionFinder:
 
     def _edition(self, content, edition, language) -> DiscographyEntryEdition:
         edition_obj = DiscographyEntryEdition(
-            self.name, self.entry_page, self.entry, self.entry_type, self.artists, self.dates,
-            content, edition, language, self.is_repackage_page
+            self.name,
+            self.entry_page,
+            self.entry,
+            self.entry_type,
+            self.artists,
+            self.edition_date_map,
+            content,
+            edition,
+            language,
+            self.is_repackage_page,
         )
         # log.debug(f'Created edition with name={self.name} page={self.entry_page} {edition=} {language=} {content=}')
         return edition_obj
 
-    def find_language(self, content, lang: str = None) -> Optional[str]:
+    def find_language(self, content, lang: str = None) -> OptStr:
         return find_language(content, lang, self.languages)
 
     @cached_property
@@ -669,9 +678,34 @@ class EditionFinder:
         dates = []
         if (infobox := self.entry_page.infobox) and (released := infobox.value.get('released')):
             try:
-                dates = [parse_date(dt_str.group(1)) for dt_str in RELEASE_DATE_FINDITER(released.raw.string)]
+                dates = [parse_date(dt_str.group(1)) for dt_str in RELEASE_DATE_PAT.finditer(released.raw.string)]
             except ValueError as e:
                 log.error(f'Error parsing date on entry_page={self.entry_page!r}: {e}')
+        return dates
+
+    @cached_property
+    def edition_date_map(self) -> StrDateMap:
+        dates = {}
+        try:
+            released = self.entry_page.infobox['released']
+        except (AttributeError, KeyError, TypeError):
+            pass
+        else:
+            for edition, node in find_edition_value_pairs(released):
+                if isinstance(edition, str):
+                    edition = edition.casefold()
+                if (value := _get_str_value(node)) and (m := RELEASE_DATE_PAT.search(value)):
+                    try:
+                        dates[edition] = parse_date(m.group(1))
+                    except ValueError as e:
+                        log.error(f'Error parsing date {value=} for {edition=} on entry_page={self.entry_page!r}: {e}')
+
+        if None not in dates:
+            try:
+                dates[None] = self.dates[0]
+            except IndexError:
+                pass
+        log.debug(f'Parsed {dates=} from page={self.entry_page}')
         return dates
 
     @cached_property
@@ -684,6 +718,51 @@ class EditionFinder:
                         langs.add(lang)
                         break
         return langs
+
+
+def find_edition_value_pairs(node) -> Iterator[tuple[OptStr, N]]:
+    if not isinstance(node, ContainerNode):
+        yield None, node
+        return
+
+    last = None
+    for ele in node:
+        if ele == '<br>' or isinstance(ele, Tag) and ele.name == 'br':
+            last = None
+            continue
+        elif not (value := _get_str_value(ele)):
+            continue
+
+        if last:
+            if is_enclosed(value):
+                yield value[1:-1], last
+                last = None
+            elif (last_value := _get_str_value(last)) and is_enclosed(last_value):
+                yield last_value[1:-1], ele
+                last = None
+            else:
+                last = ele
+        else:
+            try:
+                a, edition, b = partition_enclosed(value)
+            except ValueError:
+                last = ele
+            else:
+                last = None
+                if not (a and b) and (value := a or b):
+                    yield edition, String(value)
+
+
+def _get_str_value(node) -> OptStr:
+    if isinstance(node, Template):
+        node = node.value
+
+    if isinstance(node, Link):
+        return node.show.strip()
+    elif isinstance(node, String):
+        return node.value.strip()
+    else:
+        return None
 
 
 # region OST Edition Parts
@@ -844,7 +923,7 @@ def _process_track_string(text: str, extra_content: str = None) -> Name:
     return name
 
 
-def _classify_track_part(text: str) -> tuple[Optional[str], Union[str, bool]]:
+def _classify_track_part(text: str) -> tuple[OptStr, Union[str, bool]]:
     text = text.replace(' : ', ': ')
     lc_text = text.lower()
     if lc_text.startswith(('inst.', 'instrumental')):

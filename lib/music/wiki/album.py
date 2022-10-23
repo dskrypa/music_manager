@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import logging
 import re
+from abc import ABC, abstractmethod
 from datetime import datetime, date
 from itertools import chain
-from typing import Optional, Sequence, Iterator, MutableSet, Union, Iterable, Any
+from typing import TYPE_CHECKING, Optional, Iterator, MutableSet, Union, Iterable, Any
 
 from ordered_set import OrderedSet
 
@@ -23,10 +24,13 @@ from ..text.extraction import strip_enclosed
 from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
-from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, AmbiguousWikiPageError, NoLinkedPagesFoundError
 from .parsing import WikiParser
 from .utils import short_site
+
+if TYPE_CHECKING:
+    from .disco_entry import DiscoEntry
+    from .typing import StrDateMap, OptStr
 
 __all__ = [
     'DiscographyEntry', 'DiscographyEntryEdition', 'DiscographyEntryPart', 'DEEdition', 'DEPart', 'DiscoObj',
@@ -41,6 +45,9 @@ NodeOrNodes = Union[Node, Iterable[Node], None]
 ListOrLists = Union[ListNode, Iterable[ListNode], None]
 NameType = Union[str, Name, None]
 TrackNodes = Union[Table, ListNode, None]
+
+
+# region Discography Entry (Album)
 
 
 class DiscographyEntry(EntertainmentEntity):
@@ -326,13 +333,31 @@ class Soundtrack(DiscographyEntry):
         return None
 
 
-class _ArtistMixin:
+# endregion
+
+
+class _ArtistMixin(ABC):
+    @property
+    @abstractmethod
+    def date(self) -> Optional[date]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _basic_repr(self) -> str:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _artist(self):
+        raise NotImplementedError
+
     @property
     def track_artists(self) -> set[Artist]:
         return set()
 
     @cached_property
-    def _artists(self: Union[_ArtistMixin, DiscographyEntryEdition, SoundtrackPart]) -> set[Artist]:
+    def _artists(self) -> set[Artist]:
         log.debug(f'{self._basic_repr}: Processing {self._artist}', extra={'color': 13})
         artists = set()
         if isinstance(self._artist, Artist):
@@ -377,7 +402,7 @@ class _ArtistMixin:
         return set()
 
     @cached_property
-    def artist(self: Union[_ArtistMixin, DiscographyEntryEdition, SoundtrackPart]) -> Optional[Artist]:
+    def artist(self) -> Optional[Artist]:
         if artists := self.artists:
             if len(artists) == 1:
                 return next(iter(artists))
@@ -387,9 +412,31 @@ class _ArtistMixin:
             log.debug(f'No artists found for {self._basic_repr}', extra={'color': 11})
         return None
 
+    @cached_property
+    def date_str(self) -> OptStr:
+        try:
+            return self.date.strftime('%Y-%m-%d')
+        except AttributeError:
+            return None
+
+
+# region Editions
+
 
 class DiscographyEntryEdition(_ArtistMixin):
     """An edition of an album"""
+
+    _name: NameType
+    page: WikiPage
+    entry: DiscographyEntry
+    type: DiscoEntryType
+    _artist: NodeOrNodes = None  # = None is required to satisfy the abstract property
+    release_dates: StrDateMap
+    _content: Any
+    edition: OptStr
+    repackage: bool
+    _lang: OptStr
+
     def __init__(
         self,
         name: NameType,
@@ -397,47 +444,42 @@ class DiscographyEntryEdition(_ArtistMixin):
         entry: DiscographyEntry,
         entry_type: DiscoEntryType,
         artist: NodeOrNodes,
-        release_dates: Sequence[date],
+        release_dates: StrDateMap,
         content: Any,
         edition: str = None,
         lang: str = None,
         repackage: bool = False,
     ):
-        self._name = name                                                                   # type: NameType
-        self.page = page                                                                    # type: WikiPage
-        self.entry = entry                                                                  # type: DiscographyEntry
-        self.type = entry_type                                                              # type: DiscoEntryType
-        self._artist = artist                                                               # type: NodeOrNodes
-        self.release_dates = release_dates                                                  # type: Sequence[date]
+        self._name = name
+        self.page = page
+        self.entry = entry
+        self.type = entry_type
+        self._artist = artist
+        self.release_dates = release_dates
         self._content = content
-        self.edition = edition                                                              # type: Optional[str]
-        self.repackage = repackage                                                          # type: bool
-        self._lang = lang                                                                   # type: Optional[str]
-        # log.debug(f'Created {self.__class__.__name__} with {release_dates=!r} {name=!r} {edition=!r} {entry_type=!r}')
+        self.edition = edition
+        self.repackage = repackage
+        self._lang = lang
+        # log.debug(f'Created {self.__class__.__name__} with {release_dates=} {name=} {edition=} {entry_type=}')
 
     # region Internal Methods
 
     @property
     def _basic_repr(self) -> str:
         # Used in logs from .artists and .artist to avoid circular references that depend on artist being set
-        try:
-            _date = self.release_dates[0].strftime('%Y-%m-%d')
-        except IndexError:
-            _date = None
         edition = f'[edition={self.edition!r}]' if self.edition else ''
         lang = f'[lang={self._lang!r}]' if self._lang else ''
-        return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{edition}{lang}>'
+        return f'<[{self.date_str}]{self.cls_type_name}[{self._name!r} @ {self.page}]{edition}{lang}>'
 
     def __repr__(self) -> str:
-        _date = self.release_dates[0].strftime('%Y-%m-%d') if self.release_dates else None
         _type = self.numbered_type or (repr(self.type.real_name) if self.type else None)
         alb_type = f'[type={_type}]' if _type else ''
-        _edition = self.edition or ''
+        edition = self.edition or ''
         if self.repackage:
-            _edition = f'{_edition}, repackage' if _edition else 'repackage'
-        edition = f'[edition={_edition!r}]' if _edition else ''
+            edition = f'{edition}, repackage' if edition else 'repackage'
+        edition = f'[{edition=}]' if edition else ''
         lang = f'[lang={self._lang!r}]' if self._lang else ''
-        return f'<[{_date}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
+        return f'<[{self.date_str}]{self.cls_type_name}[{self._name!r} @ {self.page}]{alb_type}{edition}{lang}>'
 
     def __eq__(self, other) -> bool:
         return self.__class__ == other.__class__ and self.page == other.page and self.edition == other.edition
@@ -460,8 +502,10 @@ class DiscographyEntryEdition(_ArtistMixin):
 
     # endregion
 
+    # region Language Methods
+
     @cached_property
-    def lang(self) -> Optional[str]:
+    def lang(self) -> OptStr:
         if lang := self._lang:
             return lang
         if artist := self.artist:
@@ -478,7 +522,7 @@ class DiscographyEntryEdition(_ArtistMixin):
 
         return None
 
-    def _get_lang_from_artist_template(self) -> Optional[str]:
+    def _get_lang_from_artist_template(self) -> OptStr:
         if not (page := self._get_artist_template_page()):
             return None
 
@@ -500,6 +544,10 @@ class DiscographyEntryEdition(_ArtistMixin):
 
         return None
 
+    # endregion
+
+    # region Name
+
     @cached_property
     def name_base(self) -> Name:
         if name := self._name:
@@ -515,17 +563,38 @@ class DiscographyEntryEdition(_ArtistMixin):
             return edition[:-10].strip()
         return combine_with_parens(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
 
-    @cached_property
-    def cls_type_name(self) -> str:
-        return self.entry.cls_type_name + 'Edition'
+    # endregion
+
+    # region Release Date
 
     @cached_property
     def date(self) -> Optional[date]:
+        if not (release_dates := self.release_dates):
+            return None
+        if isinstance(edition := self.edition, str):
+            editions = (edition.casefold(), None)
+        else:
+            editions = (None,)
+
+        for edition in editions:
+            try:
+                return release_dates[edition]
+            except KeyError:
+                pass
         try:
-            return min(self.release_dates)
+            return min(release_dates.values())
         except ValueError as e:
             log.error(f'Error determining release date for {self._basic_repr}: {e}')
             return None
+
+    @cached_property
+    def date_str(self) -> OptStr:
+        try:
+            return self.date.strftime('%Y-%m-%d')
+        except AttributeError:
+            return None
+
+    # endregion
 
     @cached_property
     def track_artists(self) -> set[Artist]:
@@ -539,12 +608,18 @@ class DiscographyEntryEdition(_ArtistMixin):
             log.debug(f'No discography entry part extraction is configured for {self.page}')
             return []
 
+    # region Number and Type
+
+    @cached_property
+    def cls_type_name(self) -> str:
+        return self.entry.cls_type_name + 'Edition'
+
     @property
     def number(self) -> Optional[int]:
         return self.entry.number
 
     @cached_property
-    def numbered_type(self) -> Optional[str]:
+    def numbered_type(self) -> OptStr:
         if (num := self.entry.number) and self.type:
             album_lang = self.lang
             artist_lang = self.artist.language if self.artist else None
@@ -562,6 +637,8 @@ class DiscographyEntryEdition(_ArtistMixin):
     @property
     def full_ost(self) -> bool:
         return self.edition in {'[Full OST]', 'Full OST'}
+
+    # endregion
 
 
 class SoundtrackEdition(DiscographyEntryEdition):
@@ -583,38 +660,48 @@ class SoundtrackEdition(DiscographyEntryEdition):
         return self.edition == '[Extra Parts]'
 
 
+# endregion
+
+# region Parts
+
+
 class DiscographyEntryPart(_ArtistMixin):
     ost = False
     _disc_match = re.compile(r'(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
+    _name: OptStr
+    edition: DiscographyEntryEdition
+    _tracks: TrackNodes
+    _date: Optional[date]
+    _artist: NodeOrNodes = None  # = None is required to satisfy the abstract property
+    disc: int
 
     def __init__(
         self,
-        name: Optional[str],
+        name: OptStr,
         edition: DiscographyEntryEdition,
         tracks: TrackNodes,
         disc: int = None,
         release_date: date = None,
         artist: NodeOrNodes = None,
     ):
-        self._name = name                                   # type: Optional[str]
-        self.edition = edition                              # type: DiscographyEntryEdition
-        self._tracks = tracks                               # type: TrackNodes
-        self._date = release_date                           # type: Optional[date]
+        self._name = name
+        self.edition = edition
+        self._tracks = tracks
+        self._date = release_date
         self._artist = artist
         if disc is not None:
-            self.disc = disc                                # type: int
+            self.disc = disc
         else:
             m = self._disc_match(name) if name else None
-            self.disc = int(m.group(1)) if m else 1         # type: int
+            self.disc = int(m.group(1)) if m else 1
 
     # region Internal Methods
 
     def __repr__(self) -> str:
         ed = self.edition
-        date_str = ed.release_dates[0].strftime('%Y-%m-%d')
         edition = f'[edition={ed.edition!r}]' if ed.edition else ''
         name = f'[{self._name}]' if self._name else ''
-        return f'<[{date_str}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}>'
+        return f'<[{ed.date_str}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}>'
 
     def __lt__(self, other: DiscographyEntryPart) -> bool:
         return (self.edition, self._name) < (other.edition, other._name)
@@ -727,6 +814,9 @@ class SoundtrackPart(DiscographyEntryPart):
     def __init__(self, part: Optional[int], *args, **kwargs):
         DiscographyEntryPart.__init__(self, *args, **kwargs)
         self.part = part
+
+
+# endregion
 
 
 DEEdition = Union[DiscographyEntryEdition, SoundtrackEdition]

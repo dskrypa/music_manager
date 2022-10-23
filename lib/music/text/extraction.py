@@ -9,7 +9,7 @@ from typing import Optional
 
 __all__ = [
     'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
-    'get_unpaired', 'strip_unpaired'
+    'get_unpaired', 'strip_unpaired', 'is_enclosed'
 ]
 log = logging.getLogger(__name__)
 
@@ -350,9 +350,9 @@ def parenthesized(text: str, chars: str = '()') -> str:
     """
     Extract the first enclosed substring from the given string.
 
-    :param str text: A string
-    :param str chars: The enclosing characters from which text should be extracted
-    :return str: The first substring that was enclosed
+    :param text: A string
+    :param chars: The enclosing characters from which text should be extracted
+    :return: The first substring that was enclosed
     """
     opener, closer = chars
     opened = 0
@@ -371,3 +371,11 @@ def parenthesized(text: str, chars: str = '()') -> str:
                 return text[first:i].strip('\'" ')
 
     return text
+
+
+def is_enclosed(text: str, chars: str = '()') -> bool:
+    opener, closer = chars
+    if not text:
+        return False
+
+    return text[0] == opener and text[-1] == closer

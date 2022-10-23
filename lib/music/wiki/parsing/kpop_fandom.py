@@ -549,6 +549,7 @@ class EditionFinder:
     def editions(self) -> EditionIterator:
         track_list_section = self.get_track_list_section()
         # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
+        # log.debug(f'On page={self.entry_page}, found track_list_section={track_list_section.pformat("content")}')
         if track_list_section is None:
             # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
             yield self._edition(None, None, self.find_language(self.entry_page))
@@ -562,12 +563,14 @@ class EditionFinder:
             return
 
         # log.debug(f'Found {track_section_content=}')
+        # log.debug(f'Found track_section_content={track_section_content.pformat()}')
         if track_section_content:  # edition or version = None
             yield self._edition(track_section_content, None, self.find_language(track_section_content))
 
         discs = []
         for section in track_list_section:
-            log.debug(f'Processing {section=}')
+            log.debug(f'Processing edition from {section=}')
+            # log.debug(f'Processing edition from {section=} with content={section.pformat("content")}')
             title = section.title
             lc_title = title.lower()
             if lc_title == 'cd':  # edition or version = None

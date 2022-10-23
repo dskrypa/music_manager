@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from enum import Enum
 from functools import cached_property
@@ -40,16 +42,16 @@ class DiscoEntryType(Enum):
     Holiday = 'Holiday', ('holiday',), 'Holiday', False
     _OTHER = '_OTHER', ('others',), 'Other', False
 
-    def __repr__(self):
-        return f'<{type(self).__name__}: {self.value[0]!r}>'
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}: {self.value[0]!r}>'
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self is not DiscoEntryType.UNKNOWN
 
-    def __lt__(self, other: 'DiscoEntryType'):
-        return self._members.index(self) < self._members.index(other)
+    def __lt__(self, other: DiscoEntryType):
+        return self._members.index(self) < self._members.index(other)  # noqa
 
-    def compatible_with(self, other: 'DiscoEntryType') -> bool:
+    def compatible_with(self, other: DiscoEntryType) -> bool:
         if self == other:
             return True
 
@@ -60,32 +62,32 @@ class DiscoEntryType(Enum):
 
     # noinspection PyMethodParameters
     @cached_classproperty
-    def _members(cls) -> list['DiscoEntryType']:
-        return list(cls.__members__.values())
+    def _members(cls) -> list[DiscoEntryType]:
+        return list(cls.__members__.values())  # noqa
 
     @classmethod
-    def _for_category(cls, category: str) -> Optional['DiscoEntryType']:
+    def _for_category(cls, category: str) -> Optional[DiscoEntryType]:
         _category = category.lower().strip().replace('-', ' ').replace('_', ' ')
         for album_type in cls:
             if any(cat in _category for cat in album_type.categories):
                 # log.debug(f'{category!r} => {album_type}')
                 return album_type
 
-        if _category == 'ep':
+        if _category in {'ep', 'eps'}:
             return cls.ExtendedPlay
         return None
 
     @classmethod
-    def for_name(cls, name: Union[str, Iterable[str], None]) -> 'DiscoEntryType':
+    def for_name(cls, name: Union[str, Iterable[str], None]) -> DiscoEntryType:
         if name:
-            if isinstance(name, str):
+            if is_str := isinstance(name, str):
                 try:
                     return cls[name]
                 except KeyError:
                     pass
 
             candidates = set()
-            if isinstance(name, str):
+            if is_str:
                 if album_type := cls._for_category(name):
                     candidates.add(album_type)
             else:
@@ -101,7 +103,7 @@ class DiscoEntryType(Enum):
                 return cls.UNKNOWN if candidate is cls._OTHER else candidate
 
             if name != 'UNKNOWN':
-                log.debug(f'No DiscoEntryType exists for name={name!r}', stack_info=True)
+                log.debug(f'No DiscoEntryType exists for {name=}', stack_info=True)
         return cls.UNKNOWN
 
     @cached_property

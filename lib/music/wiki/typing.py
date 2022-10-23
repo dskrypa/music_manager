@@ -3,7 +3,7 @@
 """
 
 from datetime import date
-from typing import TYPE_CHECKING, Iterable, Union, Optional, TypeVar, Type, Mapping
+from typing import TYPE_CHECKING, Iterable, Union, Optional, TypeVar, Type, Mapping, MutableMapping
 
 from wiki_nodes import WikiPage, Link
 
@@ -21,4 +21,4 @@ Candidates = Mapping[Link, tuple[Type[WE], PageEntry]]
 
 StrOrStrs = Union[str, Iterable[str], None]
 OptStr = Optional[str]
-StrDateMap = Mapping[OptStr, date]
+StrDateMap = MutableMapping[OptStr, date]

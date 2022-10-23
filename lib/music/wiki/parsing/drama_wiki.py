@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, date
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section
@@ -22,6 +22,7 @@ from .abc import WikiParser, EditionIterator
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
+    from ..typing import StrDateMap
 
 __all__ = ['DramaWikiParser']
 log = logging.getLogger(__name__)
@@ -150,14 +151,13 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         self, entry: Soundtrack, entry_page: WikiPage, ost_name: str, edition_name: str, parts: list[Section]
     ) -> SoundtrackEdition:
         log.debug(f'Found {len(parts)} {edition_name} on {entry_page=}')
-        name, languages, dates, artists = None, Counter(), set(), set()
+        name, languages, dates, artists = None, Counter(), {}, set()
+        ed_name = f'[{edition_name}]'
         for part in parts:  # Go thru all parts to get all languages, dates, and artists
-            name = name or get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists)[0]
+            name = name or get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists, ed_name)[0]
 
         language = max(languages, key=lambda k: languages[k], default=None)
-        return SoundtrackEdition(
-            name, entry_page, entry, entry._type, artists, sorted(dates), parts, f'[{edition_name}]', language
-        )
+        return SoundtrackEdition(name, entry_page, entry, entry._type, artists, dates, parts, ed_name, language)
 
     def process_album_editions(self, entry: Soundtrack, entry_page: WikiPage) -> EditionIterator:
         ost_parts, ost_full, ost_name, other_parts = split_sections(entry_page)
@@ -180,7 +180,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             else:
                 language = max(languages, key=lambda k: languages[k], default=None)
                 yield SoundtrackEdition(
-                    name, entry_page, entry, entry._type, String('Various Artists'), sorted(dates), ost_full,
+                    name, entry_page, entry, entry._type, String('Various Artists'), dates, ost_full,
                     '[Full OST]', language
                 )
 
@@ -257,10 +257,10 @@ def get_info_map(section_content):
     return item.as_mapping()
 
 
-def parse_date(date_str: str) -> datetime:
+def parse_date(date_str: str) -> date:
     for dt_fmt in ('%Y-%b-%d', '%Y-%m-%d'):
         try:
-            return datetime.strptime(date_str, dt_fmt)
+            return datetime.strptime(date_str, dt_fmt).date()
         except ValueError:
             pass
     raise ValueError(f'Unable to parse {date_str=} using any configured patterns')
@@ -321,20 +321,25 @@ def get_basic_info(
     info: MappingNode,
     ost_name: Optional[str],
     languages: Counter = None,
-    dates: set[datetime] = None,
+    dates: StrDateMap = None,
     artists: set[N] = None,
+    ed_name: str = None,
 ):
     languages = Counter() if languages is None else languages  # Need the None check to not replace empty provided value
-    dates = set() if dates is None else dates
-    artists = set() if artists is None else artists
+    if dates is None:
+        dates = {}
+    if artists is None:
+        artists = set()
     if langs := info.get('Language'):
         languages.update(map(str.strip, langs.value.split(',')))
-    if part_date := info.get('Release Date'):
-        dates.add(parse_date(part_date.value))
     if artist := info.get('Artist'):
         if isinstance(artist, ContainerNode):
             artist = String(' '.join(map(str, artist)))
         artists.add(artist)
 
     name = get_name(info, ost_name)
+    if part_date := info.get('Release Date'):
+        dates[ed_name] = part_date = parse_date(part_date.value)
+        dates.setdefault(None, part_date)
+
     return name, languages, dates, artists

@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 from collections import defaultdict, Counter
 from typing import TYPE_CHECKING, Mapping, Any
 
@@ -17,7 +19,7 @@ __all__ = ['count_tag_changes', 'print_tag_changes', 'get_common_changes']
 
 
 def count_tag_changes(
-    updates: Mapping['SongFile', Mapping[str, Any]], add_genre: bool = False
+    updates: Mapping[SongFile, Mapping[str, Any]], add_genre: bool = False
 ) -> dict[str, dict[tuple[Any, Any], int]]:
     counts = defaultdict(Counter)
     for file, values in updates.items():
@@ -77,8 +79,8 @@ def print_tag_changes(obj, changes: Mapping[str, tuple[Any, Any]], dry_run: bool
 
 
 def get_common_changes(
-    album_dir: 'AlbumDir',
-    updates: Mapping['SongFile', Mapping[str, Any]],
+    album_dir: AlbumDir,
+    updates: Mapping[SongFile, Mapping[str, Any]],
     show: bool = True,
     extra_newline: bool = False,
     dry_run: bool = False,

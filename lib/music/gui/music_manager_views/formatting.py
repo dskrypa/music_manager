@@ -397,7 +397,7 @@ class TrackFormatter:
         nums = defaultdict(count)
         common_binds = {'<Button-1>': ':::row_clicked', '<Shift-Button-1>': ':::tag_clicked'}
 
-        for trunc_id, tag_id, tag_name, disp_name, val in self.track.iter_tag_id_name_values():
+        for trunc_id, tag_id, tag_name, disp_name, val in sorted(self.track.iter_tag_id_name_values()):
             if disp_name == 'Album Cover':
                 continue
 

@@ -9,7 +9,8 @@ from unicodedata import normalize
 from mutagen.id3 import POPM, USLT, APIC
 
 from ds_tools.output.formatting import readable_bytes
-from ...common.ratings import stars, stars_from_256
+
+from music.common.ratings import stars, stars_from_256
 
 __all__ = ['tag_repr', 'parse_file_date', 'tag_id_to_name_map_for_type']
 

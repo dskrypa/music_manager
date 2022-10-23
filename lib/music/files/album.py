@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import atexit
 import logging
 import os
@@ -181,7 +183,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 return next(iter(artists))
 
             artists = Counter(chain.from_iterable(music_file.album_artists for music_file in self.songs))
-            artist = max(artists.items(), key=lambda kv: kv[1])[0]
+            artist = max(artists.items(), key=lambda kv: kv[1])[0]  # noqa
             return artist
         return None
 
@@ -202,7 +204,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
                 return next(iter(names))
 
             names = Counter(music_file.album for music_file in self.songs)
-            name = max(names.items(), key=lambda kv: kv[1])[0]
+            name = max(names.items(), key=lambda kv: kv[1])[0]  # noqa
             return name
 
         log.debug(f'{self}.names => {names}')
@@ -358,10 +360,10 @@ class AlbumDir(ClearableCachedPropertyMixin):
         else:
             log.info(f'No changes to make for {self}')
 
-    def _prepare_cover_image(self, image: 'Image.Image', max_width: int = 1200) -> tuple['Image.Image', bytes, str]:
+    def _prepare_cover_image(self, image: Image.Image, max_width: int = 1200) -> tuple[Image.Image, bytes, str]:
         return prepare_cover_image(image, {f.tag_type for f in self.songs}, max_width)
 
-    def set_cover_data(self, image: 'Image.Image', dry_run: bool = False, max_width: int = 1200):
+    def set_cover_data(self, image: Image.Image, dry_run: bool = False, max_width: int = 1200):
         image, data, mime_type = self._prepare_cover_image(image, max_width)
         for song_file in self.songs:
             song_file._set_cover_data(image, data, mime_type, dry_run)
@@ -374,7 +376,7 @@ def _rm_tag_matcher(tag_type: str, extras: Collection[str] = None) -> Callable:
         matchers = _rm_tag_matcher._matchers = {
             'id3': ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
             'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
-            'vorbis': FnMatcher(('UPLOAD*', 'WWW*', 'COMM*', 'UPC', 'TRACKTOTAL')).match
+            'vorbis': ReMatcher(('UPLOAD.*', 'WWW.*', 'COMM.*', 'UPC', '(?:TRACK|DIS[CK])TOTAL')).match
         }
     try:
         matcher = matchers[tag_type]
@@ -430,4 +432,5 @@ SongFile.album_dir_obj = cached_property(_album_dir_obj)
 
 if __name__ == '__main__':
     from .patches import apply_mutagen_patches
+
     apply_mutagen_patches()

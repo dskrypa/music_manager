@@ -2,21 +2,23 @@
 :author: Doug Skrypa
 """
 
-import logging
-from unittest.mock import MagicMock
+from unittest.mock import Mock, MagicMock
+
+from wikitextparser import WikiText
 
 from ds_tools.test_common import TestCaseBase, main
 from ds_tools.output import colored
 
-from wiki_nodes import Node, as_node, Root
+from wiki_nodes import Node, as_node, Root, WikiPage, Section
+from wiki_nodes.testing import WikiNodesTest
 
 from .text.name import Name
 
 __all__ = ['NameTestCaseBase', 'main', 'TestCaseBase', 'fake_page']
-log = logging.getLogger(__name__)
 
 
-class NameTestCaseBase(TestCaseBase):
+class NameTestCaseBase(WikiNodesTest):
+# class NameTestCaseBase(TestCaseBase):
     _site = None
     _interwiki_map = None
 
@@ -92,9 +94,13 @@ def _to_set(value):
         return set(value)
 
 
-def fake_page(intro, infobox=None, site=None, _interwiki_map=None, **kwargs):
-    kwargs.setdefault('sections', MagicMock(find=lambda *a, **kw: None))
-    page = MagicMock(site=site, _interwiki_map=_interwiki_map, raw=MagicMock(string=intro), **kwargs)
+def fake_page(intro, infobox=None, site=None, _interwiki_map=None, title: str = None, client=None, **kwargs):
+    # kwargs.setdefault('sections', Mock(find=lambda *a, **kw: None, get=lambda *a, **kw: None))
+    # page = Mock(site=site, _interwiki_map=_interwiki_map, raw=Mock(string=intro), **kwargs)
+    page = WikiPage(title or 'test', site, '', interwiki_map=_interwiki_map, client=client or Mock(), **kwargs)
+    page.raw = MagicMock(string=intro)  # Needs to have iterable members
+    page.__dict__['sections'] = Section(WikiText(''), page)
+
     if not isinstance(intro, Node):
         intro = as_node(intro, root=page)
     if intro is not None:
@@ -102,5 +108,5 @@ def fake_page(intro, infobox=None, site=None, _interwiki_map=None, **kwargs):
     if infobox is not None and not isinstance(infobox, Node):
         infobox = as_node(infobox, root=page)
     if infobox is not None:
-        page.infobox = infobox
+        page.__dict__['infobox'] = infobox
     return page

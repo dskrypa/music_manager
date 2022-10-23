@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import logging
-from unittest.mock import MagicMock
+from unittest import skip
+from unittest.mock import Mock
 
 from wiki_nodes.nodes import as_node, Link
 
@@ -12,8 +12,6 @@ from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 from music.wiki.track import Track
 
-log = logging.getLogger(__name__)
-
 parse_generasia_track_name = GenerasiaParser().parse_track_name
 parse_kf_track_name = KpopFandomParser().parse_track_name
 
@@ -21,7 +19,7 @@ parse_kf_track_name = KpopFandomParser().parse_track_name
 class KpopFandomTrackNameParsingTest(NameTestCaseBase):
     _site = 'kpop.fandom.com'
     _interwiki_map = {'w': 'https://community.fandom.com/wiki/$1'}
-    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
+    root = Mock(site=_site, _interwiki_map=_interwiki_map)
 
     def test_link_title(self):
         entry = as_node(""""[[Black Swan]]" - 3:18""", root=self.root)
@@ -437,10 +435,11 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
             })
         )
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_single_feat(self):
         page = self._fake_page(
             """"'''Eight'''" (에잇) is the seventh digital single by [[IU]]. It was released on May 6, 2020 and features [[Suga]].""",
-            """{{Infobox single\n| name        = Eight\n| artist      = [[IU]] {{small\n|(feat. [[Suga]])\n}}\n| released    = May 6, 2020\n| length      = 2:47\n}}""",
+            """{{Infobox single\n| name = Eight\n| artist = [[IU]] {{small\n|(feat. [[Suga]])\n}}\n| released = May 6, 2020\n| length = 2:47\n}}""",
             title='Eight',
             categories={'single article stubs', 'singles', 'digital singles', 'iu', '2020 releases', '2020 digital singles'}
         )
@@ -454,24 +453,30 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         self.assertNamesEqual(
             track.name, Name('Eight', '에잇', extra={'length': '2:47', 'feat': Link.from_title('Suga', page)})
         )
-        self.assertEqual(track.full_name(), 'Eight (에잇) (feat. Suga (슈가))')
+        self.assertEqual('Eight (에잇) (feat. Suga (슈가))', track.full_name())
 
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
     _site = 'kpop.fandom.com'
     _interwiki_map = {'w': 'https://community.fandom.com/wiki/$1'}
-    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
+    root = Mock(site=_site, _interwiki_map=_interwiki_map)
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_feat_interwiki_repr(self):
-        entry = as_node(""""Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root)
+        entry = as_node(
+            """"Lost Without You (우리집을 못 찾겠군요)" (feat. [[w:c:kindie:Bolbbalgan4|Bolbbalgan4]])""", root=self.root
+        )
         track = Track(3, parse_kf_track_name(entry), None)
-        self.assertEqual(track.full_name(collabs=True), 'Lost Without You (우리집을 못 찾겠군요) (feat. BOL4 (볼빨간사춘기))')
+        expected = 'Lost Without You (우리집을 못 찾겠군요) (feat. BOL4 (볼빨간사춘기))'
+        self.assertEqual(expected, track.full_name(collabs=True))
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_track_artists_repr(self):
         entry = as_node(""""Someday" ([[Jinho]] & [[Hui (PENTAGON)|Hui]] duet) - 3:57""", root=self.root)
         track = Track(10, parse_kf_track_name(entry), None)
-        self.assertEqual(track.full_name(collabs=True), 'Someday (Jinho (진호) & Hui (후이) duet)')
+        self.assertEqual('Someday (Jinho (진호) & Hui (후이) duet)', track.full_name(collabs=True))
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_track_artist_solo_repr(self):
         entry = as_node(""""Be Calm (덤덤해지네)" ([[Hwa Sa]] solo) - 3:28""", root=self.root)
         name = parse_kf_track_name(entry)
@@ -480,26 +485,28 @@ class KpopFandomTrackNameReprTest(NameTestCaseBase):
             name, eng, eng, han, han, extra={'artists': as_node("""[[Hwa Sa]]""", root=self.root), 'length': '3:28'}
         )
         track = Track(4, name, None)
-        self.assertEqual(track.full_name(collabs=True), 'Be Calm (덤덤해지네) (Hwa Sa (화사) solo)')
+        self.assertEqual('Be Calm (덤덤해지네) (Hwa Sa (화사) solo)', track.full_name(collabs=True))
 
     def test_multiple_versions_repr(self):
         name = Name('Wonderful Love', extra={'length': '3:26', 'version': ['EDM Version', 'Japanese ver.']})
         track = Track(7, name, None)
-        self.assertEqual(track.full_name(collabs=True), 'Wonderful Love (EDM Version) (Japanese ver.)')
+        self.assertEqual('Wonderful Love (EDM Version) (Japanese ver.)', track.full_name(collabs=True))
 
 
 class GenerasiaTrackNameReprTest(NameTestCaseBase):
     _site = 'www.generasia.com'
     _interwiki_map = {}
-    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
+    root = Mock(site=_site, _interwiki_map=_interwiki_map)
     # These feat tests are not ideal because they need to pull info from the wiki to look up the artist names, rather
     # than being fully self-contained.
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_feat_solo_of_group(self):
         entry = as_node("""[[Selfish (Moonbyul)|SELFISH]] (feat. [[Seulgi]] of [[Red Velvet]]) """, root=self.root)
         track = Track(6, parse_generasia_track_name(entry), None)
         self.assertEqual(track.full_name(collabs=True), 'SELFISH (feat. Seulgi (슬기) of Red Velvet (레드벨벳))')
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_feat_solo_paren_group(self):
         entry = as_node("""[[Hwaseongin Baireoseu (Boys & Girls)]] (feat. [[Key]] ([[SHINee]])) (화성인 바이러스; ''Martian Virus'')""", root=self.root)
         track = Track(9, parse_generasia_track_name(entry), None)
@@ -516,7 +523,7 @@ class GenerasiaTrackNameReprTest(NameTestCaseBase):
 class GenerasiaTrackNameParsingTest(NameTestCaseBase):
     _site = 'www.generasia.com'
     _interwiki_map = {}
-    root = MagicMock(site=_site, _interwiki_map=_interwiki_map)
+    root = Mock(site=_site, _interwiki_map=_interwiki_map)
 
     def test_lit_slash_eng(self):
         entry = as_node("""[[Neona Hae]] (너나 해; ''You Do It'' / ''Egotistic'')""")
@@ -641,7 +648,7 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         name = parse_generasia_track_name(entry)
         rom, eng, ko, lit = 'Hwaseongin Baireoseu', 'Boys & Girls', '화성인 바이러스', 'Martian Virus'
         feat = as_node("""[[Key]] ( [[SHINee]] )""")
-        log.debug(f'Expected feat={feat.raw.string!r}')
+        # print(f'Expected feat={feat.raw.string!r}')
         self.assertAll(name, eng, eng, ko, ko, romanized=rom, lit_translation=lit, extra={'feat': feat})
 
     def test_remix_feat(self):
@@ -651,6 +658,7 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
             name, Name('BAD GIRL', extra={'remix': 'The Cataracs Remix', 'feat': as_node("""[[DEV]]""", root=self.root)})
         )
 
+    @skip('requires more mocking to avoid touching external systems')
     def test_unzipped_collabs(self):
         entry = as_node("""[[7989]] ([[Kangta]] & [[Taeyeon]] (강타&태연))""", root=self.root)
         name = parse_generasia_track_name(entry)

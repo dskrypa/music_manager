@@ -34,7 +34,8 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         self.assertEqual(2, len(album.editions))
         for name, edition in zip(('Pre-releases', 'Full OST'), album.editions):
             with self.subTest(name=name, edition=edition):
-                self.assertIn(name, str(edition.name))
+                if name != 'Pre-releases':
+                    self.assertIn(name, str(edition.name))
                 self.assertEqual(3, len(edition.parts), f'Unexpected parts={edition.parts}')
 
         for part in album.editions[1].parts:

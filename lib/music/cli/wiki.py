@@ -3,6 +3,9 @@ from __future__ import annotations
 from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, ParamGroup, main  # noqa
 
 from ..__version__ import __author_email__, __version__  # noqa
+from ..wiki import EntertainmentEntity
+
+ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
 
 
 class Wiki(Command, description='Wiki matching / informational functions'):
@@ -45,21 +48,21 @@ class Raw(Wiki, help=''):
         pprint_wiki_page(self.url, 'raw')
 
 
-class Show(Wiki, help=''):
+class Show(Wiki, help='Show a parsed wiki entity'):
     identifier = Positional(help='A wiki URL or title/name')
     expand = Counter('-x', help='Expand entities with a lot of nested info (may be specified multiple times to increase expansion level)')
     limit: int = Option('-L', default=0, help='Maximum number of discography entry parts to show for a given album (default: unlimited)')
     types = Option('-t', nargs='+', help='Filter albums to only those that match the specified types')
-    type = Option('-T', help='An EntertainmentEntity subclass to require that the given page matches')
+    type = Option('-T', choices=[c.__name__ for c in EntertainmentEntity._subclasses], help='An EntertainmentEntity subclass to require that the given page matches')
+    site = Option('-s', choices=ALL_SITES, help='The site from which the entity originated, if a path is provided as the identifier')
 
     def main(self):
         from music.manager.wiki_info import show_wiki_entity
 
-        show_wiki_entity(self.identifier, self.expand, self.limit, self.types, self.type)
+        show_wiki_entity(self.identifier, self.expand, self.limit, self.types, self.type, self.site)
 
 
 class Update(Wiki, help=''):
-    _ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
     path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
     destination = Option('-d', metavar='PATH', help=f"Destination base directory for sorted files (default: based on today's date)")
     url = Option('-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
@@ -74,7 +77,7 @@ class Update(Wiki, help=''):
     replace_genre = Flag('-G', help='Replace genre instead of combining genres')
 
     with ParamGroup('Site', mutually_exclusive=True):
-        sites = Option('-s', nargs='+', choices=_ALL_SITES, help='The wiki sites to search')
+        sites = Option('-s', nargs='+', choices=ALL_SITES, help='The wiki sites to search')
         all = Flag('-A', help='Search all sites')
         ost = Flag('-O', help='Search only wiki.d-addicts.com')
     with ParamGroup('BPM', mutually_exclusive=True):
@@ -89,7 +92,7 @@ class Update(Wiki, help=''):
         from music.manager.wiki_update import update_tracks
         from music.common.utils import can_add_bpm
 
-        sites = self.sites or (['wiki.d-addicts.com'] if self.ost else self._ALL_SITES)
+        sites = self.sites or (['wiki.d-addicts.com'] if self.ost else ALL_SITES)
         destination = self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
 
         bpm = can_add_bpm() if not self.bpm and self.no_bpm else self.bpm

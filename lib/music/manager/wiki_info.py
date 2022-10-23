@@ -3,10 +3,12 @@
 """
 
 from itertools import count
+from pathlib import Path
 from typing import Optional, Iterable
 
 from ds_tools.output.terminal import uprint
 from wiki_nodes.http import URL_MATCH, MediaWikiClient
+from wiki_nodes.page import WikiPage
 
 from ..common.disco_entry import DiscoEntryType
 # from ..text.name import Name
@@ -23,7 +25,9 @@ def pprint_wiki_page(url: str, mode: str):
     page.sections.pprint(mode)
 
 
-def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Iterable[str] = None, etype: str = None):
+def show_wiki_entity(
+    identifier: str, expand=0, limit=0, alb_types: Iterable[str] = None, etype: str = None, site: str = None
+):
     alb_types = _album_types(alb_types)
     cls = EntertainmentEntity
     if etype:
@@ -36,6 +40,11 @@ def show_wiki_entity(identifier: str, expand=0, limit=0, alb_types: Iterable[str
 
     if URL_MATCH(identifier):
         entity = cls.from_url(identifier)
+    elif (path := Path(identifier)).exists():
+        if not site or cls is EntertainmentEntity:
+            raise RuntimeError('A site and entity type is required for entities loaded from files')
+        page = WikiPage(path.stem, site, path.read_text('utf-8'), cls._categories, client=MediaWikiClient(site))
+        entity = cls.from_page(page)
     else:
         entity = cls.from_title(
             identifier, search=True, research=True, strict=1,

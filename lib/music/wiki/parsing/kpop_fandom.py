@@ -541,7 +541,7 @@ class EditionFinder:
         root = self.entry_page.sections
         for key in ('Track list', 'Tracklist'):
             try:
-                return root.get(key, case_sensitive=False)
+                return root.find_section(key, case_sensitive=False)
             except KeyError:
                 pass
 

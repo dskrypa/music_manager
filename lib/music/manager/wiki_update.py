@@ -92,7 +92,9 @@ class WikiUpdater:
 
     @cached_property
     def artist(self) -> Optional[Artist]:
-        return Artist.from_url(self.artist_url) if self.artist_url is not None else None
+        if self.artist_url:
+            return Artist.from_url(self.artist_url)
+        return None
 
     def update(
         self,
@@ -118,6 +120,19 @@ class WikiUpdater:
             else:
                 album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
 
+    def _album_processor_kwargs(self, include_sites: bool = True):
+        kwargs = {
+            'artist': self.artist,
+            'soloist': self.soloist,
+            'hide_edition': self.hide_edition,
+            'collab_mode': self.collab_mode,
+            'title_case': self.title_case,
+            'update_cover': self.update_cover,
+        }
+        if include_sites:
+            kwargs['sites'] = self.sites
+        return kwargs
+
     def get_album_info(self, album_url: Optional[str], artist_only: bool) -> tuple[AlbumDir, ArtistInfoProcessor]:
         if album_url:
             return self._from_album_url(album_url)
@@ -130,16 +145,7 @@ class WikiUpdater:
                 return album_dir, processor
         else:
             album_dir = next(iter(iter_album_dirs(self.paths)))
-            processor = AlbumInfoProcessor.for_album_dir(
-                album_dir,
-                self.artist,
-                self.soloist,
-                self.hide_edition,
-                self.collab_mode,
-                self.title_case,
-                self.sites,
-                self.update_cover,
-            )
+            processor = AlbumInfoProcessor.for_album_dir(album_dir, **self._album_processor_kwargs())
             return album_dir, processor
 
     def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
@@ -169,16 +175,7 @@ class WikiUpdater:
     def _from_album_url(self, album_url: str) -> tuple[AlbumDir, AlbumInfoProcessor]:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
-        processor = AlbumInfoProcessor(
-            album_dir,
-            entry,
-            self.artist,
-            self.soloist,
-            self.hide_edition,
-            self.collab_mode,
-            self.title_case,
-            self.update_cover,
-        )
+        processor = AlbumInfoProcessor(album_dir, entry, **self._album_processor_kwargs(False))
         return album_dir, processor
 
     def _from_artist(self) -> Iterator[tuple[AlbumDir, ArtistInfoProcessor]]:
@@ -199,16 +196,7 @@ class WikiUpdater:
     def _from_album_matches(self) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
-                processor = AlbumInfoProcessor.for_album_dir(
-                    album_dir,
-                    self.artist,
-                    self.soloist,
-                    self.hide_edition,
-                    self.collab_mode,
-                    self.title_case,
-                    self.sites,
-                    self.update_cover,
-                )
+                processor = AlbumInfoProcessor.for_album_dir(album_dir, **self._album_processor_kwargs())
             except MatchException as e:
                 log.log(e.lvl, e, extra={'color': 9})
                 log.debug(e, exc_info=True)

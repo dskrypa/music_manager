@@ -53,17 +53,21 @@ class Track:
 
     @cached_property
     def artists(self) -> set[Artist]:
-        if (extras := self.name.extra) and (artists := extras.get('artists')):
-            if isinstance(artists, ContainerNode):
-                link_artist_map = Artist.from_links(artists.find_all(Link))  # noqa
-                return set(link_artist_map.values())
-            elif isinstance(artists, Link):
-                try:
-                    artist = Artist.from_link(artists)  # noqa
-                except Exception as e:
-                    log.debug(f'Error retrieving artist from link={artists!r}: {e}')
-                else:
-                    return {artist}
+        extra = self.name.extra
+        if not (artists := extra.get('artists') if extra else None):
+            return set()
+
+        if isinstance(artists, ContainerNode):
+            link_artist_map = Artist.from_links(artists.find_all(Link))  # noqa
+            return set(link_artist_map.values())
+        elif isinstance(artists, Link):
+            try:
+                artist = Artist.from_link(artists)  # noqa
+            except Exception as e:
+                log.debug(f'Error retrieving artist from link={artists!r}: {e}')
+            else:
+                return {artist}
+
         return set()
 
     def add_collabs(self, artists):
@@ -75,38 +79,44 @@ class Track:
 
     def _collab_parts(self, suffixes: bool = True) -> list[str]:
         parts = []
-        if extras := self.name.extra:
-            if feat := extras.get('feat'):
-                if isinstance(feat, ContainerNode):
-                    feat = artist_string(feat)[0]
-                elif isinstance(feat, Link):
-                    try:
-                        feat = Artist.from_link(feat)
-                    except Exception as e:
-                        log.debug(f'Error retrieving artist from link={feat!r}: {e}')
-                    else:
-                        feat = feat.name
+        if not (extra := self.name.extra):
+            return parts
 
-                parts.append(f'feat. {feat}')
-            if collab := extras.get('collabs'):
-                if isinstance(collab, ContainerNode):
-                    collab = artist_string(collab)[0]
-                parts.append(f'with {collab}')
+        if feat := extra.get('feat'):
+            if isinstance(feat, ContainerNode):
+                feat = artist_string(feat)[0]
+            elif isinstance(feat, Link):
+                try:
+                    feat = Artist.from_link(feat)
+                except Exception as e:
+                    log.debug(f'Error retrieving artist from link={feat!r}: {e}')
+                else:
+                    feat = feat.name
 
-            if artists := extras.get('artists'):
-                if isinstance(artists, ContainerNode):
-                    artists, found = artist_string(artists)
-                    if suffixes and (suffix := ARTISTS_SUFFIXES.get(found)):
-                        artists = f'{artists} {suffix}'  # noqa
-                elif isinstance(artists, Link):
-                    try:
-                        artist = Artist.from_link(artists)
-                    except Exception as e:
-                        log.debug(f'Error retrieving artist from link={artists!r}: {e}')
-                    else:
-                        artists = f'{artist.name} solo' if suffixes else str(artist.name)
+            parts.append(f'feat. {feat}')
 
-                parts.append(str(artists))
+        if collab := extra.get('collabs'):
+            if isinstance(collab, ContainerNode):
+                collab = artist_string(collab)[0]
+            parts.append(f'with {collab}')
+
+        if artists := extra.get('artists'):
+            if isinstance(artists, ContainerNode):
+                artists, found = artist_string(artists)
+                if suffixes and (suffix := ARTISTS_SUFFIXES.get(found)):
+                    artists = f'{artists} {suffix}'  # noqa
+            elif isinstance(artists, Link):
+                try:
+                    artist = Artist.from_link(artists)
+                except Exception as e:
+                    log.debug(f'Error retrieving artist from link={artists!r}: {e}')
+                else:
+                    artists = f'{artist.name} solo' if suffixes else str(artist.name)
+
+            parts.append(str(artists))
+
+        if producer := extra.get('producer'):
+            parts.append(f'Prod. {producer}')
 
         return parts
 

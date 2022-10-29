@@ -458,6 +458,12 @@ class KpopFandomTrackNameParsingTest(NameTestCaseBase):
         )
         self.assertEqual('Eight (에잇) (feat. Suga (슈가))', track.full_name())
 
+    def test_billlie_patbingsu(self):
+        text = """"Patbingsu (팥빙수)"<ref group="Note" name="One">Original song by [[Yoon Jong Shin]], released in 2001 from his full-length album ''[[Shade]]''.</ref> - 3:29"""
+        entry = as_node(text, root=self.root)
+        name = parse_kf_track_name(entry)
+        self.assertNamesEqual(name, Name('Patbingsu', '팥빙수', extra={'length': '3:29'}))
+
 
 class KpopFandomTrackNameReprTest(NameTestCaseBase):
     _site = 'kpop.fandom.com'

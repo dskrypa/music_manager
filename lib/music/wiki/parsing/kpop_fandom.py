@@ -487,6 +487,8 @@ class ComplexTrackName:
                     self.nodes.insert(0, node)
                 else:
                     raise TypeError(f'Unexpected node type after track name for {self}')
+            elif isinstance(node, Tag) and node.name == 'ref':
+                pass  # ignore references
             else:
                 raise TypeError(f'Unexpected node type after track name for {self}')
 

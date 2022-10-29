@@ -10,7 +10,7 @@ from collections import Counter
 from datetime import datetime, date
 from typing import TYPE_CHECKING, Iterator, Optional
 
-from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section
+from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section, Tag
 from wiki_nodes.page import WikiPage
 
 from ...text.extraction import ends_with_enclosed, split_enclosed
@@ -22,7 +22,7 @@ from .abc import WikiParser, EditionIterator
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
-    from ..typing import StrDateMap
+    from ..typing import StrDateMap, OptStr
 
 __all__ = ['DramaWikiParser']
 log = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 OST_PART_MATCH = re.compile(r'^(.+ OST).*?((?:Part \d+)?)$', re.IGNORECASE).match
 SONG_OST_YEAR_MATCH = re.compile(r'^(.+?)\s-\s(.+?)\s\(((?:19|20)\d{2})\)$').match
 YEAR_MATCH = re.compile(r'-?(.*?)\(((?:19|20)\d{2})\)$').match
+PRODUCER_MATCH = re.compile(r'^(.+?)\s*\(Prod(?:\.|uced)?(?:\s+by)?\s+(.+)\)$', re.IGNORECASE).match
 
 
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
@@ -37,16 +38,18 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     # TODO: Date for part is not being picked up
     def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
-        if profile := get_section_map(artist_page, 'Profile'):
-            for key in ('Name', 'Real name', 'Group name'):
-                if value := profile.get(key):
-                    parts = value.value.split(' / ')
-                    if len(parts) == 2 and ends_with_enclosed(parts[1]):
-                        non_eng, eng = parts
-                        eng, romanized = split_enclosed(eng, maxsplit=1)
-                        yield Name.from_parts((eng, non_eng), romanized=romanized)
-                    else:
-                        yield Name.from_parts(parts)
+        if not (profile := get_section_map(artist_page, 'Profile')):
+            return
+
+        for key in ('Name', 'Real name', 'Group name'):
+            if value := profile.get(key, case_sensitive=False):
+                parts = value.value.split(' / ')
+                if len(parts) == 2 and ends_with_enclosed(parts[1]):
+                    non_eng, eng = parts
+                    eng, romanized = split_enclosed(eng, maxsplit=1)
+                    yield Name.from_parts((eng, non_eng), romanized=romanized)
+                else:
+                    yield Name.from_parts(parts)
 
     def parse_album_name(self, node: N) -> Name:
         raise NotImplementedError
@@ -57,6 +60,36 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     def parse_track_name(self, node: N) -> Name:
         if not isinstance(node, MappingNode):
             raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=!r}')
+
+        title = node['Song Title']
+        extra = {'artists': node['Artist']}
+        if isinstance(title, String):
+            title, inst = strip_inst(title.value)
+            if inst:
+                extra['instrumental'] = True
+            return Name.from_parts((title,), extra=extra)
+
+        if not isinstance(title, ContainerNode):
+            raise ValueError(f'Unexpected track node {title=} content for {node=!r}')
+
+        eng, non_eng, inst = split_title(title)
+        if inst:
+            extra['instrumental'] = True
+
+        eng, eng_producer = split_producer(eng)
+        non_eng, non_eng_producer = split_producer(non_eng)
+        if eng_producer and non_eng_producer:
+            extra['producer'] = Name.from_parts((eng_producer, non_eng_producer))
+        elif producer_str := eng_producer or non_eng_producer:
+            extra['producer'] = Name.from_enclosed(producer_str)
+
+        return Name.from_parts((eng, non_eng), extra=extra)
+
+    def __parse_track_name(self, node: N) -> Name:
+        # TODO: Remove after ensuring new method works as intended
+        if not isinstance(node, MappingNode):
+            raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=!r}')
+
         title = node['Song Title']
         extra = {'artists': node['Artist']}
         if isinstance(title, String):
@@ -166,6 +199,8 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
         if ost_parts:
             yield self._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)
+        # TODO: https://wiki.d-addicts.com/A_Girl_Who_Sees_Smells_OST#A_Girl_Who_Sees_Smells_OST_.28Special_Edition.29
+        #  - the special edition doesn't show up as a choice in the picker
         if other_parts:
             yield self._process_parts_edition(entry, entry_page, ost_name, 'Extra Parts', other_parts)
         if ost_full:
@@ -343,3 +378,36 @@ def get_basic_info(
         dates.setdefault(None, part_date)
 
     return name, languages, dates, artists
+
+
+def split_title(title: ContainerNode) -> tuple[str, str, bool]:
+    eng_parts = []
+    non_eng_parts = []
+
+    found_br = False
+    for node in title:
+        if isinstance(node, Tag) and node.name == 'br':
+            found_br = True
+        elif found_br:
+            non_eng_parts.extend(node.strings())
+        else:
+            eng_parts.extend(node.strings())
+
+    eng, eng_inst = strip_inst(' '.join(eng_parts))
+    non_eng, non_eng_inst = strip_inst(' '.join(non_eng_parts))
+    return eng, non_eng, eng_inst or non_eng_inst
+
+
+def strip_inst(title: OptStr) -> tuple[OptStr, bool]:
+    if title and title.lower().endswith('(inst.)'):
+        title = title[:-7].strip()
+        return title, True
+    return title, False
+
+
+def split_producer(title: OptStr) -> tuple[OptStr, OptStr]:
+    if title and (m := PRODUCER_MATCH(title)):
+        title, producer = m.groups()
+        return title.strip(), producer.strip()
+
+    return title, None

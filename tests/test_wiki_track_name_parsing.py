@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from textwrap import dedent
 from unittest import skip
 from unittest.mock import Mock
 
@@ -8,12 +9,14 @@ from wiki_nodes.nodes import as_node, Link
 from music.test_common import NameTestCaseBase, main
 from music.text.name import Name
 from music.wiki.album import DiscographyEntry
+from music.wiki.parsing.drama_wiki import DramaWikiParser
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 from music.wiki.track import Track
 
 parse_generasia_track_name = GenerasiaParser().parse_track_name
 parse_kf_track_name = KpopFandomParser().parse_track_name
+parse_dw_track_name = DramaWikiParser().parse_track_name
 
 
 class KpopFandomTrackNameParsingTest(NameTestCaseBase):
@@ -671,6 +674,39 @@ class GenerasiaTrackNameParsingTest(NameTestCaseBase):
         entry = as_node("""[[Perfect for You (Sowon)|Honey (Sowon)]] (소원; ''Wish'')""", root=self.root)
         name = parse_generasia_track_name(entry)
         self.assertNamesEqual(name, Name('Honey', '소원', romanized='Sowon', lit_translation='Wish'))
+
+
+class DramaWikiNameParsingTest(NameTestCaseBase):
+    _site = 'wiki.d-addicts.com'
+    _interwiki_map = {}
+    root = Mock(site=_site, _interwiki_map=_interwiki_map)
+
+    def test_police_university_ost(self):
+        section_text = """
+        ==Police University OST Part 5==
+        [[File:Police University OST Part 5.jpg|thumb|200px|Police University OST Part 5]]
+        ;Information
+        *'''Title:''' 경찰수업 OST Part 5 / [[Police University]] OST Part 5
+        *'''Artist:''' [[Yuju]], Prod. by [[Jin Young]]
+        *'''Language:''' Korean
+        *'''Release Date:''' 2021-Aug-30
+        *'''Number of Tracks:''' 2
+        *'''Publisher:''' Kakao Entertainment (카카오엔터테인먼트)
+        *'''Agency:''' Flex M (플렉스엠)
+
+        ;Track Listing
+        {| class="wikitable"
+        ! No.!! Song Title !! Artist
+        |-
+        | 1. || Stay (Prod. by [[Jin Young]]) <br>남아있어 (Prod. by 진영) || [[Yuju]]
+        |-
+        | 2. || Stay (Prod. by Jin Young) (Inst.)<br>남아있어 (Prod. by 진영) (Inst.) || Yuju
+        |}
+        """
+        section = as_node(dedent(section_text).strip(), root=self.root)
+        name = parse_dw_track_name(section[5][0])
+        expected_extra = {'artists': Link('[[Yuju]]', root=self.root), 'producer': Name('Jin Young', '진영')}
+        self.assertNamesEqual(name, Name('Stay', '남아있어', extra=expected_extra))
 
 
 if __name__ == '__main__':

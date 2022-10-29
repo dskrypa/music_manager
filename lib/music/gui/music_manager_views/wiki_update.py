@@ -12,9 +12,11 @@ from PySimpleGUI import Text, HSep
 
 from db_cache.utils import get_user_cache_dir
 from ds_tools.output.printer import Printer
-from ...files.album import AlbumDir
-from ...manager.update import AlbumInfo
-from ...manager.wiki_update import WikiUpdater
+
+from music.files.album import AlbumDir
+from music.manager.config import UpdateConfig
+from music.manager.update import AlbumInfo
+from music.manager.wiki_update import WikiUpdater
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..elements.inputs import ExtInput
 from ..options import GuiOptions
@@ -58,8 +60,12 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 options.add_bool('no_album_move', 'Do Not Move Album', tooltip='Do not rename the album directory')
 
             with self.options.column(1) as options:
-                sites = self.config.get('wiki_update:sites', ALL_SITES[:-1])
-                options.add_listbox('sites', 'Sites', choices=ALL_SITES, default=sites, tooltip='The wiki sites to search')
+                artist_sites = self.config.get('wiki_update:artist_sites', ALL_SITES[:-1])
+                album_sites = self.config.get('wiki_update:album_sites', ALL_SITES[:-1])
+                options.add_listbox('artist_sites', 'Artist Sites', choices=ALL_SITES, default=artist_sites, tooltip='The wiki sites to search', label_size=(9, 1))
+                options.add_listbox('album_sites', 'Album Sites', choices=ALL_SITES, default=album_sites, tooltip='The wiki sites to search', row=1, label_size=(9, 1))
+
+            # with self.options.column_and_row()
 
             self.options.update(options)
 
@@ -91,19 +97,22 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         parsed = self.options.parse(data)
         self.log.info(f'Parsed options:')
         Printer('json-pretty').pprint(parsed)
-        if set(parsed['sites']) != set(self.config.get('wiki_update:sites', ())):
-            self.config['wiki_update:sites'] = sorted(parsed['sites'])
+        if set(parsed['artist_sites']) != set(self.config.get('wiki_update:artist_sites', ())):
+            self.config['wiki_update:artist_sites'] = sorted(parsed['artist_sites'])
+        if set(parsed['album_sites']) != set(self.config.get('wiki_update:album_sites', ())):
+            self.config['wiki_update:album_sites'] = sorted(parsed['album_sites'])
 
-        updater = WikiUpdater(
-            [self.album.path],
-            parsed['collab_mode'],
-            parsed['sites'],
-            parsed['soloist'],
-            parsed['hide_edition'],
-            parsed['title_case'],
-            False,
-            parsed['artist_url'] or None,
+        config = UpdateConfig(
+            collab_mode=parsed['collab_mode'],
+            soloist=parsed['soloist'],
+            hide_edition=parsed['hide_edition'],
+            title_case=parsed['title_case'],
+            update_cover=False,
+            artist_sites=parsed['artist_sites'],
+            album_sites=parsed['album_sites'],
+            artist_only=parsed['artist_only'],
         )
+        updater = WikiUpdater([self.album.path], config, artist_url=parsed['artist_url'] or None)
 
         processor = None
         album_info: Optional[AlbumInfo] = None
@@ -112,7 +121,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         def get_album_info():
             nonlocal processor, error, album_info
             try:
-                album_dir, processor = updater.get_album_info(parsed['album_url'] or None, parsed['artist_only'])
+                album_dir, processor = updater.get_album_info(parsed['album_url'] or None)
                 album_info = processor.to_album_info()
             except Exception as e:
                 error = traceback.format_exc()
@@ -146,4 +155,4 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 if clear:
                     client = MediaWikiClient(site)
                     self.log.info(f'Resetting cache for {site}')
-                    client.reset_caches(hard=True)
+                    client._cache.reset_caches(hard=True)

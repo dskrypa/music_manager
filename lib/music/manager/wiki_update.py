@@ -21,9 +21,10 @@ from ..common.prompts import choose_item
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.track.track import SongFile
 from ..wiki import Track, Artist, Singer, Group
-from ..wiki.album import DiscographyEntry, DEEdition, DEPart, DiscoObj, Soundtrack, SoundtrackEdition, SoundtrackPart
+from ..wiki.album import DiscographyEntry, DEEdition, DEPart, DiscoObj, Soundtrack, SoundtrackEdition
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from ..wiki.typing import StrOrStrs
+from .config import UpdateConfig
 from .enums import CollabMode
 from .exceptions import MatchException, NoArtistFoundError
 from .update import AlbumInfo, TrackInfo, normalize_case
@@ -48,7 +49,8 @@ def update_tracks(
     add_bpm: bool = False,
     dest_base_dir: Union[Path, str, None] = None,
     title_case: bool = False,
-    sites: StrOrStrs = None,
+    artist_sites: StrOrStrs = None,
+    album_sites: StrOrStrs = None,
     dump: Optional[str] = None,
     load: Optional[str] = None,
     artist_url: Optional[str] = None,
@@ -57,9 +59,20 @@ def update_tracks(
     artist_only: bool = False,
     add_genre: bool = True,
 ):
-    WikiUpdater(paths, collab_mode, sites, soloist, hide_edition, title_case, update_cover, artist_url).update(
-        dest_base_dir, load, url, artist_only, dry_run, add_bpm, no_album_move, dump, add_genre
+    config = UpdateConfig(
+        soloist=soloist,
+        hide_edition=hide_edition,
+        collab_mode=collab_mode,
+        add_bpm=add_bpm,
+        title_case=title_case,
+        artist_sites=artist_sites,
+        album_sites=album_sites,
+        update_cover=update_cover,
+        no_album_move=no_album_move,
+        artist_only=artist_only,
+        add_genre=add_genre,
     )
+    WikiUpdater(paths, config, artist_url=artist_url).update(dest_base_dir, load, url, dry_run, dump)
 
 
 class WikiUpdater:
@@ -70,24 +83,9 @@ class WikiUpdater:
     provided in update.
     """
 
-    def __init__(
-        self,
-        paths: Paths,
-        collab_mode: Union[CollabMode, str] = CollabMode.ARTIST,
-        sites: StrOrStrs = None,
-        soloist: bool = False,
-        hide_edition: bool = False,
-        title_case: bool = False,
-        update_cover: bool = False,
-        artist_url: Optional[str] = None,
-    ):
+    def __init__(self, paths: Paths, config: UpdateConfig, artist_url: Optional[str] = None):
         self.paths = paths
-        self.collab_mode = CollabMode.get(collab_mode)
-        self.sites = sites
-        self.soloist = soloist
-        self.hide_edition = hide_edition
-        self.title_case = title_case
-        self.update_cover = update_cover
+        self.config = config
         self.artist_url = artist_url
 
     @cached_property
@@ -101,61 +99,46 @@ class WikiUpdater:
         dest_base_dir: Union[Path, str, None] = None,
         load_path: Optional[str] = None,
         album_url: Optional[str] = None,
-        artist_only: bool = False,
         dry_run: bool = False,
-        add_bpm: bool = False,
-        no_album_move: bool = False,
         dump: Optional[str] = None,
-        add_genre: bool = True,
     ):
         if dest_base_dir is not None and not isinstance(dest_base_dir, Path):
             dest_base_dir = Path(dest_base_dir).expanduser().resolve()
 
-        for album_dir, album_info in self._iter_dir_info(load_path, album_url, artist_only):
+        for album_dir, album_info in self._iter_dir_info(load_path, album_url):
             album_dir.remove_bad_tags(dry_run)
-            album_dir.fix_song_tags(dry_run, add_bpm)
+            album_dir.fix_song_tags(dry_run, self.config.add_bpm)
             if dump:
                 album_info.dump(Path(dump).expanduser().resolve())
                 return
             else:
-                album_info.update_and_move(album_dir, dest_base_dir, dry_run, no_album_move, add_genre)
+                album_info.update_and_move(
+                    album_dir, dest_base_dir, dry_run, self.config.no_album_move, self.config.add_genre
+                )
 
-    def _album_processor_kwargs(self, include_sites: bool = True):
-        kwargs = {
-            'artist': self.artist,
-            'soloist': self.soloist,
-            'hide_edition': self.hide_edition,
-            'collab_mode': self.collab_mode,
-            'title_case': self.title_case,
-            'update_cover': self.update_cover,
-        }
-        if include_sites:
-            kwargs['sites'] = self.sites
-        return kwargs
-
-    def get_album_info(self, album_url: Optional[str], artist_only: bool) -> tuple[AlbumDir, ArtistInfoProcessor]:
+    def get_album_info(self, album_url: Optional[str]) -> tuple[AlbumDir, ArtistInfoProcessor]:
         if album_url:
             return self._from_album_url(album_url)
-        elif artist_only:
+        elif self.config.artist_only:
             if self.artist:
                 return next(iter(self._from_artist()))
             else:
                 album_dir = next(iter(iter_album_dirs(self.paths)))
-                processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
+                processor = ArtistInfoProcessor.for_album_dir(album_dir, self.config)
                 return album_dir, processor
         else:
             album_dir = next(iter(iter_album_dirs(self.paths)))
-            processor = AlbumInfoProcessor.for_album_dir(album_dir, **self._album_processor_kwargs())
+            processor = AlbumInfoProcessor.for_album_dir(album_dir, self.config)
             return album_dir, processor
 
-    def _iter_dir_info(self, load_path: str, album_url: str, artist_only: bool) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
+    def _iter_dir_info(self, load_path: str, album_url: str) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         if load_path:
             yield self._from_path(load_path)
         elif album_url:
             album_dir, processor = self._from_album_url(album_url)
             yield album_dir, processor.to_album_info()
         else:
-            if artist_only:
+            if self.config.artist_only:
                 if self.artist:
                     for album_dir, processor in self._from_artist():
                         yield album_dir, processor.to_album_info()
@@ -175,18 +158,18 @@ class WikiUpdater:
     def _from_album_url(self, album_url: str) -> tuple[AlbumDir, AlbumInfoProcessor]:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
-        processor = AlbumInfoProcessor(album_dir, entry, **self._album_processor_kwargs(False))
+        processor = AlbumInfoProcessor(album_dir, entry, self.config)
         return album_dir, processor
 
     def _from_artist(self) -> Iterator[tuple[AlbumDir, ArtistInfoProcessor]]:
         for album_dir in iter_album_dirs(self.paths):
-            processor = ArtistInfoProcessor(album_dir, self.artist, self.soloist, self.title_case)
+            processor = ArtistInfoProcessor(album_dir, self.config, self.artist)
             yield album_dir, processor
 
     def _from_artist_matches(self) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
-                processor = ArtistInfoProcessor.for_album_dir(album_dir, self.soloist, self.title_case, self.sites)
+                processor = ArtistInfoProcessor.for_album_dir(album_dir, self.config)
             except MatchException as e:
                 log.log(e.lvl, e, extra={'color': 9})
                 log.debug(e, exc_info=True)
@@ -196,7 +179,7 @@ class WikiUpdater:
     def _from_album_matches(self) -> Iterator[tuple[AlbumDir, AlbumInfo]]:
         for album_dir in iter_album_dirs(self.paths):
             try:
-                processor = AlbumInfoProcessor.for_album_dir(album_dir, **self._album_processor_kwargs())
+                processor = AlbumInfoProcessor.for_album_dir(album_dir, self.config)
             except MatchException as e:
                 log.log(e.lvl, e, extra={'color': 9})
                 log.debug(e, exc_info=True)
@@ -205,31 +188,16 @@ class WikiUpdater:
 
 
 class ArtistInfoProcessor:
-    def __init__(
-        self,
-        album_dir: AlbumDir,
-        artist: Optional[Artist] = None,
-        soloist: bool = False,
-        title_case: bool = False,
-        sites: StrOrStrs = None,
-    ):
+    def __init__(self, album_dir: AlbumDir, config: UpdateConfig, artist: Optional[Artist] = None):
         self.album_dir = album_dir
-        self.title_case = title_case
-        self._soloist = soloist
+        self.config = config
         self._init_artist = artist
         self._artist_from_tag = False
-        self._sites = sites
 
     @classmethod
-    def for_album_dir(
-        cls,
-        album_dir: AlbumDir,
-        soloist: bool = False,
-        title_case: bool = False,
-        sites: StrOrStrs = None,
-    ) -> ArtistInfoProcessor:
+    def for_album_dir(cls, album_dir: AlbumDir, config: UpdateConfig) -> ArtistInfoProcessor:
         try:
-            artists = find_artists(album_dir, sites=sites)
+            artists = find_artists(album_dir, sites=config.artist_sites)
         except Exception as e:
             if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
                 raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e
@@ -238,7 +206,7 @@ class ArtistInfoProcessor:
         else:
             artist = choose_item(artists, 'artist', before=f'Found multiple artists for {album_dir}')
             log.info(f'Matched {album_dir}\'s artist to {artist}')
-            return cls(album_dir, artist, soloist, title_case, sites)
+            return cls(album_dir, config, artist)
 
     def to_album_info(self) -> AlbumInfo:
         album_info = AlbumInfo.from_album_dir(self.album_dir)
@@ -290,7 +258,7 @@ class ArtistInfoProcessor:
 
     @cached_property
     def soloist(self) -> bool:
-        if self._soloist:
+        if self.config.soloist:
             return True
         return self._soloist_overrides.get(str(self.artist.name), False)
 
@@ -319,7 +287,7 @@ class ArtistInfoProcessor:
         return artist_name
 
     def _normalize_name(self, name: str) -> str:
-        if self.title_case:
+        if self.config.title_case:
             name = normalize_case(name)
         return name.strip()
 
@@ -334,38 +302,16 @@ class ArtistInfoProcessor:
 
 
 class AlbumInfoProcessor(ArtistInfoProcessor):
-    def __init__(
-        self,
-        album_dir: AlbumDir,
-        album: DiscoObj,
-        artist: Optional[Artist] = None,
-        soloist: bool = False,
-        hide_edition: bool = False,
-        collab_mode: CollabMode = CollabMode.ARTIST,
-        title_case: bool = False,
-        update_cover: bool = False,
-        sites: StrOrStrs = None,
-    ):
-        super().__init__(album_dir, artist, soloist, title_case, sites)
-        self.hide_edition = hide_edition
-        self.collab_mode = collab_mode
+    def __init__(self, album_dir: AlbumDir, album: DiscoObj, config: UpdateConfig, artist: Optional[Artist] = None):
+        super().__init__(album_dir, config, artist)
         self.album = album
-        self.update_cover = update_cover
 
     @classmethod
     def for_album_dir(
-        cls,
-        album_dir: AlbumDir,
-        artist: Optional[Artist] = None,
-        soloist: bool = False,
-        hide_edition: bool = False,
-        collab_mode: CollabMode = CollabMode.ARTIST,
-        title_case: bool = False,
-        sites: StrOrStrs = None,
-        update_cover: bool = False,
+        cls, album_dir: AlbumDir, config: UpdateConfig, artist: Optional[Artist] = None
     ) -> AlbumInfoProcessor:
         try:
-            album = AlbumFinder(album_dir, sites=sites).find_album()
+            album = AlbumFinder(album_dir, sites=config.album_sites).find_album()
         except Exception as e:
             if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
                 raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e
@@ -373,7 +319,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                 raise MatchException(40, f'Error finding an album match for {album_dir}: {e}') from e
         else:
             log.info(f'Matched {album_dir} to {album}')
-            return cls(album_dir, album, artist, soloist, hide_edition, collab_mode, title_case, update_cover, sites)
+            return cls(album_dir, album, config, artist=artist)
 
     def to_album_info(self) -> AlbumInfo:
         log.info(f'Artist for {self.edition}: {self.artist}')
@@ -383,12 +329,12 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             genre = None
 
         album_info = AlbumInfo(
-            title=self._normalize_name(self.disco_part.full_name(self.hide_edition)),
+            title=self._normalize_name(self.disco_part.full_name(self.config.hide_edition)),
             artist=self.album_artist_name,
             date=self.disco_part.date,
             disk=self.disco_part.disc,
             genre=genre,
-            name=self.disco_part.full_name(self.hide_edition).strip(),
+            name=self.disco_part.full_name(self.config.hide_edition).strip(),
             parent=self.normalize_artist(self.album_artist.name.english),
             singer=self.normalize_artist(self.artist.name.english),
             solo_of_group=isinstance(self.artist, Singer) and self.artist.groups and not self.soloist,
@@ -403,19 +349,19 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             wiki_artist=getattr(self.album_artist, 'url', None),
         )
 
-        common_artist = self.is_ost and not self.full_ost
-        collabs_in_title = self.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
-        collabs_in_artist = self.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
+        alt_artist_site = self.config.artist_sites and self._artists_source.page.site not in self.config.artist_sites
+        collabs_in_title = self.config.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
+        collabs_in_artist = self.config.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             title = self._normalize_name(track.full_name(collabs_in_title))
-            if common_artist and (extras := track.name.extra):
-                extras.pop('artists', None)
+            if alt_artist_site and (extra := track.name.extra):
+                extra.pop('artists', None)
 
             album_info.tracks[file.path.as_posix()] = TrackInfo(
                 album_info,
                 title=title,
-                artist=self.artist_name if common_artist else track.artist_name(self.artist_name, collabs_in_artist),
+                artist=track.artist_name(self.artist_name, collabs_in_artist),
                 num=track.num,
                 name=self._normalize_name(track.full_name(self._artist != self.artist)),
             )
@@ -429,7 +375,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
     @cached_property
     def disco_part(self) -> DEPart:
         if isinstance(self.album, Soundtrack):
-            self.hide_edition = True
+            self.config.hide_edition = True
             full, parts, extras = self.album.split_editions()
             if extras:
                 entry = self.album
@@ -454,7 +400,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
     def edition(self) -> DEEdition:
         edition = self.disco_part.edition
         if isinstance(edition, SoundtrackEdition):
-            self.hide_edition = True
+            self.config.hide_edition = True
         return edition
 
     # region OST Properties
@@ -496,6 +442,11 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
     @cached_property
     def _artist(self) -> ArtistType:
+        src = self._artists_source
+        if self.config.artist_sites and src.page.site not in self.config.artist_sites:
+            processor = ArtistInfoProcessor.for_album_dir(self.album_dir, self.config)
+            return processor.artist
+
         artists = self._artists
         if len(artists) > 1:
             return self._prepare_artist_from_many(artists)
@@ -510,11 +461,6 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
         if self._init_artist:
             return self._init_artist
-
-        src = self._artists_source
-        if self.is_ost_part and not isinstance(src, str) and 'fandom' not in src.page.site:
-            processor = ArtistInfoProcessor.for_album_dir(self.album_dir, self._soloist, self.title_case, self._sites)
-            return processor.artist
 
         # TODO: Prompt for artist override?
         raise NoArtistFoundError(self.album, self._artists_source)
@@ -554,9 +500,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             # log.debug(f'Replacing {artist=} with pages={artist._pages}')
             if name := artist.name.english or artist.name.non_eng:
                 try:
-                    artist = Artist.from_title(
-                        name, sites=['kpop.fandom.com', 'www.generasia.com'], name=artist.name, entity=artist
-                    )
+                    artist = Artist.from_title(name, sites=self.config.artist_sites, name=artist.name, entity=artist)
                 except Exception as e:
                     log.warning(f'Error finding alternate version of {artist=!r}: {e}')
 
@@ -577,7 +521,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         return None
 
     def get_album_cover(self) -> Optional[str]:
-        if not self.update_cover:
+        if not self.config.update_cover:
             return None
         elif not (urls := self.get_album_cover_urls()):
             return None

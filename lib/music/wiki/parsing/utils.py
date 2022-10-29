@@ -11,8 +11,8 @@ from typing import Optional, Iterator, Type
 from ds_tools.unicode import LangCat
 from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, N
 
-from ...text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
-from ...text.name import Name
+from music.text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
+from music.text.name import Name
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS',

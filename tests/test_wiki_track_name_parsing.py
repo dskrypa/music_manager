@@ -682,19 +682,7 @@ class DramaWikiNameParsingTest(NameTestCaseBase):
     root = Mock(site=_site, _interwiki_map=_interwiki_map)
 
     def test_police_university_ost(self):
-        section_text = """
-        ==Police University OST Part 5==
-        [[File:Police University OST Part 5.jpg|thumb|200px|Police University OST Part 5]]
-        ;Information
-        *'''Title:''' 경찰수업 OST Part 5 / [[Police University]] OST Part 5
-        *'''Artist:''' [[Yuju]], Prod. by [[Jin Young]]
-        *'''Language:''' Korean
-        *'''Release Date:''' 2021-Aug-30
-        *'''Number of Tracks:''' 2
-        *'''Publisher:''' Kakao Entertainment (카카오엔터테인먼트)
-        *'''Agency:''' Flex M (플렉스엠)
-
-        ;Track Listing
+        table_text = """
         {| class="wikitable"
         ! No.!! Song Title !! Artist
         |-
@@ -703,10 +691,32 @@ class DramaWikiNameParsingTest(NameTestCaseBase):
         | 2. || Stay (Prod. by Jin Young) (Inst.)<br>남아있어 (Prod. by 진영) (Inst.) || Yuju
         |}
         """
-        section = as_node(dedent(section_text).strip(), root=self.root)
-        name = parse_dw_track_name(section[5][0])
+        node = as_node(dedent(table_text).strip(), root=self.root)
+        name = parse_dw_track_name(node[0])
         expected_extra = {'artists': Link('[[Yuju]]', root=self.root), 'producer': Name('Jin Young', '진영')}
         self.assertNamesEqual(name, Name('Stay', '남아있어', extra=expected_extra))
+
+    def test_school_2021_ost(self):
+        table_text = """
+        {| class="wikitable"
+        ! No.!! Song Title !! Artist
+        |-
+        | 1. || My Way (Prod. [[Yoon Min Soo]] (윤민수) of [[VIBE]]) || [[4MEN]], [[David Yong]]
+        |-
+        | 2. || My Way (Inst.) || 4MEN, David Yong
+        |}
+        """
+        node = as_node(dedent(table_text).strip(), root=self.root)
+        name = parse_dw_track_name(node[0])
+        prod_extra = {
+            'group': Name('VIBE', extra={'links': [Link('[[VIBE]]', root=self.root)]}),
+            'links': [Link('[[Yoon Min Soo]]', root=self.root)]
+        }
+        expected_extra = {
+            'artists': as_node('[[4MEN]], [[David Yong]]', root=self.root),
+            'producer': Name('Yoon Min Soo', '윤민수', extra=prod_extra),
+        }
+        self.assertNamesEqual(name, Name('My Way', extra=expected_extra))
 
 
 if __name__ == '__main__':

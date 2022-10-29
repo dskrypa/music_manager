@@ -2,42 +2,53 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from copy import copy, deepcopy
-from functools import cached_property, reduce
+from functools import reduce
 from operator import xor
-from typing import Optional, Type, Union, Any, Callable, Pattern, Iterable, Collection, TypeVar, MutableMapping, Mapping
+from typing import TYPE_CHECKING, Type, Any, Callable, Iterable, Iterator, TypeVar, MutableMapping, Mapping, Union
 
-from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
 from ds_tools.unicode.languages import LangCat, J2R
+
 from .extraction import split_enclosed
 from .fuzz import fuzz_process, revised_weighted_ratio
 from .spellcheck import is_english, english_probability
 from .utils import combine_with_parens
 
+if TYPE_CHECKING:
+    from typing import Pattern
+    from music.typing import OptStr, StrIter
+
 __all__ = ['Name', 'sort_name_parts']
 log = logging.getLogger(__name__)
+
 non_word_char_sub = re.compile(r'\W').sub
 NamePartType = TypeVar('NamePartType')
+NameLike = Union['Name', str]
 
 
 class NamePart:
     """Facilitates resetting of cached properties on value changes"""
+    __slots__ = ('type', 'name')
+
     def __init__(self, value_type: Type[NamePartType] = None):
         self.type = value_type
 
-    def __set_name__(self, owner: Type['Name'], name: str):
+    def __set_name__(self, owner: Type[Name], name: str):
         owner._parts.add(name)
         self.name = name    # Note: when both __get__ and __set__ are defined, descriptor takes precedence over __dict__
 
-    def __get__(self, instance: Optional['Name'], owner: Type['Name']) -> Optional[NamePartType]:
+    def __get__(self, instance: Name | None, owner: Type[Name]) -> NamePartType | None:
         if instance is None:
             return self
         return instance.__dict__.get(self.name)
 
-    def __set__(self, instance: 'Name', value: Optional[NamePartType]):
+    def __set__(self, instance: Name, value: NamePartType | None):
         if self.type is not None and value is not None and not isinstance(value, self.type):
             raise TypeError(f'Unexpected type={type(value).__name__} for {instance!r}.{self.name} = {value!r}')
         instance.__dict__[self.name] = value
@@ -46,14 +57,16 @@ class NamePart:
 
 
 class Name(ClearableCachedPropertyMixin):
-    __clear = False                 # Prevent unnecessary cached property reset on init
-    _parts = set()                  # Populated automatically by NamePart
-    _english = NamePart(str)            # type: Optional[str]
-    non_eng = NamePart(str)             # type: Optional[str]
-    romanized = NamePart(str)           # type: Optional[str]
-    lit_translation = NamePart(str)     # type: Optional[str]
+    __clear = False                     # Prevent unnecessary cached property reset on init
+    _parts = set()                      # Populated automatically by NamePart
+    _english = NamePart(str)            # type: OptStr
+    non_eng = NamePart(str)             # type: OptStr
+    romanized = NamePart(str)           # type: OptStr
+    lit_translation = NamePart(str)     # type: OptStr
     versions = NamePart(set)            # type: set[Name]
-    extra = NamePart(MutableMapping)    # type: Optional[MutableMapping[str, Any]]
+    extra = NamePart(MutableMapping)    # type: MutableMapping[str, Any] | None
+
+    # region Constructors
 
     def __init__(
         self,
@@ -61,7 +74,7 @@ class Name(ClearableCachedPropertyMixin):
         non_eng: str = None,
         romanized: str = None,
         lit_translation: str = None,
-        versions: Collection['Name'] = None,
+        versions: Iterable[Name] = None,
         extra: MutableMapping[str, Any] = None,
     ):
         self._english = eng
@@ -72,15 +85,60 @@ class Name(ClearableCachedPropertyMixin):
         self.extra = extra
         self.__clear = True
 
-    def __repr__(self) -> str:
-        return self.full_repr(pretty=True)
+    @classmethod
+    def from_enclosed(cls, name: str, **kwargs) -> Name:
+        if LangCat.categorize(name) == LangCat.MIX:
+            parts = split_enclosed(name, reverse=True, maxsplit=1)
+        else:
+            parts = (name,)
+        return cls.from_parts(parts, **kwargs)
 
-    def __copy__(self):
-        attrs = self.as_dict()
-        attrs['eng'] = attrs.pop('_english')
-        return self.__class__(**attrs)
+    @classmethod
+    def from_parts(cls, parts: StrIter, **kwargs) -> Name:
+        eng = None
+        non_eng = None
+        extra = []
+        name = None
+        for part in parts:
+            if not part:
+                continue
+            elif name is not None:
+                extra.append(part)
+            elif not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
+                non_eng = part
+            elif not eng and LangCat.contains_any(part, LangCat.ENG):
+                eng = part
+            elif eng and non_eng and LangCat.categorize(part) == LangCat.ENG:
+                name = cls(eng, non_eng, **kwargs)
+                if name.has_romanization(part):
+                    name.romanized = part
+                elif name.has_romanization(eng) and not is_english(eng) and is_english(part):
+                    name._english = part
+                    name.romanized = eng
+                else:
+                    name = None
+                    extra.append(part)
+            else:
+                extra.append(part)
 
-    def as_dict(self) -> dict[str, Union[None, str, MutableMapping[str, Any], set['Name']]]:
+        if name is None:
+            if eng or non_eng:
+                name = cls(eng, non_eng, **kwargs)
+            elif extra and len(extra) == 1:
+                name = cls(extra[0], **kwargs)
+                extra = None
+        if name is None:
+            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {extra=!r}')
+        if extra:
+            if name.extra:
+                name.extra['unknown'] = extra  # noqa
+            else:
+                name.extra = {'unknown': extra}
+        return name
+
+    # endregion
+
+    def as_dict(self) -> dict[str, None | str | MutableMapping[str, Any] | set[Name]]:
         return {attr: deepcopy(getattr(self, attr)) for attr in self._parts}
 
     def full_repr(
@@ -91,7 +149,7 @@ class Name(ClearableCachedPropertyMixin):
         inner: bool = False,
         include_versions: bool = True,
         pretty: bool = False,
-        attrs: Iterable[str] = None,
+        attrs: StrIter = None,
     ) -> str:
         var_names = [
             'non_eng', 'romanized', 'lit_translation', 'extra',  # 'non_eng_lang'
@@ -126,13 +184,6 @@ class Name(ClearableCachedPropertyMixin):
         suffix = f'{delim}{indent_str}' if inner and '\n' in delim else delim
         return f'<{type(self).__name__}({prefix}{parts}{suffix})>'
 
-    def __str__(self) -> str:
-        eng = self.english
-        non_eng = self.non_eng
-        if eng and non_eng:
-            return combine_with_parens([eng, non_eng])
-        return eng or non_eng or self.romanized or self.lit_translation or ''
-
     def artist_str(self, group: bool = True, members: bool = True) -> str:
         if extra := self.extra:
             parts = [str(self)]
@@ -144,18 +195,43 @@ class Name(ClearableCachedPropertyMixin):
         else:
             return str(self)
 
+    def split(self) -> Name:
+        return self.from_parts(LangCat.split(self.english), versions={self, Name(non_eng=self.english)})
+
+    # region Internal / Dunder Methods
+
+    def __str__(self) -> str:
+        eng = self.english
+        non_eng = self.non_eng
+        if eng and non_eng:
+            return combine_with_parens([eng, non_eng])
+        return eng or non_eng or self.romanized or self.lit_translation or ''
+
+    def __repr__(self) -> str:
+        return self.full_repr(pretty=True)
+
+    def __rich_repr__(self):
+        for attr in ('_english', 'non_eng', 'romanized', 'lit_translation', 'extra', '_is_ost', 'versions'):
+            if value := getattr(self, attr):
+                yield attr, value
+
+    def __copy__(self):
+        attrs = self.as_dict()
+        attrs['eng'] = attrs.pop('_english')
+        return self.__class__(**attrs)
+
     def __bool__(self) -> bool:
         return bool(self._english or self.non_eng or self.romanized or self.lit_translation)
-
-    def __lt__(self, other: 'Name') -> bool:
-        return (self.english or '', self.non_eng or '') < (other.english or '', other.non_eng or '')
 
     @cached_property
     def __parts(self):
         # _english, non_eng, romanized, lit_translation
         return tuple(getattr(self, part) for part in self._parts if part not in ('versions', 'extra'))
 
-    def __eq__(self, other: 'Name') -> bool:
+    def __lt__(self, other: Name) -> bool:
+        return (self.english or '', self.non_eng or '') < (other.english or '', other.non_eng or '')
+
+    def __eq__(self, other: Name) -> bool:
         for part in self._parts:
             try:
                 if getattr(self, part) != getattr(other, part):
@@ -168,9 +244,66 @@ class Name(ClearableCachedPropertyMixin):
     def __hash__(self):
         return reduce(xor, map(hash, self.__parts))
 
+    def __add__(self, other: Name) -> Name:
+        combined = self.__class__()
+        combined.update(**self._combined(other))
+        return combined
+
+    def __iadd__(self, other: Name) -> Name:
+        self.update(**self._combined(other))
+        return self
+
+    def __iter__(self) -> Iterator[str]:
+        for part in (self._english, self.non_eng, self.romanized, self.lit_translation):
+            if part:
+                yield part
+
+    # endregion
+
+    # region Name Matching
+
+    def is_version_of(self, other: Name, partial: bool = False) -> bool:
+        matches = self._matches(other)
+        any_match = any(matches)
+        if partial:
+            return any_match
+        elif any_match:
+            return not any(m is False for m in matches)
+        return False
+
+    def matches(self, other: NameLike, threshold=90, agg_func: Callable = max, romanization_match=95) -> bool:
+        scores = self._score(other, romanization_match)
+        if scores:
+            score = agg_func(scores)
+            # log.debug(f'{self!r}.matches({other!r}) {score=}')
+            return score >= threshold
+        return False
+
+    def matches_any(self, others: Iterable[NameLike], *args, **kwargs) -> bool:
+        return any(self.matches(other, *args, **kwargs) for other in others)
+
+    def should_merge(self, other: Name) -> bool:
+        matches = self._matches(other)
+        return any(matches) and not any(m is False for m in matches) and self != other
+
+    def has_romanization(self, text: str, fuzz: bool = True) -> bool:
+        """
+        :param text: A string that may be a romanized version of this Name's non-english component
+        :param fuzz: Whether the given text needs to be fuzzed before attempting to compare it
+        :return: True if the given text is a romanized version of this Name's non-english component
+        """
+        fuzzed = fuzz_process(text, space=False) if fuzz else text
+        if not fuzzed:
+            return False
+        if self.korean and self._romanization_pattern.match(fuzzed):
+            return True
+        if self.japanese or self.cjk:  # Not mutually exclusive with previous condition
+            return fuzzed in self._romanizations
+        return False
+
     def _score(
         self,
-        other: Union['Name', str],
+        other: NameLike,
         romanization_match: int = 95,
         other_versions: bool = True,
         try_alt: bool = True,
@@ -244,7 +377,7 @@ class Name(ClearableCachedPropertyMixin):
         # log.debug(f'{self!r}.matches({other!r}) {scores=}', extra={'color': (11, 12)})
         return scores
 
-    def _score_eng_parts(self, other: 'Name') -> int:
+    def _score_eng_parts(self, other: Name) -> int:
         o_eng_parts = other.eng_parts
         scores = []
         for s_part in self.eng_parts:
@@ -252,16 +385,18 @@ class Name(ClearableCachedPropertyMixin):
                 scores.append(revised_weighted_ratio(s_part, o_part))
         return max(scores) if scores else 100
 
-    def matches(self, other: Union['Name', str], threshold=90, agg_func: Callable = max, romanization_match=95) -> bool:
-        scores = self._score(other, romanization_match)
-        if scores:
-            score = agg_func(scores)
-            # log.debug(f'{self!r}.matches({other!r}) {score=}')
-            return score >= threshold
-        return False
+    def _match(self, other: Name, attr: str) -> bool | None:
+        return _match(getattr(self, attr), getattr(other, attr))
 
-    def matches_any(self, others: Iterable[Union['Name', str]], *args, **kwargs) -> bool:
-        return any(self.matches(other, *args, **kwargs) for other in others)
+    def _matches(self, other: Name) -> tuple[bool | None, ...]:
+        return tuple(self._match(other, attr) for attr in ('english', 'non_eng'))
+
+    def _basic_matches(self, other: Name) -> tuple[bool | None, ...]:
+        return tuple(self._match(other, attr) for attr in ('_english', 'non_eng', 'romanized', 'lit_translation'))
+
+    # endregion
+
+    # region Update / Combine Methods
 
     def set_eng_or_rom(self, text: str, probability: float = None, value: str = None):
         """
@@ -297,21 +432,12 @@ class Name(ClearableCachedPropertyMixin):
             if data:
                 self.extra.update(data)
 
-    def with_part(self, **kwargs) -> 'Name':
+    def with_part(self, **kwargs) -> Name:
         _copy = copy(self)
         _copy.update(**kwargs)
         return _copy
 
-    def _match(self, other: 'Name', attr: str) -> Optional[bool]:
-        return _match(getattr(self, attr), getattr(other, attr))
-
-    def _matches(self, other: 'Name') -> tuple[Optional[bool], ...]:
-        return tuple(self._match(other, attr) for attr in ('english', 'non_eng'))
-
-    def _basic_matches(self, other: 'Name') -> tuple[Optional[bool], ...]:
-        return tuple(self._match(other, attr) for attr in ('_english', 'non_eng', 'romanized', 'lit_translation'))
-
-    def _merge_basic(self, other: 'Name') -> dict[str, Optional[str]]:
+    def _merge_basic(self, other: Name) -> dict[str, OptStr]:
         merged = {}
         for attr in ('_english', 'non_eng', 'romanized', 'lit_translation'):
             s_value = getattr(self, attr)
@@ -321,13 +447,13 @@ class Name(ClearableCachedPropertyMixin):
             merged[attr] = s_value or o_value
         return merged
 
-    def _merge_complex(self, other: 'Name'):
+    def _merge_complex(self, other: Name):
         extra = deepcopy(self.extra) or {}
         if o_extra := other.extra:
             extra.update(o_extra)
         return {'extra': extra or None, 'versions': self._merge_versions(other)}
 
-    def _merge_versions(self, other: 'Name', include: bool = False) -> set['Name']:
+    def _merge_versions(self, other: Name, include: bool = False) -> set[Name]:
         versions = set()
         for version in self.versions:
             try:
@@ -346,25 +472,12 @@ class Name(ClearableCachedPropertyMixin):
             versions.add(other)
         return versions
 
-    def is_version_of(self, other: 'Name', partial: bool = False) -> bool:
-        matches = self._matches(other)
-        any_match = any(matches)
-        if partial:
-            return any_match
-        elif any_match:
-            return not any(m is False for m in matches)
-        return False
-
-    def should_merge(self, other: 'Name') -> bool:
-        matches = self._matches(other)
-        return any(matches) and not any(m is False for m in matches) and self != other
-
     def _pop_versions(self):
         versions = self.versions
         self.versions = set()
         return versions
 
-    def _combined(self, other: 'Name') -> dict[str, Any]:
+    def _combined(self, other: Name) -> dict[str, Any]:
         try:
             combined = self._merge_basic(other)
         except ValueError:
@@ -374,14 +487,57 @@ class Name(ClearableCachedPropertyMixin):
             combined.update(self._merge_complex(other))
         return combined
 
-    def __add__(self, other: 'Name') -> 'Name':
-        combined = self.__class__()
-        combined.update(**self._combined(other))
-        return combined
+    # endregion
 
-    def __iadd__(self, other: 'Name') -> 'Name':
-        self.update(**self._combined(other))
-        return self
+    # region Normalized Versions of Attributes
+
+    @cached_property
+    def no_suffix_version(self) -> Name | None:
+        if self._is_ost:
+            stripped = {key: p[:-4].strip() for key, p in self.as_dict().items() if p and p.upper().endswith(' OST')}
+            # log.debug(f'{self!r}: {stripped=!r}')
+            return self.with_part(**stripped)
+        return None
+
+    @cached_property
+    def english(self) -> OptStr:
+        eng = self._english or self.lit_translation
+        if not eng and not self.non_eng and self.romanized:
+            eng = self.romanized
+        return eng
+
+    @cached_property
+    def eng_lower(self) -> OptStr:
+        eng = self.english
+        return eng.lower() if eng else None
+
+    @cached_property
+    def eng_fuzzed(self) -> OptStr:
+        return fuzz_process(self.english)
+
+    @cached_property
+    def eng_fuzzed_nospace(self) -> OptStr:
+        fuzzed = self.eng_fuzzed
+        return ''.join(fuzzed.split()) if fuzzed else None
+
+    @cached_property
+    def eng_parts(self) -> set[str]:
+        return set(filter(None, (self._english, self.lit_translation, self.romanized)))
+
+    @cached_property
+    def non_eng_lower(self) -> OptStr:
+        non_eng = self.non_eng
+        return non_eng.lower() if non_eng else None
+
+    @cached_property
+    def non_eng_nospace(self) -> OptStr:
+        non_eng = self.non_eng
+        return ''.join(non_eng.split()) if non_eng else None
+
+    @cached_property
+    def non_eng_nospecial(self) -> OptStr:
+        non_eng_nospace = self.non_eng_nospace
+        return non_word_char_sub('', non_eng_nospace) if non_eng_nospace else None
 
     @cached_property
     def _is_ost(self) -> bool:
@@ -391,53 +547,9 @@ class Name(ClearableCachedPropertyMixin):
             return any(val.endswith(' ost') for val in filter(None, (eng, non_eng)))
         return False
 
-    @cached_property
-    def no_suffix_version(self) -> Optional['Name']:
-        if self._is_ost:
-            stripped = {key: p[:-4].strip() for key, p in self.as_dict().items() if p and p.upper().endswith(' OST')}
-            # log.debug(f'{self!r}: {stripped=!r}')
-            return self.with_part(**stripped)
-        return None
+    # endregion
 
-    @cached_property
-    def english(self) -> Optional[str]:
-        eng = self._english or self.lit_translation
-        if not eng and not self.non_eng and self.romanized:
-            eng = self.romanized
-        return eng
-
-    @cached_property
-    def eng_lower(self) -> Optional[str]:
-        eng = self.english
-        return eng.lower() if eng else None
-
-    @cached_property
-    def eng_fuzzed(self) -> Optional[str]:
-        return fuzz_process(self.english)
-
-    @cached_property
-    def eng_fuzzed_nospace(self) -> Optional[str]:
-        fuzzed = self.eng_fuzzed
-        return ''.join(fuzzed.split()) if fuzzed else None
-
-    @cached_property
-    def eng_parts(self) -> set[str]:
-        return set(filter(None, (self._english, self.lit_translation, self.romanized)))
-
-    @cached_property
-    def non_eng_lower(self) -> Optional[str]:
-        non_eng = self.non_eng
-        return non_eng.lower() if non_eng else None
-
-    @cached_property
-    def non_eng_nospace(self) -> Optional[str]:
-        non_eng = self.non_eng
-        return ''.join(non_eng.split()) if non_eng else None
-
-    @cached_property
-    def non_eng_nospecial(self) -> Optional[str]:
-        non_eng_nospace = self.non_eng_nospace
-        return non_word_char_sub('', non_eng_nospace) if non_eng_nospace else None
+    # region Language Categories
 
     @cached_property
     def eng_lang(self) -> LangCat:
@@ -455,37 +567,20 @@ class Name(ClearableCachedPropertyMixin):
     def non_eng_langs(self) -> set[LangCat]:
         return LangCat.categorize(self.non_eng, True)
 
-    def has_romanization(self, text: str, fuzz: bool = True) -> bool:
-        """
-        :param text: A string that may be a romanized version of this Name's non-english component
-        :param fuzz: Whether the given text needs to be fuzzed before attempting to compare it
-        :return: True if the given text is a romanized version of this Name's non-english component
-        """
-        fuzzed = fuzz_process(text, space=False) if fuzz else text
-        if not fuzzed:
-            return False
-        if self.korean and self._romanization_pattern.match(fuzzed):
-            return True
-        if self.japanese or self.cjk:  # Not mutually exclusive with previous condition
-            return fuzzed in self._romanizations
-        return False
+    # endregion
 
-    def _non_eng_if_expected(self, expected: LangCat) -> Optional[str]:
-        non_eng_lang = self.non_eng_lang
-        if non_eng_lang == expected or non_eng_lang == LangCat.MIX and expected in self.non_eng_langs:
-            return self.non_eng
-        return None
+    # region Conditional Non-English Attributes
 
     @cached_property
-    def korean(self) -> Optional[str]:
+    def korean(self) -> OptStr:
         return self._non_eng_if_expected(LangCat.HAN)
 
     @cached_property
-    def japanese(self) -> Optional[str]:
+    def japanese(self) -> OptStr:
         return self._non_eng_if_expected(LangCat.JPN)
 
     @cached_property
-    def cjk(self) -> Optional[str]:
+    def cjk(self) -> OptStr:
         return self._non_eng_if_expected(LangCat.CJK)
 
     @cached_property
@@ -498,59 +593,13 @@ class Name(ClearableCachedPropertyMixin):
             return list(J2R().romanize(text))
         return []
 
-    @classmethod
-    def from_enclosed(cls, name: str, **kwargs) -> 'Name':
-        if LangCat.categorize(name) == LangCat.MIX:
-            parts = split_enclosed(name, reverse=True, maxsplit=1)
-        else:
-            parts = (name,)
-        return cls.from_parts(parts, **kwargs)
+    def _non_eng_if_expected(self, expected: LangCat) -> OptStr:
+        non_eng_lang = self.non_eng_lang
+        if non_eng_lang == expected or non_eng_lang == LangCat.MIX and expected in self.non_eng_langs:
+            return self.non_eng
+        return None
 
-    def split(self) -> 'Name':
-        return self.from_parts(LangCat.split(self.english), versions={self, Name(non_eng=self.english)})
-
-    @classmethod
-    def from_parts(cls, parts: Iterable[str], **kwargs) -> 'Name':
-        eng = None
-        non_eng = None
-        extra = []
-        name = None
-        for part in parts:
-            if not part:
-                continue
-            elif name is not None:
-                extra.append(part)
-            elif not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
-                non_eng = part
-            elif not eng and LangCat.contains_any(part, LangCat.ENG):
-                eng = part
-            elif eng and non_eng and LangCat.categorize(part) == LangCat.ENG:
-                name = cls(eng, non_eng, **kwargs)
-                if name.has_romanization(part):
-                    name.romanized = part
-                elif name.has_romanization(eng) and not is_english(eng) and is_english(part):
-                    name._english = part
-                    name.romanized = eng
-                else:
-                    name = None
-                    extra.append(part)
-            else:
-                extra.append(part)
-
-        if name is None:
-            if eng or non_eng:
-                name = cls(eng, non_eng, **kwargs)
-            elif extra and len(extra) == 1:
-                name = cls(extra[0], **kwargs)
-                extra = None
-        if name is None:
-            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {extra=!r}')
-        if extra:
-            if name.extra:
-                name.extra['unknown'] = extra  # noqa
-            else:
-                name.extra = {'unknown': extra}
-        return name
+    # endregion
 
 
 class _NamePart:
@@ -561,7 +610,7 @@ class _NamePart:
         self.value = value
         self.cat = LangCat.categorize(value)
 
-    def __lt__(self, other: '_NamePart') -> bool:
+    def __lt__(self, other: _NamePart) -> bool:
         s_cat = self.cat
         o_cat = other.cat
         if s_cat == o_cat:
@@ -576,14 +625,14 @@ class _NamePart:
         return s_cat < o_cat
 
 
-def sort_name_parts(parts: Iterable[str]) -> list[Optional[str]]:
+def sort_name_parts(parts: StrIter) -> list[OptStr]:
     parts = list(p.value for p in sorted(_NamePart(i, part) for i, part in enumerate(parts)))
     if parts and not LangCat.contains_any(parts[0], LangCat.ENG):
         parts.insert(0, None)
     return parts
 
 
-def _match(a, b) -> Optional[bool]:
+def _match(a, b) -> bool | None:
     if a and b:
         return a == b
     return None

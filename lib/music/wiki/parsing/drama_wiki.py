@@ -13,12 +13,13 @@ from typing import TYPE_CHECKING, Iterator, Optional
 from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section, Tag
 from wiki_nodes.page import WikiPage
 
-from ...text.extraction import ends_with_enclosed, split_enclosed
-from ...text.name import Name
+from music.text.extraction import ends_with_enclosed, split_enclosed
+from music.text.name import Name
 from ..album import Soundtrack, SoundtrackEdition, SoundtrackPart
 from ..base import EntertainmentEntity, SINGER_CATEGORIES, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
+from .names import parse_artist
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -81,7 +82,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         if eng_producer and non_eng_producer:
             extra['producer'] = Name.from_parts((eng_producer, non_eng_producer))
         elif producer_str := eng_producer or non_eng_producer:
-            extra['producer'] = Name.from_enclosed(producer_str)
+            extra['producer'] = parse_artist(producer_str, node)
 
         return Name.from_parts((eng, non_eng), extra=extra)
 

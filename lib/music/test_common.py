@@ -8,6 +8,7 @@ from wikitextparser import WikiText
 
 from ds_tools.test_common import TestCaseBase, main
 from ds_tools.output import colored
+from ds_tools.output.repr import rich_repr
 
 from wiki_nodes import Node, as_node, Root, WikiPage, Section
 from wiki_nodes.testing import WikiNodesTest
@@ -72,9 +73,9 @@ class NameTestCaseBase(WikiNodesTest):
         except AssertionError:
             error_parts = [
                 '',
-                colored('Expected: {}'.format('\n'.join(n.full_repr(delim='\n', indent=4) for n in expected)), 11),
+                colored('Expected: {}'.format('\n'.join(rich_repr(n) for n in expected)), 11),
                 '~' * 80,
-                colored('Found: {}'.format('\n'.join(n.full_repr(delim='\n', indent=4) for n in found)), 9)
+                colored('Found: {}'.format('\n'.join(rich_repr(n) for n in found)), 9)
             ]
             raise AssertionError('\n'.join(error_parts)) from None
 

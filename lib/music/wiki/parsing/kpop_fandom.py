@@ -14,6 +14,7 @@ from ds_tools.unicode import LangCat
 from wiki_nodes.exceptions import SiteDoesNotExist
 from wiki_nodes.nodes import N, AnyNode, Link, String, CompoundNode, Section, Table, MappingNode, TableSeparator
 from wiki_nodes.nodes import Template, Tag, List, ContainerNode
+from wiki_nodes.nodes.transformers import dl_keys_to_subsections
 from wiki_nodes.page import WikiPage
 
 from music.common.disco_entry import DiscoEntryType
@@ -557,7 +558,7 @@ class EditionFinder:
             return
 
         try:
-            track_section_content = track_list_section.processed(False, False, False, False, fix_dl_key_as_header=True)
+            track_list_section, track_section_content = dl_keys_to_subsections(track_list_section)
         except Exception:  # noqa
             orig = track_list_section.pformat('content')
             log.error(f'Error processing track list on page={self.entry_page}:\n{orig}', exc_info=True)

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Iterator, Optional, Any
 
 from ds_tools.unicode.languages import LangCat
 from wiki_nodes.nodes import N, Link, String, CompoundNode, MappingNode, Template, ListEntry, List
+from wiki_nodes.nodes.transformers import transform_section
 from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
 
@@ -354,7 +355,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             finder.add_entry(disco_entry, entry)
 
     def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
-        processed = entry_page.sections.processed()
+        processed = transform_section(entry_page.sections)[1]
         langs = set()
         for cat in entry_page.categories:
             if cat.endswith('(releases)'):
@@ -384,9 +385,9 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             yield DiscographyEntryPart(None, edition, edition._content)
 
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
-        entry_page.sections.processed()                     # Necessary to populate the Information section
+        root = transform_section(entry_page.sections)[0]  # Necessary to populate the Information section
         try:
-            info = entry_page.sections['Information'].content
+            info = root['Information'].content
         except KeyError:
             log.debug(f'No Information section found on {entry_page}')
             return None

@@ -7,6 +7,8 @@ Unifies the way of updating files from wiki info or from a plain json file.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
@@ -14,6 +16,7 @@ from dataclasses import dataclass, fields, field
 from datetime import datetime, date
 from itertools import chain
 from pathlib import Path
+from string import capwords
 from typing import Union, Optional, Mapping, Any, Iterator, Collection
 
 from PIL import Image
@@ -36,6 +39,7 @@ log = logging.getLogger(__name__)
 ARTIST_TYPE_DIRS = SafePath('{artist}/{type_dir}')
 SOLO_DIR_FORMAT = SafePath('{artist}/Solo/{singer}')
 TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
+MULTI_DISK_TRACK_NAME_FORMAT = SafePath('{disk:02d}-{num:02d}. {track}.{ext}')
 UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 
@@ -70,13 +74,14 @@ class GenreMixin:
 @dataclass
 class TrackInfo(GenreMixin):
     # fmt: off
-    album: 'AlbumInfo'                          # The AlbumInfo that this track is in
+    album: AlbumInfo                            # The AlbumInfo that this track is in
     title: str = None                           # Track title (tag)
     artist: str = None                          # Artist name (if different than the album artist)
     num: int = None                             # Track number
     genre: Union[str, Collection[str]] = None   # Track genre
     rating: int = None                          # Rating out of 10
     name: str = None                            # File name to be used
+    disk: int = None                            # The disk from which this track originated (if different than album's)
     # fmt: on
 
     @cached_property
@@ -105,6 +110,7 @@ class TrackInfo(GenreMixin):
                 'num': self.num,
                 'genre': self.norm_genres(),
                 'rating': self.rating,
+                'disk': self.disk,
             }
         else:
             return {
@@ -114,9 +120,11 @@ class TrackInfo(GenreMixin):
                 'name': self.name,
                 'genre': self.genre_list(),
                 'rating': self.rating,
+                'disk': self.disk,
             }
 
     def tags(self) -> dict[str, Any]:
+        disk = self.disk or self.album.disk
         tags = {
             'title': self.title,
             'artist': self.artist or self.album.artist,
@@ -125,7 +133,7 @@ class TrackInfo(GenreMixin):
             'genre': list(filter(None, self.genre_set.union(self.album.genre_set))) or None,
             'album': self.album.title,
             'album_artist': self.album.artist,
-            'disk': (self.album.disk, self.album.disks) if self.mp4 else self.album.disk,
+            'disk': (disk, self.album.disks) if self.mp4 else disk,
             'wiki:album': self.album.wiki_album,
             'wiki:artist': self.album.wiki_artist,
         }
@@ -133,8 +141,9 @@ class TrackInfo(GenreMixin):
             tags['rating'] = stars_to_256(rating, 10)
         return {k: v for k, v in tags.items() if v is not None}
 
-    def expected_name(self, file: SongFile):
-        return TRACK_NAME_FORMAT(track=self.name or self.title, ext=file.ext, num=self.num)
+    def expected_name(self, file: SongFile) -> str:
+        formatter = MULTI_DISK_TRACK_NAME_FORMAT if self.album.disks > 1 else TRACK_NAME_FORMAT
+        return formatter(track=self.name or self.title, ext=file.ext, num=self.num, disk=self.disk or self.album.disk)
 
     def maybe_rename(self, file: SongFile, dry_run: bool = False):
         filename = self.expected_name(file)
@@ -207,7 +216,7 @@ class AlbumInfo(GenreMixin):
         self._date = value if value is None or isinstance(value, date) else parse_date(value)
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> 'AlbumInfo':
+    def from_dict(cls, data: Mapping[str, Any]) -> AlbumInfo:
         kwargs = {f.name: data.get(f.name, f.default) for f in fields(cls) if f.init and f.name != 'tracks'}
         self = cls(**kwargs)
         if tracks := data.get('tracks'):
@@ -232,11 +241,11 @@ class AlbumInfo(GenreMixin):
                     data[key] = normalize_case(value)
         return data
 
-    def copy(self) -> 'AlbumInfo':
+    def copy(self) -> AlbumInfo:
         return self.from_dict(self.to_dict())
 
     @classmethod
-    def from_album_dir(cls, album_dir: AlbumDir) -> 'AlbumInfo':
+    def from_album_dir(cls, album_dir: AlbumDir) -> AlbumInfo:
         file = next(iter(album_dir))  # type: SongFile
         genres = set(chain.from_iterable(f.tag_genres for f in album_dir))
         self = cls(
@@ -252,18 +261,20 @@ class AlbumInfo(GenreMixin):
             wiki_artist=file.artist_url,
         )
         self.tracks = {
-            f.path.as_posix(): TrackInfo(self, f.tag_title, f.tag_artist, f.track_num, f.tag_genres, f.star_rating_10)
+            f.path.as_posix(): TrackInfo(
+                self, f.tag_title, f.tag_artist, f.track_num, f.tag_genres, f.star_rating_10, disk=f.disk_num
+            )
             for f in album_dir
         }
         return self
 
     @classmethod
-    def from_paths(cls, path_or_paths: Paths) -> Iterator['AlbumInfo']:
+    def from_paths(cls, path_or_paths: Paths) -> Iterator[AlbumInfo]:
         for album_dir in iter_album_dirs(path_or_paths):
             yield cls.from_album_dir(album_dir)
 
     @classmethod
-    def from_path(cls, path: Union[str, Path]) -> 'AlbumInfo':
+    def from_path(cls, path: Union[str, Path]) -> AlbumInfo:
         album_dir = next(iter_album_dirs(path))
         return cls.from_album_dir(album_dir)
 
@@ -277,7 +288,7 @@ class AlbumInfo(GenreMixin):
             json.dump(self.to_dict(title_case), f, sort_keys=True, indent=4, ensure_ascii=False)
 
     @classmethod
-    def load(cls, path: Union[str, Path]) -> 'AlbumInfo':
+    def load(cls, path: Union[str, Path]) -> AlbumInfo:
         path = Path(path)
         if not path.is_file():
             raise ValueError(f'Invalid album info path: {path}')
@@ -351,9 +362,7 @@ class AlbumInfo(GenreMixin):
 
     @property
     def expected_rel_dir(self) -> str:
-        rel_fmt = _album_format(
-            self.date, self.type.numbered and self.number, self.solo_of_group and self.ost, self.disks, self.ost
-        )
+        rel_fmt = _album_format(self.date, self.type.numbered and self.number, self.solo_of_group and self.ost)
         rel_fmt = SOLO_DIR_FORMAT + rel_fmt if self.solo_of_group and not self.ost else ARTIST_TYPE_DIRS + rel_fmt
         expected_rel_dir = rel_fmt(
             artist=self.parent,
@@ -406,7 +415,7 @@ def parse_date(dt_str: str) -> Optional[date]:
     return None
 
 
-def _album_format(date, num, solo_ost, disks=1, ost=False):
+def _album_format(date, num, solo_ost):
     if date and num:
         path = SafePath('[{date}] {album} [{album_num}]')
     elif date:
@@ -416,13 +425,12 @@ def _album_format(date, num, solo_ost, disks=1, ost=False):
     else:
         path = SafePath('{album} [{singer} solo]' if solo_ost else '{album}')
 
-    if disks and disks > 1 and not ost:
-        path += SafePath('Disk {disk}')
     return path
 
 
 def normalize_case(text: str) -> str:
     lc_text = text.lower()
     if (UPPER_CHAIN_SEARCH(text) or lc_text == text) and lc_text != 'ost':
-        text = text.title().replace("I'M ", "I'm ")
+        text = capwords(text)
+        # text = text.title().replace("I'M ", "I'm ")
     return text

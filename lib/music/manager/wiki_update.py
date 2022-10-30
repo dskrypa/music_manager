@@ -330,15 +330,15 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         else:
             genre = None
 
+        config = self.config
+        full_name = self.disco_part.full_name(config.hide_edition, config.part_in_title)
         album_info = AlbumInfo(
-            # TODO: Don't include disk name in title, especially when processing all disks of an edition at once
-            #  or make the inclusion configurable
-            title=self._normalize_name(self.disco_part.full_name(self.config.hide_edition)),
+            title=self._normalize_name(full_name),
             artist=self.album_artist_name,
             date=self.disco_part.date,
             disk=self.disco_part.disc,
             genre=genre,
-            name=self.disco_part.full_name(self.config.hide_edition).strip(),
+            name=full_name.strip(),
             # parent=self.normalize_artist(self.album_artist.name.english),
             parent=Name.from_enclosed(self.album_artist_name).english,
             singer=self.normalize_artist(self.artist.name.english),
@@ -354,22 +354,22 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             wiki_artist=getattr(self.album_artist, 'url', None),
         )
 
-        alt_artist_site = self.config.artist_sites and self._artists_source.page.site not in self.config.artist_sites
-        collabs_in_title = self.config.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
-        collabs_in_artist = self.config.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
+        alt_artist_site = config.artist_sites and self._artists_source.page.site not in config.artist_sites
+        collabs_in_title = config.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
+        collabs_in_artist = config.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
         for file, track in self.file_track_map.items():
             log.debug(f'Matched {file} to {track.name.full_repr()}')
             title = self._normalize_name(track.full_name(collabs_in_title))
             if alt_artist_site and (extra := track.name.extra):
                 extra.pop('artists', None)
 
-            # TODO: Handle different disk numbers at the track level
             album_info.tracks[file.path.as_posix()] = TrackInfo(
                 album_info,
                 title=title,
                 artist=track.artist_name(self.artist_name, collabs_in_artist),
                 num=track.num,
                 name=self._normalize_name(track.full_name(self._artist != self.artist)),
+                disk=track.disk,
             )
 
         return album_info

@@ -29,11 +29,12 @@ ARTISTS_SUFFIXES = {1: 'solo', 2: 'duet'}
 
 
 class Track:
-    def __init__(self, num: int, name: Name, album_part: Optional[DiscographyEntryPart]):
+    def __init__(self, num: int, name: Name, album_part: Optional[DiscographyEntryPart], disk: int = None):
         self.num = num                  # type: int
         self.name = name                # type: Name
         self.album_part = album_part    # type: Optional[DiscographyEntryPart]
         self._collabs = []
+        self.disk = disk
 
     def _repr(self, long: bool = False) -> str:
         if long:

@@ -754,7 +754,7 @@ class DiscographyEntryPart(_ArtistMixin):
     def cls_type_name(self) -> str:
         return self.edition.entry.cls_type_name + 'Part'
 
-    def full_name(self, hide_edition: bool = False) -> str:
+    def full_name(self, hide_edition: bool = False, include_part: bool = True) -> str:
         ed = self.edition
         edition_str = ed.edition
         if edition_str and edition_str.lower().endswith(' repackage'):  # Named repackage
@@ -765,7 +765,10 @@ class DiscographyEntryPart(_ArtistMixin):
             if self.repackage:
                 edition_str = f'{edition_str} - Repackage' if edition_str else 'Repackage'
 
-        part = None if self.ost else self._name
+        if include_part:
+            part = None if self.ost else self._name
+        else:
+            part = None
         full_name = combine_with_parens(map(combine_with_parens, _name_parts(base, edition_str, hide_edition, part)))
         if self.ost and self._name:
             full_name += f' - {self._name}'
@@ -785,7 +788,7 @@ class DiscographyEntryPart(_ArtistMixin):
 
     @cached_property
     def tracks(self) -> list[Track]:
-        tracks = [Track(i + 1, name, self) for i, name in enumerate(self.track_names)]
+        tracks = [Track(i + 1, name, self, self.disc) for i, name in enumerate(self.track_names)]
         eng_non_eng_map = {}
         for track in tracks:
             eng, non_eng = track.name.english, track.name.non_eng

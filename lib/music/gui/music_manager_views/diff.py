@@ -25,7 +25,8 @@ if TYPE_CHECKING:
 
 __all__ = ['AlbumDiffView']
 
-# TODO: Wiki update of an album that has ratings results in erasing ratings
+# TODO: Wiki update of an album that has ratings appears to result in erasing ratings due to that field not being
+#  present in TrackInfo.as_dict()
 
 
 class AlbumDiffView(MainView, view_name='album_diff'):

@@ -58,6 +58,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             with self.options.row(5) as options:
                 options.add_bool('all_images', 'DL All Images', tooltip='When updating the cover, download all images (default: only those with "cover" in the title)')
                 options.add_bool('no_album_move', 'Do Not Move Album', tooltip='Do not rename the album directory')
+                options.add_bool('part_in_title', 'Use Part in Title', default=True, tooltip='Use the part name in the title when available')
 
             with self.options.column(1) as options:
                 artist_sites = self.config.get('wiki_update:artist_sites', ALL_SITES[:-1])
@@ -111,6 +112,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             artist_sites=parsed['artist_sites'],
             album_sites=parsed['album_sites'],
             artist_only=parsed['artist_only'],
+            part_in_title=parsed['part_in_title'],
         )
         updater = WikiUpdater([self.album.path], config, artist_url=parsed['artist_url'] or None)
 

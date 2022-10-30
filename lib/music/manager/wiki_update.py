@@ -20,6 +20,7 @@ from ..common.disco_entry import DiscoEntryType
 from ..common.prompts import choose_item
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.track.track import SongFile
+from ..text.name import Name
 from ..wiki import Track, Artist, Singer, Group
 from ..wiki.album import DiscographyEntry, DEEdition, DEPart, DiscoObj, Soundtrack, SoundtrackEdition
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
@@ -214,7 +215,8 @@ class ArtistInfoProcessor:
 
     def set_artist_album_info(self, album_info: AlbumInfo) -> AlbumInfo:
         album_info.artist = self.album_artist_name
-        album_info.parent = self.normalize_artist(self.album_artist.name.english)
+        # album_info.parent = self.normalize_artist(self.album_artist.name.english)
+        album_info.parent = Name.from_enclosed(self.album_artist_name).english
         album_info.singer = self.normalize_artist(self.artist.name.english)
         album_info.solo_of_group = isinstance(self.artist, Singer) and self.artist.groups and not self.soloist
         album_info.wiki_artist = getattr(self.album_artist, 'url', None)
@@ -335,7 +337,8 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             disk=self.disco_part.disc,
             genre=genre,
             name=self.disco_part.full_name(self.config.hide_edition).strip(),
-            parent=self.normalize_artist(self.album_artist.name.english),
+            # parent=self.normalize_artist(self.album_artist.name.english),
+            parent=Name.from_enclosed(self.album_artist_name).english,
             singer=self.normalize_artist(self.artist.name.english),
             solo_of_group=isinstance(self.artist, Singer) and self.artist.groups and not self.soloist,
             type=self.edition.type,

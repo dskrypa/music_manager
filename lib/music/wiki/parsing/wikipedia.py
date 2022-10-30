@@ -8,11 +8,11 @@ import logging
 import re
 from functools import partial
 from string import capwords
-from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Any, Union
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output import short_repr as _short_repr
-from wiki_nodes.nodes import N, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
+from wiki_nodes.nodes import Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
 from wiki_nodes.nodes import ContainerNode, AnyNode
 from wiki_nodes.page import WikiPage
 
@@ -25,10 +25,10 @@ from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
-from .utils import PageIntro, RawTracks, LANG_ABBREV_MAP, find_language, find_nodes
+from .utils import PageIntro, RawTracks, LANG_ABBREV_MAP, find_language
 
 if TYPE_CHECKING:
-    from music.typing import OptStr, StrOrStrs
+    from music.typing import OptStr
     from ..discography import DiscographyEntryFinder
     from ..typing import StrDateMap
 
@@ -351,6 +351,10 @@ class EditionFinder:
                     yield self._edition(last, last.name, last.find_language(self.languages))
 
                 last = edition_part
+            elif edition_part.is_bonus_disk and last and not group:
+                yield self._edition(last, last.name, last.find_language(self.languages))
+                group = [last, edition_part]
+                last = edition_part  # To use the bonus edition's name
             else:
                 if not group:
                     group.append(last)
@@ -449,9 +453,12 @@ class EditionFinder:
 
 
 class WikipediaAlbumEditionPart:
-    strip_suffixes = (  # Note: leading spaces are intentional
-        ' bonus tracks', ' cd bonus material', ' bonus material', ' track listing', ' track list', ' tracklist'
-    )
+    suffix_match = re.compile(
+        r'^(.*?)\b(?:'
+        r'(?:CD )?bonus material|bonus (?:tracks|material|dis[ck])|track\s*list(?:ing)?'
+        r')$',
+        re.IGNORECASE,
+    ).match
     meta: dict[str, AnyNode]
     _tracks: list[TrackRow]
 
@@ -479,10 +486,8 @@ class WikipediaAlbumEditionPart:
         if lc_name.endswith('editions'):
             name = name[:-1]
 
-        for suffix in self.strip_suffixes:
-            if lc_name.endswith(suffix):
-                name = name[:-len(suffix)].strip()
-                break
+        if m := self.suffix_match(name):
+            name = m.group(1).strip()
 
         return capwords(name)
 
@@ -500,7 +505,16 @@ class WikipediaAlbumEditionPart:
     def disk(self) -> int:
         if (name := self._name) and (m := DISK_SEARCH(name)):
             return int(m.group(1))
+        if self.is_bonus_disk:
+            return 2
         return 1
+
+    @cached_property
+    def is_bonus_disk(self) -> bool:
+        if name := self._name:
+            lc_name = name.lower()
+            return 'bonus disc' in lc_name or 'bonus disk' in lc_name
+        return False
 
     @cached_property
     def extra_column(self) -> OptStr:

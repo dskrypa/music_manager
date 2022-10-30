@@ -316,7 +316,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             album = AlbumFinder(album_dir, sites=config.album_sites).find_album()
         except Exception as e:
             if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
-                raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e
+                raise MatchException(30, f'No album match found for {album_dir} ({album_dir.name})') from e
             else:
                 raise MatchException(40, f'Error finding an album match for {album_dir}: {e}') from e
         else:
@@ -331,6 +331,8 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             genre = None
 
         album_info = AlbumInfo(
+            # TODO: Don't include disk name in title, especially when processing all disks of an edition at once
+            #  or make the inclusion configurable
             title=self._normalize_name(self.disco_part.full_name(self.config.hide_edition)),
             artist=self.album_artist_name,
             date=self.disco_part.date,
@@ -361,6 +363,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             if alt_artist_site and (extra := track.name.extra):
                 extra.pop('artists', None)
 
+            # TODO: Handle different disk numbers at the track level
             album_info.tracks[file.path.as_posix()] = TrackInfo(
                 album_info,
                 title=title,
@@ -617,15 +620,29 @@ class TrackZip:
         self.files = album_dir.songs
         self.tracks = disco_part.tracks
 
-    def _basic(self) -> dict[SongFile, Track]:
-        ft_iter = zip(sorted(self.files, key=lambda sf: sf.track_num), self.tracks)
-        return {song_file: wiki_track for song_file, wiki_track in ft_iter}
+    def _basic(self, multi_disk: bool = False) -> dict[SongFile, Track]:
+        if multi_disk:
+            files = sorted(self.files, key=lambda sf: (sf.disk_num, sf.track_num))
+            wiki_tracks = [t for part in self.disco_part.edition.parts for t in part.tracks]
+        else:
+            files = sorted(self.files, key=lambda sf: sf.track_num)
+            wiki_tracks = self.tracks
+        return {song_file: wiki_track for song_file, wiki_track in zip(files, wiki_tracks)}
 
     def _zip_by_number(self, tracks: list[Track], src: str) -> dict[SongFile, Track]:
         file_track_map = {}
         for song_file in self.files:
             try:
                 file_track_map[song_file] = tracks[song_file.track_num - 1]
+            except IndexError:
+                raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
+        return file_track_map
+
+    def _zip_by_number_multi_disk(self, track_map: dict[tuple[int, int], Track], src: str) -> dict[SongFile, Track]:
+        file_track_map = {}
+        for song_file in self.files:
+            try:
+                file_track_map[song_file] = track_map[(song_file.disk_num, song_file.track_num)]
             except IndexError:
                 raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
         return file_track_map
@@ -639,13 +656,49 @@ class TrackZip:
             raise TrackZipError(f'Tracks that are {available=} != {file_count=}')
         return self._zip_by_number(tracks, f'available tracks in {self.disco_part}')
 
+    def _by_number_multi_disk(self, track_map: dict[tuple[int, int], Track]) -> dict[SongFile, Track]:
+        return self._zip_by_number_multi_disk(track_map, str(self.disco_part))
+
+    def _by_number_and_availability_multi_disk(self, track_map: dict[tuple[int, int], Track]) -> dict[SongFile, Track]:
+        tracks = {k: track for k, track in track_map.items() if 'availability' not in track.extras}
+        if (available := len(tracks)) != (file_count := len(self.files)):
+            raise TrackZipError(f'Tracks that are {available=} != {file_count=}')
+        return self._zip_by_number_multi_disk(tracks, f'available tracks in {self.disco_part}')
+
+    def _zip_multi_disk(self) -> dict[SongFile, Track]:
+        tracks = [t for part in self.disco_part.edition.parts for t in part.tracks]
+        if len(tracks) == len(self.files):
+            return self._basic(True)
+
+        track_map: dict[tuple[int, int], Track] = {
+            (d, n): track
+            for d, part in enumerate(self.disco_part.edition.parts, 1)
+            for n, track in enumerate(part.tracks, 1)
+        }
+        for method in (self._by_number_and_availability_multi_disk, self._by_number_multi_disk):
+            try:
+                return method(track_map)  # noqa
+            except TrackZipError as e:
+                log.debug(e)
+
+        return self._basic(True)
+
     def zip(self) -> dict[SongFile, Track]:
-        if len(self.files) != len(self.tracks):
-            for method in (self._by_number_and_availability, self._by_number):
-                try:
-                    return method()
-                except TrackZipError as e:
-                    log.debug(e)
+        n_files = len(self.files)
+        n_tracks = len(self.tracks)
+        if n_files == n_tracks:
+            return self._basic()
+
+        edition = self.disco_part.edition
+        if n_files > n_tracks and len(edition.parts) > 1 and self.disco_part == edition.parts[0]:
+            return self._zip_multi_disk()
+
+        for method in (self._by_number_and_availability, self._by_number):
+            try:
+                return method()
+            except TrackZipError as e:
+                log.debug(e)
+
         return self._basic()
 
 

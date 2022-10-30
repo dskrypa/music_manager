@@ -52,6 +52,8 @@ https://www.generasia.com/wiki/Map_of_the_Soul:_7
 class GenerasiaParser(WikiParser, site='www.generasia.com'):
     __slots__ = ()
 
+    # region Artist Page
+
     def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         yield from PageIntro(artist_page).names()
         try:
@@ -93,7 +95,93 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     yield Name.from_enclosed(value)
 
-    def _parse_album_name(self, node: N) -> Name:
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
+        try:
+            members_section = artist_page.sections.find('Members')
+        except (KeyError, AttributeError):
+            log.debug(f'Members section not found for {artist_page}')
+            return {}
+
+        members = {'current': []}
+        for member in members_section.content.iter_flat():
+            if title := get_artist_title(member, artist_page):
+                members['current'].append(title)
+
+        for key, section_name in MEMBER_TYPE_SECTIONS.items():
+            if section_members := members_section.find(section_name, None):
+                members[key] = []
+                for member in section_members.content.iter_flat():
+                    if title := get_artist_title(member, artist_page):
+                        members[key].append(title)
+
+        return members
+
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
+        if external_links := artist_page.sections.find('External Links', None):
+            if isinstance(external_links.content, CompoundNode):
+                for node in external_links.content:
+                    if isinstance(node, Template):
+                        tmpl = TemplateEntity.from_name(node.name, artist_page.site)
+                        if tmpl.group:
+                            yield next(iter(tmpl.group.pages)).as_link
+        """
+        links = []
+        member_str_index = None
+        for i, node in enumerate(page.intro()):
+            if isinstance(node, String) and 'is a member of' in node.value:
+                member_str_index = i
+            elif member_str_index is not None:
+                if isinstance(node, Link):
+                    yield node
+                if i - member_str_index > 3:
+                    break
+        """
+
+    # endregion
+
+    # region Album Page
+
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
+        root = transform_section(entry_page.sections)[0]  # Necessary to populate the Information section
+        try:
+            info = root['Information'].content
+        except KeyError:
+            log.debug(f'No Information section found on {entry_page}')
+            return None
+        else:
+            return find_ordinal(info.raw.string)
+
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
+        processed = transform_section(entry_page.sections)[1]
+        langs = set()
+        for cat in entry_page.categories:
+            if cat.endswith('(releases)'):
+                for prefix, lang in RELEASE_CATEGORY_LANGS.items():
+                    if cat.startswith(prefix):
+                        langs.add(lang)
+                        break
+                else:
+                    log.debug(f'Unrecognized release category: {cat!r} on {entry_page}')
+
+        repackage = False
+        for node in processed:
+            if isinstance(node, MappingNode) and 'Artist' in node:
+                try:
+                    yield from EditionProcessor(entry, entry_page, node, langs, repackage)
+                except Exception as e:
+                    log.debug(f'Error processing edition on {entry_page=}: {e}', extra={'color': 9})
+                    # log.debug(f'Error processing edition on {entry_page=} node={node.pformat()}', exc_info=True, extra={'color': 9})
+                else:
+                    repackage = True
+
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
+        if (tracks := edition._content) and tracks[0].children:
+            for node in tracks:
+                yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
+        else:
+            yield DiscographyEntryPart(None, edition, edition._content)
+
+    def _parse_album_name(self, node: N) -> Name:  # noqa
         # log.debug(f'Processing node: {node}')
         _node = node
         if not isinstance(node, list) and type(node) is not CompoundNode:
@@ -259,6 +347,10 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
 
+    # endregion
+
+    # region High Level Discography
+
     def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder):
         for section_prefix in ('', 'Korean ', 'Japanese ', 'International '):
             try:
@@ -354,97 +446,21 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 disco_entry.title = entry[1].value
             finder.add_entry(disco_entry, entry)
 
-    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
-        processed = transform_section(entry_page.sections)[1]
-        langs = set()
-        for cat in entry_page.categories:
-            if cat.endswith('(releases)'):
-                for prefix, lang in RELEASE_CATEGORY_LANGS.items():
-                    if cat.startswith(prefix):
-                        langs.add(lang)
-                        break
-                else:
-                    log.debug(f'Unrecognized release category: {cat!r} on {entry_page}')
-
-        repackage = False
-        for node in processed:
-            if isinstance(node, MappingNode) and 'Artist' in node:
-                try:
-                    yield from EditionProcessor(entry, entry_page, node, langs, repackage)
-                except Exception as e:
-                    log.debug(f'Error processing edition on {entry_page=}: {e}', extra={'color': 9})
-                    # log.debug(f'Error processing edition on {entry_page=} node={node.pformat()}', exc_info=True, extra={'color': 9})
-                else:
-                    repackage = True
-
-    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
-        if (tracks := edition._content) and tracks[0].children:
-            for node in tracks:
-                yield DiscographyEntryPart(node.value.value, edition, node.sub_list)
-        else:
-            yield DiscographyEntryPart(None, edition, edition._content)
-
-    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
-        root = transform_section(entry_page.sections)[0]  # Necessary to populate the Information section
-        try:
-            info = root['Information'].content
-        except KeyError:
-            log.debug(f'No Information section found on {entry_page}')
-            return None
-        else:
-            return find_ordinal(info.raw.string)
-
-    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
-        try:
-            members_section = artist_page.sections.find('Members')
-        except (KeyError, AttributeError):
-            log.debug(f'Members section not found for {artist_page}')
-            return {}
-
-        members = {'current': []}
-        for member in members_section.content.iter_flat():
-            if title := get_artist_title(member, artist_page):
-                members['current'].append(title)
-
-        for key, section_name in MEMBER_TYPE_SECTIONS.items():
-            if section_members := members_section.find(section_name, None):
-                members[key] = []
-                for member in section_members.content.iter_flat():
-                    if title := get_artist_title(member, artist_page):
-                        members[key].append(title)
-
-        return members
-
-    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
-        if external_links := artist_page.sections.find('External Links', None):
-            if isinstance(external_links.content, CompoundNode):
-                for node in external_links.content:
-                    if isinstance(node, Template):
-                        tmpl = TemplateEntity.from_name(node.name, artist_page.site)
-                        if tmpl.group:
-                            yield next(iter(tmpl.group.pages)).as_link
-        """
-        links = []
-        member_str_index = None
-        for i, node in enumerate(page.intro()):
-            if isinstance(node, String) and 'is a member of' in node.value:
-                member_str_index = i
-            elif member_str_index is not None:
-                if isinstance(node, Link):
-                    yield node
-                if i - member_str_index > 3:
-                    break
-        """
-
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         # This site does not use discography pages.
         return None
+
+    # endregion
+
+    # region Show / OST
 
     def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
     def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
+
+    # endregion
 
 
 class EditionProcessor:

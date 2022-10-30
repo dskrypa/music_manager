@@ -37,6 +37,8 @@ PRODUCER_MATCH = re.compile(r'^(.+?)\s*\(Prod(?:\.|uced)?(?:\s+by)?\s+(.+)\)$', 
 class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
     __slots__ = ()
 
+    # region Artist Page
+
     # TODO: Date for part is not being picked up
     def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         if not (profile := get_section_map(artist_page, 'Profile')):
@@ -51,6 +53,18 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     yield Name.from_parts((eng, non_eng), romanized=romanized)
                 else:
                     yield Name.from_parts(parts)
+
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
+        raise NotImplementedError
+
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
+        if trivia := get_section_map(artist_page, 'Trivia'):
+            if group_info := trivia.get('KPOP group'):
+                yield from group_info.find_all(Link, True)
+
+    # endregion
+
+    # region Album Page
 
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
@@ -85,6 +99,90 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
+
+    def _process_parts_edition(  # noqa
+        self, entry: Soundtrack, entry_page: WikiPage, ost_name: str, edition_name: str, parts: list[Section]
+    ) -> SoundtrackEdition:
+        log.debug(f'Found {len(parts)} {edition_name} on {entry_page=}')
+        name, languages, dates, artists = None, Counter(), {}, set()
+        ed_name = f'[{edition_name}]'
+        for part in parts:  # Go thru all parts to get all languages, dates, and artists
+            name = name or get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists, ed_name)[0]
+
+        language = max(languages, key=lambda k: languages[k], default=None)
+        return SoundtrackEdition(name, entry_page, entry, entry._type, artists, dates, parts, ed_name, language)
+
+    def process_album_editions(self, entry: Soundtrack, entry_page: WikiPage) -> EditionIterator:
+        ost_parts, ost_full, ost_name, other_parts = split_sections(entry_page)
+        if not (ost_full or ost_parts):
+            log.warning(f'Did not find any OST content for entry={entry._basic_repr} / {entry_page!r}')
+
+        if ost_parts:
+            yield self._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)
+        # TODO: https://wiki.d-addicts.com/A_Girl_Who_Sees_Smells_OST#A_Girl_Who_Sees_Smells_OST_.28Special_Edition.29
+        #  - the special edition doesn't show up as a choice in the picker
+        if other_parts:
+            yield self._process_parts_edition(entry, entry_page, ost_name, 'Extra Parts', other_parts)
+        if ost_full:
+            log.debug(f'Found full OST section on {entry_page=}')
+            try:
+                name, languages, dates, artists = get_basic_info(get_info_map(ost_full.content), ost_name)
+            except Exception as e:
+                log.error(
+                    f'Error extracting basic info from full OST section on {entry_page}: {e} - section={ost_full}',
+                    extra={'color': 9}
+                )
+            else:
+                language = max(languages, key=lambda k: languages[k], default=None)
+                yield SoundtrackEdition(
+                    name, entry_page, entry, entry._type, String('Various Artists'), dates, ost_full,
+                    '[Full OST]', language
+                )
+
+    def _process_parts_edition_parts(self, edition: SoundtrackEdition, numbered: bool) -> Iterator[SoundtrackPart]:  # noqa
+        for i, section in enumerate(edition._content, 1):
+            content = section.content
+            info = get_info_map(content)
+            artist = info.get('Artist')
+            if part_date := info.get('Release Date'):
+                rel_date = parse_date(part_date.value)
+            else:
+                rel_date = None
+
+            if numbered:
+                yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=artist, release_date=rel_date)
+            else:
+                yield SoundtrackPart(None, section.title, edition, content[4], artist=artist, release_date=rel_date)
+
+    def process_edition_parts(self, edition: SoundtrackEdition) -> Iterator[SoundtrackPart]:
+        if edition.edition == '[OST Parts]':
+            yield from self._process_parts_edition_parts(edition, True)
+        elif edition.edition == '[Extra Parts]':
+            yield from self._process_parts_edition_parts(edition, False)
+        elif edition.edition == '[Full OST]':
+            section = edition._content
+            content = section.content
+            info = get_info_map(content)
+            if part_date := info.get('Release Date'):
+                release_date = parse_date(part_date.value)
+            else:
+                release_date = None
+            artist = info.get('Artist')
+            try:
+                track_table = content[4]
+            except IndexError:
+                for i, disk_section in enumerate(section, 1):
+                    yield SoundtrackPart(
+                        None, None, edition, disk_section.content[1], artist=artist, disc=i, release_date=release_date
+                    )
+            else:
+                yield SoundtrackPart(None, None, edition, track_table, artist=artist, release_date=release_date)
+        else:
+            log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
+
+    # endregion
+
+    # region High Level Discography
 
     def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         try:
@@ -145,96 +243,12 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                         log.debug(f'  > Adding {entry=!r}')
                         finder.add_entry(disco_entry, entry)
 
-    def _process_parts_edition(
-        self, entry: Soundtrack, entry_page: WikiPage, ost_name: str, edition_name: str, parts: list[Section]
-    ) -> SoundtrackEdition:
-        log.debug(f'Found {len(parts)} {edition_name} on {entry_page=}')
-        name, languages, dates, artists = None, Counter(), {}, set()
-        ed_name = f'[{edition_name}]'
-        for part in parts:  # Go thru all parts to get all languages, dates, and artists
-            name = name or get_basic_info(part.content[2].as_mapping(), ost_name, languages, dates, artists, ed_name)[0]
-
-        language = max(languages, key=lambda k: languages[k], default=None)
-        return SoundtrackEdition(name, entry_page, entry, entry._type, artists, dates, parts, ed_name, language)
-
-    def process_album_editions(self, entry: Soundtrack, entry_page: WikiPage) -> EditionIterator:
-        ost_parts, ost_full, ost_name, other_parts = split_sections(entry_page)
-        if not (ost_full or ost_parts):
-            log.warning(f'Did not find any OST content for entry={entry._basic_repr} / {entry_page!r}')
-
-        if ost_parts:
-            yield self._process_parts_edition(entry, entry_page, ost_name, 'OST Parts', ost_parts)
-        # TODO: https://wiki.d-addicts.com/A_Girl_Who_Sees_Smells_OST#A_Girl_Who_Sees_Smells_OST_.28Special_Edition.29
-        #  - the special edition doesn't show up as a choice in the picker
-        if other_parts:
-            yield self._process_parts_edition(entry, entry_page, ost_name, 'Extra Parts', other_parts)
-        if ost_full:
-            log.debug(f'Found full OST section on {entry_page=}')
-            try:
-                name, languages, dates, artists = get_basic_info(get_info_map(ost_full.content), ost_name)
-            except Exception as e:
-                log.error(
-                    f'Error extracting basic info from full OST section on {entry_page}: {e} - section={ost_full}',
-                    extra={'color': 9}
-                )
-            else:
-                language = max(languages, key=lambda k: languages[k], default=None)
-                yield SoundtrackEdition(
-                    name, entry_page, entry, entry._type, String('Various Artists'), dates, ost_full,
-                    '[Full OST]', language
-                )
-
-    def _process_parts_edition_parts(self, edition: SoundtrackEdition, numbered: bool) -> Iterator[SoundtrackPart]:
-        for i, section in enumerate(edition._content, 1):
-            content = section.content
-            info = get_info_map(content)
-            artist = info.get('Artist')
-            if part_date := info.get('Release Date'):
-                rel_date = parse_date(part_date.value)
-            else:
-                rel_date = None
-
-            if numbered:
-                yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=artist, release_date=rel_date)
-            else:
-                yield SoundtrackPart(None, section.title, edition, content[4], artist=artist, release_date=rel_date)
-
-    def process_edition_parts(self, edition: SoundtrackEdition) -> Iterator[SoundtrackPart]:
-        if edition.edition == '[OST Parts]':
-            yield from self._process_parts_edition_parts(edition, True)
-        elif edition.edition == '[Extra Parts]':
-            yield from self._process_parts_edition_parts(edition, False)
-        elif edition.edition == '[Full OST]':
-            section = edition._content
-            content = section.content
-            info = get_info_map(content)
-            if part_date := info.get('Release Date'):
-                release_date = parse_date(part_date.value)
-            else:
-                release_date = None
-            artist = info.get('Artist')
-            try:
-                track_table = content[4]
-            except IndexError:
-                for i, disk_section in enumerate(section, 1):
-                    yield SoundtrackPart(
-                        None, None, edition, disk_section.content[1], artist=artist, disc=i, release_date=release_date
-                    )
-            else:
-                yield SoundtrackPart(None, None, edition, track_table, artist=artist, release_date=release_date)
-        else:
-            log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
-
-    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
-        raise NotImplementedError
-
-    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
-        if trivia := get_section_map(artist_page, 'Trivia'):
-            if group_info := trivia.get('KPOP group'):
-                yield from group_info.find_all(Link, True)
-
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         raise NotImplementedError
+
+    # endregion
+
+    # region Show / OST
 
     def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         if details := get_section_map(page, 'Details'):
@@ -248,6 +262,8 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         info = get_info_map(next(iter(page.sections)).content)
         link = next(iter(info['Title'].find_all(Link, True)), None)
         return TVSeries.from_link(link) if link else None
+
+    # endregion
 
 
 def get_info_map(section_content):

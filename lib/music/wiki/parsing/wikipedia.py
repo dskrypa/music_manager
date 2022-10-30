@@ -13,7 +13,8 @@ from wiki_nodes.nodes import N, Template, Link, TableSeparator, CompoundNode, St
 from wiki_nodes.nodes import ContainerNode
 from wiki_nodes.page import WikiPage
 
-from ...text.name import Name
+from music.text.name import Name
+from music.text.utils import find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
@@ -37,6 +38,8 @@ short_repr = partial(_short_repr, containers_only=False)
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
     __slots__ = ()
 
+    # region Artist Page
+
     def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         try:
             yield from PageIntro(artist_page).names()
@@ -44,7 +47,25 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.debug(e)
         yield Name(artist_page.title)
 
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
+        raise NotImplementedError
+
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    # endregion
+
+    # region Album Page
+
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
+        if intro := entry_page.intro():
+            return find_ordinal(intro.raw.string)
+        return None
+
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         raise NotImplementedError
 
     def parse_track_name(self, node: N) -> Name:
@@ -52,6 +73,10 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
+
+    # endregion
+
+    # region High Level Discography
 
     def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         try:
@@ -90,18 +115,6 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
         disco_entity = Discography.from_link(disco_page_link, artist=finder.artist)
         disco_entity._process_entries(finder)
-
-    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
-        raise NotImplementedError
-
-    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
-        raise NotImplementedError
-
-    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
-        raise NotImplementedError
-
-    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
-        raise NotImplementedError
 
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         self._parse_disco_page_entries(disco_page, _disco_sections(disco_page.sections), finder)
@@ -205,11 +218,17 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                     disco_entry.title = title[0].value
                 finder.add_entry(disco_entry, row, not expected)
 
+    # endregion
+
+    # region Show / OST
+
     def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
         raise NotImplementedError
 
     def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
+
+    # endregion
 
 
 class TitleNotFound(Exception):

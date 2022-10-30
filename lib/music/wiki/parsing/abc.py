@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Iterator, Optional
 from wiki_nodes import MediaWikiClient, WikiPage, Link
 from wiki_nodes.nodes import N
 
-from ...text.name import Name
+from music.text.name import Name
 
 if TYPE_CHECKING:
     from ..base import TVSeries
@@ -54,9 +54,23 @@ class WikiParser(ABC):
                     return None
         return parser
 
+    # region Artist Page
+
     @abstractmethod
     def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         raise NotImplementedError
+
+    @abstractmethod
+    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
+        raise NotImplementedError
+
+    # endregion
+
+    # region Album Page
 
     @abstractmethod
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
@@ -71,10 +85,6 @@ class WikiParser(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
     def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         raise NotImplementedError
 
@@ -82,17 +92,21 @@ class WikiParser(ABC):
     def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         raise NotImplementedError
 
-    @abstractmethod
-    def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
-        raise NotImplementedError
+    # endregion
+
+    # region High Level Discography
 
     @abstractmethod
-    def parse_member_of(self, artist_page: WikiPage) -> Iterator[Link]:
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         raise NotImplementedError
 
     @abstractmethod
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         raise NotImplementedError
+
+    # endregion
+
+    # region Show / OST
 
     @abstractmethod
     def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
@@ -101,6 +115,8 @@ class WikiParser(ABC):
     @abstractmethod
     def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         raise NotImplementedError
+
+    # endregion
 
     @classmethod
     def _check_type(cls, node, index, clz):

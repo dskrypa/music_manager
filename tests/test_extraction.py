@@ -214,6 +214,18 @@ class ExtractEnclosedTestCase(TestCaseBase):
         for case, expected in cases_rev.items():
             self.assertEqual(expected, split_enclosed(case, maxsplit=2, reverse=True))
 
+    def test_split_enclosed_special_cases(self):
+        cases = {
+            "'Cause It's You": ("'Cause It's You",),
+            "Don't do that": ("Don't do that",),
+            "You shouldn't do that": ("You shouldn't do that",),
+            "You can't do that": ("You can't do that",),
+            "It's 'cause I don't want it": ("It's 'cause I don't want it",),
+        }
+        for case, expected in cases.items():
+            with self.subTest(case=case):
+                self.assertEqual(expected, split_enclosed(case))
+
 
 if __name__ == '__main__':
     main()

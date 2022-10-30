@@ -5,6 +5,7 @@
 from typing import Sequence, Iterable, Optional
 
 from ds_tools.utils.text_processing import common_suffix
+
 from .extraction import ends_with_enclosed, split_enclosed
 
 __all__ = ['combine_with_parens', 'find_ordinal']

@@ -2,10 +2,16 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
+import re
 from collections import defaultdict
 from itertools import chain
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from music.typing import Bool
 
 __all__ = [
     'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
@@ -187,7 +193,6 @@ def split_enclosed(
         _text, first_k, i = _partition_enclosed(text, reverse, inner)
     except ValueError:
         # log.debug(f'  > {(text,)}')
-        # noinspection PyRedundantParentheses
         return (text,)
 
     a, b, c = raw = _return_partitioned(_text, first_k, i, reverse)
@@ -202,42 +207,23 @@ def split_enclosed(
 
     maxsplit -= len(parts) - 1
     combined = []
-    if a:
-        if maxsplit:
-            split = split_enclosed(a, reverse, inner, recurse - 1, maxsplit)
-            maxsplit -= len(split) - 1
-            combined.extend(split)
-        else:
-            split = split_enclosed(a, reverse, inner, recurse - 1, 1)
-            if len(split) == 1:
-                combined.extend(split)
-            else:
-                combined.append(a)
-    if b:
-        if recurse:
+    for part, do_split in ((a, True), (b, recurse), (c, True)):
+        if not part:
+            continue
+        elif do_split:
             if maxsplit:
-                split = split_enclosed(b, reverse, inner, recurse - 1, maxsplit)
+                split = split_enclosed(part, reverse, inner, recurse - 1, maxsplit)
                 maxsplit -= len(split) - 1
                 combined.extend(split)
             else:
-                split = split_enclosed(b, reverse, inner, recurse - 1, 1)
+                split = split_enclosed(part, reverse, inner, recurse - 1, 1)
                 if len(split) == 1:
                     combined.extend(split)
                 else:
-                    combined.append(b)
+                    combined.append(part)
         else:
-            combined.append(b)
-    if c:
-        if maxsplit:
-            split = split_enclosed(c, reverse, inner, recurse - 1, maxsplit)
-            maxsplit -= len(split) - 1
-            combined.extend(split)
-        else:
-            split = split_enclosed(c, reverse, inner, recurse - 1, 1)
-            if len(split) == 1:
-                combined.extend(split)
-            else:
-                combined.append(c)
+            combined.append(part)
+
     # log.debug(f'  > {combined}')
     return tuple(combined)
 
@@ -246,7 +232,6 @@ def _split_enclosed(text: str, reverse: bool = False, inner: bool = False, recur
     try:
         a, b, c = partition_enclosed(text, reverse, inner)
     except ValueError:
-        # noinspection PyRedundantParentheses
         return (text,)
     if recurse > 0:
         recurse -= 1
@@ -283,10 +268,10 @@ def _partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -
     closing character for the enclosed portion.
     """
     if reverse:
-        o2c, c2o = CLOSER_TO_OPENER, OPENER_TO_CLOSER
+        opener_to_closer_map, closer_to_opener_map = CLOSER_TO_OPENER, OPENER_TO_CLOSER
         text = text[::-1]
     else:
-        o2c, c2o = OPENER_TO_CLOSER, CLOSER_TO_OPENER
+        opener_to_closer_map, closer_to_opener_map = OPENER_TO_CLOSER, CLOSER_TO_OPENER
 
     opened = defaultdict(int)
     closed = defaultdict(int)
@@ -294,49 +279,58 @@ def _partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -
     pairs = []
     # log.debug(f'Partitioning enclosed {text=!r}')
     for i, c in enumerate(text):
-        # log.debug(f'{i=} {c=!r} ord(c)={ord(c)} first={dict(first)} {pairs=} opened={dict(opened)} closed={dict(closed)}')
-        if c in o2c:
-            if c in c2o:
-                for k in c2o[c]:
-                    if opened[k] > closed[k]:
-                        closed[k] += 1
-                    if opened[k] and opened[k] == closed[k]:
-                        first_k = first[k].pop()
-                        if inner:
-                            return text, first_k, i
-                        else:
-                            if not first[k]:
-                                del first[k]
-                            if not first or first_k < min(vals[0] for vals in first.values()):
-                                return text, first_k, i
-                            else:
-                                pairs.append((first_k, i))
+        # log.debug(f'{i=} {c=} ={ord(c)=} first={dict(first)} {pairs=} opened={dict(opened)} closed={dict(closed)}')
+        try:
+            openers = closer_to_opener_map[c]
+        except KeyError:
+            pass
+        else:
+            if c == "'" and _should_skip_apostrophe(text, i, reverse):
+                continue
 
-            # if not opened[c] or opened[c] == closed[c]:
-            if opened[c] == closed[c]:
-                first[c].append(i + 1)
-            opened[c] += 1
-        elif c in c2o:
-            for k in c2o[c]:
-                if opened[k] > closed[k]:
-                    closed[k] += 1
-                if opened[k] and opened[k] == closed[k]:
-                    first_k = first[k].pop()
+            for opener in openers:
+                if opened[opener] > closed[opener]:
+                    closed[opener] += 1
+                if opened[opener] == closed[opener] != 0:
+                    first_k = first[opener].pop()
                     if inner:
                         return text, first_k, i
                     else:
-                        if not first[k]:
-                            del first[k]
+                        if not first[opener]:
+                            del first[opener]
                         if not first or first_k < min(vals[0] for vals in first.values()):
                             return text, first_k, i
                         else:
                             pairs.append((first_k, i))
+
+        if c in opener_to_closer_map:
+            if opened[c] == closed[c]:
+                first[c].append(i + 1)
+            opened[c] += 1
 
     if pairs:
         first_k, i = min(pairs)
         return text, first_k, i
 
     raise ValueError('No enclosed text found')
+
+
+def _should_skip_apostrophe(text: str, index: int, reverse: bool) -> Bool:
+    try:
+        skip_match = _should_skip_apostrophe.skip_match
+    except AttributeError:
+        _should_skip_apostrophe.skip_match = skip_match = re.compile(r"^(?:\S's|n't)\b", re.IGNORECASE).match
+
+    if reverse:
+        start = index + 1
+        end = index - 2
+        to_check = text[start:end][::-1]
+    else:
+        start = index - 1
+        end = index + 2
+        to_check = text[start:end]
+
+    return skip_match(to_check)
 
 
 def _return_partitioned(text: str, first_k: int, i: int, reverse: bool) -> tuple[str, str, str]:

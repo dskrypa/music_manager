@@ -84,7 +84,7 @@ class PageIntro:
                 raise ValueError(f'Unexpected intro on {page}: {self.raw_intro!r}') from None
 
     def names(self) -> Iterator[Name]:
-        first_string = IS_SPLIT(self.intro, 1)[0]
+        first_string = IS_SPLIT(self.intro, 1)[0].strip()
         # log.debug(f'{first_string=!r}')
         if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
             # log.debug(f'Found multi-lang name match: {m}')
@@ -126,8 +126,11 @@ class PageIntro:
             else:
                 name = first_string
 
-        if name.startswith('"') and name.count('"') == 1:
-            name = name[1:]
+        if name.startswith('"'):
+            if name.count('"') == 1:
+                name = name[1:]
+            elif name.endswith('"'):
+                name = name[1:-1]
 
         return name
 

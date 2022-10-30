@@ -197,13 +197,22 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     def _album_page_name(self, page: WikiPage) -> Name:
         if (names := list(PageIntro(page).names())) and len(names) > 0:
+            # log.debug(f'Using name={names[0]!r} from page intro')
             return names[0]
+
+        infobox = page.infobox
+        try:
+            name_str = infobox['name'].value
+        except KeyError:
+            pass
         else:
-            infobox = page.infobox
-            try:
-                return Name.from_enclosed(infobox['name'].value)
-            except KeyError:
-                return Name(page.title)
+            if name_str and name_str[0] == name_str[-1] == '"':
+                name_str = name_str[1:-1]
+            if name_str:
+                # log.debug(f'Using name={name_str!r} from infobox')
+                return Name.from_enclosed(name_str)
+
+        return Name(page.title)
 
     def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         log.debug(f'Processing album editions for page={entry_page}')

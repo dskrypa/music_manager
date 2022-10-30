@@ -159,7 +159,7 @@ class WikiUpdater:
     def _from_album_url(self, album_url: str) -> tuple[AlbumDir, AlbumInfoProcessor]:
         album_dir = get_album_dir(self.paths, 'wiki URL')
         entry = DiscographyEntry.from_url(album_url)
-        processor = AlbumInfoProcessor(album_dir, entry, self.config)
+        processor = AlbumInfoProcessor(album_dir, entry, self.config, self.artist)
         return album_dir, processor
 
     def _from_artist(self) -> Iterator[tuple[AlbumDir, ArtistInfoProcessor]]:
@@ -353,6 +353,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             # wiki_artist=getattr(self.edition.artist, 'url', None),
             wiki_artist=getattr(self.album_artist, 'url', None),
         )
+        # TODO: OST with Various Artists + no artist matches appears to want to replace all track artists with empty string
 
         alt_artist_site = config.artist_sites and self._artists_source.page.site not in config.artist_sites
         collabs_in_title = config.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)

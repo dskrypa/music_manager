@@ -686,7 +686,7 @@ class DiscographyEntryPart(_ArtistMixin):
     ):
         self._name = name
         self.edition = edition
-        self._tracks = tracks
+        self._tracks = tracks if isinstance(tracks, RawTracks) else RawTracks(tracks)
         self._date = release_date
         self._artist = artist
         if disc is not None:

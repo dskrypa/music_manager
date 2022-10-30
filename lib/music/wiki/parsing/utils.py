@@ -6,13 +6,18 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional, Iterator, Type
+from typing import TYPE_CHECKING, Optional, Iterator, Type
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, N
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, Table, N
 
+from music.common.disco_entry import DiscoEntryType
 from music.text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
 from music.text.name import Name
+
+if TYPE_CHECKING:
+    from ..album import DiscographyEntryPart
+    from .abc import WikiParser
 
 __all__ = [
     'FEAT_ARTIST_INDICATORS',
@@ -23,6 +28,7 @@ __all__ = [
     'LANGUAGES',
     'replace_lang_abbrev',
     'PageIntro',
+    'RawTracks',
     'find_nodes',
 ]
 log = logging.getLogger(__name__)
@@ -209,6 +215,28 @@ class PageIntro:
                     name_2.update(romanized=romanized)
                     name_1.update(romanized=romanized, versions={name_2})
                     yield name_1
+
+
+class RawTracks:
+    __slots__ = ('raw_tracks',)
+
+    def __init__(self, raw_tracks):
+        self.raw_tracks = raw_tracks
+
+    def get_names(self, part: DiscographyEntryPart, parser: WikiParser) -> list[Name]:
+        if self.raw_tracks is None:
+            if part.edition.type == DiscoEntryType.Single:
+                return [parser.parse_single_page_track_name(part.edition.page)]
+            else:
+                log.debug(f'No tracks found for {self}')
+                return []
+        else:
+            if isinstance(self.raw_tracks, Table):
+                return [parser.parse_track_name(row) for row in self.raw_tracks]
+            else:
+                # if isinstance(self._tracks, ListNode):
+                #     log.debug(f'Processing tracks for {self}')
+                return [parser.parse_track_name(node) for node in self.raw_tracks.iter_flat()]
 
 
 def _should_resplit(first_part, paren_part) -> bool:

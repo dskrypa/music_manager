@@ -5,34 +5,47 @@
 from __future__ import annotations
 
 import logging
+import re
 from functools import partial
-from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable
+from string import capwords
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Any, Union
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes.nodes import N, Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
-from wiki_nodes.nodes import ContainerNode
+from wiki_nodes.nodes import ContainerNode, AnyNode
 from wiki_nodes.page import WikiPage
 
+from music.common.disco_entry import DiscoEntryType
 from music.text.name import Name
+from music.text.time import parse_date
 from music.text.utils import find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
-from .utils import PageIntro
+from .utils import PageIntro, RawTracks, LANG_ABBREV_MAP, find_language, find_nodes
 
 if TYPE_CHECKING:
+    from music.typing import OptStr, StrOrStrs
     from ..discography import DiscographyEntryFinder
+    from ..typing import StrDateMap
 
 __all__ = ['WikipediaParser']
 log = logging.getLogger(__name__)
 
+TrackRow = dict[str, Union[AnyNode, None, int]]
+
+TRACK_LIST_SECTIONS = ('track list', 'tracklist', 'track listing')
 IGNORE_SECTIONS = {
     'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums', 'guest appearances',
     'other charted songs', 'other appearances'
 }
 short_repr = partial(_short_repr, containers_only=False)
+
+DASH_LANG_SEARCH = re.compile(r'\b(\w+)-language\b', re.IGNORECASE).search
+DISK_SEARCH = re.compile(r'(?:CD|dis[ck])[:#. ]?(\d+)', re.IGNORECASE).search
 
 
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
@@ -57,19 +70,65 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     # region Album Page
 
+    def _album_page_name(self, page: WikiPage) -> Name:  # noqa
+        if (names := list(PageIntro(page).names())) and len(names) > 0:
+            # log.debug(f'Using name={names[0]!r} from page intro')
+            return names[0]
+
+        infobox = page.infobox
+        try:
+            name_str = infobox['name'].value
+        except KeyError:
+            pass
+        else:
+            if name_str and name_str[0] == name_str[-1] == '"':
+                name_str = name_str[1:-1]
+            if name_str:
+                # log.debug(f'Using name={name_str!r} from infobox')
+                return Name.from_enclosed(name_str)
+
+        return Name(page.title)
+
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         if intro := entry_page.intro():
             return find_ordinal(intro.raw.string)
         return None
 
     def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
-        raise NotImplementedError
+        log.debug(f'Processing album editions for page={entry_page}')
+        try:
+            name = self._album_page_name(entry_page)
+        except Exception as e:
+            raise RuntimeError(f'Error parsing page name from {entry_page=}') from e
+
+        yield from EditionFinder(name, entry, entry_page).editions()
 
     def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
-        raise NotImplementedError
+        content: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart] = edition._content
 
-    def parse_track_name(self, node: N) -> Name:
-        raise NotImplementedError
+        if isinstance(content, list):
+            for edition_part in content:
+                yield DiscographyEntryPart(f'CD{edition_part.disk}', edition, RawWikipediaTracks(edition_part))
+        elif content:
+            yield DiscographyEntryPart(None, edition, RawWikipediaTracks(content))
+        else:
+            log.warning(f'Unexpected {content=} for {edition=}')
+
+    def parse_track_name(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart) -> Name:  # noqa
+        try:
+            extra = {'length': next(iter(row['length'].strings()))}
+        except KeyError:
+            extra = {}
+            # raise RuntimeError(f'Unexpected content in {row=} in {edition_part=}') from e
+
+        if (extra_val := row.get('extra')) and edition_part.extra_column == 'artist':
+            extra['artists'] = extra_val
+        if (note := row.get('note')) and (note_str := ' '.join(note.strings())):
+            if note_str.lower() in {'inst.', 'instrumental', 'inst'}:
+                extra['instrumental'] = True
+
+        # TODO: Parse remix, etc from title
+        return Name(' '.join(row['title'].strings()), extra=extra)
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
@@ -229,6 +288,255 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         raise NotImplementedError
 
     # endregion
+
+
+class RawWikipediaTracks(RawTracks):
+    __slots__ = ()
+    raw_tracks: WikipediaAlbumEditionPart
+
+    def get_names(self, part: DiscographyEntryPart, parser: WikipediaParser) -> list[Name]:
+        raw_tracks = self.raw_tracks
+        return [parser.parse_track_name(row, raw_tracks) for row in raw_tracks.tracks]
+
+
+class EditionFinder:
+    name: Name
+    entry: DiscographyEntry
+    entry_page: WikiPage
+
+    def __init__(self, name: Name, entry: DiscographyEntry, entry_page: WikiPage):
+        self.name = name
+        self.entry = entry
+        self.entry_page = entry_page
+
+    def editions(self) -> EditionIterator:
+        track_list_section = self.get_track_list_section()
+        # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
+        if track_list_section is None:
+            raise RuntimeError(f'Unable to find track list section on page={self.entry_page}')
+            # yield self._edition(None, None, self.find_language(self.entry_page))
+        else:
+            yield from self._process_section(track_list_section)
+            for subsection in track_list_section:
+                yield from self._process_section(subsection)
+
+    def _process_section(self, section: Section) -> EditionIterator:
+        if not (content := section.content):
+            return
+        elif isinstance(content, Template):
+            edition = self._process_template(section, content)
+            yield self._edition(edition, edition.name, self.find_language(content))
+        elif isinstance(content, CompoundNode):
+            edition_parts = []
+            for node in content:
+                if isinstance(node, Template):
+                    edition = self._process_template(section, node, edition_parts[:])  # Copy is required
+                    edition_parts.append(edition)
+                else:
+                    log.debug(f'Ignoring node in {section=} of page={self.entry_page}: {node}')
+
+            yield from self._group_edition_parts(edition_parts)
+        else:
+            raise TypeError(f'Unexpected content in {section=} of page={self.entry_page}: {content}')
+
+    def _group_edition_parts(self, edition_parts: list[WikipediaAlbumEditionPart]) -> EditionIterator:
+        last: Optional[WikipediaAlbumEditionPart] = None
+        group: list[WikipediaAlbumEditionPart] = []
+        for edition_part in edition_parts:
+            if edition_part.disk == 1:
+                if group:
+                    yield self._edition(group, last.name, last.find_language(self.languages))
+                    group = []
+                elif last:
+                    yield self._edition(last, last.name, last.find_language(self.languages))
+
+                last = edition_part
+            else:
+                if not group:
+                    group.append(last)
+                group.append(edition_part)
+
+        if final := group or last:
+            yield self._edition(final, last.name, last.find_language(self.languages))
+
+    def _process_template(self, section: Section, template: Template, prev_eds: list[WikipediaAlbumEditionPart] = None):
+        if template.lc_name not in {'tracklist', 'track listing'}:
+            raise ValueError(f'Unexpected track template={template.name!r} in {section=} on page={self.entry_page}')
+
+        return WikipediaAlbumEditionPart(section, template, prev_eds)
+
+    def _edition(self, content, edition, language) -> DiscographyEntryEdition:
+        edition_obj = DiscographyEntryEdition(
+            self.name,
+            self.entry_page,
+            self.entry,
+            self.entry_type,
+            self.artists,
+            self.edition_date_map,
+            content,
+            edition,
+            language,
+        )
+        # log.debug(f'Created edition with name={self.name} page={self.entry_page} {edition=} {language=} {content=}')
+        return edition_obj
+
+    def get_track_list_section(self) -> Optional[Section]:
+        root = self.entry_page.sections
+        for key in TRACK_LIST_SECTIONS:
+            try:
+                return root.find_section(key, case_sensitive=False)
+            except KeyError:
+                pass
+        return None
+
+    @cached_property
+    def edition_date_map(self) -> StrDateMap:
+        try:
+            released = self.entry_page.infobox['released']
+        except (AttributeError, KeyError, TypeError):
+            return {}
+        released = '-'.join(released.strings())
+        try:
+            return {None: parse_date(released)}
+        except (ValueError, TypeError) as e:
+            log.warning(f'{e} from {released=} on page={self.entry_page}')
+            return {}
+
+    @cached_property
+    def artists(self) -> set[Link]:
+        if not (infobox := self.entry_page.infobox):
+            return set()
+        try:
+            all_links = {link.title: link for link in self.entry_page.find_all(Link)}
+        except Exception as e:
+            raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
+
+        artist_links = set()
+        if artists := infobox.value.get('artist'):
+            if isinstance(artists, String):
+                artists_str = artists.value
+                if artists_str.lower() not in ('various', 'various artists'):
+                    for artist in map(str.strip, artists_str.split(', ')):
+                        if artist.startswith('& '):
+                            artist = artist[1:].strip()
+                        if artist_link := all_links.get(artist):
+                            artist_links.add(artist_link)
+            elif isinstance(artists, Link):
+                artist_links.add(artists)
+            elif isinstance(artists, ContainerNode):
+                for artist in artists:
+                    if isinstance(artist, Link):
+                        artist_links.add(artist)
+                    elif isinstance(artist, String) and (artist_link := all_links.get(artist.value)):
+                        artist_links.add(artist_link)
+        return artist_links
+
+    @cached_property
+    def entry_type(self) -> DiscoEntryType:
+        return DiscoEntryType.for_name(self.entry_page.categories)  # Note: 'type' is also in infobox sometimes
+
+    def find_language(self, content, lang: str = None) -> OptStr:
+        return find_language(content, lang, self.languages)
+
+    @cached_property
+    def languages(self) -> set[str]:
+        langs = set()
+        for cat in self.entry_page.categories:
+            if (m := DASH_LANG_SEARCH(cat)) and (lang := LANG_ABBREV_MAP.get(m.group(1))):
+                langs.add(lang)
+                break
+        return langs
+
+
+class WikipediaAlbumEditionPart:
+    strip_suffixes = (  # Note: leading spaces are intentional
+        ' bonus tracks', ' cd bonus material', ' bonus material', ' track listing', ' track list', ' tracklist'
+    )
+    meta: dict[str, AnyNode]
+    _tracks: list[TrackRow]
+
+    def __init__(self, section: Section, template: Template, prev_editions: list[WikipediaAlbumEditionPart] = None):
+        self.section = section
+        self.template = template
+        self.prev_editions = prev_editions or []
+        data = template.value
+        self.meta = data['meta']
+        self._tracks = data['tracks']
+
+    def __repr__(self) -> str:
+        section = self.section
+        return f'<{self.__class__.__name__}[{self.name!r}][{section=} @ {section.root}, tracks={len(self.tracks)}]>'
+
+    @cached_property
+    def name(self) -> OptStr:
+        name = self._name
+        if (title := self.section.title) and title.lower() not in TRACK_LIST_SECTIONS and (self.disk == 1 or not name):
+            name = title
+        if not name:
+            return None
+
+        lc_name = name.lower()
+        if lc_name.endswith('editions'):
+            name = name[:-1]
+
+        for suffix in self.strip_suffixes:
+            if lc_name.endswith(suffix):
+                name = name[:-len(suffix)].strip()
+                break
+
+        return capwords(name)
+
+    @cached_property
+    def _name(self) -> OptStr:
+        for key in ('header', 'headline'):
+            if header := self.meta.get(key):
+                return ' '.join(header.strings())
+        return None
+
+    def find_language(self, category_langs, lang: str = None):
+        return find_language(self.template, lang, category_langs)
+
+    @cached_property
+    def disk(self) -> int:
+        if (name := self._name) and (m := DISK_SEARCH(name)):
+            return int(m.group(1))
+        return 1
+
+    @cached_property
+    def extra_column(self) -> OptStr:
+        if not (extra_column := self.meta.get('extra_column')):
+            return None
+        return ' '.join(extra_column.strings()).lower()
+
+    @cached_property
+    def _first_num(self) -> int:
+        return min(row['_num_'] for row in self._tracks)
+
+    @cached_property
+    def _last_num(self) -> int:
+        return max(row['_num_'] for row in self._tracks)
+
+    @cached_property
+    def first_num(self) -> int:
+        return min(row['_num_'] for row in self.tracks)
+
+    @cached_property
+    def last_num(self) -> int:
+        return max(row['_num_'] for row in self.tracks)
+
+    @cached_property
+    def tracks(self) -> list[TrackRow]:
+        if self._first_num > 1 and (prev_editions := self.prev_editions):
+            expected_last = self._first_num - 1
+            for edition in prev_editions[::-1]:
+                if edition.last_num == expected_last:
+                    return edition.tracks + self._tracks
+
+            tracks = {row['_num_']: row for row in prev_editions[-1].tracks}
+            tracks |= {row['_num_']: row for row in self._tracks}
+            return list(tracks.values())
+
+        return self._tracks
 
 
 class TitleNotFound(Exception):

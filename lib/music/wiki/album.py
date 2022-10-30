@@ -25,7 +25,7 @@ from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
 from .exceptions import EntityTypeError, AmbiguousWikiPageError, NoLinkedPagesFoundError
-from .parsing import WikiParser
+from .parsing import WikiParser, RawTracks
 from .utils import short_site
 
 if TYPE_CHECKING:
@@ -670,7 +670,7 @@ class DiscographyEntryPart(_ArtistMixin):
     _disc_match = re.compile(r'(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
     _name: OptStr
     edition: DiscographyEntryEdition
-    _tracks: TrackNodes
+    _tracks: RawTracks
     _date: Optional[date]
     _artist: NodeOrNodes = None  # = None is required to satisfy the abstract property
     disc: int
@@ -679,7 +679,7 @@ class DiscographyEntryPart(_ArtistMixin):
         self,
         name: OptStr,
         edition: DiscographyEntryEdition,
-        tracks: TrackNodes,
+        tracks: RawTracks,
         disc: int = None,
         release_date: date = None,
         artist: NodeOrNodes = None,
@@ -778,21 +778,10 @@ class DiscographyEntryPart(_ArtistMixin):
     @cached_property
     def track_names(self) -> list[Name]:
         if parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name'):
-            if self._tracks is None:
-                if self.edition.type == DiscoEntryType.Single:
-                    return [parser.parse_single_page_track_name(self.edition.page)]
-                else:
-                    log.debug(f'No tracks found for {self}')
-            else:
-                if isinstance(self._tracks, Table):
-                    return [parser.parse_track_name(row) for row in self._tracks]
-                else:
-                # if isinstance(self._tracks, ListNode):
-                #     log.debug(f'Processing tracks for {self}')
-                    return [parser.parse_track_name(node) for node in self._tracks.iter_flat()]
+            return self._tracks.get_names(self, parser)
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')
-        return []
+            return []
 
     @cached_property
     def tracks(self) -> list[Track]:

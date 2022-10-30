@@ -142,8 +142,23 @@ class TrackInfo(GenreMixin):
         return {k: v for k, v in tags.items() if v is not None}
 
     def expected_name(self, file: SongFile) -> str:
-        formatter = MULTI_DISK_TRACK_NAME_FORMAT if self.album.disks > 1 else TRACK_NAME_FORMAT
-        return formatter(track=self.name or self.title, ext=file.ext, num=self.num, disk=self.disk or self.album.disk)
+        if _disks := self.album.disks:
+            try:
+                disks = int(_disks)
+            except (TypeError, ValueError):
+                disks = 0
+        else:
+            disks = 0
+
+        if disk := self.disk or self.album.disk:
+            try:
+                disk = int(disk)
+            except (TypeError, ValueError):
+                disk = 1
+        else:
+            disk = 1
+        formatter = MULTI_DISK_TRACK_NAME_FORMAT if disks > 1 else TRACK_NAME_FORMAT
+        return formatter(track=self.name or self.title, ext=file.ext, num=int(self.num), disk=disk)
 
     def maybe_rename(self, file: SongFile, dry_run: bool = False):
         filename = self.expected_name(file)

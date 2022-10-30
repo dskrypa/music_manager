@@ -86,39 +86,6 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
         return Name.from_parts((eng, non_eng), extra=extra)
 
-    def __parse_track_name(self, node: N) -> Name:
-        # TODO: Remove after ensuring new method works as intended
-        if not isinstance(node, MappingNode):
-            raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=!r}')
-
-        title = node['Song Title']
-        extra = {'artists': node['Artist']}
-        if isinstance(title, String):
-            title = title.value
-            if title.lower().endswith('(inst.)'):
-                title = title[:-7].strip()
-                extra['instrumental'] = True
-            return Name.from_parts((title,), extra=extra)
-        elif len(title) == 2:
-            br, non_eng = title
-            eng = None
-        else:
-            try:
-                eng, br, non_eng = title
-            except Exception as e:
-                raise ValueError(f'Unexpected track node content for {node=!r}') from e
-            else:
-                eng = eng.value
-
-        non_eng = non_eng.value
-        if eng and eng.lower().endswith('(inst.)'):
-            eng = eng[:-7].strip()
-            extra['instrumental'] = True
-        if non_eng.lower().endswith('(inst.)'):
-            non_eng = non_eng[:-7].strip()
-            extra['instrumental'] = True
-        return Name.from_parts((eng, non_eng), extra=extra)
-
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
 

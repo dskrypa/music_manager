@@ -84,10 +84,6 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         else:
             log.debug(f'No infobox found for {artist_page}')
 
-    def parse_album_name(self, node: N) -> Name:
-        # For discography page/section entries
-        raise NotImplementedError
-
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         if intro := entry_page.intro():
             return find_ordinal(intro.raw.string)

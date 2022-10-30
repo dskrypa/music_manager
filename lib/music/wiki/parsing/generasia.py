@@ -93,7 +93,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 else:
                     yield Name.from_enclosed(value)
 
-    def parse_album_name(self, node: N) -> Name:
+    def _parse_album_name(self, node: N) -> Name:
         # log.debug(f'Processing node: {node}')
         _node = node
         if not isinstance(node, list) and type(node) is not CompoundNode:
@@ -254,7 +254,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
             name.extra = extras
         return name
 
-    parse_track_name = parse_album_name
+    parse_track_name = _parse_album_name
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
@@ -297,7 +297,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
         entry: CompoundNode,
         lang: Optional[str],
     ):
-        name = self.parse_album_name(entry)
+        name = self._parse_album_name(entry)
         log.log(9, f'Processing {name!r}')
         entry_type = de_type  # Except for collabs with a different primary artist
         if isinstance(entry, String):

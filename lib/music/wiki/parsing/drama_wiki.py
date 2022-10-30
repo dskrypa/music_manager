@@ -52,9 +52,6 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 else:
                     yield Name.from_parts(parts)
 
-    def parse_album_name(self, node: N) -> Name:
-        raise NotImplementedError
-
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 

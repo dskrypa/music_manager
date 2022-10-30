@@ -44,9 +44,6 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.debug(e)
         yield Name(artist_page.title)
 
-    def parse_album_name(self, node: N) -> Name:
-        raise NotImplementedError
-
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 

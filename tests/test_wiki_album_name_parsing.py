@@ -7,7 +7,7 @@ from wiki_nodes.nodes import as_node
 from music.test_common import NameTestCaseBase, main
 from music.wiki.parsing.generasia import GenerasiaParser
 
-parse_generasia_album_name = GenerasiaParser().parse_album_name
+parse_generasia_album_name = GenerasiaParser()._parse_album_name
 
 
 class GenerasiaAlbumNameParsingTest(NameTestCaseBase):

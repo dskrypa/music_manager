@@ -59,10 +59,6 @@ class WikiParser(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_album_name(self, node: N) -> Name:
-        raise NotImplementedError
-
-    @abstractmethod
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
         raise NotImplementedError
 

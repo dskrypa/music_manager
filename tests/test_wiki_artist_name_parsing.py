@@ -94,6 +94,11 @@ class KpopFandomArtistNameParsingTest(NameTestCaseBase):
         names = PageIntro(fake_page(intro)).names()
         self.assertNamesEqual(names, {Name('RM')})
 
+    def test_en_ko_born_en_ko(self):
+        intro = as_node("""'''Be'O''' (비오), born '''Yoo Chan-wook''' (유찬욱) is a South Korean rapper who debuted under [[FameUs Entertainment]] in 2020.""")
+        names = PageIntro(fake_page(intro)).names()
+        self.assertNamesEqual(names, {Name("Be'O", '비오'), Name('Yoo Chan-wook', '유찬욱')})
+
 
 if __name__ == '__main__':
     main()

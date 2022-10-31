@@ -26,7 +26,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
 from .abc import WikiParser, EditionIterator
-from .utils import PageIntro, get_artist_title, LANG_ABBREV_MAP, find_language, find_nodes
+from .utils import PageIntro, RawTracks, get_artist_title, LANG_ABBREV_MAP, find_language, find_nodes
 
 if TYPE_CHECKING:
     from ..discography import DiscographyEntryFinder
@@ -199,10 +199,10 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 raise ValueError(f'Unexpected content={content.pformat()} for {edition=}')
 
         if isinstance(content, List):
-            yield DiscographyEntryPart(None, edition, content)
+            yield DiscographyEntryPart(None, edition, RawTracks(content))
         elif isinstance(content, list):
             for i, track_node in enumerate(content):
-                yield DiscographyEntryPart(f'CD{i + 1}', edition, track_node)
+                yield DiscographyEntryPart(f'CD{i + 1}', edition, RawTracks(track_node))
         elif isinstance(content, dict):
             for name, section in content.items():
                 part_content = section.content
@@ -213,7 +213,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                             break
 
                 # log.debug(f'Found disco part={name!r} with content={part_content}')
-                yield DiscographyEntryPart(name, edition, part_content)
+                yield DiscographyEntryPart(name, edition, RawTracks(part_content))
         elif content is None:
             if edition.type == DiscoEntryType.Single:
                 yield DiscographyEntryPart(None, edition, None)

@@ -66,8 +66,6 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
                 options.add_listbox('artist_sites', 'Artist Sites', choices=ALL_SITES, default=artist_sites, tooltip='The wiki sites to search', label_size=(9, 1))
                 options.add_listbox('album_sites', 'Album Sites', choices=ALL_SITES, default=album_sites, tooltip='The wiki sites to search', row=1, label_size=(9, 1))
 
-            # with self.options.column_and_row()
-
             self.options.update(options)
 
     def get_render_args(self) -> RenderArgs:

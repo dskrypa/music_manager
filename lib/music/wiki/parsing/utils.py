@@ -92,13 +92,15 @@ class PageIntro:
     def names(self) -> Iterator[Name]:
         first_string = IS_SPLIT(self.intro, 1)[0].strip()
         # log.debug(f'{first_string=!r}')
-        if (m := MULTI_LANG_NAME_SEARCH(first_string)) and not has_unpaired(m_str := m.group(1)):
-            # log.debug(f'Found multi-lang name match: {m}')
-            yield from self._names_from_multi_lang_str(m_str)
-        else:
-            name = self._base_name_str(first_string)
-            # log.debug(f'Found {name=!r}')
-            yield from self._split_name_parts(name)
+        current, _, born_as = first_string.partition(', born')
+        name_strs = (current, born_as) if current and born_as else (first_string,)
+        for name_str in name_strs:
+            if (m := MULTI_LANG_NAME_SEARCH(name_str)) and not has_unpaired(m_str := m.group(1)):
+                # log.debug(f'Found multi-lang name match={m} ({m_str=})')
+                yield from self._names_from_multi_lang_str(m_str)
+            else:
+                name = self._base_name_str(name_str)
+                yield from self._split_name_parts(name)
 
     def _names_from_multi_lang_str(self, m_str: str) -> Iterator[Name]:
         cleaned = rm_lang_prefix(m_str)
@@ -154,6 +156,7 @@ class PageIntro:
             yield from self._process_name_parts(name, first_part, paren_part)
 
     def _process_name_parts(self, name: str, first_part: str, paren_part: str) -> Iterator[Name]:
+        # log.debug(f'_process_name_parts({name!r}, {first_part!r}, {paren_part!r})')
         while _should_resplit(first_part, paren_part):
             # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; re-splitting...', extra={'color': 11})
             try:

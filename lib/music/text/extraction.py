@@ -84,6 +84,8 @@ def _get_unpaired(text: str, reverse: bool = True, exclude=_NotSet) -> Optional[
     for i, c in enumerate(text):
         _open = True
         if c in o2c:
+            # if c in "'-" and _should_skip(c, text, i, reverse):
+            #     continue
             if c in c2o:
                 for k in c2o[c]:
                     if opened[k] > closed[k]:
@@ -285,7 +287,7 @@ def _partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -
         except KeyError:
             pass
         else:
-            if c == "'" and _should_skip_apostrophe(text, i, reverse):
+            if c in "'-" and _should_skip(c, text, i, reverse):
                 continue
 
             for opener in openers:
@@ -315,11 +317,19 @@ def _partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -
     raise ValueError('No enclosed text found')
 
 
-def _should_skip_apostrophe(text: str, index: int, reverse: bool) -> Bool:
+def _should_skip(char: str, text: str, index: int, reverse: bool) -> Bool:
     try:
-        skip_match = _should_skip_apostrophe.skip_match
+        skip_matches = _should_skip.skip_matches
     except AttributeError:
-        _should_skip_apostrophe.skip_match = skip_match = re.compile(r"^(?:\S's|n't)\b", re.IGNORECASE).match
+        _should_skip.skip_matches = skip_matches = {
+            # '-': re.compile(r'^\w-\w', re.IGNORECASE).match,  # TODO: This does produce a desirable split sometimes
+            "'": re.compile(r"^(?:\S's\b|\w'\w)", re.IGNORECASE).match,
+        }
+
+    try:
+        skip_match = skip_matches[char]
+    except KeyError:
+        return False
 
     if reverse:
         start = index + 1

@@ -670,7 +670,7 @@ class DiscographyEntryPart(_ArtistMixin):
     _disc_match = re.compile(r'(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
     _name: OptStr
     edition: DiscographyEntryEdition
-    _tracks: RawTracks
+    _tracks: Optional[RawTracks]
     _date: Optional[date]
     _artist: NodeOrNodes = None  # = None is required to satisfy the abstract property
     disc: int
@@ -679,14 +679,16 @@ class DiscographyEntryPart(_ArtistMixin):
         self,
         name: OptStr,
         edition: DiscographyEntryEdition,
-        tracks: RawTracks,
+        tracks: Optional[RawTracks],
         disc: int = None,
         release_date: date = None,
         artist: NodeOrNodes = None,
     ):
+        if tracks is not None and not isinstance(tracks, RawTracks):
+            tracks = RawTracks(tracks)
         self._name = name
         self.edition = edition
-        self._tracks = tracks if isinstance(tracks, RawTracks) else RawTracks(tracks)
+        self._tracks = tracks
         self._date = release_date
         self._artist = artist
         if disc is not None:
@@ -780,7 +782,7 @@ class DiscographyEntryPart(_ArtistMixin):
 
     @cached_property
     def track_names(self) -> list[Name]:
-        if parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name'):
+        if self._tracks and (parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name')):
             return self._tracks.get_names(self, parser)
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')

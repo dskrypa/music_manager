@@ -119,6 +119,8 @@ class AlbumFormatter:
     def _get_wiki_cover_images(self, dl_all: bool = False):
         urls = self.wiki_image_urls
         if not dl_all:
+            # TODO: Sometimes there are cases where an album may have up to 16 images, all with 'cover' in the name...
+            #  Maybe paginate or prompt first for which to view in cases where there are still >5?
             orig_len = len(urls)
             urls = {title: url for title, url in urls.items() if 'cover' in title.lower()}
             self.log.debug(f'Filtered image URLs from old={orig_len} to new={len(urls)} with "cover" in the title')

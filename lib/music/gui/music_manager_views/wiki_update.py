@@ -134,7 +134,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         if album_info is not None:
             if parsed['update_cover']:
                 self.album_formatter.album_info = album_info
-                album_info.cover_path = self.album_formatter.get_wiki_cover_choice()
+                album_info.cover_path = self.album_formatter.get_wiki_cover_choice(parsed['all_images'])
 
             return AlbumDiffView(self.album, album_info, self.album_formatter, options=self.options, last_view=self)
         else:

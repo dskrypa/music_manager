@@ -646,7 +646,7 @@ class TrackZip:
         for song_file in self.files:
             try:
                 file_track_map[song_file] = track_map[(song_file.disk_num, song_file.track_num)]
-            except IndexError:
+            except (IndexError, KeyError):
                 raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
         return file_track_map
 

@@ -325,7 +325,9 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
 
     def to_album_info(self) -> AlbumInfo:
         log.info(f'Artist for {self.edition}: {self.artist}')
-        if (ed_lang := self.edition.lang) and (lang := LANG_ABBREV_MAP.get(ed_lang.lower())):
+        if self.config.ignore_genre or self.config.ignore_language:
+            genre = None
+        elif (ed_lang := self.edition.lang) and (lang := LANG_ABBREV_MAP.get(ed_lang.lower())):
             genre = f'{lang[0]}-Pop' if lang in ('Chinese', 'Japanese', 'Korean', 'Mandarin') else None
         else:
             genre = None
@@ -345,7 +347,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
             solo_of_group=isinstance(self.artist, Singer) and self.artist.groups and not self.soloist,
             type=self.edition.type,
             number=self.edition.entry.number,
-            numbered_type=self.edition.numbered_type,
+            numbered_type=self.edition.get_numbered_type(self.config.ignore_language),
             disks=max(part.disc for part in self.edition.parts),
             mp4=all(file.tag_type == 'mp4' for file in self.album_dir),
             cover_path=self.get_album_cover(),

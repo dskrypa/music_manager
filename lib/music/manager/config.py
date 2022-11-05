@@ -88,6 +88,8 @@ class UpdateConfig:
     hide_edition: Bool = ConfigItem(False, bool)
     update_cover: Bool = ConfigItem(False, bool)
     add_genre: Bool = ConfigItem(True, bool)
+    ignore_genre: Bool = ConfigItem(False, bool)
+    ignore_language: Bool = ConfigItem(False, bool)
     part_in_title: Bool = ConfigItem(True, bool)
 
     # endregion
@@ -116,6 +118,8 @@ class UpdateConfig:
         hide_edition: Bool = False,
         update_cover: Bool = False,
         add_genre: Bool = True,
+        ignore_genre: Bool = False,
+        ignore_language: Bool = False,
         part_in_title: Bool = False,
         add_bpm: Bool = False,
         artist_only: Bool = False,

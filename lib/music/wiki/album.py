@@ -620,9 +620,16 @@ class DiscographyEntryEdition(_ArtistMixin):
 
     @cached_property
     def numbered_type(self) -> OptStr:
+        return self.get_numbered_type()
+
+    def get_numbered_type(self, ignore_language: bool = False) -> OptStr:
         if (num := self.entry.number) and self.type:
-            album_lang = self.lang
-            artist_lang = self.artist.language if self.artist else None
+            if ignore_language:
+                album_lang = artist_lang = None
+            else:
+                album_lang = self.lang
+                artist_lang = self.artist.language if self.artist else None
+
             log.debug(f'{self._basic_repr} {album_lang=!r} {artist_lang=!r}')
             parts = (
                 f'{num}{num_suffix(num)}',

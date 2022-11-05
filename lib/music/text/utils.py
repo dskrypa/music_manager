@@ -12,8 +12,10 @@ __all__ = ['combine_with_parens', 'find_ordinal']
 
 
 def combine_with_parens(parts: Iterable[str]) -> str:
+    if isinstance(parts, str):
+        return parts
     if not isinstance(parts, Sequence):
-        parts = list(parts)
+        parts = sorted(parts)
     if len(parts) == 1:
         return parts[0]
 

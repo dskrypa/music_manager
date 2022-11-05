@@ -88,10 +88,8 @@ def revised_weighted_ratio(p1, p2) -> int:
             partial_scale = .45
         elif len_ratio > 1.5:
             partial_scale = .625
-        elif len_ratio > 1:
-            partial_scale = .75
         else:
-            partial_scale = .90
+            partial_scale = .75
 
         partial = fuzz.partial_ratio(p1, p2) * partial_scale
         ptsor = fuzz_token_sort_ratio(p1, p2, True, False, False) * .95 * partial_scale

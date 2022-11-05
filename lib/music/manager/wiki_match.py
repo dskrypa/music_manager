@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Union, Iterable, Iterator, Collection
 from ds_tools.fs.paths import Paths
 from ds_tools.output.terminal import uprint
 from ds_tools.unicode import LangCat
-from wiki_nodes.http import URL_MATCH
+from wiki_nodes.http.utils import URL_MATCH
 
 from ..common.prompts import choose_item
 from ..files.album import AlbumDir, iter_album_dirs

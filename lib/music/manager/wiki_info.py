@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Optional, Iterable
 
 from ds_tools.output.terminal import uprint
-from wiki_nodes.http import URL_MATCH, MediaWikiClient
+from wiki_nodes.http import MediaWikiClient
+from wiki_nodes.http.utils import URL_MATCH
 from wiki_nodes.page import WikiPage
 
 from ..common.disco_entry import DiscoEntryType

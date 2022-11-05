@@ -8,7 +8,7 @@ import logging
 import re
 from functools import partial
 from string import capwords
-from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output import short_repr as _short_repr
@@ -17,6 +17,7 @@ from wiki_nodes.nodes import ContainerNode, AnyNode
 from wiki_nodes.page import WikiPage
 
 from music.common.disco_entry import DiscoEntryType
+from music.text.extraction import split_enclosed, extract_enclosed
 from music.text.name import Name
 from music.text.time import parse_date
 from music.text.utils import find_ordinal
@@ -25,6 +26,7 @@ from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
 from .abc import WikiParser, EditionIterator
+from .names import parse_track_artists
 from .utils import PageIntro, RawTracks, LANG_ABBREV_MAP, find_language
 
 if TYPE_CHECKING:
@@ -115,20 +117,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.warning(f'Unexpected {content=} for {edition=}')
 
     def parse_track_name(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart) -> Name:  # noqa
-        try:
-            extra = {'length': next(iter(row['length'].strings()))}
-        except KeyError:
-            extra = {}
-            # raise RuntimeError(f'Unexpected content in {row=} in {edition_part=}') from e
-
-        if (extra_val := row.get('extra')) and edition_part.extra_column == 'artist':
-            extra['artists'] = extra_val
-        if (note := row.get('note')) and (note_str := ' '.join(note.strings())):
-            if note_str.lower() in {'inst.', 'instrumental', 'inst'}:
-                extra['instrumental'] = True
-
-        # TODO: Parse remix, etc from title
-        return Name(' '.join(row['title'].strings()), extra=extra)
+        return TrackNameParser(row, edition_part).parse_name()
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
         raise NotImplementedError
@@ -288,6 +277,95 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         raise NotImplementedError
 
     # endregion
+
+
+class TrackNameParser:
+    __slots__ = ('row', 'edition_part', 'extra')
+
+    _remix_search = re.compile(r'\b(?:re)?mix\b', re.IGNORECASE).search
+    _version_search = re.compile(r'\b(?:ver\.|version|dub)$', re.IGNORECASE).search
+    _demo_search = re.compile(r'\bdemo\b', re.IGNORECASE).search
+
+    def __init__(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart):
+        self.row = row
+        self.edition_part = edition_part
+        self.extra = {key: val for key, val in self._process_row_extras(row)}
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}[row={self.row} in edition_part={self.edition_part!r}]>'
+
+    def parse_name(self) -> Name:
+        try:
+            raw_title = self.row['title']
+        except KeyError as e:
+            raise RuntimeError(f'Missing title key for {self}') from e
+
+        if isinstance(raw_title, Link):
+            base = raw_title.show
+        else:
+            title = ' '.join(raw_title.strings())
+            base, *after = split_enclosed(title, maxsplit=1)
+            if after:
+                self.extra.update(self._process_title_extras(after[0]))
+
+        name = Name(base, extra=self.extra) if self.extra else Name(base)
+        # log.debug(f'Parsed {name=} from {self}')
+        return name
+
+    def _process_title_extras(self, title_suffix: str) -> Iterator[tuple[str, Any]]:
+        parts = [part.strip() for part in extract_enclosed(title_suffix.strip()).split('/')]
+        for part in parts:
+            yield self._classify_title_part(part)
+
+    def _classify_title_part(self, part: str):
+        # log.debug(f'_classify_title_part: {part!r}')
+        lc_text = part.lower()
+        if lc_text == 'live':
+            return 'live', True
+        elif lc_text.startswith(('inst.', 'instrumental')):
+            return 'instrumental', True
+        elif lc_text.startswith('acoustic'):
+            if lc_text.endswith(('version', 'ver.')) and not lc_text[8:].strip().startswith('ver'):
+                return 'version', part
+            else:
+                return 'acoustic', True
+        elif lc_text.endswith('remaster'):
+            return 'remaster', part
+        elif lc_text.startswith(('feat.', 'featuring')):
+            artists = part.split(maxsplit=1)[1]
+            try:
+                link_map = self.edition_part.section.root.link_map  # noqa
+            except AttributeError:
+                log.debug(f'No link_map found for {self}')
+            else:
+                artists = parse_track_artists(artists, link_map)
+            return 'feat', artists
+        elif lc_text.endswith(' only'):
+            return 'availability', part
+        elif self._remix_search(part):
+            return 'remix', part
+        elif self._version_search(part) or self._demo_search(part):
+            return 'version', part
+        else:
+            log.debug(f'Unexpected wikipedia track title extra {part=}')
+            return 'misc', part
+
+    def _process_row_extras(self, row: TrackRow) -> Iterator[tuple[str, Any]]:
+        try:
+            yield 'length', next(iter(row['length'].strings()))
+        except KeyError:
+            pass
+
+        if (extra_val := row.get('extra')) and self.edition_part.extra_column == 'artist':
+            yield 'artists', extra_val
+
+        try:
+            note = ' '.join(row['note'].strings())
+        except (KeyError, AttributeError):
+            pass
+        else:
+            if note:
+                yield self._classify_title_part(note)
 
 
 class RawWikipediaTracks(RawTracks):

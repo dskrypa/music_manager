@@ -9,7 +9,7 @@ import re
 from typing import TYPE_CHECKING, Optional, Iterator, Type
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, Table, N
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, Table, Tag, N
 
 from music.common.disco_entry import DiscoEntryType
 from music.text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
@@ -58,23 +58,28 @@ def _strify_node(node: ContainerNode):
     # log.debug(f'_strify_node({node!r})')
     parts = []
     for n in node:
-        if isinstance(n, Link):
-            parts.append(n.show)
-        elif isinstance(n, String):
-            parts.append(n.value)
-        elif isinstance(n, Template):
-            if isinstance(n.value, String):
-                parts.append(n.value.value)
-            elif n.name.lower() == 'korean' and isinstance(n.value, MappingNode):
-                if value := n.value.get('hangul'):
-                    parts.append(value.value)
-        else:
-            break
+        if not (isinstance(n, Tag) and n.name == 'ref'):
+            parts.extend(n.strings())
+
+        # if isinstance(n, Link):
+        #     parts.append(n.show)
+        # elif isinstance(n, String):
+        #     parts.append(n.value)
+        # elif isinstance(n, Template):
+        #     if isinstance(n.value, String):
+        #         parts.append(n.value.value)
+        #     elif n.name.lower() == 'korean' and isinstance(n.value, MappingNode):
+        #         if value := n.value.get('hangul'):
+        #             parts.append(value.value)
+        # else:
+        #     break
+
     return ' '.join(parts)
 
 
 class PageIntro:
     __slots__ = ('page', 'raw_intro', 'intro')
+    _born_date_match = re.compile(r'^(.*?)\s*\(born \w+ \d+, \d{4}\)$', re.IGNORECASE).match
 
     def __init__(self, page: WikiPage):
         self.page = page
@@ -89,12 +94,25 @@ class PageIntro:
             except AttributeError:
                 raise ValueError(f'Unexpected intro on {page}: {self.raw_intro!r}') from None
 
-    def names(self) -> Iterator[Name]:
+    def _to_process(self) -> list[str]:
         first_string = IS_SPLIT(self.intro, 1)[0].strip()
-        # log.debug(f'{first_string=!r}')
-        current, _, born_as = first_string.partition(', born')
-        name_strs = (current, born_as) if current and born_as else (first_string,)
-        for name_str in name_strs:
+        log.debug(f'{first_string=!r}')
+
+        parts = [first_string]
+        for partitioner in (', born', ', known professionally as'):
+            parts = [
+                p
+                for part in parts
+                for p in (p.strip().rstrip(',').strip() for p in part.partition(partitioner)[::2])
+                if p
+            ]
+
+        return parts
+
+    def names(self) -> Iterator[Name]:
+        for name_str in self._to_process():
+            if m := self._born_date_match(name_str):
+                name_str = m.group(1).strip()
             if (m := MULTI_LANG_NAME_SEARCH(name_str)) and not has_unpaired(m_str := m.group(1)):
                 # log.debug(f'Found multi-lang name match={m} ({m_str=})')
                 yield from self._names_from_multi_lang_str(m_str)

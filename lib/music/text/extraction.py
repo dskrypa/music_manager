@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from music.typing import Bool
 
 __all__ = [
-    'parenthesized', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
+    'extract_enclosed', 'partition_enclosed', 'split_enclosed', 'ends_with_enclosed', 'strip_enclosed', 'has_unpaired',
     'get_unpaired', 'strip_unpaired', 'is_enclosed'
 ]
 log = logging.getLogger(__name__)
@@ -350,7 +350,7 @@ def _return_partitioned(text: str, first_k: int, i: int, reverse: bool) -> tuple
     return a, b, c
 
 
-def parenthesized(text: str, chars: str = '()') -> str:
+def extract_enclosed(text: str, chars: str = '()') -> str:
     """
     Extract the first enclosed substring from the given string.
 

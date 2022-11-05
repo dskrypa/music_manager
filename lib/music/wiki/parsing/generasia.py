@@ -17,7 +17,7 @@ from wiki_nodes.page import WikiPage
 from wiki_nodes.utils import strip_style
 
 from music.common.disco_entry import DiscoEntryType
-from music.text.extraction import parenthesized, split_enclosed, ends_with_enclosed
+from music.text.extraction import extract_enclosed, split_enclosed, ends_with_enclosed
 from music.text.name import Name
 from music.text.spellcheck import is_english
 from music.text.utils import find_ordinal
@@ -626,7 +626,7 @@ def _split_name_parts(
     original_title = title
     non_eng, lit_translation, name_parts_str, extra = None, None, None, None
     if isinstance(node, String):
-        name_parts_str = parenthesized(node.value)
+        name_parts_str = extract_enclosed(node.value)
     elif node is None:
         if title.endswith(')'):
             try:
@@ -657,7 +657,7 @@ def _split_non_eng_lit(name_parts_str: str):
     # log.debug(f'Splitting: {name_parts_str!r}')
     non_eng, lit_translation = None, None
     if name_parts_str.startswith('('):
-        name_parts_str = parenthesized(name_parts_str)
+        name_parts_str = extract_enclosed(name_parts_str)
     if name_parts_str and LangCat.contains_any(name_parts_str, LangCat.asian_cats):
         name_parts = tuple(map(str.strip, name_parts_str.split(';')))
         if len(name_parts) == 1:

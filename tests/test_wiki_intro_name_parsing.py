@@ -127,6 +127,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(PageIntro(page).names())
         self.assertNamesEqual(names, {Name('1-1=0 (Nothing Without You)')})
 
+    def test_parenthesized_born_date(self):
+        page = fake_page(as_node("""'''John Nommensen Duchac''' (born February 25, 1953),<ref>{{cite web|url=https://familysearch.org/ark:/61903/1:1:KT3W-98G |title=United States Public Records, 1970-2009 |publisher=FamilySearch.org}}</ref> known professionally as '''John Doe''', is an American singer, songwriter, actor, poet, guitarist and bass player."""))
+        names = set(PageIntro(page).names())
+        self.assertNamesEqual(names, {Name('John Nommensen Duchac'), Name('John Doe')})
+
 
 if __name__ == '__main__':
     main()

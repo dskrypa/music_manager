@@ -4,7 +4,7 @@ from textwrap import dedent
 from unittest import skip
 from unittest.mock import Mock
 
-from wiki_nodes.nodes import as_node, Link
+from wiki_nodes.nodes import as_node, Link, String
 
 from music.test_common import NameTestCaseBase, main
 from music.text.name import Name
@@ -12,11 +12,13 @@ from music.wiki.album import DiscographyEntry
 from music.wiki.parsing.drama_wiki import DramaWikiParser
 from music.wiki.parsing.generasia import GenerasiaParser
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
+from music.wiki.parsing.wikipedia import WikipediaParser, TrackNameParser as WikipediaTrackNameParser
 from music.wiki.track import Track
 
 parse_generasia_track_name = GenerasiaParser().parse_track_name
 parse_kf_track_name = KpopFandomParser().parse_track_name
 parse_dw_track_name = DramaWikiParser().parse_track_name
+parse_wp_track_name = WikipediaParser().parse_track_name
 
 
 class KpopFandomTrackNameParsingTest(NameTestCaseBase):
@@ -723,6 +725,63 @@ class DramaWikiNameParsingTest(NameTestCaseBase):
             'producer': Name('Yoon Min Soo', '윤민수', extra=prod_extra),
         }
         self.assertNamesEqual(name, Name('My Way', extra=expected_extra))
+
+
+class WikipediaTrackNameParsingTest(NameTestCaseBase):
+    _site = 'en.wikipedia.org'
+    _interwiki_map = {}
+    root = Mock(site=_site, _interwiki_map=_interwiki_map)
+
+    def _parse_title(self, title: str, link_map: dict[str, Link] = None) -> Name:
+        edition_part = Mock(
+            section=Mock(root=Mock(site=self._site, _interwiki_map=self._interwiki_map, link_map=link_map or {}))
+        )
+        # TODO: This is not exactly accurate for most cases encountered so far - most of the extras come in a ``note``
+        #  entry in the row
+        return WikipediaTrackNameParser({'title': String(title)}, edition_part).parse_name()
+
+    def test_basic(self):
+        parsed = self._parse_title('"Cherry Lips (Go Baby Go!)"')
+        self.assertNamesEqual(parsed, Name('Cherry Lips (Go Baby Go!)'))
+
+    def test_nested_parentheses(self):
+        title = """"Cherry Lips (Go Baby Go!)" (Roger Sanchez's Tha S-Man's Release (Bomb) Mix/2021 Remaster)"""
+        exp_extra = {'remix': "Roger Sanchez's Tha S-Man's Release (Bomb) Mix", 'remaster': '2021 Remaster'}
+        self.assertNamesEqual(self._parse_title(title), Name('Cherry Lips (Go Baby Go!)', extra=exp_extra))
+
+    def test_dub_version(self):
+        title = """"Breaking Up the Girl" (Brothers in Rhythm Therapy Dub/2021 Remaster)"""
+        exp_extra = {'version': 'Brothers in Rhythm Therapy Dub', 'remaster': '2021 Remaster'}
+        self.assertNamesEqual(self._parse_title(title), Name('Breaking Up the Girl', extra=exp_extra))
+
+    def test_live(self):
+        title = '"Shut Your Mouth" (Live)'
+        self.assertNamesEqual(self._parse_title(title), Name('Shut Your Mouth', extra={'live': True}))
+
+    def test_acoustic(self):
+        title = '"Breaking Up the Girl" (Acoustic)'
+        self.assertNamesEqual(self._parse_title(title), Name('Breaking Up the Girl', extra={'acoustic': True}))
+
+    def test_demo_version(self):
+        title = '"Silence Is Golden" (Demo September 14, 1999)'
+        exp_extra = {'version': 'Demo September 14, 1999'}
+        self.assertNamesEqual(self._parse_title(title), Name('Silence Is Golden', extra=exp_extra))
+
+    def test_demo_mix(self):
+        title = '"Begging Bone" (Early Demo Mix)'
+        self.assertNamesEqual(self._parse_title(title), Name('Begging Bone', extra={'remix': 'Early Demo Mix'}))
+
+    def test_feat_1(self):
+        title = '"Girls Talk" (featuring Brody Dalle)'
+        self.assertNamesEqual(self._parse_title(title), Name('Girls Talk', extra={'feat': ['Brody Dalle']}))
+
+    def test_feat_2(self):
+        title = '"Destroying Angels" (featuring John Doe and Exene Cervenka)'
+        jd = Link('[[John_Doe_(musician)|John Doe]]', root=self.root)
+        ec = Link('[[Exene_Cervenka|Exene Cervenka]]', root=self.root)
+        link_map = {'John Doe': jd, 'Exene Cervenka': ec}
+        expected = Name('Destroying Angels', extra={'feat': [jd, 'and', ec]})
+        self.assertNamesEqual(self._parse_title(title, link_map), expected)
 
 
 if __name__ == '__main__':

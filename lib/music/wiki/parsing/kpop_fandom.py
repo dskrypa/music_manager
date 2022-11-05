@@ -547,7 +547,7 @@ class EditionFinder:
         if not (infobox := self.entry_page.infobox):
             return set()
         try:
-            all_links = {link.title: link for link in self.entry_page.find_all(Link)}
+            all_links = self.entry_page.link_map
         except Exception as e:
             raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
 

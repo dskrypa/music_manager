@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 __all__ = ['Track']
 log = logging.getLogger(__name__)
 
-EXTRA_VALUE_MAP = {'instrumental': 'Inst.', 'acoustic': 'Acoustic'}
+EXTRA_VALUE_MAP = {'instrumental': 'Inst.', 'acoustic': 'Acoustic', 'live': 'Live'}
 ARTISTS_SUFFIXES = {1: 'solo', 2: 'duet'}
 
 
@@ -84,7 +84,7 @@ class Track:
             return parts
 
         if feat := extra.get('feat'):
-            if isinstance(feat, ContainerNode):
+            if isinstance(feat, (ContainerNode, list)):
                 feat = artist_string(feat)[0]
             elif isinstance(feat, Link):
                 try:
@@ -148,7 +148,7 @@ class Track:
         if extras := name_obj.extra:
             parts.extend(val for key, val in EXTRA_VALUE_MAP.items() if extras.get(key))
 
-            for key in ('version', 'edition', 'remix'):
+            for key in ('version', 'edition', 'remix', 'remaster'):
                 if value := extras.get(key):
                     if isinstance(value, str):
                         parts.append(replace_lang_abbrev(value))
@@ -169,12 +169,19 @@ class Track:
         return {}
 
 
-def artist_string(node: ContainerNode) -> tuple[str, int]:
-    found = 0
-    link_artist_map = Artist.from_links(node.find_all(Link))
+def artist_string(node: ContainerNode | Iterable[Link|String]) -> tuple[str, int]:
+    try:
+        children = node.children
+    except AttributeError:
+        children = node
+        link_artist_map = Artist.from_links([obj for obj in node if isinstance(obj, Link)])
+    else:
+        link_artist_map = Artist.from_links(node.find_all(Link))
     # log.debug(f'Found {link_artist_map=}')
+
+    found = 0
     parts = []
-    for child in node.children:
+    for child in children:
         if isinstance(child, String):
             parts.append(child.value)
             # value = child.value.strip()
@@ -186,8 +193,10 @@ def artist_string(node: ContainerNode) -> tuple[str, int]:
                 parts.append(link_artist_map[child].name)
             except KeyError:
                 parts.append(child.show)
+        elif isinstance(child, str):
+            parts.append(child)
 
-    # log.debug(f'Artist string parts: {parts}')
+    log.debug(f'Artist string parts: {parts}')
     processed = []
     last = None
     for part in map(str, parts):

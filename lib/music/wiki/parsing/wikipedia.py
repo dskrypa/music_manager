@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
+from copy import copy
 from datetime import datetime, date
 from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any, Match
@@ -393,26 +394,25 @@ class EditionFinder:
         if track_list_section is None:
             raise RuntimeError(f'Unable to find track list section on page={self.entry_page}')
         else:
-            yield from self._process_section(track_list_section, False)
+            edition_parts = []
+            self._process_section(track_list_section, False, edition_parts)
             for subsection in track_list_section:
-                yield from self._process_section(subsection, True)
+                self._process_section(subsection, True, edition_parts)
 
-    def _process_section(self, section: Section, is_subsection: bool) -> EditionIterator:
+            yield from self._group_edition_parts(edition_parts)
+
+    def _process_section(self, section: Section, is_subsection: bool, edition_parts: list[WikipediaAlbumEditionPart]):
         if not (content := section.content):
             return
         elif isinstance(content, Template):
-            edition = self._process_template(section, content, is_subsection)
-            yield from self._group_edition_parts([edition])
+            edition_parts.append(self._process_template(section, content, is_subsection))
         elif isinstance(content, CompoundNode):
-            edition_parts = []
             for node in content:
                 if isinstance(node, Template):
                     edition = self._process_template(section, node, is_subsection, edition_parts[:])  # Copy is required
                     edition_parts.append(edition)
                 else:
                     log.debug(f'Ignoring node in {section=} of page={self.entry_page}: {node}')
-
-            yield from self._group_edition_parts(edition_parts)
         else:
             raise TypeError(f'Unexpected content in {section=} of page={self.entry_page}: {content}')
 
@@ -435,7 +435,7 @@ class EditionFinder:
         template: Template,
         is_subsection: bool,
         prev_eds: list[WikipediaAlbumEditionPart] = None,
-    ):
+    ) -> WikipediaAlbumEditionPart:
         if template.lc_name not in {'tracklist', 'track listing'}:
             raise ValueError(f'Unexpected track template={template.name!r} in {section=} on page={self.entry_page}')
 
@@ -585,6 +585,11 @@ class EditionGrouper:
         else:
             group.append(self.standard_edition_part)
 
+        expected_disk = len(group) + 1
+        if edition_part.disk != expected_disk:
+            edition_part = copy(edition_part)
+            edition_part.__dict__['disk'] = expected_disk
+
         group.append(edition_part)
 
     def _group_editions(self):
@@ -667,7 +672,10 @@ class WikipediaAlbumEditionPart:
 
     def __repr__(self) -> str:
         section = self.section
-        return f'<{self.__class__.__name__}[{self.name!r}][{section=} @ {section.root}, tracks={len(self.tracks)}]>'
+        return (
+            f'<{self.__class__.__name__}[{self.name!r}, disk={self.disk}]'
+            f'[{section=} @ {section.root}, tracks={len(self.tracks)}]>'
+        )
 
     @cached_property
     def album_name(self) -> str:
@@ -740,7 +748,7 @@ class WikipediaAlbumEditionPart:
         if (name := self.raw_name) and (m := self._disk_search(name)):
             return int(m.group(1))
         if self.bonus_disk_match:
-            return 2
+            return 2  # TODO: This is not always accurate
         return 1
 
     @cached_property

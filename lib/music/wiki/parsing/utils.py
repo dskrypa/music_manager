@@ -283,18 +283,19 @@ def _multi_lang_names(primary, parts):
 def find_language(node: Node, lang: Optional[str], langs: set[str]) -> Optional[str]:
     if lang:
         return lang
-    elif node:
-        if len(langs) == 1:
-            return next(iter(langs))
-        else:
-            lang_cats = LangCat.categorize(node.raw.string, True)
-            non_eng = [lc.full_name for lc in lang_cats.difference((LangCat.ENG,))]
-            if len(non_eng) == 1:
-                return non_eng[0]
-            elif non_eng and langs:
-                matching_langs = langs.intersection(non_eng)
-                if len(matching_langs) == 1:
-                    return next(iter(matching_langs))
+    elif not node:
+        return None
+    elif len(langs) == 1:
+        return next(iter(langs))
+    else:
+        lang_cats = LangCat.categorize(node.raw.string, True)
+        non_eng = [lc.full_name for lc in lang_cats.difference((LangCat.ENG,))]
+        if len(non_eng) == 1:
+            return non_eng[0]
+        elif non_eng and langs:
+            matching_langs = langs.intersection(non_eng)
+            if len(matching_langs) == 1:
+                return next(iter(matching_langs))
     return None
 
 

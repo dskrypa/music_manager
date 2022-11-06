@@ -286,6 +286,7 @@ class TrackNameParser:
     _remix_search = re.compile(r'\b(?:re)?mix\b', re.IGNORECASE).search
     _version_search = re.compile(r'\b(?:ver\.|version|dub)$', re.IGNORECASE).search
     _demo_search = re.compile(r'\bdemo\b', re.IGNORECASE).search
+    _last_chance_remix_search = re.compile(r'\b(?:by|edit)\b', re.IGNORECASE).search
 
     def __init__(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart):
         self.row = row
@@ -347,6 +348,8 @@ class TrackNameParser:
             return 'remix', part
         elif self._version_search(part) or self._demo_search(part):
             return 'version', part
+        elif self._last_chance_remix_search(part):
+            return 'remix', part
         else:
             log.debug(f'Unexpected wikipedia track title extra {part=}')
             return 'misc', part

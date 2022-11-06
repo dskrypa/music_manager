@@ -6,21 +6,21 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import defaultdict
 from functools import partial
-from string import capwords
-from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any, Match
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output import short_repr as _short_repr
 from wiki_nodes.nodes import Template, Link, TableSeparator, CompoundNode, String, Node, Section, MappingNode, Table
-from wiki_nodes.nodes import ContainerNode, AnyNode
+from wiki_nodes.nodes import ContainerNode, AnyNode, Tag
 from wiki_nodes.page import WikiPage
 
 from music.common.disco_entry import DiscoEntryType
 from music.text.extraction import split_enclosed, extract_enclosed
 from music.text.name import Name
 from music.text.time import parse_date
-from music.text.utils import find_ordinal
+from music.text.utils import find_ordinal, title_case
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
@@ -47,7 +47,6 @@ IGNORE_SECTIONS = {
 short_repr = partial(_short_repr, containers_only=False)
 
 DASH_LANG_SEARCH = re.compile(r'\b(\w+)-language\b', re.IGNORECASE).search
-DISK_SEARCH = re.compile(r'(?:CD|dis[ck])[:#. ]?(\d+)', re.IGNORECASE).search
 
 
 class WikipediaParser(WikiParser, site='en.wikipedia.org'):
@@ -109,8 +108,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         content: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart] = edition._content
 
         if isinstance(content, list):
-            for edition_part in content:
-                yield DiscographyEntryPart(f'CD{edition_part.disk}', edition, RawWikipediaTracks(edition_part))
+            for edition_part in content:  # type: WikipediaAlbumEditionPart
+                yield DiscographyEntryPart(edition_part.part_name, edition, RawWikipediaTracks(edition_part))
         elif content:
             yield DiscographyEntryPart(None, edition, RawWikipediaTracks(content))
         else:
@@ -392,23 +391,22 @@ class EditionFinder:
         # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
         if track_list_section is None:
             raise RuntimeError(f'Unable to find track list section on page={self.entry_page}')
-            # yield self._edition(None, None, self.find_language(self.entry_page))
         else:
-            yield from self._process_section(track_list_section)
+            yield from self._process_section(track_list_section, False)
             for subsection in track_list_section:
-                yield from self._process_section(subsection)
+                yield from self._process_section(subsection, True)
 
-    def _process_section(self, section: Section) -> EditionIterator:
+    def _process_section(self, section: Section, is_subsection: bool) -> EditionIterator:
         if not (content := section.content):
             return
         elif isinstance(content, Template):
-            edition = self._process_template(section, content)
-            yield self._edition(edition, edition.name, self.find_language(content))
+            edition = self._process_template(section, content, is_subsection)
+            yield from self._group_edition_parts([edition])
         elif isinstance(content, CompoundNode):
             edition_parts = []
             for node in content:
                 if isinstance(node, Template):
-                    edition = self._process_template(section, node, edition_parts[:])  # Copy is required
+                    edition = self._process_template(section, node, is_subsection, edition_parts[:])  # Copy is required
                     edition_parts.append(edition)
                 else:
                     log.debug(f'Ignoring node in {section=} of page={self.entry_page}: {node}')
@@ -418,49 +416,29 @@ class EditionFinder:
             raise TypeError(f'Unexpected content in {section=} of page={self.entry_page}: {content}')
 
     def _group_edition_parts(self, edition_parts: list[WikipediaAlbumEditionPart]) -> EditionIterator:
-        last: Optional[WikipediaAlbumEditionPart] = None
-        group: list[WikipediaAlbumEditionPart] = []
-        for edition_part in edition_parts:
-            if edition_part.disk == 1:
-                if group:
-                    yield self._edition(group, last.name, last.find_language(self.languages))
-                    group = []
-                elif last:
-                    yield self._edition(last, last.name, last.find_language(self.languages))
-
-                last = edition_part
-            elif edition_part.is_bonus_disk and last and not group:
-                yield self._edition(last, last.name, last.find_language(self.languages))
-                group = [last, edition_part]
-                last = edition_part  # To use the bonus edition's name
-            else:
-                if not group:
-                    group.append(last)
-                group.append(edition_part)
-
-        if final := group or last:
-            yield self._edition(final, last.name, last.find_language(self.languages))
-
-    def _process_template(self, section: Section, template: Template, prev_eds: list[WikipediaAlbumEditionPart] = None):
-        if template.lc_name not in {'tracklist', 'track listing'}:
-            raise ValueError(f'Unexpected track template={template.name!r} in {section=} on page={self.entry_page}')
-
-        return WikipediaAlbumEditionPart(section, template, prev_eds)
-
-    def _edition(self, content, edition, language) -> DiscographyEntryEdition:
-        edition_obj = DiscographyEntryEdition(
+        grouper = EditionGrouper(
             self.name,
             self.entry_page,
             self.entry,
             self.entry_type,
             self.artists,
             self.edition_date_map,
-            content,
-            edition,
-            language,
+            self.languages,
+            edition_parts,
         )
-        # log.debug(f'Created edition with name={self.name} page={self.entry_page} {edition=} {language=} {content=}')
-        return edition_obj
+        yield from grouper.get_editions()
+
+    def _process_template(
+        self,
+        section: Section,
+        template: Template,
+        is_subsection: bool,
+        prev_eds: list[WikipediaAlbumEditionPart] = None,
+    ):
+        if template.lc_name not in {'tracklist', 'track listing'}:
+            raise ValueError(f'Unexpected track template={template.name!r} in {section=} on page={self.entry_page}')
+
+        return WikipediaAlbumEditionPart(self.entry, self.entry_page, section, template, is_subsection, prev_eds)
 
     def get_track_list_section(self) -> Optional[Section]:
         root = self.entry_page.sections
@@ -517,11 +495,9 @@ class EditionFinder:
     def entry_type(self) -> DiscoEntryType:
         return DiscoEntryType.for_name(self.entry_page.categories)  # Note: 'type' is also in infobox sometimes
 
-    def find_language(self, content, lang: str = None) -> OptStr:
-        return find_language(content, lang, self.languages)
-
     @cached_property
     def languages(self) -> set[str]:
+        """Languages specified in the album page's categories."""
         langs = set()
         for cat in self.entry_page.categories:
             if (m := DASH_LANG_SEARCH(cat)) and (lang := LANG_ABBREV_MAP.get(m.group(1))):
@@ -530,19 +506,149 @@ class EditionFinder:
         return langs
 
 
+class EditionGrouper:
+    def __init__(
+        self,
+        entry_name: Name,
+        page: WikiPage,
+        entry: DiscographyEntry,
+        entry_type: DiscoEntryType,
+        artists: set[Link],
+        edition_date_map: StrDateMap,
+        languages: set[str],
+        edition_parts: list[WikipediaAlbumEditionPart],
+    ):
+        self.entry_name = entry_name
+        self.page = page
+        self.entry = entry
+        self.entry_type = entry_type
+        self.artists = artists
+        self.edition_date_map = edition_date_map
+        self.languages = languages
+        self.edition_parts = edition_parts
+        self._groups = defaultdict(list)
+
+    def get_editions(self) -> EditionIterator:
+        if len(self.edition_parts) == 1:
+            yield self._edition(self.edition_parts[0])
+        else:
+            if not self._groups:
+                self._group_editions()
+            yield from (self._edition(group, name) for name, group in self._groups.items())
+            # yield from self._old_group_iter()
+
+    def _edition(
+        self, content: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart], edition: OptStr = None
+    ) -> DiscographyEntryEdition:
+        edition_part = content if isinstance(content, WikipediaAlbumEditionPart) else content[0]
+        edition_obj = DiscographyEntryEdition(
+            self.entry_name,
+            self.page,
+            self.entry,
+            self.entry_type,
+            self.artists,
+            self.edition_date_map,
+            content,
+            edition or edition_part.name,
+            edition_part.find_language(self.languages),
+        )
+        # log.debug(f'Created edition with name={self.entry_name} page={self.page} {edition=} {language=} {content=}')
+        return edition_obj
+
+    @cached_property
+    def standard_edition_part(self) -> WikipediaAlbumEditionPart:
+        return self.edition_parts[0]
+
+    def _add_to_group(self, edition_part: WikipediaAlbumEditionPart):
+        group = self._groups[edition_part.name]
+        if not group and edition_part.disk != 1:
+            group.append(self.standard_edition_part)
+
+        group.append(edition_part)
+
+    def _add_bonus_group(self, edition_part: WikipediaAlbumEditionPart):
+        group_name = edition_part.name
+        bonus_name = title_case(edition_part.bonus_disk_match.group(0))
+        if group := self._groups[group_name]:
+            self._groups[f'{group_name} + {bonus_name}'] = group = group[:]
+        else:
+            group.append(self.standard_edition_part)
+
+        group.append(edition_part)
+
+    def _group_editions(self):
+        bonus_disks = []
+        for edition_part in self.edition_parts:
+            if edition_part.bonus_disk_match:
+                bonus_disks.append(edition_part)
+            else:
+                self._add_to_group(edition_part)
+
+        for edition_part in bonus_disks:
+            self._add_bonus_group(edition_part)
+
+    # def _old_group_iter(self) -> EditionIterator:
+    #     last: Optional[WikipediaAlbumEditionPart] = None
+    #     group: list[WikipediaAlbumEditionPart] = []
+    #     for edition_part in self.edition_parts:
+    #         if edition_part.disk == 1:
+    #             if group:
+    #                 yield self._edition(group, last.name)
+    #                 group = []
+    #             elif last:
+    #                 yield self._edition(last, last.name)
+    #
+    #             last = edition_part
+    #         elif last and not group:
+    #             if edition_part.bonus_disk_match:
+    #                 yield self._edition(last, last.name)
+    #                 group = [last, edition_part]
+    #                 last = edition_part  # To use the bonus edition's name
+    #             elif last.name == edition_part.name:
+    #                 group = [last, edition_part]
+    #             else:
+    #                 yield self._edition(last, last.name)
+    #                 group = [self.standard_edition_part, edition_part]
+    #                 last = edition_part  # To use the new edition's name
+    #         else:
+    #             if not group:
+    #                 group.append(last)
+    #             group.append(edition_part)
+    #
+    #     if final := group or last:
+    #         yield self._edition(final, last.name)
+
+
 class WikipediaAlbumEditionPart:
-    suffix_match = re.compile(
+    _suffix_match = re.compile(
         r'^(.*?)\b(?:'
-        r'(?:CD )?bonus material|bonus (?:tracks|material|dis[ck])|track\s*list(?:ing)?'
-        r')$',
+        r'(?:CD )?bonus material|bonus (?:tracks|material|dis[ck]|vinyl)|track\s*list(?:ing)?'
+        # r')$',
+        r')\b.*',
         re.IGNORECASE,
+    ).match
+    _bonus_disk_search = re.compile(r'\bbonus\s+(?:dis[ck]|vinyl)\b', re.IGNORECASE).search
+    _disk_search = re.compile(r'(?:CD|dis[ck])[:#. ]?(\d+)', re.IGNORECASE).search
+    _edition_disk_part_match = re.compile(
+        r'^(.*?)\s*(?:\s*[:-]\s*)?(?:CD|dis[ck])[:#. ]?(\d+)(?:\s*[:-]\s*)?(.*)$', re.IGNORECASE
     ).match
     meta: dict[str, AnyNode]
     _tracks: list[TrackRow]
 
-    def __init__(self, section: Section, template: Template, prev_editions: list[WikipediaAlbumEditionPart] = None):
+    def __init__(
+        self,
+        entry: DiscographyEntry,
+        entry_page: WikiPage,
+        section: Section,
+        template: Template,
+        is_subsection: bool,
+        prev_editions: list[WikipediaAlbumEditionPart] = None,
+    ):
+        self.entry = entry
+        self.page = entry_page
         self.section = section
         self.template = template
+        self.is_subsection = is_subsection
         self.prev_editions = prev_editions or []
         data = template.value
         self.meta = data['meta']
@@ -553,26 +659,65 @@ class WikipediaAlbumEditionPart:
         return f'<{self.__class__.__name__}[{self.name!r}][{section=} @ {section.root}, tracks={len(self.tracks)}]>'
 
     @cached_property
-    def name(self) -> OptStr:
-        name = self._name
-        if (title := self.section.title) and title.lower() not in TRACK_LIST_SECTIONS and (self.disk == 1 or not name):
-            name = title
+    def album_name(self) -> str:
+        return ' '.join(self.page.infobox['name'].strings())
+
+    def _clean_name(self, name: OptStr) -> OptStr:
+        if not name:
+            return name
+        an_len = len(self.album_name)
+        if name.lower().startswith(self.album_name.lower()) and (len(name) == an_len or name[an_len] in ': '):
+            name = name[an_len:].strip()
+        if name.startswith((':', '-')):
+            name = name[1:].strip()
         if not name:
             return None
 
         lc_name = name.lower()
         if lc_name.endswith('editions'):
             name = name[:-1]
-
-        if m := self.suffix_match(name):
+        if m := self._suffix_match(name):
             name = m.group(1).strip()
 
-        return capwords(name)
+        return name
 
     @cached_property
-    def _name(self) -> OptStr:
+    def section_title(self) -> OptStr:
+        if (title := self.section.title) and title.lower() not in TRACK_LIST_SECTIONS:
+            return self._clean_name(title)
+        return None
+
+    @cached_property
+    def name_and_part(self) -> tuple[OptStr, OptStr]:
+        name = self.raw_name
+        if (self.is_subsection or self.disk == 1 or not name) and self.section_title:
+            name = self.section_title
+        elif not (name := self._clean_name(name)):
+            return None, None
+
+        if m := self._edition_disk_part_match(name):
+            name, _disk, part = m.groups()
+        else:
+            part = None
+
+        return title_case(name), part
+
+    @property
+    def name(self) -> OptStr:
+        return self.name_and_part[0]
+
+    @cached_property
+    def part_name(self) -> OptStr:
+        return self.name_and_part[1] or f'CD{self.disk}'
+
+    @cached_property
+    def raw_name(self) -> OptStr:
+        """The raw name from the edition/part track table header"""
         for key in ('header', 'headline'):
             if header := self.meta.get(key):
+                if isinstance(header, CompoundNode):
+                    nodes = (node for node in header if not isinstance(node, Tag) or node.name != 'ref')
+                    return ' '.join(s for node in nodes for s in node.strings())
                 return ' '.join(header.strings())
         return None
 
@@ -581,18 +726,17 @@ class WikipediaAlbumEditionPart:
 
     @cached_property
     def disk(self) -> int:
-        if (name := self._name) and (m := DISK_SEARCH(name)):
+        if (name := self.raw_name) and (m := self._disk_search(name)):
             return int(m.group(1))
-        if self.is_bonus_disk:
+        if self.bonus_disk_match:
             return 2
         return 1
 
     @cached_property
-    def is_bonus_disk(self) -> bool:
-        if name := self._name:
-            lc_name = name.lower()
-            return 'bonus disc' in lc_name or 'bonus disk' in lc_name
-        return False
+    def bonus_disk_match(self) -> Optional[Match]:
+        if name := self.raw_name:
+            return self._bonus_disk_search(name)
+        return None
 
     @cached_property
     def extra_column(self) -> OptStr:

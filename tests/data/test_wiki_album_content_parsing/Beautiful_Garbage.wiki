@@ -1,0 +1,288 @@
+{{good article}}
+{{Use mdy dates|date=January 2016}}
+{{Infobox album
+| name       = Beautiful Garbage
+| type       = studio
+| artist     = [[Garbage (band)|Garbage]]
+| cover      = Garbage - Beautiful Garbage.png
+| released   = {{Start date|2001|10|01}}
+| recorded   = April 2000 – May 2001
+| studio     = [[Smart Studios|Smart]] ([[Madison, Wisconsin]])
+| genre      =
+* [[Alternative rock]]
+* [[electronica]]
+* [[trip hop]]<ref name="Allmusic">{{cite web |last=Erlewine |first=Stephen Thomas |author-link=Stephen Thomas Erlewine |url=https://www.allmusic.com/album/beautiful-garbage-mw0000014547 |title=Beautiful Garbage – Garbage |website=[[AllMusic]] |access-date=October 22, 2014}}</ref>
+| length     = {{duration|m=53|s=01}}
+| label      = [[A&E Records#Mushroom Records UK|Mushroom]]
+* [[Interscope Records|Interscope]] (North America)
+| producer   = Garbage
+| prev_title = [[Version 2.0]]
+| prev_year  = 1998
+| next_title = [[Special Collection (Garbage EP)|Special Collection]]
+| next_year  = 2002
+| misc       = {{Singles
+ | name        = Beautiful Garbage
+ | type        = studio
+ | single1     = [[Androgyny (song)|Androgyny]]
+ | single1date = September 24, 2001
+ | single2     = [[Cherry Lips]]
+ | single2date = January 21, 2002
+ | single3     = [[Breaking Up the Girl]]
+ | single3date = April 8, 2002
+ | single4     = [[Shut Your Mouth (song)|Shut Your Mouth]]
+ | single4date = September 23, 2002
+}}
+}}
+
+'''''Beautiful Garbage''''' (stylized as '''''beautifulgarbage''''') is the third studio album by American [[Rock music|rock]] band [[Garbage (band)|Garbage]]. It was released on October 1, 2001, on [[Mushroom Records]] worldwide, with the North American release on [[Interscope Records]] the following day. Marking a departure from the sound the band had established on their first two releases, the album was written and recorded over the course of a year, when lead singer [[Shirley Manson]] chronicled their efforts weekly online, becoming one of the first high-profile musicians to keep an Internet blog. The album expanded on the band's musical variety, with stronger melodies, more direct lyrics, and sounds mixing rock with [[electronica]], [[New wave music|new wave]], [[Hip hop music|hip hop]], and [[girl group]]s.
+
+Released three weeks after the [[September 11 attacks]], the album suffered from lack of promotion and the failure of its lead single "[[Androgyny (song)|Androgyny]]" to achieve high chart positions.<ref>{{cite AV media |title=[[Absolute Garbage|Thanks for Your Uhh, Support]] documentary |type=DVD |others=[[Garbage (band)|Garbage]] |publisher=[[Warner Bros. Records]] |date=2007 |id=5144 22958 9}}</ref> ''Beautiful Garbage'' debuted at number 13 on the [[Billboard 200|''Billboard'' 200]], while topping the albums chart in Australia and peaking within the top 10 in multiple European countries, and was named one of ''[[Rolling Stone]]''{{'}}s "Top 10 Albums of the Year".
+
+A remastered and expanded edition of the album was released on November 5, 2021, to mark its 20th anniversary.<ref>{{cite web|url= https://www.sundaypost.com/fp/manson-garbage/|title=Garbage frontwoman hits out at the streaming giants making money at musicians' expense and why being on the road is costing the earth|author=English, Paul|work=[[The Sunday Post]]|date=October 18, 2021|access-date=November 2, 2021}}</ref> The triple CD set featured two bonus CDs, consisting of b-sides, alternate versions, previously unreleased recordings and remixes.<ref>{{cite web |url=https://www.nme.com/news/music/garbage-announce-20th-anniversary-reissue-of-beautiful-garbage-3021385|title=Garbage announce 20th anniversary reissue of 'Beautiful Garbage'|last=Skinner|first=Tom|work=[[NME]]|date=August 17, 2021|access-date=August 19, 2021}}</ref>
+
+==Track listing==
+{{Track listing
+| all_writing = [[Garbage (band)|Garbage]], except where noted
+|headline=''Beautiful Garbage'' track listing
+| title1 = [[Shut Your Mouth (song)|Shut Your Mouth]]
+| length1 = 3:25
+
+| title2 = [[Androgyny (song)|Androgyny]]
+| length2 = 3:09
+
+| title3 = Can't Cry These Tears
+| length3 = 4:16
+
+| title4 = Til the Day I Die
+| length4 = 3:28
+
+| title5 = Cup of Coffee
+| length5 = 4:31
+
+| title6 = Silence Is Golden
+| length6 = 3:49
+
+| title7 = [[Cherry Lips|Cherry Lips (Go Baby Go!)]]
+| length7 = 3:12
+
+| title8 = [[Breaking Up the Girl]]
+| length8 = 3:33
+
+| title9 = Drive You Home
+| length9 = 3:58
+
+| title10 = Parade
+| length10 = 4:07
+
+| title11 = Nobody Loves You
+| length11 = 5:08
+
+| title12 = Untouchable
+| length12 = 4:03
+
+| title13 = So Like a Rose
+| length13 = 6:17
+}}
+
+{{Track listing
+| headline = International [[enhanced CD]] bonus material
+
+| title14 = Beautiful Garbage mixer
+}}
+
+{{Track listing
+| headline = Japanese edition bonus tracks
+| title14 = Begging Bone
+| length14 = 4:50
+
+| title15 = [[The World Is Not Enough (song)|The World Is Not Enough]]
+| writer15 = {{hlist|[[David Arnold]]|[[Don Black (lyricist)|Don Black]]}}
+| length15 = 3:56
+}}
+
+===20th anniversary editions===
+{{Track listing
+|headline=Deluxe bonus vinyl<ref>{{cite web|url=https://garbage.tmstor.es/product/84810|title=beautifulgarbage (2021 Remaster) (Deluxe 3LP)|publisher=Garbage Official Online Store|access-date=August 19, 2021}}</ref>
+| title1 = [[Candy Says]]
+| writer1 = [[Lou Reed]]
+| length1 = 4:02
+| title2 = Use Me
+| length2 = 4:33
+| title3 = Sex Never Goes Out of Fashion
+| length3 = 3:53
+| title4 = Begging Bone
+| length4 = 4:46
+| title5 = April 10th
+| length5 = 4:24
+| title6 = Happiness Pt. 2
+| length6 = 5:56
+| title7 = Confidence
+| length7 = 3:08
+| title8 = Enough Is Never Enough
+| length8 = 4:07
+| title9 = [[Wild Horses (Rolling Stones song)|Wild Horses]]
+| note9 = Live
+| writer9 = [[Jagger–Richards]]
+| length9 = 4:52
+| title10 = I'm Really Into Techno
+| length10 = 1:19
+}}
+{{Track listing
+|headline=Deluxe CD2: B-Sides and Alt Versions<ref name="DeluxeCD">{{cite web|url=https://garbage.tmstor.es/product/84810|title=beautifulgarbage (2021 Remaster) 3CD|publisher=Garbage Official Online Store|access-date=August 19, 2021}}</ref>
+| title1 = Candy Says
+| writer1 = Reed
+| length1 = 4:02
+| title2 = Use Me
+| length2 = 4:33
+| title3 = Sex Never Goes Out of Fashion
+| length3 = 3:53
+| title4 = Begging Bone
+| length4 = 4:46
+| title5 = April 10th
+| length5 = 4:24
+| title6 = Happiness Pt. 2
+| length6 = 5:56
+| title7 = Confidence
+| length7 = 3:08
+| title8 = Enough Is Never Enough
+| length8 = 4:07
+| title9 = Wild Horses
+| note9 = Live
+| writer9 = Jagger–Richards
+| length9 = 4:52
+| title10 = I'm Really Into Techno
+| length10 = 1:19
+| title11 = [[Pride (In the Name of Love)]]
+| note11 = Live
+| writer11 = [[U2]]
+| length11 = 3:55
+| title12 = Androgyny
+| note12 = Rough Mix March 14, 2001
+| length12 = 3:09
+| title13 = Til the Day I Die
+| note13 = Demo September 14, 1999
+| length13 = 3:25
+| title14 = Nobody Loves You
+| note14 = Rough Mix March 14, 2001
+| length14 = 5:19
+| title15 = Breaking Up the Girl
+| note15 = Acoustic
+| length15 = 3:19
+| title16 = Silence Is Golden
+| note16 = Demo September 14, 1999
+| length16 = 4:05
+| title17 = Can't Cry These Tears
+| note17 = Rough Mix March 14, 2001
+| length17 = 4:13
+| title18 = Shut Your Mouth
+| note18 = Live
+| length18 = 3:30
+| title19 = Begging Bone
+| note19 = Early Demo Mix
+| length19 = 5:05
+}}
+{{Track listing
+|headline=Deluxe CD3: Remixes<ref name="DeluxeCD"/>
+| title1 = Shut Your Mouth
+| note1 = [[Jagz Kooner]] Radio Mix
+| length1 = 4:29
+| title2 = Shut Your Mouth
+| note2 = Jolly Music Scary Full Vocal Mix
+| length2 = 5:19
+| title3 = Shut Your Mouth
+| note3 = Professor Reay Clubbed Dead Pig Mix
+| length3 = 6:51
+| title4 = Androgyny
+| note4 = [[The Neptunes]] Remix
+| length4 = 3:18
+| title5 = Androgyny
+| note5 = [[Felix da Housecat]] Thee Glitz Mix
+| length5 = 6:07
+| title6 = Androgyny
+| note6 = The [[Architechs]] Mix
+| length6 = 4:56
+| title7 = Breaking Up the Girl
+| note7 = [[Timo Maas]] Radio Mix
+| length7 = 3:44
+| title8 = Breaking Up the Girl
+| note8 = [[Brothers in Rhythm]] Radio Edit
+| length8 = 3:52
+| title9 = Breaking Up the Girl
+| note9 = The Scourge of the Earth Rodeo Rave Remix by [[Jimmy Cauty]]
+| length9 = 4:38
+| title10 = Breaking Up the Girl
+| note10 = Black Dog Wounded by the Warbeast
+| length10 = 4:48
+| title11 = Cherry Lips (Go Baby Go!)
+| note11 = Le Royale Mix
+| length11 = 3:17
+| title12 = Cherry Lips (Go Baby Go!)
+| note12 = MaUVe's Dark Remix with Acapella Edit
+| length12 = 3:01
+| title13 = Cherry Lips (Go Baby Go!)
+| note13 = DJEJ's Go Go Jam by [[Eli Janney (musician)|Eli Janney]]
+| length13 = 6:09
+| title14 = Cherry Lips (Go Baby Go!)
+| note14 = [[Roger Sanchez]]'s Tha S-Man's Release Mix Radio Edit
+| length14 = 3:38
+| title15 = Cherry Lips (Go Baby Go!)
+| note15 = [[Howie B]] Remix
+| length15 = 8:39
+| title16 = Parade
+| note16 = End of Night Mix
+| length16 = 4:12
+}}
+{{Track listing
+|headline=Digital deluxe disc 4<ref>{{cite web|url=https://www.amazon.com/beautiful-garbage-Anniversary-Deluxe-Explicit/dp/B09C2WG97V/|title=beautiful garbage (20th Anniversary / Deluxe) [Explicit] by Garbage|work=[[Amazon Music]]|access-date=November 10, 2021}}</ref>
+| title1 = Shut Your Mouth
+| note1 = [[Jagz Kooner]] Full Vocal Mix
+| length1 = 4:39
+| title2 = Shut Your Mouth
+| note2 = Jadell Remix
+| length2 = 3:40
+| title3 = Shut Your Mouth
+| note3 = Professor Reay Clubbed Dead Pig Dub Mix
+| length3 = 6:21
+| title4 = Shut Your Mouth
+| note4 = Cuban Boys Rascasse Edit Mix
+| length4 = 3:19
+| title5 = Shut Your Mouth
+| note5 = Cuban Boys Rocksteady Electro Mix
+| length5 = 3:01
+| title6 = Shut Your Mouth
+| note6 = Broadway Project Remix
+| length6 = 3:15
+| title7 = Androgyny
+| note7 = Felix Da Housecat Thee Drum Drum Mix/2021 Remaster
+| length7 = 4:35
+| title8 = Androgyny
+| note8 = The Architects Dub/2021 Remaster
+| length8 = 5:02
+| title9 = Cherry Lips (Go Baby Go!)
+| note9 = MaUVe's Dark Remix with Acapella/2021 Remaster
+| length9 = 7:47
+| title10 = Cherry Lips (Go Baby Go!)
+| note10 = Roger Sanchez's Tha S-Man's Release (Bomb) Mix/2021 Remaster
+| length10 = 6:49
+| title11 = Cherry Lips (Go Baby Go!)
+| note11 = Roger Sanchez's Tha S-Man's Release Dub/2021 Remaster
+| length11 = 6:49
+| title12 = Breaking Up the Girl
+| note12 = Timo Maas Club Full Vox/2021 Remaster
+| length12 = 6:43
+| title13 = Breaking Up the Girl
+| note13 = Brothers in Rhythm Therapy Mix/2021 Remaster
+| length13 = 10:44
+| title14 = Breaking Up the Girl
+| note14 = Brothers in Rhythm Therapy Dub/2021 Remaster
+| length14 = 8:03
+| title15 = Breaking Up the Girl
+| note15 = Black Dog Splitsville Mix/2021 Remaster
+| length15 = 6:08
+| title16 = Breaking Up the Girl
+| note16 = Black Dog Ripped Out Fireplace Mix/2021 Remaster
+| length16 = 5:08
+}}
+
+==Personnel==
+Credits adapted from the liner notes of ''Beautiful Garbage''.<ref>{{cite AV media |title=Beautiful Garbage |type=liner notes |others=Garbage |publisher=[[Mushroom Records (UK)|Mushroom Records]] |date=2001 |id=MUSH95CD}}</ref>

@@ -1,0 +1,129 @@
+{{Use mdy dates|date=July 2016}}
+{{Infobox album
+| name       = Garbage
+| type       = studio
+| artist     = [[Garbage (band)|Garbage]]
+| cover      = GarbageSTinternational.png
+| released   = {{Start date|1995|8|15}}
+| recorded   = April 1994 – May 1995
+| studio     = [[Smart Studios|Smart]], [[Madison, Wisconsin]]
+| genre      =
+* [[Alternative rock]]
+* [[dance-rock]]
+* [[power pop]]<!--These genres have consensus on talk page, do not remove-->
+| length     = {{duration|m=50|s=51}}
+| label      = [[Almo Sounds|Almo]]
+| producer   = Garbage
+| next_title = [[Version 2.0]]
+| next_year  = 1998
+| misc       = {{Singles
+  | name        = Garbage
+  | type        = studio
+  | single1     = [[Vow (song)|Vow]]
+  | single1date = March 20, 1995
+  | single2     = [[Only Happy When It Rains]]
+  | single2date = September 17, 1995
+  | single3     = [[Queer (song)|Queer]]
+  | single3date = November 20, 1995
+  | single4     = [[Stupid Girl (Garbage song)|Stupid Girl]]
+  | single4date = March 11, 1996
+  | single5     = [[Milk (Garbage song)|Milk]]
+  | single5date = October 7, 1996
+  }}
+}}
+
+'''''Garbage''''' is the debut studio album by American [[Rock music|rock]] band [[Garbage (band)|Garbage]]. It was released on August 15, 1995, by [[Almo Sounds]]. The album was met with critical acclaim upon its release, being viewed by some as an innovative recording for its time. It reached number 20 on the US [[Billboard 200|''Billboard'' 200]] and number six on the [[UK Albums Chart]], while charting inside the top 20 and receiving [[Music recording sales certification|multi-platinum certifications]] in several territories. The album's success was helped by the band promoting it on a year-long tour, including playing on the European festival circuit and supporting the [[Smashing Pumpkins]] throughout 1996, as well as by a run of increasingly successful singles culminating with "[[Stupid Girl (Garbage song)|Stupid Girl]]", which received [[Grammy Award]] nominations for [[Grammy Award for Best Rock Song|Best Rock Song]] and [[Grammy Award for Best Rock Performance by a Duo or Group with Vocal|Best Rock Performance by a Duo or Group]] in 1997.
+
+In October 2015, the album was reissued to mark its 20th anniversary, featuring remastered tracks from the original analog tapes, as well as remixes and previously unreleased alternate versions of songs from the album.<ref>{{cite web |last1=Monroe |first1=Jazz |last2=Camp |first2=Zoe |url=https://pitchfork.com/news/59897-garbage-announce-debut-album-20th-anniversary-reissue-tour-playing-lp-in-full/ |title=Garbage Announce Debut Album 20th Anniversary Reissue, Tour Playing LP in Full |work=[[Pitchfork (website)|Pitchfork]] |date=September 2, 2015 |access-date=December 28, 2015}}</ref>
+
+==Track listing==
+{{Track listing
+| all_writing = [[Garbage (band)|Garbage]], except where noted
+|headline=''Garbage'' track listing
+| title1 = [[Supervixen]]
+| length1 = 3:55
+
+| title2 = [[Queer (song)|Queer]]
+| length2 = 4:36
+
+| title3 = [[Only Happy When It Rains]]
+| length3 = 3:56
+
+| title4 = As Heaven Is Wide
+| length4 = 4:44
+
+| title5 = Not My Idea
+| length5 = 3:41
+
+| title6 = A Stroke of Luck
+| length6 = 4:44
+
+| title7 = [[Vow (song)|Vow]]
+| length7 = 4:30
+
+| title8 = [[Stupid Girl (Garbage song)|Stupid Girl]]
+| writer8 = {{hlist|Garbage|[[Joe Strummer]]|[[Mick Jones (The Clash)|Mick Jones]]}}
+| length8 = 4:18
+
+| title9 = Dog New Tricks
+| length9 = 3:56
+
+| title10 = My Lover's Box
+| length10 = 3:55
+
+| title11 = Fix Me Now
+| length11 = 4:43
+
+| title12 = [[Milk (Garbage song)|Milk]]
+| length12 = 3:53
+| total_length = 50:51
+}}
+{{Track listing
+| headline = Japanese edition bonus tracks<ref>{{cite web |url=https://www.oricon.co.jp/prof/56452/products/56930/1/ |title=G {{!}} ガービッジ |trans-title=G {{!}} Garbage |language=ja |publisher=[[Oricon]] |access-date=January 2, 2017}}</ref>
+
+| title13 = [[Subhuman (Garbage song)|Subhuman]]
+| length13 = 4:37
+
+| title14 = [[Number One Crush|#1 Crush]]
+| length14 = 4:51
+}}
+
+
+{{track listing
+| headline = Garbage 20th Anniversary Deluxe Edition CD 2 track listing (g-sides)<ref>Almo, A253 R01, 2015</ref>
+| title1 = [[Subhuman (song)|Subhuman]]
+| length1 = 4:34
+
+| title2 = [[Girl Don't Come]]
+| length2 = 2:36
+
+| title3 = [[Sleep]]
+| length3 = 2:20
+
+| title4 = [[Driving Lesson]]
+| length4 = 3:48
+
+| title5 = [[Trip My Wire]]
+| length5 = 4:27
+
+| title6 = [[#1 Crush]]
+| length6 = 4:51
+
+| title7 = [[Butterfly Collector]]
+| length7 = 3:42
+
+| title8 = [[Alien Sex Fiend]]
+| length8 = 4:42
+
+| title9 = [[Kiss My Ass]]
+| length9 = 2:31
+}}
+
+
+'''Sample credits'''
+* "Queer" contains a loop from "Man of Straw" by [[Single Gun Theory]].<ref name="liner">{{cite AV media notes |title=Garbage |type=liner notes |others=Garbage |publisher=[[Almo Sounds]] |year=1995 |id=AMSD-8004}}</ref>
+* "Not My Idea" contains a loop from [[Headless Chickens]].<ref name="liner"/>
+* "Stupid Girl" contains a loop from "[[Train in Vain]]" by [[The Clash]].<ref name="liner"/>
+
+==Personnel==
+Credits adapted from the liner notes of ''Garbage''.<ref name="liner"/>

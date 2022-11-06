@@ -7,9 +7,9 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, Counter
 from itertools import chain
-from typing import Iterable, Optional, Union, Iterator, Type, Collection, Mapping, MutableMapping
+from typing import TYPE_CHECKING, Iterable, Optional, Union, Iterator, Type, Collection, Mapping, MutableMapping
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
@@ -21,6 +21,9 @@ from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, 
 from .exceptions import NoLinkedPagesFoundError
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, page_name, titles_and_title_name_map, multi_site_page_map
+
+if TYPE_CHECKING:
+    from music.typing import OptStr
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
@@ -34,9 +37,9 @@ WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography art
 
 class WikiEntity(ClearableCachedPropertyMixin):
     __slots__ = ('_name', '_pages', '__name')
-    _categories = ()
-    _not_categories = ()
-    _category_classes = {}
+    _categories: tuple[str, ...] = ()
+    _not_categories: tuple[str, ...] = ()
+    _category_classes: dict[str, Type[WE]] = {}
     _subclasses = {}
     _name: str
     _pages: MutableMapping[str, WikiPage]
@@ -108,6 +111,26 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 log.log(9, f'No parser is configured for {page}')
 
     @classmethod
+    def _old_classify(cls, obj: PageEntry) -> tuple[OptStr, Optional[Type[WE]]]:
+        # TODO: Delete this method once EntityClassifier has been tested further
+        page_cats = obj.categories
+        err_fmt = f'{obj} is incompatible with {cls.__name__} due to category={{!r}} [{{!r}}]'
+        error = None
+        for cls_cat, cat_cls in cls._category_classes.items():
+            bad_cats = cat_cls._not_categories
+            cat_match = next((pc for pc in page_cats if cls_cat in pc and not any(bci in pc for bci in bad_cats)), None)
+            bad_match = next((pc for pc in page_cats if any(bci in pc for bci in bad_cats)), None)
+            if cat_match and not bad_match:
+                if issubclass(cat_cls, cls):  # True for this class and its subclasses
+                    # log.debug(f'{obj} is a {cat_cls.__name__} because of {cat_match=!r}; {page_cats=}')
+                    return cls_cat, cat_cls
+                error = EntityTypeError(err_fmt.format(cls_cat, cat_match))
+
+        if error:  # A match was found, but for a class that is not a subclass of this one
+            raise error
+        return None, None
+
+    @classmethod
     def _validate(
         cls: Type[WE],
         obj: PageEntry,
@@ -136,21 +159,8 @@ class WikiEntity(ClearableCachedPropertyMixin):
                     return TemplateEntity, obj
                 raise EntityTypeError(f'{obj} is a Template page, which is not compatible with {cls.__name__}')
 
-        page_cats = obj.categories
-        err_fmt = f'{obj} is incompatible with {cls.__name__} due to category={{!r}} [{{!r}}]'
-        error = None
-        for cls_cat, cat_cls in cls._category_classes.items():
-            bad_cats = cat_cls._not_categories
-            cat_match = next((pc for pc in page_cats if cls_cat in pc and not any(bci in pc for bci in bad_cats)), None)
-            bad_match = next((pc for pc in page_cats if any(bci in pc for bci in bad_cats)), None)
-            if cat_match and not bad_match:
-                if issubclass(cat_cls, cls):                # True for this class and its subclasses
-                    # log.debug(f'{obj} is a {cat_cls.__name__} because of {cat_match=!r}; {page_cats=}')
-                    return cat_cls, obj
-                error = EntityTypeError(err_fmt.format(cls_cat, cat_match))
-
-        if error:       # A match was found, but for a class that is not a subclass of this one
-            raise error
+        if cat_cls := EntityClassifier(obj, cls).get_class():
+            return cat_cls, obj
         elif cls is not WikiEntity:
             # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories
             if isinstance(obj, WikiPage) and (obj.disambiguation_link or obj.similar_name_link):
@@ -163,9 +173,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
                     except PageMissingError as e:
                         log.debug(f'The disambiguation link was not found: {e}')
             fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
-            raise EntityTypeError(fmt.format(obj, cls.__name__, page_cats))
+            raise EntityTypeError(fmt.format(obj, cls.__name__, obj.categories))
 
         return cls, obj
+
+    # region Disambiguation
 
     @classmethod
     def _handle_disambiguation_link(
@@ -212,6 +224,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
                     pass
 
         return handle_disambiguation_candidates(page, client, candidates, existing, name, prompt)
+
+    # endregion
+
+    # region Alternate Constructors
 
     @classmethod
     def _by_category(cls: Type[WE], obj: PageEntry, name: Name = None, *args, **kwargs) -> WE:
@@ -450,6 +466,67 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 link = client_title_link_map[page._client][title]
                 link_entity_map[link] = entity
         return link_entity_map
+
+    # endregion
+
+
+class EntityClassifier:
+    __slots__ = ('obj', 'entity_cls', 'cls_score_map', 'good_matches', 'bad_matches', '_scores')
+
+    def __init__(self, obj: PageEntry, entity_cls: Type[WE]):
+        self.obj = obj
+        self.entity_cls = entity_cls
+        self.cls_score_map = Counter()
+        self.good_matches = defaultdict(lambda: defaultdict(set))
+        self.bad_matches = defaultdict(lambda: defaultdict(set))
+        self._classify(obj, entity_cls)
+
+    def _classify(self, obj: PageEntry, entity_cls: Type[WE]):
+        cls_score_map, good_matches, bad_matches = self.cls_score_map, self.good_matches, self.bad_matches
+        for page_cat in obj.categories:
+            for cls_cat, cat_cls in entity_cls._category_classes.items():
+                if cls_cat in page_cat:
+                    good_matches[cat_cls][cls_cat].add(page_cat)
+                    cls_score_map[cat_cls] += 1
+                if bad_indicator := next((bci for bci in cat_cls._not_categories if bci in page_cat), None):
+                    bad_matches[cat_cls][bad_indicator].add(page_cat)
+                    cls_score_map[cat_cls] -= 1
+
+    def get_scores(self) -> list[tuple[int, Type[WE]]]:
+        try:
+            return self._scores
+        except AttributeError:
+            # Can't sort using the classes themselves
+            scores = sorted(((v, k.__name__, k) for k, v in self.cls_score_map.items()), reverse=True)
+            self._scores = scores = [(v, k) for v, _, k in scores]  # noqa
+            return scores
+
+    def get_details(self) -> str:
+        lines = []
+        for score, cat_cls in self.get_scores():
+            lines.append(f' - {cat_cls.__name__} ({score}):')
+            if good := self.good_matches[cat_cls]:
+                categories = {k: sorted(v) for k, v in sorted(good.items())}
+                lines.append(f'    - matching categories: {categories}')
+            if bad := self.bad_matches[cat_cls]:
+                categories = {k: sorted(v) for k, v in sorted(bad.items())}
+                lines.append(f'    - counter-indicator categories: {categories}')
+
+        return '\n'.join(lines)
+
+
+    def get_class(self) -> Optional[Type[WE]]:
+        if not (scores := self.get_scores()):
+            return None
+
+        for score, cat_cls in scores:
+            if score > 0 and issubclass(cat_cls, self.entity_cls):  # True for this class and its subclasses
+                return cat_cls
+
+        details = self.get_details()
+        raise EntityTypeError(
+            f'{self.obj} is incompatible with {self.entity_cls.__name__} due to its categories - details:\n{details}'
+        )
 
 
 class EntertainmentEntity(WikiEntity):

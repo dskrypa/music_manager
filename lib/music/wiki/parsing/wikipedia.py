@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
+from datetime import datetime, date
 from functools import partial
 from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any, Match
 
@@ -455,6 +456,16 @@ class EditionFinder:
             released = self.entry_page.infobox['released']
         except (AttributeError, KeyError, TypeError):
             return {}
+        try:
+            value = released.value
+        except AttributeError:
+            pass
+        else:
+            if isinstance(value, datetime):
+                return {None: value.date()}
+            elif isinstance(value, date):
+                return {None: value}
+
         released = '-'.join(released.strings())
         try:
             return {None: parse_date(released)}

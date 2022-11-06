@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
+from datetime import date
 from pathlib import Path
 from unittest.mock import Mock
 from typing import Collection
 
-from wiki_nodes.page import WikiPage
+from wiki_nodes import WikiPage, as_node
+
 from music.test_common import NameTestCaseBase, main
 from music.wiki.album import DiscographyEntry, Soundtrack, Album
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
+from music.wiki.parsing.wikipedia import EditionFinder as WikipediaEditionFinder
 
 DATA_DIR = Path(__file__).parent.joinpath('data', Path(__file__).stem)
 
@@ -80,6 +83,11 @@ class WikipediaPageContentTest(PageContentTest):
         self.assertEqual(1, len(album.editions[2].parts))  # Japanese
         self.assertEqual(4, len(album.editions[3].parts))  # 20th Anniversary Edition
         self.assertEqual(5, len(album.editions[4].parts))  # 20th Anniversary Edition + bonus vinyl
+
+    def test_parse_start_date_template(self):
+        page = Mock(infobox={'released': as_node('{{Start date|2021|03|19|df=yes}}')})
+        finder = WikipediaEditionFinder(Mock(), Mock(), page)
+        self.assertEqual({None: date(2021, 3, 19)}, finder.edition_date_map)
 
 
 if __name__ == '__main__':

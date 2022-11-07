@@ -25,6 +25,7 @@ from music.text.utils import combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart, SoundtrackPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
 from ..disco_entry import DiscoEntry
+from ..exceptions import UnexpectedPageContent
 from .abc import WikiParser, EditionIterator
 from .utils import PageIntro, RawTracks, get_artist_title, LANG_ABBREV_MAP, find_language, find_nodes
 
@@ -177,7 +178,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
         try:
             name = self._album_page_name(entry_page)
         except Exception as e:
-            raise RuntimeError(f'Error parsing page name from {entry_page=}') from e
+            raise UnexpectedPageContent(f'Error parsing page name from {entry_page=}') from e
 
         yield from EditionFinder(name, entry, entry_page).editions()
 
@@ -549,7 +550,7 @@ class EditionFinder:
         try:
             all_links = self.entry_page.link_map
         except Exception as e:
-            raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
+            raise UnexpectedPageContent(f'Error finding artist links for entry_page={self.entry_page}') from e
 
         artist_links = set()
         if artists := infobox.value.get('artist'):

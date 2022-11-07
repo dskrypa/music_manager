@@ -19,6 +19,7 @@ __all__ = [
     'AmbiguousWikiPageError',
     'AmbiguousPageError',
     'AmbiguousPagesError',
+    'UnexpectedPageContent',
 ]
 
 
@@ -97,3 +98,7 @@ class NoLinkedPagesFoundError(MusicWikiException, ValueError):
         if source := self.source:
             message += f' from source={source}'
         return message
+
+
+class UnexpectedPageContent(MusicWikiException):
+    """The content on a page did not match what it was expected to contain."""

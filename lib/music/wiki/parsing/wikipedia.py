@@ -27,6 +27,7 @@ from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryP
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
+from ..exceptions import UnexpectedPageContent
 from .abc import WikiParser, EditionIterator
 from .names import parse_track_artists
 from .utils import PageIntro, RawTracks, LANG_ABBREV_MAP, find_language
@@ -102,7 +103,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         try:
             name = self._album_page_name(entry_page)
         except Exception as e:
-            raise RuntimeError(f'Error parsing page name from {entry_page=}') from e
+            raise UnexpectedPageContent(f'Error parsing page name from {entry_page=}') from e
 
         yield from EditionFinder(name, entry, entry_page).editions()
 
@@ -300,7 +301,7 @@ class TrackNameParser:
         try:
             raw_title = self.row['title']
         except KeyError as e:
-            raise RuntimeError(f'Missing title key for {self}') from e
+            raise UnexpectedPageContent(f'Missing title key for {self}') from e
 
         if isinstance(raw_title, Link):
             base = raw_title.show
@@ -395,7 +396,7 @@ class EditionFinder:
         track_list_section = self.get_track_list_section()
         # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
         if track_list_section is None:
-            raise RuntimeError(f'Unable to find track list section on page={self.entry_page}')
+            raise UnexpectedPageContent(f'Unable to find track list section on page={self.entry_page}')
         else:
             edition_parts = []
             self._process_section(track_list_section, False, edition_parts)
@@ -483,7 +484,7 @@ class EditionFinder:
         try:
             all_links = {link.title: link for link in self.entry_page.find_all(Link)}
         except Exception as e:
-            raise RuntimeError(f'Error finding artist links for entry_page={self.entry_page}') from e
+            raise UnexpectedPageContent(f'Error finding artist links for entry_page={self.entry_page}') from e
 
         artist_links = set()
         if artists := infobox.value.get('artist'):

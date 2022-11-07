@@ -63,6 +63,9 @@ class DiscographyMixin(ABC):
         merged = []
         temp = defaultdict(list)
         for site, entries in self.discography_entries.items():
+            # print(f'Found {len(entries)} entries on {site=}:')
+            # for entry in entries:
+            #     print(f'  - {entry}')
             for entry in entries:
                 if not entry.name:
                     merged.append(entry)
@@ -72,11 +75,12 @@ class DiscographyMixin(ABC):
         for key, entries in temp.items():
             # if len(entries) > 1:
             #     log.debug(f'Merging disco entries for {self}: {key=!r} {entries=!r}')
-            entries = iter(entries)
-            entry = next(entries)
-            for other in entries:
-                entry._merge(other)
-            merged.append(entry)
+            merged.append(sum(entries))
+            # entries = iter(entries)
+            # entry = next(entries)
+            # for other in entries:
+            #     entry._merge(other)
+            # merged.append(entry)
         return merged
 
 
@@ -157,7 +161,7 @@ class DiscographyEntryFinder:
                             pass
                         else:
                             self.created_entry[disco_entry] = True
-                except Exception:
+                except Exception:  # noqa
                     self.remaining[disco_entry] -= 1
                     msg = f'Unexpected error processing page={title!r} for {disco_entry=}:'
                     log.error(msg, exc_info=True, extra={'color': 9})

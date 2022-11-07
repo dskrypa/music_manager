@@ -9,7 +9,7 @@ import re
 from abc import ABC, abstractmethod
 from datetime import datetime, date
 from itertools import chain
-from typing import TYPE_CHECKING, Optional, Iterator, MutableSet, Union, Iterable, Any
+from typing import TYPE_CHECKING, Optional, Iterator, MutableSet, Union, Iterable, Any, Type, TypeVar
 
 from ordered_set import OrderedSet
 
@@ -45,6 +45,7 @@ NodeOrNodes = Union[Node, Iterable[Node], None]
 ListOrLists = Union[ListNode, Iterable[ListNode], None]
 NameType = Union[str, Name, None]
 TrackNodes = Union[Table, ListNode, None]
+DE = TypeVar('DE', bound='DiscographyEntry')
 
 
 # region Discography Entry (Album)
@@ -136,12 +137,36 @@ class DiscographyEntry(EntertainmentEntity):
             uc_name = ost_match.group(1)
         return self.year, uc_name, self.type
 
-    def _merge(self, other: DiscographyEntry):
+    def _merge(self: DE, other: DE) -> DE:
         self._pages.update(other._pages)
         self.disco_entries.extend(other.disco_entries)
         self.clear_cached_properties()
+        return self
+
+    def __add__(self: DE, other: DE) -> DE:
+        return self.copy()._merge(other)
+
+    def __iadd__(self: DE, other: DE) -> DE:
+        self._merge(other)
+        return self
+
+    def __radd__(self: DE, other: DE | int) -> DE:
+        if other == 0:  # Assume sum() is being called on a collection of DiscographyEntry objects
+            return self
+        elif isinstance(other, DiscographyEntry):
+            return self.copy()._merge(other)
+        return NotImplemented
 
     # endregion
+
+    def copy(self: DE) -> DE:
+        clone: DE = self.__class__.__new__()
+        disco_entries = self.disco_entries[:]
+        clone.__dict__.update(
+            _name=self._name, disco_entries=disco_entries, _date=self._date, _artist=self._artist, _type=self._type
+        )
+        clone._pages = {k: v for k, v in self._pages.items()}
+        return clone
 
     # region Name
 

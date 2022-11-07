@@ -23,7 +23,7 @@ from music.text.extraction import split_enclosed, extract_enclosed
 from music.text.name import Name
 from music.text.time import parse_date
 from music.text.utils import find_ordinal, title_case
-from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
+from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart, Single
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
 from ..discography import Discography
@@ -122,7 +122,11 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         return TrackNameParser(row, edition_part).parse_name()
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
-        raise NotImplementedError
+        infobox = page.infobox
+        name = ' '.join(infobox['name'].strings())
+        # TODO: Handle: length=Template('{{Duration|m=3|s=56}}')
+        extra = {'artists': infobox['artist']}
+        return Name(name, extra=extra)
 
     # endregion
 
@@ -281,6 +285,9 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
     # endregion
 
 
+# region Album Page: Track Parsing
+
+
 class TrackNameParser:
     __slots__ = ('row', 'edition_part', 'extra')
 
@@ -382,6 +389,11 @@ class RawWikipediaTracks(RawTracks):
         return [parser.parse_track_name(row, raw_tracks) for row in raw_tracks.tracks]
 
 
+# endregion
+
+# region Album Page: Edition / Part Parsing
+
+
 class EditionFinder:
     name: Name
     entry: DiscographyEntry
@@ -396,7 +408,20 @@ class EditionFinder:
         track_list_section = self.get_track_list_section()
         # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
         if track_list_section is None:
-            raise UnexpectedPageContent(f'Unable to find track list section on page={self.entry_page}')
+            if isinstance(self.entry, Single):  # Recursion error with: if self.entry.type == DiscoEntryType.Single: 
+                yield DiscographyEntryEdition(
+                    self.name,
+                    self.entry_page,
+                    self.entry,
+                    self.entry_type,
+                    self.artists,
+                    self.edition_date_map,
+                    None,
+                    None,
+                    find_language(self.entry_page, None, self.languages),
+                )
+            else:
+                raise UnexpectedPageContent(f'Unable to find track list section on page={self.entry_page}')
         else:
             edition_parts = []
             self._process_section(track_list_section, False, edition_parts)
@@ -796,6 +821,9 @@ class WikipediaAlbumEditionPart:
             return list(tracks.values())
 
         return self._tracks
+
+
+# endregion
 
 
 class TitleNotFound(Exception):

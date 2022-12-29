@@ -33,6 +33,8 @@ __all__ = [
 ]
 log = logging.getLogger(__name__)
 
+AKA_SYNONYMS = ('also known as', 'also known simply as')
+TO_RM_PARENTHESIZED_PREFIXES = ('(stylized', '(short for', '(also known')
 FEAT_ARTIST_INDICATORS = ('with', 'feat.', 'feat ', 'featuring')
 IS_SPLIT = re.compile(r' is (?:a|the|part \S+ of)', re.IGNORECASE).split
 LANG_ABBREV_MAP = {
@@ -122,7 +124,7 @@ class PageIntro:
 
     def _names_from_multi_lang_str(self, m_str: str) -> Iterator[Name]:
         cleaned = rm_lang_prefix(m_str)
-        if split_prefix := next((p for p in ('(stylized', '(short for') if p in cleaned), None):
+        if split_prefix := next((p for p in TO_RM_PARENTHESIZED_PREFIXES if p in cleaned), None):
             cleaned = cleaned.partition(split_prefix)[0].strip()
 
         # log.debug(f'Cleaned name: {cleaned!r}')
@@ -161,12 +163,13 @@ class PageIntro:
         return name
 
     def _split_name_parts(self, name: str) -> Iterator[Name]:
+        # log.debug(f'_split_name_parts({name=})')
         try:
             first_part, paren_part = split_enclosed(name, reverse=True, maxsplit=1)
         except ValueError:
             # log.debug(f'split_enclosed({name!r}) failed')
             raw_intro = self.raw_intro.raw.string
-            if m := next((search(raw_intro) for search in WIKI_STYLE_SEARCHES), None):
+            if m := next((search(raw_intro) for search in WIKI_STYLE_SEARCHES), None):  # noqa
                 name = m.group(2)
             name = strip_enclosed(name.replace(' : ', ': '))
             yield Name(name)
@@ -196,8 +199,8 @@ class PageIntro:
             yield from self._process_name_list(first_part, paren_part)
         else:
             # log.debug('No ;/and')
-            if paren_part.startswith('also known as'):
-                paren_part = paren_part[13:].strip()
+            if aka := next((val for val in AKA_SYNONYMS if paren_part.startswith(val)), None):
+                paren_part = paren_part[len(aka):].strip()
                 if ends_with_enclosed(paren_part):
                     eng_2, non_eng = split_enclosed(paren_part, reverse=True, maxsplit=1)
                     yield Name.from_parts((first_part, non_eng))

@@ -22,7 +22,5 @@ class TextTest(NameTestCaseBase):
         self.assertEqual(25, revised_weighted_ratio('a', 'abcdefg'))
 
 
-
-
 if __name__ == '__main__':
     main()

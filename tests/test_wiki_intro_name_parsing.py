@@ -32,6 +32,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         names = set(PageIntro(page).names())
         self.assertNamesEqual(names, {Name('WJSN', '우주소녀'), Name('WJSN', '宇宙少女')})
 
+    def test_single_lang_with_aka(self):
+        page = fake_page(as_node("""'''''Acid Angel from Asia <Access>''''' (also known simply as '''''Access''''') is the debut mini album by [[Acid Angel from Asia]].<ref group="Notes">Credited as a [[tripleS]] release on music streaming services</ref> It was released on October 28, 2022 with "Generation" serving as the album's title track."""))
+        names = set(PageIntro(page).names())
+        self.assertNamesEqual(names, {Name('Acid Angel from Asia <Access>')})
+
     def test_stylized(self):
         page = fake_page(as_node("""'''''Obsession''''' (stylized in all caps) is the sixth Korean full-length album by [[EXO]]. It was released on November 27, 2019 with "Obsession" serving as the album's title track.<ref>[https://www.soompi.com/article/1362195wpp/exo-reportedly-making-november-comeback Soompi: EXO Reportedly Making November Comeback + SM Responds]</ref>"""))
         names = set(PageIntro(page).names())

@@ -1,15 +1,39 @@
 #!/usr/bin/env python
 
-import sys
-from pathlib import Path
+try:
+    from music.cli.gui_music_manager import main
+    from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
+except ImportError:
+    import sys
+    from os import environ, name
+    from pathlib import Path
+    from site import addsitedir
 
-THIS_PATH = Path(__file__).resolve()
-sys.path.insert(0, THIS_PATH.parents[1].joinpath('lib').as_posix())
-import _venv  # This will activate the venv, if it exists and is not already active
+    ON_WINDOWS = name == 'nt'
+    SITE_PKGS = '{}/site-packages'.format('Lib' if ON_WINDOWS else f'lib/python3.{sys.version_info.minor}')
+    PROJ_PATH = Path(__file__).resolve().parents[1]
+    VENV_PATH = next((p for p in (PROJ_PATH.joinpath(vd) for vd in ('venv', '.venv')) if p.exists()), None)
 
-from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
-from music.cli.gui_music_manager import MusicManagerGui
+    if (VIRTUAL_ENV := environ.get('VIRTUAL_ENV')) and (path := Path(VIRTUAL_ENV).joinpath(SITE_PKGS)).exists():
+        # A venv is active, but a different interpreter was used, so we need to add the venv's site-packages
+        addsitedir(path.as_posix())
+    elif VENV_PATH and (path := VENV_PATH.joinpath(SITE_PKGS)).exists():
+        addsitedir(path.as_posix())
+    elif VENV_PATH:
+        from subprocess import call
+
+        bin_path = VENV_PATH.joinpath('Scripts' if ON_WINDOWS else 'bin')
+        environ.update(PYTHONHOME='', VIRTUAL_ENV=VENV_PATH.as_posix(), PATH=f'{bin_path.as_posix()}:{environ["PATH"]}')
+        cmd = [bin_path.joinpath('python.exe' if ON_WINDOWS else 'python').as_posix()] + sys.argv
+        sys.exit(call(cmd, env=environ))
+
+    try:
+        from music.cli.gui_music_manager import main
+        from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
+    except ImportError:
+        print(f'Unable to run {__file__} due to no active venv - please activate it or create one', file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
-    MusicManagerGui.parse_and_run()
+    main()

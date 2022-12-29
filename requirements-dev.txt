@@ -1,4 +1,4 @@
--e .
+-e .[bpm,gui,plex_db]
 pre-commit
 
 # QoL

@@ -48,7 +48,9 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
         patch_all()
         # logging.getLogger('wiki_nodes.http.query').setLevel(logging.DEBUG)
         if self.match_log:
-            logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
+            from music.manager.wiki_match import mlog  # It may not have been imported before this point
+
+            mlog.setLevel(logging.NOTSET)
 
         set_ui_mode(UIMode.GUI)
 

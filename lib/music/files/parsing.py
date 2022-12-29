@@ -51,6 +51,7 @@ class AlbumName:
     version: str = None
     ost: bool = False
     repackage: bool = False
+    remastered: bool = False
     part: int = None
     network_info: str = None
     part_name: str = None
@@ -194,6 +195,8 @@ class AlbumName:
             pass
         elif lc_part == 'repackage':
             self.repackage = True
+        elif lc_part == 'remastered':
+            self.remastered = True
         elif 'edition' in lc_part:
             self.edition = part
         elif 'remix' in lc_part:

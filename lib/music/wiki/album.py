@@ -24,7 +24,7 @@ from ..text.extraction import strip_enclosed
 from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
-from .exceptions import EntityTypeError, AmbiguousWikiPageError, NoLinkedPagesFoundError
+from .exceptions import EntityTypeError, AmbiguousWikiPageError, NoLinkedPagesFoundError, UnexpectedPageContent
 from .parsing import WikiParser, RawTracks
 from .utils import short_site
 
@@ -267,7 +267,11 @@ class DiscographyEntry(EntertainmentEntity):
     def editions(self) -> list[DiscographyEntryEdition]:
         editions = []
         for entry_page, parser in self.page_parsers('process_album_editions'):
-            editions.extend(parser.process_album_editions(self, entry_page))
+            try:
+                editions.extend(parser.process_album_editions(self, entry_page))
+            except UnexpectedPageContent as e:
+                log.debug(e, exc_info=True)
+                log.error(e, extra={'color': 9})
         return editions
 
     def parts(self) -> Iterator[DiscographyEntryPart]:

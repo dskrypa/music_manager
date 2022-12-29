@@ -4,6 +4,8 @@ View: Diff between original and modified tag values.  Used for both manual and W
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Mapping, Union
 
@@ -21,7 +23,8 @@ from .main import MainView
 from .utils import get_a_to_b
 
 if TYPE_CHECKING:
-    from ...files.track.track import SongFile
+    from pathlib import Path
+    from music.files.track.track import SongFile
 
 __all__ = ['AlbumDiffView']
 
@@ -109,9 +112,9 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         workflow = self.as_workflow(layout, next_tooltip='Apply changes (save)', scrollable=True)
         full_layout.append(workflow)
 
-        return full_layout, kwargs, ele_binds
+        return full_layout, kwargs, ele_binds  # noqa
 
-    def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
+    def _back_kwargs(self, last: MainView) -> dict[str, Any]:
         if last.name == 'album':
             return {'editing': True}
         return {}
@@ -159,21 +162,35 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
             spinner.update()
             if dest_album_path := self.get_dest_album_path():  # returns None if self.options['no_album_move']
-                prefix = '[DRY RUN] Would move' if dry_run else 'Moving'
-                self.log.info(f'{prefix} {self.album} -> {dest_album_path.as_posix()}')
-                if not dry_run:
-                    orig_parent_path = self.album.path.parent
-                    self.album.move(dest_album_path)
-                    for path in (orig_parent_path, orig_parent_path.parent):
-                        self.log.log(19, f'Checking directory: {path}')
-                        if path.exists() and next(path.iterdir(), None) is None:
-                            self.log.log(19, f'Removing empty directory: {path}')
-                            try:
-                                path.rmdir()
-                            except OSError as e:
-                                popup_error(f'Unable to delete empty directory={path.as_posix()!r}:\n{e}')
-                                break
+                self._move_album(dest_album_path, dry_run)
 
         if not dry_run:
             self.album.clear_cached_properties()
             return AlbumView(self.album, last_view=self)
+
+    def _move_album(self, dest_album_path: Path, dry_run: bool):
+        prefix = '[DRY RUN] Would move' if dry_run else 'Moving'
+        self.log.info(f'{prefix} {self.album} -> {dest_album_path.as_posix()}')
+        if dry_run:
+            return
+
+        orig_parent_path = self.album.path.parent
+        try:
+            self.album.move(dest_album_path)
+        except OSError as e:
+            popup_error(
+                f'Unable to move album to {dest_album_path.as_posix()!r}\n'
+                'The configured output_base_dir may need to be updated.\n'
+                f'Error: {e}'
+            )
+            return
+
+        for path in (orig_parent_path, orig_parent_path.parent):
+            self.log.log(19, f'Checking directory: {path}')
+            if path.exists() and next(path.iterdir(), None) is None:
+                self.log.log(19, f'Removing empty directory: {path}')
+                try:
+                    path.rmdir()
+                except OSError as e:
+                    popup_error(f'Unable to delete empty directory={path.as_posix()!r}:\n{e}')
+                    break

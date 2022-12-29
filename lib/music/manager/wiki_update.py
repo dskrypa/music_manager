@@ -357,7 +357,13 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         )
         # TODO: OST with Various Artists + no artist matches appears to want to replace all track artists with empty string
 
-        alt_artist_site = config.artist_sites and self._artists_source.page.site not in config.artist_sites
+        try:
+            alt_artist_site = config.artist_sites and self._artists_source.page.site not in config.artist_sites
+        except AttributeError:
+            if not self._artist_from_tag:
+                raise
+            alt_artist_site = None
+
         collabs_in_title = config.collab_mode in (CollabMode.TITLE, CollabMode.BOTH)
         collabs_in_artist = config.collab_mode in (CollabMode.ARTIST, CollabMode.BOTH)
         for file, track in self.file_track_map.items():
@@ -452,6 +458,9 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
     @cached_property
     def _artist(self) -> ArtistType:
         src = self._artists_source
+        if src and isinstance(src, str):  # It is the artist's URL from a tag
+            return Artist.from_url(src)
+
         if self.config.artist_sites and src.page.site not in self.config.artist_sites:
             processor = ArtistInfoProcessor.for_album_dir(self.album_dir, self.config)
             return processor.artist

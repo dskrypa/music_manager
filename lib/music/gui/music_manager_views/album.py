@@ -5,7 +5,6 @@ View: Album + track tag values.  Allows editing, after which the view transition
 """
 
 import threading
-from dataclasses import fields
 from itertools import chain
 from pathlib import Path
 from tkinter import Frame, Listbox as TkListbox
@@ -14,10 +13,10 @@ from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
 from ds_tools.utils.misc import num_suffix
 
-from ...common.ratings import stars_to_256
-from ...files.album import AlbumDir
-from ...files.exceptions import InvalidAlbumDir
-from ...manager.update import AlbumInfo, TrackInfo
+from music.common.ratings import stars_to_256
+from music.files.album import AlbumDir
+from music.files.exceptions import InvalidAlbumDir
+from music.manager.update import AlbumInfo, TrackInfo, fields
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..elements.inputs import ExtInput
 from ..popups.path_prompt import get_directory
@@ -204,6 +203,7 @@ class AlbumView(MainView, view_name='album'):
             if (val_count := len(values)) and val_count != height:
                 list_box.configure(height=val_count)
         else:
+
             info_fields = {f.name: f for f in fields(info_obj.__class__)}
             try:
                 field_obj = info_fields[field]

@@ -12,12 +12,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass, fields, field
+from abc import ABC
 from datetime import datetime, date
 from itertools import chain
 from pathlib import Path
 from string import capwords
-from typing import Union, Optional, Mapping, Any, Iterator, Collection
+from typing import Union, Optional, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
 
 from PIL import Image
 
@@ -42,13 +42,20 @@ TRACK_NAME_FORMAT = SafePath('{num:02d}. {track}.{ext}')
 MULTI_DISK_TRACK_NAME_FORMAT = SafePath('{disk:02d}-{num:02d}. {track}.{ext}')
 UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
+T = TypeVar('T')
+D = TypeVar('D')
+StrOrStrs = Union[str, Collection[str]]
 
-def _default(cls):
-    return field(default_factory=cls)
 
-
-def _hidden(default=None):
-    return field(init=False, repr=False, default=default)
+def parse_date(dt_str: str | date | None) -> Optional[date]:
+    if dt_str is None or isinstance(dt_str, date):
+        return dt_str
+    for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y.%m.%d', '%Y'):
+        try:
+            return datetime.strptime(dt_str, fmt).date()
+        except ValueError:
+            pass
+    return None
 
 
 class GenreMixin:
@@ -68,21 +75,104 @@ class GenreMixin:
         return self.norm_genres() if title_case else sorted(self.genre_set)
 
     def norm_genres(self) -> list[str]:
-        return list(map(normalize_case, self.genre_set))
+        return [normalize_case(genre) for genre in sorted(self.genre_set)]
 
 
-@dataclass
-class TrackInfo(GenreMixin):
+class Serializable(ABC):
+    _fields: dict[str, Field]
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._init_fields()
+
+    @classmethod
+    def _init_fields(cls):
+        if '_Serializable__fields_initialized' not in cls.__dict__:
+            cls.__fields_initialized = True
+            cls._fields = {}
+
+    def __init__(self, **kwargs):
+        self.update(**kwargs)
+
+    def update(self, **kwargs):
+        if bad := ', '.join(map(repr, (k for k in kwargs if k not in self._fields))):
+            raise KeyError(f'Invalid {self.__class__.__name__} keys/attributes: {bad}')
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+
+
+class Field(Generic[T, D]):
+    __slots__ = ('name', 'type', 'default', 'default_factory')
+    name: str
+    type: Callable[[Any], T]
+    default: D
+    default_factory: Callable[[], D]
+
+    def __init__(
+        self, type: Callable[[Any], T] = None, default: D = None, default_factory: Callable[[], D] = None  # noqa
+    ):
+        self.type = type
+        self.default = default
+        self.default_factory = default_factory
+
+    def __set_name__(self, owner: Type[Serializable], name: str):
+        self.name = name
+        owner._init_fields()
+        owner._fields[name] = self
+
+    def __get__(self, instance: Serializable | None, owner: Type[Serializable]) -> Field | T | D:
+        if instance is None:
+            return self
+        try:
+            return instance.__dict__[self.name]
+        except KeyError:
+            if factory := self.default_factory:
+                instance.__dict__[self.name] = value = factory()
+                return value
+            return self.default
+
+    def __set__(self, instance: Serializable, value: Any):
+        if (type_func := self.type) is not None:
+            if type_func in {int, str, float} and value in (None, ''):
+                value = None
+            else:
+                value = type_func(value)
+        instance.__dict__[self.name] = value
+
+
+class TrackInfo(Serializable, GenreMixin):
+    # region Track Fields & Init
     # fmt: off
     album: AlbumInfo                            # The AlbumInfo that this track is in
-    title: str = None                           # Track title (tag)
-    artist: str = None                          # Artist name (if different than the album artist)
-    num: int = None                             # Track number
-    genre: Union[str, Collection[str]] = None   # Track genre
-    rating: int = None                          # Rating out of 10
-    name: str = None                            # File name to be used
-    disk: int = None                            # The disk from which this track originated (if different than album's)
+    title: str = Field(str)                     # Track title (tag)
+    artist: str = Field(str)                    # Artist name (if different than the album artist)
+    num: int = Field(int)                       # Track number
+    genre: StrOrStrs = Field()                  # Track genre
+    rating: int = Field(int)                    # Rating out of 10
+    name: str = Field(str)                      # File name to be used
+    disk: int = Field(int)                      # The disk from which this track originated (if different than album's)
     # fmt: on
+
+    @overload
+    def __init__(
+        self,
+        album: AlbumInfo,
+        *,
+        title: str = None,
+        artist: str = None,
+        num: int = None,
+        genre: StrOrStrs = None,
+        rating: int = None,
+        name: str = None,
+        disk: int = None,
+    ):
+        ...
+
+    def __init__(self, album: AlbumInfo, **kwargs):
+        self.album = album
+        super().__init__(**kwargs)
+
+    # endregion
 
     @cached_property
     def path(self) -> Path:
@@ -124,18 +214,19 @@ class TrackInfo(GenreMixin):
             }
 
     def tags(self) -> dict[str, Any]:
-        disk = self.disk or self.album.disk
+        album = self.album
+        disk = self.disk or album.disk
         tags = {
             'title': self.title,
-            'artist': self.artist or self.album.artist,
-            'track': (self.num, len(self.album.tracks)) if self.mp4 else self.num,
-            'date': self.album.date.strftime('%Y%m%d') if self.album.date else None,  # noqa
-            'genre': list(filter(None, self.genre_set.union(self.album.genre_set))) or None,
-            'album': self.album.title,
-            'album_artist': self.album.artist,
-            'disk': (disk, self.album.disks) if self.mp4 else disk,
-            'wiki:album': self.album.wiki_album,
-            'wiki:artist': self.album.wiki_artist,
+            'artist': self.artist or album.artist,
+            'track': (self.num, len(album.tracks)) if self.mp4 else self.num,
+            'date': album.date.strftime('%Y%m%d') if album.date else None,  # noqa
+            'genre': list(filter(None, self.genre_set.union(album.genre_set))) or None,
+            'album': album.title,
+            'album_artist': album.artist,
+            'disk': (disk, album.disks) if self.mp4 else disk,
+            'wiki:album': album.wiki_album,
+            'wiki:artist': album.wiki_artist,
         }
         if (rating := self.rating) is not None:
             tags['rating'] = stars_to_256(rating, 10)
@@ -170,31 +261,37 @@ class TrackInfo(GenreMixin):
                 file.rename(file.path.with_name(filename))
 
 
-@dataclass
-class AlbumInfo(GenreMixin):
+def _normalize_type(value: str | DiscoEntryType | None) -> DiscoEntryType:
+    if value is None:
+        return DiscoEntryType.UNKNOWN
+    return value if isinstance(value, DiscoEntryType) else DiscoEntryType.for_name(value)
+
+
+TrackMap = dict[str, TrackInfo]
+
+
+class AlbumInfo(Serializable, GenreMixin):
     # fmt: off
-    title: str = None                               # Album title (tag)
-    artist: str = None                              # Album artist name
-    date: Union[date, str] = None                   # Album release date
-    _date: date = _hidden()                         # _Workaround for property.setter to normalize/validate date values
-    disk: int = None                                # Disk number
-    genre: Union[str, Collection[str]] = None       # Album genre
-    tracks: dict[str, TrackInfo] = _default(dict)   # Mapping of {path: TrackInfo} for the tracks in this album
-    name: str = None                                # Directory name to be used
-    parent: str = None                              # Artist name to use in file paths
-    singer: str = None                              # Solo singer when in a group, to be sorted under that group
-    solo_of_group: bool = False                     # Whether the singer is a soloist
-    type: Union[DiscoEntryType, str] = None         # The album type (single, album, mini album, etc.)
-    _type: DiscoEntryType = _hidden()               # _Workaround for property.setter to normalize/validate type values
-    number: int = None                              # This album is the Xth of its type from this artist
-    numbered_type: str = None                       # The type + number within that type for this artist
-    disks: int = 1                                  # Total number of disks for this album
-    mp4: bool = False                               # Whether the files in this album are mp4s
-    cover_path: str = None                          # Path to a cover image
-    cover_max_width: int = 1200                     # Maximum width for new cover images
-    wiki_album: str = None                          # URL of the Wiki page that this album matches
-    wiki_artist: str = None                         # URL of the Wiki page that this album's artist matches
-    kpop_gen: float = None                          # K-Pop generation
+    title: str = Field(str)                         # Album title (tag)
+    artist: str = Field(str)                        # Album artist name
+    date: date | None = Field(parse_date)           # Album release date
+    disk: int = Field(int)                          # Disk number
+    genre: StrOrStrs = Field(lambda x: x)           # Album genre
+    tracks: TrackMap = Field(default_factory=dict)  # Mapping of {path: TrackInfo} for this album's tracks
+    name: str = Field(str)                          # Directory name to be used
+    parent: str = Field(str)                        # Artist name to use in file paths
+    singer: str = Field(str)                        # Solo singer when in a group, to be sorted under that group
+    solo_of_group: bool = Field(bool, False)        # Whether the singer is a soloist
+    type: DiscoEntryType = Field(_normalize_type, DiscoEntryType.UNKNOWN)  # single, album, mini album, etc.
+    number: int = Field(int)                        # This album is the Xth of its type from this artist
+    numbered_type: str = Field(str)                 # The type + number within that type for this artist
+    disks: int = Field(int, 1)                      # Total number of disks for this album
+    mp4: bool = Field(bool, False)                  # Whether the files in this album are mp4s
+    cover_path: str = Field(str)                    # Path to a cover image
+    cover_max_width: int = Field(int, 1200)         # Maximum width for new cover images
+    wiki_album: str = Field(str)                    # URL of the Wiki page that this album matches
+    wiki_artist: str = Field(str)                   # URL of the Wiki page that this album's artist matches
+    kpop_gen: float = Field(float)                  # K-Pop generation
     # fmt: on
 
     @property
@@ -210,34 +307,9 @@ class AlbumInfo(GenreMixin):
             raise ValueError('No parent paths were found')
         raise ValueError(f'Found multiple parent paths: {sorted(paths)}')
 
-    @property
-    def type(self) -> DiscoEntryType:  # noqa
-        return self._type if self._type is not None else DiscoEntryType.UNKNOWN
-
-    @type.setter
-    def type(self, value: Union[str, DiscoEntryType, None]):
-        if isinstance(value, property):
-            value = self._type
-        self._type = value if isinstance(value, DiscoEntryType) else DiscoEntryType.for_name(value)
-
-    @property
-    def date(self) -> Optional[date]:  # noqa
-        return self._date
-
-    @date.setter
-    def date(self, value: Union[str, date, None]):
-        if isinstance(value, property):
-            value = self._date
-        self._date = value if value is None or isinstance(value, date) else parse_date(value)
-
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> AlbumInfo:
-        kwargs = {f.name: data.get(f.name, f.default) for f in fields(cls) if f.init and f.name != 'tracks'}
-        for key in ('disk', 'number', 'disks', 'cover_max_width'):
-            try:
-                kwargs[key] = int(kwargs[key])
-            except (KeyError, TypeError, ValueError):
-                pass
+        kwargs = {key: val for key, val in data.items() if key in cls._fields and key != 'tracks'}
         self = cls(**kwargs)
         if tracks := data.get('tracks'):
             self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
@@ -251,10 +323,8 @@ class AlbumInfo(GenreMixin):
             'type': self.type.real_name if self.type else None,
             'genre': self.genre_list(title_case),
         }
-        data = {
-            name: normalized[name] if name in normalized else self.__dict__[name]
-            for name in (f.name for f in fields(self) if f.init)
-        }
+
+        data = {key: normalized.get(key, getattr(self, key)) for key in self._fields}
         if title_case:
             for key in ('title', 'artist', 'name', 'parent', 'singer'):
                 if value := data[key]:
@@ -282,7 +352,13 @@ class AlbumInfo(GenreMixin):
         )
         self.tracks = {
             f.path.as_posix(): TrackInfo(
-                self, f.tag_title, f.tag_artist, f.track_num, f.tag_genres, f.star_rating_10, disk=f.disk_num
+                self,
+                title=f.tag_title,
+                artist=f.tag_artist,
+                num=f.track_num,
+                genre=f.tag_genres,
+                rating=f.star_rating_10,
+                disk=f.disk_num,
             )
             for f in album_dir
         }
@@ -389,7 +465,7 @@ class AlbumInfo(GenreMixin):
             type_dir=self.type.directory,
             album_num=self.numbered_type,
             album=self.name,
-            date=self.date.strftime('%Y.%m.%d'),
+            date=self.date.strftime('%Y.%m.%d'),  # noqa
             singer=self.singer,
             disk=self.disk,
         )
@@ -426,15 +502,6 @@ class AlbumInfo(GenreMixin):
             log.log(19, f'Album {album_dir} is already in the expected dir: {expected_dir}')
 
 
-def parse_date(dt_str: str) -> Optional[date]:
-    for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y.%m.%d', '%Y'):
-        try:
-            return datetime.strptime(dt_str, fmt).date()
-        except ValueError:
-            pass
-    return None
-
-
 def _album_format(date, num, solo_ost):
     if date and num:
         path = SafePath('[{date}] {album} [{album_num}]')
@@ -454,3 +521,7 @@ def normalize_case(text: str) -> str:
         text = capwords(text)
         # text = text.title().replace("I'M ", "I'm ")
     return text
+
+
+def fields(serializable: Serializable | Type[Serializable]) -> Iterator[Field]:
+    yield from serializable._fields.values()

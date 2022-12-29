@@ -6,7 +6,6 @@ View: Album + track tag values.  Allows editing, after which the view transition
 
 import threading
 from dataclasses import fields
-# from functools import partial
 from itertools import chain
 from pathlib import Path
 from tkinter import Frame, Listbox as TkListbox
@@ -14,18 +13,17 @@ from tkinter import Frame, Listbox as TkListbox
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
 from ds_tools.utils.misc import num_suffix
+
 from ...common.ratings import stars_to_256
 from ...files.album import AlbumDir
 from ...files.exceptions import InvalidAlbumDir
 from ...manager.update import AlbumInfo, TrackInfo
-from ...text.extraction import split_enclosed
 from ..base_view import event_handler, RenderArgs, Event, EventData
 from ..elements.inputs import ExtInput
 from ..popups.path_prompt import get_directory
 from ..popups.simple import popup_ok, popup_input_invalid
 from ..popups.text import popup_error, popup_get_text
 from ..progress import Spinner
-# from ..utils import update_color
 from .formatting import AlbumFormatter
 from .main import MainView
 from .utils import split_key

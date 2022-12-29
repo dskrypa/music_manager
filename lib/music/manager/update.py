@@ -129,7 +129,7 @@ class TrackInfo(GenreMixin):
             'title': self.title,
             'artist': self.artist or self.album.artist,
             'track': (self.num, len(self.album.tracks)) if self.mp4 else self.num,
-            'date': self.album.date.strftime('%Y%m%d') if self.album.date else None,
+            'date': self.album.date.strftime('%Y%m%d') if self.album.date else None,  # noqa
             'genre': list(filter(None, self.genre_set.union(self.album.genre_set))) or None,
             'album': self.album.title,
             'album_artist': self.album.artist,
@@ -221,11 +221,11 @@ class AlbumInfo(GenreMixin):
         self._type = value if isinstance(value, DiscoEntryType) else DiscoEntryType.for_name(value)
 
     @property
-    def date(self) -> Optional['date']:  # noqa
+    def date(self) -> Optional[date]:  # noqa
         return self._date
 
     @date.setter
-    def date(self, value: Union[str, 'date', None]):
+    def date(self, value: Union[str, date, None]):
         if isinstance(value, property):
             value = self._date
         self._date = value if value is None or isinstance(value, date) else parse_date(value)
@@ -233,6 +233,11 @@ class AlbumInfo(GenreMixin):
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> AlbumInfo:
         kwargs = {f.name: data.get(f.name, f.default) for f in fields(cls) if f.init and f.name != 'tracks'}
+        for key in ('disk', 'number', 'disks', 'cover_max_width'):
+            try:
+                kwargs[key] = int(kwargs[key])
+            except (KeyError, TypeError, ValueError):
+                pass
         self = cls(**kwargs)
         if tracks := data.get('tracks'):
             self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
@@ -241,7 +246,7 @@ class AlbumInfo(GenreMixin):
 
     def to_dict(self, title_case: bool = False):
         normalized = {
-            'date': self.date.strftime('%Y-%m-%d') if self.date else None,
+            'date': self.date.strftime('%Y-%m-%d') if self.date else None,  # noqa
             'tracks': {path: track.to_dict(title_case) for path, track in self.tracks.items()},
             'type': self.type.real_name if self.type else None,
             'genre': self.genre_list(title_case),

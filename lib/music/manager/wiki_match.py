@@ -130,25 +130,29 @@ def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> list[Artist]:
 
 
 class AlbumFinder:
-    __slots__ = ('album_dir', 'album_name', 'artists', 'sites')
+    __slots__ = ('album_dir', 'artists', 'sites')
     album_dir: AlbumDir
-    album_name: AlbumName
     artists: Iterable[Artist]
     sites: StrOrStrs
 
     def __init__(self, album_dir: AlbumDir, artists: Iterable[Artist] = None, sites: StrOrStrs = None):
         self.album_dir = album_dir
-        self.album_name = album_dir.name
         self.artists = artists
         self.sites = sites
 
     def find_album(self) -> DiscographyEntryPart:
-        if album_url := self.album_dir.album_url:
+        album_dir = self.album_dir
+        if album_url := album_dir.album_url:
             return self._from_album_dir_url(album_url)
-        elif self.album_name:
-            return self._from_album_name()
+        elif album_name := album_dir.name:
+            return self._from_album_name(album_name)
+        elif album_dir.names == {None}:
+            if len(album_dir) == 1 and (album_name := album_dir.songs[0].title_as_album_name):
+                log.debug(f'Using single {album_name=}')
+                return self._from_album_name(album_name)
+            raise ValueError(f'No album name is defined for album={album_dir.path.as_posix()!r}')
         else:
-            raise ValueError(f'Directories with multiple album names are not currently handled.')
+            raise ValueError('Directories with multiple album names are not currently handled.')
 
     def _choose_candidate(self, candidates, name=None) -> DEPartOrEntry:
         before = f'\nFound multiple possible matches for {name or self.album_dir}'
@@ -163,8 +167,8 @@ class AlbumFinder:
 
         return self._choose_candidate(candidates)
 
-    def _from_album_name(self) -> DEPartOrEntry:
-        album_dir, album_name = self.album_dir, self.album_name
+    def _from_album_name(self, album_name: AlbumName) -> DEPartOrEntry:
+        album_dir = self.album_dir
         name: Name = album_name.name
         artists = self.artists or find_artists(album_dir, sites=self.sites)
         log.debug(
@@ -172,22 +176,22 @@ class AlbumFinder:
             extra={'color': (0, 14)}
         )
 
-        if candidates := self._find_candidates(name, artists):
+        if candidates := self._find_candidates(name, artists, album_name):
             return self._choose_candidate(candidates, album_name)
         elif name.eng_lang == LangCat.MIX and name.eng_langs.intersection(LangCat.non_eng_cats):
             split = name.split()
             log.log(19, f'Re-attempting album match with name={split.full_repr()}', extra={'color': (0, 11)})
-            candidates = self._find_candidates(split, artists)
+            candidates = self._find_candidates(split, artists, album_name)
 
         return self._choose_candidate(candidates, album_name)
 
-    def _find_candidates(self, name: Name, artists: Iterable[Artist]) -> set[DEPartOrEntry]:
-        if candidates := self._get_artist_candidates(name, artists):
+    def _find_candidates(self, name: Name, artists: Iterable[Artist], album_name: AlbumName) -> set[DEPartOrEntry]:
+        if candidates := self._get_artist_candidates(name, artists, album_name):
             return _filter_candidates(self.album_dir, candidates) if len(candidates) > 1 else candidates
         elif not (name_str := name.english or name.non_eng):
             return candidates
 
-        cls = Soundtrack if self.album_name.ost else Album
+        cls = Soundtrack if album_name.ost else Album
         log.debug(f'No candidates found - attempting {cls.__name__} search for {name_str=}', extra={'color': (0, 13)})
         try:
             candidates.add(cls.from_name(name_str))
@@ -196,9 +200,8 @@ class AlbumFinder:
 
         return _filter_candidates(self.album_dir, candidates) if len(candidates) > 1 else candidates
 
-    def _get_artist_candidates(self, name: Name, artists: Iterable[Artist]) -> set[DEPartOrEntry]:
+    def _get_artist_candidates(self, name: Name, artists: Iterable[Artist], album_name: AlbumName) -> set[DEPartOrEntry]:
         alb_type = self.album_dir.type
-        album_name = self.album_name
         repackage, num = album_name.repackage, album_name.number
         track_count = len(self.album_dir)
 
@@ -277,7 +280,7 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEn
     return candidates
 
 
-def _filter_ost_parts(album_name: 'AlbumName', candidates):
+def _filter_ost_parts(album_name: AlbumName, candidates):
     _candidates = set(c for c in candidates if getattr(c, 'part', None) == album_name.part)
     return _candidates if _candidates else candidates
 

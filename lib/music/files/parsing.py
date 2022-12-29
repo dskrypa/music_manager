@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from dataclasses import dataclass, InitVar, fields
@@ -105,7 +107,7 @@ class AlbumName:
         return None
 
     @classmethod
-    def parse(cls, name: str, artist: str = None) -> 'AlbumName':
+    def parse(cls, name: str, artist: str = None) -> AlbumName:
         self = cls.__new__(cls)                                         # type: AlbumName
         artist = Name.from_enclosed(artist) if artist else None         # type: Optional[Name]
 

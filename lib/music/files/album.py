@@ -39,6 +39,7 @@ EXECUTOR = None     # type: Optional[ThreadPoolExecutor]
 
 class AlbumDir(ClearableCachedPropertyMixin):
     __instances = {}
+    path: Path
 
     def __new__(cls, path: Union[Path, str]):
         if not isinstance(path, Path):

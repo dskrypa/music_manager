@@ -720,7 +720,7 @@ class DiscographyEntryPart(_ArtistMixin):
         release_date: date = None,
         artist: NodeOrNodes = None,
     ):
-        if tracks is not None and not isinstance(tracks, RawTracks):
+        if not isinstance(tracks, RawTracks) and (tracks is not None or edition.type == DiscoEntryType.Single):
             tracks = RawTracks(tracks)
         self._name = name
         self.edition = edition
@@ -818,11 +818,13 @@ class DiscographyEntryPart(_ArtistMixin):
 
     @cached_property
     def track_names(self) -> list[Name]:
-        if self._tracks and (parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name')):
-            return self._tracks.get_names(self, parser)
+        if not (raw_tracks := self._tracks):
+            log.debug(f'No raw track info was found for {self.edition.page}')
+        elif parser := WikiParser.for_site(self.edition.page.site, 'parse_track_name'):
+            return raw_tracks.get_names(self, parser)
         else:
             log.debug(f'No track name extraction is configured for {self.edition.page}')
-            return []
+        return []
 
     @cached_property
     def tracks(self) -> list[Track]:

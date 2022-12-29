@@ -768,6 +768,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None
 
     @cached_property
+    def title_as_album_name(self) -> Optional[AlbumName]:
+        # Intended for use for singles with no album name tag
+        if title := self.tag_title:
+            return AlbumName.parse(title, self.tag_artist)
+        return None
+
+    @cached_property
     def year(self) -> Optional[int]:
         try:
             return self.date.year

@@ -44,8 +44,8 @@ TrackRow = dict[str, Union[AnyNode, None, int]]
 
 TRACK_LIST_SECTIONS = ('track list', 'tracklist', 'track listing')
 IGNORE_SECTIONS = {
-    'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'video albums', 'guest appearances',
-    'other charted songs', 'other appearances'
+    'footnotes', 'references', 'music videos', 'see also', 'notes', 'videography', 'videos', 'video albums',
+    'guest appearances', 'other charted songs', 'other appearances'
 }
 short_repr = partial(_short_repr, containers_only=False)
 
@@ -119,6 +119,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.warning(f'Unexpected {content=} for {edition=}')
 
     def parse_track_name(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart) -> Name:  # noqa
+        # log.debug(f'parse_track_name: {row=}, {edition_part=}')
         return TrackNameParser(row, edition_part).parse_name()
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
@@ -348,7 +349,10 @@ class TrackNameParser:
             except AttributeError:
                 log.debug(f'No link_map found for {self}')
             else:
+                # from ds_tools.output.repr import rich_repr
+                # log.debug(f'Parsing track artists from {artists=}, link_map={rich_repr(link_map)}')
                 artists = parse_track_artists(artists, link_map)
+                # log.debug(f'Found {artists=}')
             return 'feat', artists
         elif lc_text.endswith(' only'):
             return 'availability', part
@@ -833,6 +837,7 @@ class TitleNotFound(Exception):
 def _disco_sections(section_iter: Iterable[Section]) -> list[Section]:
     sections = []
     for section in section_iter:
+        # log.debug(f'Validating disco section={section.title!r}')
         if section.title.lower() in IGNORE_SECTIONS:
             break
         elif section.depth == 1:

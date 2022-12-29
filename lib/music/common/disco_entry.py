@@ -78,32 +78,33 @@ class DiscoEntryType(Enum):
         return None
 
     @classmethod
-    def for_name(cls, name: Union[str, Iterable[str], None]) -> DiscoEntryType:
-        if name:
-            if is_str := isinstance(name, str):
-                try:
-                    return cls[name]
-                except KeyError:
-                    pass
+    def for_name(cls, name: Union[str, Iterable[str], None], stack_info: bool = True) -> DiscoEntryType:
+        if not name:
+            return cls.UNKNOWN
+        elif is_str := isinstance(name, str):
+            try:
+                return cls[name]
+            except KeyError:
+                pass
 
-            candidates = set()
-            if is_str:
-                if album_type := cls._for_category(name):
+        candidates = set()
+        if is_str:
+            if album_type := cls._for_category(name):
+                candidates.add(album_type)
+        else:
+            for _name in name:
+                if album_type := cls._for_category(_name):
                     candidates.add(album_type)
+
+        if candidates:
+            if len(candidates) == 1:
+                candidate = next(iter(candidates))
             else:
-                for _name in name:
-                    if album_type := cls._for_category(_name):
-                        candidates.add(album_type)
+                candidate = min(candidates)
+            return cls.UNKNOWN if candidate is cls._OTHER else candidate
 
-            if candidates:
-                if len(candidates) == 1:
-                    candidate = next(iter(candidates))
-                else:
-                    candidate = min(candidates)
-                return cls.UNKNOWN if candidate is cls._OTHER else candidate
-
-            if name != 'UNKNOWN':
-                log.debug(f'No DiscoEntryType exists for {name=}', stack_info=True)
+        if name != 'UNKNOWN':
+            log.debug(f'No DiscoEntryType exists for {name=}', stack_info=stack_info)
         return cls.UNKNOWN
 
     @cached_property

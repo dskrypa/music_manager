@@ -4,6 +4,7 @@ Common name parsing utilities.
 
 from __future__ import annotations
 
+import logging
 from typing import Collection, Mapping, Iterator
 
 from wiki_nodes.nodes import Link, AnyNode, Node, MappingNode
@@ -11,6 +12,7 @@ from wiki_nodes.nodes import Link, AnyNode, Node, MappingNode
 from music.text.name import Name
 
 __all__ = ['parse_artists', 'parse_artist', 'parse_track_artists']
+log = logging.getLogger(__name__)
 
 LinkMap = Mapping[str, Link]
 
@@ -55,10 +57,10 @@ def _get_link_map(node: AnyNode | None) -> LinkMap:
     if not node:
         return {}
     elif isinstance(node, Link):
-        return {node.show: node}
+        return {node.show: node} if node.show else {}
     elif isinstance(node, Mapping) and not isinstance(node, MappingNode):
-        return node
-    return {link.show: link for link in node.find_all(Link, recurse=True)}
+        return {key: val for key, val in node.items() if key}
+    return {link.show: link for link in node.find_all(Link, recurse=True) if link.show}
 
 
 def _filter_links(keys: Collection[str], links: LinkMap) -> list[Link]:
@@ -79,16 +81,24 @@ def parse_track_artists(artists: AnyNode | str, links: LinkMap | AnyNode | None 
 
 def _parse_track_artists(artists_str: str, link_map: LinkMap) -> Iterator[str | Link]:
     non_artist = []
+    last_str = artists_str
+    last_same = 0
     while artists_str:
+        last_same += int(last_str == artists_str)
+        if last_same > 1:
+            raise ValueError(f'Unexpected {artists_str=} / link_map content')
+
         for text, link in link_map.items():
             if artists_str.startswith(text):
                 if non_artist:
                     yield ' '.join(non_artist)
                     non_artist = []
                 yield link
+                last_str = artists_str
                 artists_str = artists_str[len(text):].strip()
                 break
         else:
+            last_str = artists_str
             try:
                 part, artists_str = artists_str.split(maxsplit=1)
             except ValueError:

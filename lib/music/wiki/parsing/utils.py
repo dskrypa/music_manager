@@ -254,13 +254,12 @@ class RawTracks:
             else:
                 log.debug(f'No tracks found for {self}')
                 return []
+        elif isinstance(self.raw_tracks, Table):
+            return [parser.parse_track_name(row) for row in self.raw_tracks]
         else:
-            if isinstance(self.raw_tracks, Table):
-                return [parser.parse_track_name(row) for row in self.raw_tracks]
-            else:
-                # if isinstance(self._tracks, ListNode):
-                #     log.debug(f'Processing tracks for {self}')
-                return [parser.parse_track_name(node) for node in self.raw_tracks.iter_flat()]
+            # if isinstance(self._tracks, ListNode):
+            #     log.debug(f'Processing tracks for {self}')
+            return [parser.parse_track_name(node) for node in self.raw_tracks.iter_flat()]
 
 
 def _should_resplit(first_part, paren_part) -> bool:

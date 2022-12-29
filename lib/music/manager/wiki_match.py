@@ -15,7 +15,7 @@ from wiki_nodes.http.utils import URL_MATCH
 from ..common.prompts import choose_item
 from ..files.album import AlbumDir, iter_album_dirs
 from ..text.name import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album, DEEntryOrEdition
+from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album, DEEntryOrEdition, DEPart
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousWikiPageError
 from ..wiki.typing import StrOrStrs
@@ -244,9 +244,11 @@ class AlbumFinder:
         else:
             mlog.debug(f'{name!r} does not match {entry._basic_repr}', extra={'color': 8})
 
-    def _tracks_match(self, part, track_count: int) -> bool:
+    def _tracks_match(self, part: DEPart, track_count: int) -> bool:
+        # mlog.debug(f'Comparing {track_count=} with {part=}')
         if track_count == len(part):
             return True
+        # mlog.debug(f'Comparing track names with {part=}')
         return any(part_track.name.matches(alb_track.tag_title) for part_track, alb_track in zip(part, self.album_dir))
 
 

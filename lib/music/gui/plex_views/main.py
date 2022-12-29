@@ -6,14 +6,15 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
-from functools import cached_property
 from pathlib import Path
 
 from plexapi.library import LibrarySection
 from PySimpleGUI import Menu, Button, Column, Image
 
 from ds_tools.images.utils import image_to_bytes
-from ...plex.server import LocalPlexServer
+
+from music.plex.config import config
+from music.plex.server import LocalPlexServer
 from ..base_view import event_handler, GuiView, Event, EventData, RenderArgs
 from ..popups.simple import popup_input_invalid
 from ..popups.text import popup_warning
@@ -44,11 +45,10 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
                 return sections[last_section]
             except KeyError:
                 self.log.warning(f'Last lib section={last_section!r} does not seem to exist')
-        music_lib_name = self.plex.primary_lib_names['music']
         try:
-            return sections[music_lib_name]
+            return sections[config.music_lib_name]
         except KeyError:
-            self.log.warning(f'Configured music lib section={music_lib_name!r} does not seem to exist')
+            self.log.warning(f'Configured music lib section={config.music_lib_name!r} does not seem to exist')
 
         for title, lib in sections.items():
             if lib.type == 'artist':
@@ -115,9 +115,9 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
     def _settings(self):
         options = super()._settings()
         with options.next_row():
-            options.add_directory('server_path_root', 'Server Path Root', self.plex.server_root)
+            options.add_directory('server_path_root', 'Server Path Root', config.server_root)
         with options.next_row():
-            options.add_input('music_lib_name', 'Music Lib Name', self.plex.primary_lib_names['music'])
+            options.add_input('music_lib_name', 'Music Lib Name', config.music_lib_name)
         return options
 
     @event_handler
@@ -126,12 +126,12 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
 
         results = SettingsView(self._settings(), private=['server_path_root', 'music_lib_name']).get_result()
         self.log.debug(f'Settings {results=}')
-        if (server_path_root := results.get('server_path_root')) and server_path_root != self.plex.server_root:
-            self.plex._set_config('custom', 'server_path_root', server_path_root)
-            self.plex.server_root = Path(server_path_root)
-        if (music_lib_name := results.get('music_lib_name')) and music_lib_name != self.plex.primary_lib_names['music']:
-            self.plex._set_config('custom', 'music_lib_name', music_lib_name)
-            self.plex.primary_lib_names['music'] = music_lib_name
+        if (server_path_root := results.get('server_path_root')) and server_path_root != config.server_root:
+            config.server_root = server_path_root
+        if (music_lib_name := results.get('music_lib_name')) and music_lib_name != config.music_lib_name:
+            config.music_lib_name = music_lib_name
+            config.clear_cached_properties('primary_lib_names')
+            self.plex.clear_cached_properties('primary_sections', 'music')
 
     @event_handler
     def search(self, event: Event, data: EventData):

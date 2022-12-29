@@ -6,14 +6,13 @@ from __future__ import annotations
 
 import logging
 from configparser import NoSectionError
-from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Type, Any, Optional, Union, Callable
 
 from plexapi import DEFAULT_CONFIG_PATH, PlexConfig as PlexApiConfig
 from plexapi.myplex import MyPlexAccount
 
-from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from ds_tools.output.color import colored
 
 from ..common.prompts import get_input, getpass, UIMode

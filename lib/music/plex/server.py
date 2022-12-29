@@ -7,7 +7,6 @@ Local Plex server client implementation.
 from __future__ import annotations
 
 import logging
-from functools import cached_property
 from typing import Optional, Union
 from urllib.parse import urlencode
 
@@ -19,6 +18,8 @@ from plexapi.server import PlexServer
 from plexapi.utils import SEARCHTYPES, PLEXOBJECTS
 from requests import Session, Response
 from urllib3 import disable_warnings as disable_urllib3_warnings
+
+from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 
 from .config import config
 from .constants import TYPE_SECTION_MAP
@@ -35,7 +36,7 @@ PLEX_TYPE_CLS_MAP = {cls.TYPE: cls for cls in PLEXOBJECTS.values() if cls.TYPE}
 Section = Union[MusicSection, ShowSection, MovieSection]
 
 
-class LocalPlexServer:
+class LocalPlexServer(ClearableCachedPropertyMixin):
     def __init__(
         self,
         url: str = None,
@@ -65,7 +66,6 @@ class LocalPlexServer:
         )
         self.user = config.user
         self.url = config.url
-        self.primary_lib_names = config.primary_lib_names
         self.dry_run = dry_run
 
     def __repr__(self) -> str:
@@ -139,7 +139,7 @@ class LocalPlexServer:
 
     @cached_property
     def primary_sections(self) -> dict[str, Section]:
-        return {key: self.sections[name] for key, name in self.primary_lib_names.items()}
+        return {key: self.sections[name] for key, name in config.primary_lib_names.items()}
 
     @cached_property
     def music(self) -> MusicSection:

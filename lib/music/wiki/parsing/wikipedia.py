@@ -408,7 +408,7 @@ class EditionFinder:
         track_list_section = self.get_track_list_section()
         # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
         if track_list_section is None:
-            if isinstance(self.entry, Single):  # Recursion error with: if self.entry.type == DiscoEntryType.Single: 
+            if isinstance(self.entry, Single):  # Recursion error with: if self.entry.type == DiscoEntryType.Single:
                 yield DiscographyEntryEdition(
                     self.name,
                     self.entry_page,

@@ -22,10 +22,11 @@ from requests import RequestException
 
 from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
-from ...common.disco_entry import DiscoEntryType
-from ...common.ratings import stars_from_256
-from ...files.exceptions import TagNotFound
-from ...manager.update import AlbumInfo, TrackInfo
+
+from music.common.disco_entry import DiscoEntryType
+from music.common.ratings import stars_from_256
+from music.files.exceptions import TagNotFound
+from music.manager.update import AlbumInfo, TrackInfo
 from ..base_view import Layout, EleBinds, GuiView
 from ..elements import ExtendedImage, ExtInput, SearchMenu, Rating
 from ..popups.simple import popup_ok
@@ -35,8 +36,8 @@ from .utils import label_and_val_key, label_and_diff_keys, get_a_to_b
 
 if TYPE_CHECKING:
     from ds_tools.images.utils import ImageType
-    from ...files.album import AlbumDir
-    from ...files.track.track import SongFile
+    from music.files.album import AlbumDir
+    from music.files.track.track import SongFile
     from .album import AlbumView
 
 __all__ = ['TrackFormatter', 'AlbumFormatter']

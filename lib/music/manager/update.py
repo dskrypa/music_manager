@@ -172,6 +172,24 @@ class TrackInfo(Serializable, GenreMixin):
         self.album = album
         super().__init__(**kwargs)
 
+    @classmethod
+    def _from_file(cls, track: SongFile, album: AlbumInfo) -> TrackInfo:
+        return cls(
+            album,
+            title=track.tag_title,
+            artist=track.tag_artist,
+            num=track.track_num,
+            genre=track.tag_genres,
+            rating=track.star_rating_10,
+            disk=track.disk_num,
+        )
+
+    @classmethod
+    def from_file(cls, track: SongFile, album: AlbumInfo = None) -> TrackInfo:
+        if album is None:
+            album = AlbumInfo.from_album_dir(AlbumDir(track.path.parent))
+        return album.tracks[track.path.as_posix()]
+
     # endregion
 
     @cached_property
@@ -350,18 +368,7 @@ class AlbumInfo(Serializable, GenreMixin):
             wiki_album=file.album_url,
             wiki_artist=file.artist_url,
         )
-        self.tracks = {
-            f.path.as_posix(): TrackInfo(
-                self,
-                title=f.tag_title,
-                artist=f.tag_artist,
-                num=f.track_num,
-                genre=f.tag_genres,
-                rating=f.star_rating_10,
-                disk=f.disk_num,
-            )
-            for f in album_dir
-        }
+        self.tracks = {f.path.as_posix(): TrackInfo._from_file(f, self) for f in album_dir}
         return self
 
     @classmethod

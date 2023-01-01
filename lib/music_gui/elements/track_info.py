@@ -5,33 +5,24 @@
 from __future__ import annotations
 
 import logging
-from abc import ABC, abstractmethod
-from datetime import date
-from io import BytesIO
+from abc import abstractmethod
+from collections import defaultdict
+from itertools import count
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern
-
-from PIL.Image import Image as PILImage, open as open_image
-from requests import RequestException
+from typing import TYPE_CHECKING, Iterator, Any, Collection
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.fs.paths import get_user_cache_dir
-from tk_gui.elements import Element, Image, Text, Input, ListBox, Button, HorizontalSeparator
-from tk_gui.elements.frame import InteractiveFrame, InteractiveRowFrame
+from tk_gui.elements import Element, ListBox
+from tk_gui.elements.frame import InteractiveFrame
 from tk_gui.elements.rating import Rating
-from tk_gui.elements.text import normalize_text_ele_widths, PathLink
-from tk_gui.popups import popup_get_text
-from tk_gui.views.view import View
-from wiki_nodes.http import MediaWikiClient
+from tk_gui.elements.text import normalize_text_ele_widths, PathLink, Multiline, Text, Input
+from tk_gui.popups import BasicPopup
 
-from music.common.disco_entry import DiscoEntryType
 from music.common.ratings import stars_from_256
-from music.files.album import AlbumDir
-from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
-from music.manager.update import AlbumInfo, TrackInfo
+from music.manager.update import TrackInfo
 from .list_box import EditableListBox
-from .menus import TextRightClickMenu, EditableTextRightClickMenu, PathRightClickMenu
+from .menus import TextRightClickMenu, EditableTextRightClickMenu
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -147,7 +138,7 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
     def build_rows(self) -> Iterator[list[Element]]:
         yield self.get_basic_info_row()
         yield self.get_metadata_row()
-        # TODO: Tags
+        yield from self.build_tag_rows()
 
     def get_basic_info_row(self):
         track = self.track
@@ -171,3 +162,51 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
                 row.append(Text(f'{key.title()}:'))
                 row.append(Text(value, size=(15, 1)))
         return row
+
+    def build_tag_rows(self):
+        nums = defaultdict(count)
+        for trunc_id, tag_id, tag_name, disp_name, val in sorted(self.track.iter_tag_id_name_values()):
+            if disp_name == 'Album Cover':
+                continue
+
+            # self.log.debug(f'Making tag row for {tag_id=} {tag_name=} {disp_name=} {val=}')
+            if n := next(nums[tag_id]):
+                tag_id = f'{tag_id}--{n}'
+
+            yield self._build_tag_row(tag_id, disp_name, val)
+
+    def _build_tag_row(self, tag_id: str, disp_name: str, val: Any):
+        key_ele = Text(disp_name, key=self.key_for('tag', tag_id), tooltip=tag_id)
+        val_key = self.key_for('val', tag_id)
+        if disp_name == 'Lyrics':
+            binds = {'<Control-Button-1>': self._lyrics_popup_cb()}
+            val_ele = Multiline(
+                val, size=(45, 4), key=val_key, disabled=True, tooltip='Pop out with ctrl + click', binds=binds
+            )
+            return [key_ele, val_ele]
+        elif disp_name == 'Rating':
+            try:
+                rating = stars_from_256(int(val), 10)
+            except (ValueError, TypeError):
+                return [key_ele, Text(val, key=val_key, size=(30, 1), use_input_style=True)]
+            else:
+                return self._rating_row(disp_name, rating)
+        elif disp_name == 'Genre':
+            kwargs = {
+                'size': (30, len(val)),
+                'pad': (5, 0),
+                'border': 2,
+            }
+            return [key_ele, ListBox(val, default=val, disabled=self.disabled, scroll_y=False, key=val_key, **kwargs)]
+        else:
+            return [key_ele, Text(val, key=val_key, size=(30, 1), use_input_style=True)]
+
+    def _lyrics_popup_cb(self):
+        def lyrics_popup(event: Event):
+            track = self.track
+            lyrics = track.get_tag_value_or_values('lyrics')
+            title = f'Lyrics: {track.tag_artist} - {track.tag_album} - {track.tag_title}'
+            # font = ('sans-serif', 14)
+            BasicPopup(lyrics, title=title, multiline=True).run()
+
+        return lyrics_popup

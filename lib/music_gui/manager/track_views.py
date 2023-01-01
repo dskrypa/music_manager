@@ -49,7 +49,7 @@ class TrackInfoView(View, title='Track Info'):
 
 class SongFileView(View, title='Track Info'):
     menu = MenuProperty(MenuBar)
-    window_kwargs = {'exit_on_esc': True, 'right_click_menu': PathRightClickMenu()}
+    window_kwargs = {'exit_on_esc': True, 'right_click_menu': PathRightClickMenu(), 'scroll_y': True}
 
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(**kwargs)

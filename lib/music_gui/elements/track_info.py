@@ -23,7 +23,7 @@ from tk_gui.elements.menu.items import CopySelection, PasteClipboard, GoogleSele
 from tk_gui.elements.menu.items import FlipNameParts, ToUpperCase, ToTitleCase, ToLowerCase
 from tk_gui.elements.menu.items import OpenFileLocation, OpenFile
 from tk_gui.elements.rating import Rating
-from tk_gui.elements.text import normalize_text_ele_widths
+from tk_gui.elements.text import normalize_text_ele_widths, PathLink
 from tk_gui.popups import popup_get_text
 from tk_gui.views.view import View
 from wiki_nodes.http import MediaWikiClient
@@ -248,22 +248,23 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         # TODO: Tags
 
     def get_basic_info_row(self):
+        # TODO: right-click menu
         track = self.track
-        # TODO: find way to show text with same appearance as disabled input instead
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
+        link = PathLink(self.track.path, use_link_style=False, path_in_tooltip=True)
         return [
-            # Text('File:'), Text(self.file_name, size=(50, 1), path=self.path_str),
-            Text('File:'), Input(self.file_name, size=(50, 1), disabled=True),
-            Text('Length:'), Input(track.length_str, size=(6, 1), disabled=True),
-            Text('Type:'), Input(tag_version, size=(20, 1), disabled=True),
+            Text('File:'), Text(self.file_name, size=(50, 1), link=link, use_input_style=True),
+            Text('Length:'), Text(track.length_str, size=(6, 1), use_input_style=True),
+            Text('Type:'), Text(tag_version, size=(20, 1), use_input_style=True),
         ]
 
     def get_metadata_row(self):
+        # TODO: right-click menu
         info = self.track.info
         row = [
-            Text('Bitrate:'), Input(info['bitrate_str'], size=(14, 1), disabled=True),
-            Text('Sample Rate:'), Input(info['sample_rate_str'], size=(10, 1), disabled=True),
-            Text('Bit Depth:'), Input(info['bits_per_sample'], size=(10, 1), disabled=True),
+            Text('Bitrate:'), Text(info['bitrate_str'], size=(14, 1), use_input_style=True),
+            Text('Sample Rate:'), Text(info['sample_rate_str'], size=(10, 1), use_input_style=True),
+            Text('Bit Depth:'), Text(info['bits_per_sample'], size=(10, 1), use_input_style=True),
         ]
         for key in ('encoder', 'codec'):
             if value := info.get(key):

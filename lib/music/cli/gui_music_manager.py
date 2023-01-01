@@ -1,8 +1,7 @@
 import logging
-import sys
 from pathlib import Path
 
-from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, main
+from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, main  # noqa
 
 from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
@@ -83,7 +82,9 @@ class Configure(MusicManagerGui, help='Configure registry entries for right-clic
     dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
 
     def main(self):
-        configure(self.dry_run)
+        from music.registry import configure_music_manager_gui
+
+        configure_music_manager_gui(self.dry_run)
 
 
 def get_clean_paths(max_wait: int, arg_paths):
@@ -152,70 +153,3 @@ def get_clean_paths(max_wait: int, arg_paths):
 
     sock.close()
     return paths
-
-
-def configure(dry_run: bool):
-    import platform
-    if (system := platform.system()) != 'Windows':
-        raise RuntimeError(f'Automatic right-click menu integration is not supported on {system=!r}')
-    elif not sys.argv:
-        raise RuntimeError(f'Unable to determine arguments used to run this program')
-
-    command = Path(sys.argv[0]).resolve()
-    if not command.exists() and command.with_suffix('.exe').exists():
-        command = command.with_suffix('.exe')
-    if command.suffix.lower() == '.exe':
-        command_str = f'"{command}"'
-    else:
-        venv_exe = sys.executable[0].upper() + sys.executable[1:]
-        command_str = f'"{venv_exe}" "{command}"'
-
-    expected = {'Update Album Tags': f'{command_str} open "%L" -vv', 'Clean Tags': f'{command_str} clean "%1" -vv'}
-    locations = (
-        '*\\shell',
-        'Directory\\shell',
-        # 'Directory\\Background\\shell',
-    )
-    for location in locations:
-        for entry, command in expected.items():
-            # if entry == 'Clean Tags' and not location.startswith('*'):
-            #     command += ' -W'
-            maybe_set_key(f'{location}\\{entry}\\command', command, dry_run)
-            # if entry == 'Clean Tags':
-            #     maybe_set_key(f'{location}\\{entry}', 'Player', dry_run, 'MultiSelectModel')
-            #     maybe_set_key(f'*\\shell\\Clean Tags', 'Player', dry_run, 'MultiSelectModel')
-
-    # maybe_set_key(f'SystemFileAssociations\\audio\\shell\\Clean Song Tags\\command', expected['Clean Tags'], dry_run)
-    # maybe_set_key(
-    #     f'SystemFileAssociations\\Directory.Audio\\shell\\Clean Song Tags\\command', expected['Clean Tags'], dry_run
-    # )
-    # send_to_dir = Path('~/AppData/Roaming/Microsoft/Windows/SendTo').expanduser()
-
-
-def maybe_set_key(key_path: str, expected: str, dry_run: bool = False, var_name: str = None):
-    from winreg import HKEY_CLASSES_ROOT, OpenKey, QueryValue, CreateKeyEx, SetValue, REG_SZ, KEY_WRITE, KEY_READ
-    from winreg import QueryValueEx, SetValueEx
-    try:
-        with OpenKey(HKEY_CLASSES_ROOT, key_path, 0, KEY_READ) as entry_key:
-            if var_name:
-                value = QueryValueEx(entry_key, var_name)[0]
-            else:
-                value = QueryValue(entry_key, None)
-    except FileNotFoundError:
-        value = None
-
-    if value != expected:
-        prefix = '[DRY RUN] Would set' if dry_run else 'Setting'
-        if var_name:
-            log.info(f'{prefix} HKEY_CLASSES_ROOT\\{key_path}[{var_name!r}] = {expected!r}')
-        else:
-            log.info(f'{prefix} HKEY_CLASSES_ROOT\\{key_path} = {expected!r}')
-
-        if not dry_run:
-            with CreateKeyEx(HKEY_CLASSES_ROOT, key_path, 0, KEY_WRITE) as entry_key:
-                if var_name:
-                    SetValueEx(entry_key, var_name, 0, REG_SZ, expected)
-                else:
-                    SetValue(entry_key, None, REG_SZ, expected)  # noqa
-    else:
-        log.info(f'Already contains expected value: HKEY_CLASSES_ROOT\\{key_path} = {expected!r}')

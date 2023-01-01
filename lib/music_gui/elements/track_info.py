@@ -34,109 +34,15 @@ from music.files.album import AlbumDir
 from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
 from music.manager.update import AlbumInfo, TrackInfo
+from .list_box import EditableListBox
+from .menus import TextRightClickMenu, EditableTextRightClickMenu
 
 if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.typing import Layout
 
-__all__ = []
+__all__ = ['TrackInfoFrame', 'SongFileFrame']
 log = logging.getLogger(__name__)
-
-
-class PathRightClickMenu(Menu):
-    CopySelection()
-    with MenuGroup('Open'):
-        OpenFileLocation()
-        OpenFile()
-    with MenuGroup('Search'):
-        GoogleSelection()
-        SearchKpopFandom()
-        SearchGenerasia()
-
-
-class TextRightClickMenu(Menu):
-    CopySelection()
-    PasteClipboard()
-    with MenuGroup('Search'):
-        GoogleSelection()
-        SearchKpopFandom()
-        SearchGenerasia()
-
-
-class EditableTextRightClickMenu(TextRightClickMenu):
-    CopySelection()
-    PasteClipboard()
-    with MenuGroup('Search'):
-        GoogleSelection()
-        SearchKpopFandom()
-        SearchGenerasia()
-    with MenuGroup('Update'):
-        FlipNameParts()
-        ToLowerCase()
-        ToUpperCase()
-        ToTitleCase()
-
-
-class EditableListBox(InteractiveRowFrame):
-    def __init__(
-        self,
-        values: Collection[str],
-        key: str,
-        add_title: str,
-        add_prompt: str,
-        list_width: int = 30,
-        **kwargs,
-    ):
-        kwargs.setdefault('pad', (0, 0))
-        super().__init__(**kwargs)
-        self.__key: str = key
-        self._values = values
-        self._list_width = list_width
-        self.add_title = add_title
-        self.add_prompt = add_prompt
-
-    @cached_property
-    def list_box(self) -> ListBox:
-        values = self._values
-        kwargs = {
-            'size': (self._list_width, len(values)),
-            'tooltip': 'Unselected items will not be saved',
-            'pad': (4, 0),
-            'border': 2,
-        }
-        return ListBox(values, default=values, disabled=self.disabled, scroll_y=False, key=self.__key, **kwargs)
-
-    @cached_property
-    def button(self) -> Button:
-        return Button(
-            'Add...',
-            key=self.__key.replace('val::', 'add::', 1),
-            pad=(0, 0),
-            visible=not self.disabled,
-            cb=self.add_value,
-        )
-
-    def add_value(self, event: Event):
-        if value := popup_get_text(self.add_prompt, self.add_title, bind_esc=True):
-            self.list_box.append_choice(value, True)
-
-    @property
-    def elements(self) -> tuple[Element, ...]:
-        return self.list_box, self.button
-
-    def enable(self):
-        if not self.disabled:
-            return
-        self.button.show()
-        self.list_box.enable()
-        self.disabled = False
-
-    def disable(self):
-        if self.disabled:
-            return
-        self.button.hide()
-        self.list_box.disable()
-        self.disabled = True
 
 
 class TrackMixin:
@@ -271,48 +177,3 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
                 row.append(Text(f'{key.title()}:'))
                 row.append(Text(value, size=(15, 1)))
         return row
-
-
-class TrackInfoView(View, title='Track Info'):
-    window_kwargs = {'exit_on_esc': True}
-
-    def __init__(self, album: AlbumInfo | AlbumDir | Path | str, **kwargs):
-        super().__init__(**kwargs)
-        if isinstance(album, AlbumDir):
-            album = AlbumInfo.from_album_dir(album)
-        elif isinstance(album, (Path, str)):
-            album = AlbumInfo.from_path(album)
-        self.album: AlbumInfo = album
-
-    def get_init_layout(self) -> Layout:
-        layout = []
-        for i, track in enumerate(self.album.tracks.values()):
-            if i:
-                layout.append([HorizontalSeparator()])
-            layout.append([TrackInfoFrame(track)])
-        return layout
-
-
-class SongFileView(View, title='Track Info'):
-    window_kwargs = {'exit_on_esc': True}
-
-    def __init__(self, album: AlbumInfo | AlbumDir | Path | str, **kwargs):
-        super().__init__(**kwargs)
-        if isinstance(album, AlbumInfo):
-            album = album.album_dir
-        elif isinstance(album, (Path, str)):
-            album = AlbumDir(album)
-        self.album: AlbumDir = album
-
-    def get_init_layout(self) -> Layout:
-        layout = []
-        for i, track in enumerate(self.album):
-            if i:
-                layout.append([HorizontalSeparator()])
-            layout.append([SongFileFrame(track)])
-        return layout
-
-
-if __name__ == '__main__':
-    # TrackInfoView('C:/Users/dskry/etc/music_flac/kpop_2022-12-30/BIBI/BIBI [2019.05.15] BINU [FLAC-16bit-44.1kHz]').run()
-    SongFileView('C:/Users/dskry/etc/music_flac/kpop_2022-12-30/BIBI/BIBI [2019.05.15] BINU [FLAC-16bit-44.1kHz]').run()

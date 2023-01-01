@@ -23,7 +23,7 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
 
         self.patch_and_set_mode()
         try:
-            SongFileView(self.path).run()
+            SongFileView.run_all(album=self.path)
         except Exception:
             log.critical('Exiting run_gui due to unhandled exception', exc_info=True)
             raise

@@ -47,13 +47,10 @@ def _album_directory(path: Path | str) -> Path:
 
 
 def with_separators(rows: Iterable[Element | Iterable[Element]], wrap: bool = False) -> Layout:
-    layout = []
     for i, row in enumerate(rows):
         if i:
-            layout.append([HorizontalSeparator()])
-        layout.append([row] if wrap else row)
-
-    return layout
+            yield [HorizontalSeparator()]
+        yield [row] if wrap else row
 
 
 def fix_windows_path(path: Path) -> Path:

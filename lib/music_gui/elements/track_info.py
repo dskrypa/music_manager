@@ -18,10 +18,6 @@ from ds_tools.caching.decorators import cached_property
 from ds_tools.fs.paths import get_user_cache_dir
 from tk_gui.elements import Element, Image, Text, Input, ListBox, Button, HorizontalSeparator
 from tk_gui.elements.frame import InteractiveFrame, InteractiveRowFrame
-from tk_gui.elements.menu import Menu, MenuGroup
-from tk_gui.elements.menu.items import CopySelection, PasteClipboard, GoogleSelection, SearchKpopFandom, SearchGenerasia
-from tk_gui.elements.menu.items import FlipNameParts, ToUpperCase, ToTitleCase, ToLowerCase
-from tk_gui.elements.menu.items import OpenFileLocation, OpenFile
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import normalize_text_ele_widths, PathLink
 from tk_gui.popups import popup_get_text
@@ -35,7 +31,7 @@ from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
 from music.manager.update import AlbumInfo, TrackInfo
 from .list_box import EditableListBox
-from .menus import TextRightClickMenu, EditableTextRightClickMenu
+from .menus import TextRightClickMenu, EditableTextRightClickMenu, PathRightClickMenu
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -154,7 +150,6 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         # TODO: Tags
 
     def get_basic_info_row(self):
-        # TODO: right-click menu
         track = self.track
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
         link = PathLink(self.track.path, use_link_style=False, path_in_tooltip=True)
@@ -165,7 +160,6 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         ]
 
     def get_metadata_row(self):
-        # TODO: right-click menu
         info = self.track.info
         row = [
             Text('Bitrate:'), Text(info['bitrate_str'], size=(14, 1), use_input_style=True),

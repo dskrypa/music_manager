@@ -333,18 +333,18 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         file_type = self.file_type
         size = self.path.stat().st_size
         info = {
-            'bitrate': self.bitrate, 'bitrate_str': f'{self.bitrate // 1000} Kbps',
-            'sample_rate': self.sample_rate, 'sample_rate_str': f'{self.sample_rate:,d} Hz',
-            'length': file_info.length, 'length_str': self.length_str,
-            'size': size, 'size_str': readable_bytes(size),
+            'bitrate': self.bitrate,            'bitrate_str': f'{self.bitrate // 1000} Kbps',
+            'sample_rate': self.sample_rate,    'sample_rate_str': f'{self.sample_rate:,d} Hz',
+            'length': file_info.length,         'length_str': self.length_str,
+            'size': size,                       'size_str': readable_bytes(size),
             'lossless': self.lossless,
             'channels': file_info.channels,
             'bits_per_sample': getattr(file_info, 'bits_per_sample', None),
         }
         if file_type == 'mp3':
             info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'
-            if file_info.encoder_info:
-                info['encoder'] = file_info.encoder_info
+            if encoder_info := file_info.encoder_info:
+                info['encoder'] = encoder_info
         elif file_type == 'mp4':
             codec = file_info.codec
             info['codec'] = codec if codec == 'alac' else f'{codec} ({file_info.codec_description})'

@@ -325,6 +325,10 @@ class AlbumInfo(Serializable, GenreMixin):
             raise ValueError('No parent paths were found')
         raise ValueError(f'Found multiple parent paths: {sorted(paths)}')
 
+    @property
+    def path(self) -> Path:
+        return self.album_dir.path
+
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> AlbumInfo:
         kwargs = {key: val for key, val in data.items() if key in cls._fields and key != 'tracks'}

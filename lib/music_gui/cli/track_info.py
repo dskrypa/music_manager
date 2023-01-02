@@ -19,11 +19,13 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
         init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
     def main(self):
-        from music_gui.manager.track_views import TrackInfoView, SongFileView
+        from music_gui.manager.track_views import TrackInfoView, SongFileView, SelectableSongFileView
 
         self.patch_and_set_mode()
         try:
-            SongFileView.run_all(album=self.path)
+            # SongFileView.run_all(album=self.path)
+            # TrackInfoView.run_all(album=self.path)
+            SelectableSongFileView.run_all(album=self.path)
         except Exception:
             log.critical('Exiting run_gui due to unhandled exception', exc_info=True)
             raise

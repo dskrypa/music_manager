@@ -367,6 +367,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def delete_tag(self, tag_id: str, save: bool = False):
         tag_type = self.tag_type
+        # TODO: When multiple values exist for the tag, make it possible to delete a specific index/value?
         if tag_type == 'id3':
             self.tags.delall(tag_id)
         elif tag_type in ('mp4', 'vorbis'):
@@ -704,7 +705,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             disp_name = self._get_tag_display_name(tag_id)
             trunc_id = tag_id[:4] if id3 else tag_id
             tag_name = self.normalize_tag_name(tag_id)
-            log.debug(f'Processing values for {tag_name=} {tag_id=} {value=} on {self}')
+            # log.debug(f'Processing values for {tag_name=} {tag_id=} {value=} on {self}')
             if values := self._normalize_values(value):
                 if isinstance(values, list) and len(values) == 1 and disp_name != 'Genre':
                     values = values[0]

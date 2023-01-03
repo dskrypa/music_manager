@@ -129,7 +129,7 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         if isinstance(track, (str, Path)):
             track = SongFile(track)
         self.track = track
-        self._tag_id_rows_map = {}
+        self._tag_id_rows_map = defaultdict(list)
         super().__init__(**kwargs)
 
     @cached_property
@@ -145,7 +145,7 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         yield self.get_metadata_row()
         tag_id_rows_map = self._tag_id_rows_map
         for tag_id, n, row in self._build_tag_rows():
-            tag_id_rows_map.setdefault(tag_id, []).append(row)
+            tag_id_rows_map[tag_id].append(row)
             yield row
 
     def get_basic_info_row(self):
@@ -222,9 +222,12 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
 
 
 class SelectableSongFileFrame(SongFileFrame):
+    # TODO: Add button/prompt to add a new tag?
+
     def __init__(self, *args, multi_select_cb: BindCallback = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._multi_select_cb = multi_select_cb
+        self.to_delete = set()
 
     def _build_tag_row(
         self, tag_id: str, uniq_id: str, disp_name: str, val: Any
@@ -235,8 +238,11 @@ class SelectableSongFileFrame(SongFileFrame):
 
         def box_toggled_callback(*args):
             layer, state = val_ele.base_style_layer_and_state
-            if sel_box.value:
-                state = StyleState.INVALID
+            if sel_box.value:  # The tag is marked for deletion
+                state = StyleState.INVALID  # Re-using this state since it typically makes the background red
+                self.to_delete.add(tag_id)
+            else:
+                self.to_delete.discard(tag_id)
 
             fg, bg = layer.fg[state], layer.bg[state]
             kwargs = {'fg': fg, 'bg': bg}

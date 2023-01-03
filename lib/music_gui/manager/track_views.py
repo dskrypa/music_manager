@@ -8,13 +8,15 @@ import logging
 from abc import ABC
 from typing import TYPE_CHECKING
 
-from tk_gui.elements import Element, HorizontalSeparator, CheckBox
+from ds_tools.caching.decorators import cached_property
+from tk_gui.elements import HorizontalSeparator, Button, Text
 from tk_gui.elements.menu import Menu, MenuGroup, MenuItem, MenuProperty, CloseWindow
 from tk_gui.enums import CallbackAction
-from tk_gui.popups import popup_input_invalid, pick_folder_popup
+from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup, popup_ok
 from tk_gui.popups.about import AboutPopup
 from tk_gui.views.view import View
 
+from music.files.track.track import SongFile
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
 from music_gui.elements.menus import PathRightClickMenu
@@ -116,10 +118,70 @@ class SelectableSongFileView(SongFileView):
                     # to the current value.
                     row_box.value = target_value  # noqa
 
+    @cached_property
+    def delete_button(self) -> Button:
+        return Button('Delete Selected Tags', focus=False)
+
+    def get_pre_window_layout(self) -> Layout:
+        yield from super().get_pre_window_layout()
+        yield [
+            Text('Album:'),
+            Text(self.album.path.as_posix(), use_input_style=True),
+            self.delete_button,
+        ]
+
     def get_post_window_layout(self) -> Layout:
         for i, track in enumerate(self.album):
             frame = SelectableSongFileFrame(track, multi_select_cb=self.multi_select_cb)
             self._track_frames.append(frame)
-            if i:
-                yield [HorizontalSeparator()]
+            # if i:
+            yield [HorizontalSeparator()]
             yield [frame]
+
+    def get_results(self):
+        if not self.delete_button.value:
+            return  # The button was not clicked - skip deletion
+        else:
+            self.delete_selected_tags()
+
+    def delete_selected_tags(self):
+        to_delete = self.get_tags_to_delete()
+        if not to_delete:
+            popup_ok('No tags were selected for deletion')
+            return
+
+        # TODO: Add options / dry_run, etc
+        # dry_run = self.options['dry_run']
+        dry_run = True
+        prefix = '[DRY RUN] Would delete' if dry_run else 'Deleting'
+
+        for track, tag_ids in to_delete.items():
+            tag_str = ', '.join(sorted(tag_ids))
+            log.info(f'{prefix} {len(tag_ids)} tags from {track.path.name}: {tag_str}')
+            if not dry_run:
+                track.remove_tags(tag_ids)
+
+    def get_tags_to_delete(self):
+        to_delete = {}
+        for track_frame in self._track_frames:
+            if not (to_del_tag_ids := track_frame.to_delete):
+                continue
+
+            to_delete[track_frame.track] = track_to_del = set()
+            for tag_id in to_del_tag_ids:
+                rows = track_frame.get_tag_rows(tag_id)
+                if len(rows) > 1 and not delete_all_tag_vals_prompt(track_frame.track, tag_id):
+                    return
+
+                track_to_del.add(tag_id)
+
+        return to_delete
+
+
+def delete_all_tag_vals_prompt(track: SongFile, tag_id: str) -> bool:
+    message = (
+        f'Found multiple tags for file={track.path.as_posix()!r} with {tag_id=}.'
+        ' Continue to delete all values for this tag?'
+    )
+    popup = BoolPopup(message, 'Yes, delete all', 'Cancel', 'FT', title='Delete All Tag Values?', bind_esc=True)
+    return popup.run()

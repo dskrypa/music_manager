@@ -220,6 +220,10 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
 
         return lyrics_popup
 
+    def refresh(self):
+        # TODO: Update values, remove rows for tags that no longer exist, add rows for new tags
+        pass
+
 
 class SelectableSongFileFrame(SongFileFrame):
     # TODO: Add button/prompt to add a new tag?
@@ -228,6 +232,17 @@ class SelectableSongFileFrame(SongFileFrame):
         super().__init__(*args, **kwargs)
         self._multi_select_cb = multi_select_cb
         self.to_delete = set()
+
+    def reset_selection(self):
+        self.to_delete.clear()
+        for tag, rows in self._tag_id_rows_map.items():
+            for row in rows:
+                sel_box: CheckBox = row[1]
+                sel_box.value = False
+
+    def refresh(self):
+        super().refresh()
+        self.reset_selection()
 
     def _build_tag_row(
         self, tag_id: str, uniq_id: str, disp_name: str, val: Any

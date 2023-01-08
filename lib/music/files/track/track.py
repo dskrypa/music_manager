@@ -507,9 +507,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         id_to_name = tag_id_to_name_map_for_type(self.tag_type)
         if tag_name_or_id in id_to_name:
             return tag_name_or_id
+
         id_upper = tag_name_or_id.upper()
         if id_upper in id_to_name:
             return id_upper
+
         if self.tag_type == 'id3':
             if id_upper in Frames:
                 return id_upper

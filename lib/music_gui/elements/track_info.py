@@ -17,7 +17,7 @@ from tk_gui.elements.frame import InteractiveFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import normalize_text_ele_widths, PathLink, Multiline, Text, Input
 from tk_gui.popups import BasicPopup
-from tk_gui.style import StyleState
+from tk_gui.styles import StyleState
 
 from music.common.ratings import stars_from_256
 from music.files.track.track import SongFile
@@ -140,15 +140,23 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
     def file_name(self) -> str:
         return self.track.path.name
 
+    def get_tag_rows(self, tag_id: str) -> list[list[Element]]:
+        try:
+            return self._tag_id_rows_map[tag_id]
+        except KeyError:
+            return []
+
+    # region Build Rows
+
     def build_rows(self) -> Iterator[list[Element]]:
-        yield self.get_basic_info_row()
-        yield self.get_metadata_row()
+        yield self._build_basic_info_row()
+        yield self._build_metadata_row()
         tag_id_rows_map = self._tag_id_rows_map
         for tag_id, n, row in self._build_tag_rows():
             tag_id_rows_map[tag_id].append(row)
             yield row
 
-    def get_basic_info_row(self):
+    def _build_basic_info_row(self):
         track = self.track
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
         link = PathLink(self.track.path, use_link_style=False, path_in_tooltip=True)
@@ -158,7 +166,7 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
             Text('Type:'), Text(tag_version, size=(20, 1), use_input_style=True),
         ]
 
-    def get_metadata_row(self):
+    def _build_metadata_row(self):
         info = self.track.info
         row = [
             Text('Bitrate:'), Text(info['bitrate_str'], size=(14, 1), use_input_style=True),
@@ -170,12 +178,6 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
                 row.append(Text(f'{key.title()}:'))
                 row.append(Text(value, size=(15, 1)))
         return row
-
-    def get_tag_rows(self, tag_id: str) -> list[list[Element]]:
-        try:
-            return self._tag_id_rows_map[tag_id]
-        except KeyError:
-            return []
 
     def _build_tag_rows(self):
         nums = defaultdict(count)
@@ -194,19 +196,19 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         key_ele = Text(disp_name, tooltip=uniq_id)
         if disp_name == 'Lyrics':
             binds = {'<Control-Button-1>': self._lyrics_popup_cb()}
-            val_ele = Multiline(val, size=(45, 4), read_only=True, tooltip='Pop out with ctrl + click', binds=binds)
+            val_ele = Multiline(val, size=(48, 4), read_only=True, tooltip='Pop out with ctrl + click', binds=binds)
         elif disp_name == 'Rating':
             try:
                 rating = stars_from_256(int(val), 10)
             except (ValueError, TypeError):
-                val_ele = Text(val, size=(30, 1), use_input_style=True)
+                val_ele = Text(val, size=(50, 1), use_input_style=True)
             else:
                 val_ele = self._build_rating(disp_name, rating)
         elif disp_name == 'Genre':
-            kwargs = {'size': (30, len(val)), 'pad': (5, 0), 'border': 2}
+            kwargs = {'size': (50, len(val)), 'pad': (5, 0), 'border': 2}
             val_ele = ListBox(val, default=val, disabled=self.disabled, scroll_y=False, **kwargs)
         else:
-            val_ele = Text(val, size=(30, 1), use_input_style=True)
+            val_ele = Text(val, size=(50, 1), use_input_style=True)
 
         return (key_ele, val_ele)
 
@@ -215,10 +217,12 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
             track = self.track
             lyrics = track.get_tag_value_or_values('lyrics')
             title = f'Lyrics: {track.tag_artist} - {track.tag_album} - {track.tag_title}'
-            # font = ('sans-serif', 14)
-            BasicPopup(lyrics, title=title, multiline=True).run()
+            text_kwargs = {'font': ('sans-serif', 14), 'read_only_style': False}
+            BasicPopup(lyrics, title=title, multiline=True, text_kwargs=text_kwargs, bind_esc=True).run()
 
         return lyrics_popup
+
+    # endregion
 
     def refresh(self):
         # TODO: Update values, remove rows for tags that no longer exist, add rows for new tags

@@ -224,10 +224,6 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
 
     # endregion
 
-    def refresh(self):
-        # TODO: Update values, remove rows for tags that no longer exist, add rows for new tags
-        pass
-
 
 class SelectableSongFileFrame(SongFileFrame):
     # TODO: Add button/prompt to add a new tag?
@@ -245,7 +241,6 @@ class SelectableSongFileFrame(SongFileFrame):
                 sel_box.value = False
 
     def refresh(self):
-        super().refresh()
         self.reset_selection()
 
     def _build_tag_row(

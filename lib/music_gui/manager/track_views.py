@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 
 from ds_tools.caching.decorators import cached_property
+from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import HorizontalSeparator, Button, Text
 from tk_gui.elements.menu import Menu, MenuGroup, MenuItem, MenuProperty, CloseWindow
 from tk_gui.enums import CallbackAction
@@ -44,7 +45,7 @@ class MenuBar(Menu):
 class BaseTrackView(View, ABC, title='Track Info'):
     menu = MenuProperty(MenuBar)
     window_kwargs = {'exit_on_esc': True, 'right_click_menu': PathRightClickMenu(), 'scroll_y': True}
-    _next_album = None
+    __next = None
     album: AlbumInfo | AlbumDir
 
     def get_pre_window_layout(self) -> Layout:
@@ -55,19 +56,34 @@ class BaseTrackView(View, ABC, title='Track Info'):
         if path := pick_folder_popup(self.album.path.parent, 'Pick Album Directory', parent=self.window):
             log.debug(f'Selected album {path=}')
             try:
-                self._next_album = AlbumDir(path)
+                return self.set_next_view(AlbumDir(path))
             except InvalidAlbumDir as e:
                 popup_input_invalid(str(e), logger=log)
-            else:
-                return CallbackAction.EXIT
 
         return None
 
+    def set_next_view(self, *args, view_cls: Type[View] = None, **kwargs) -> CallbackAction:
+        """
+        Set the next view that should be displayed.  From a Button callback, ``return self.set_next_view(...)`` can be
+        used to trigger the advancement to that view immediately.  If that behavior is not desired, then it can simply
+        be called without returning the value that is returned by this method.
+
+        :param args: Positional arguments to use when initializing the next view
+        :param view_cls: The class for the next View that should be displayed (defaults to the current class)
+        :param kwargs: Keyword arguments to use when initializing the next view
+        :return: The ``CallbackAction.EXIT`` callback action
+        """
+        if view_cls is None:
+            view_cls = self.__class__
+        self.__next = (view_cls, args, kwargs)
+        return CallbackAction.EXIT
+
     def get_next_view(self) -> View | None:
-        if album := self._next_album:
-            return self.__class__(album)  # noqa
-        else:
+        try:
+            view_cls, args, kwargs = self.__next
+        except TypeError:
             return None
+        return view_cls(*args, **kwargs)
 
 
 class TrackInfoView(BaseTrackView):
@@ -88,36 +104,44 @@ class SongFileView(BaseTrackView):
         yield from with_separators(map(SongFileFrame, self.album), True)
 
 
+class LogAndPopupHelper:
+    __slots__ = ('popup_title', 'dry_run', 'lp', 'messages', 'log_level', 'default_message')
+
+    def __init__(self, popup_title: str, dry_run: bool, default_message: str = None, log_level: int = logging.INFO):
+        self.popup_title = popup_title
+        self.dry_run = dry_run
+        self.lp = LoggingPrefix(dry_run)
+        self.messages = []
+        self.log_level = log_level
+        self.default_message = default_message
+
+    def write(self, prefix: str, message: str):
+        with self.lp.past_tense() as lp:
+            self.messages.append(f'{lp[prefix]} {message}')
+        # The below message ends up using present tense
+        log.log(self.log_level, f'{lp[prefix]} {message}')
+
+    def __enter__(self) -> LogAndPopupHelper:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val is not None:
+            return
+        if message := '\n\n'.join(self.messages) or self.default_message:
+            popup_ok(message, title=self.popup_title)
+
+    def took_action(self, ignore_dry_run: bool = False) -> bool:
+        if self.dry_run and not ignore_dry_run:
+            return False
+        return bool(self.messages)
+
+
 class SelectableSongFileView(SongFileView):
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(album, **kwargs)
         self._track_frames: list[SelectableSongFileFrame] = []
 
-    def multi_select_cb(self, event: Event):
-        try:
-            element = self.window.widget_element_map[event.widget]
-        except (AttributeError, KeyError):
-            return
-        try:
-            track_frame: SelectableSongFileFrame = element.data['track_frame']  # noqa
-            tag_id = element.data['tag_id']  # noqa
-        except (TypeError, KeyError):
-            return
-        try:
-            target_value = next(not row[1].value for row in track_frame.get_tag_rows(tag_id) if element in row)
-        except StopIteration:
-            return
-
-        # log.debug(f'Setting all {tag_id=} values to {target_value=}')
-        for frame in self._track_frames:
-            for row in frame.get_tag_rows(tag_id):
-                if (row_box := row[1]) is not element:
-                    # If the element that was clicked was the checkbox itself, then that element needs to be skipped
-                    # here.  The bind callback is executed before the normal checkbox action, which is to toggle its
-                    # value from whatever it is at the time that that happens.  This means we cannot set the target
-                    # value for the element that was clicked, otherwise the normal click action would just reset it
-                    # to the current value.
-                    row_box.value = target_value  # noqa
+    # region Layout / Elements
 
     @cached_property
     def options(self) -> GuiOptions:
@@ -145,24 +169,39 @@ class SelectableSongFileView(SongFileView):
             yield [HorizontalSeparator()]
             yield [frame]
 
-    def delete_selected_tags(self, event: Event):
-        if not (to_delete := self.get_tags_to_delete()):
-            popup_ok('No tags were selected for deletion')
+    # endregion
+
+    # region Event Handling
+
+    def multi_select_cb(self, event: Event):
+        try:
+            element = self.window[event.widget]
+            track_frame: SelectableSongFileFrame = element.data['track_frame']  # noqa
+            tag_id = element.data['tag_id']  # noqa
+            target_value = next(not row[1].value for row in track_frame.get_tag_rows(tag_id) if element in row)
+        except (AttributeError, KeyError, TypeError, StopIteration):
             return
+        # log.debug(f'Setting all {tag_id=} values to {target_value=}')
+        for row_box in (row[1] for frame in self._track_frames for row in frame.get_tag_rows(tag_id)):
+            if row_box is not element:
+                # If the element that was clicked was the checkbox itself, then it needs to be skipped here.
+                # The bind callback happens before the normal checkbox's toggle action, which uses the value at the
+                # time it is executed.  If the target value was set for it here, it would be reset by that action.
+                row_box.value = target_value  # noqa
 
+    def delete_selected_tags(self, event: Event):
         dry_run = self.options.parse(self.window.results)['dry_run']
-        prefix = '[DRY RUN] Would delete' if dry_run else 'Deleting'
-        messages = []
-        for track, tag_ids in to_delete.items():
-            message = f'{prefix} {len(tag_ids)} tags from {track.path.name}: ' + ', '.join(sorted(tag_ids))
-            messages.append(message)
-            log.info(message)
-            if not dry_run:
-                track.remove_tags(tag_ids)
+        with LogAndPopupHelper('Results', dry_run, 'No tags were selected for deletion') as lph:
+            for track, tag_ids in self.get_tags_to_delete().items():
+                lph.write('delete', f'{len(tag_ids)} tags from {track.path.name}: ' + ', '.join(sorted(tag_ids)))
+                if not lph.dry_run:
+                    track.remove_tags(tag_ids)
 
-        popup_ok('\n\n'.join(messages), title='Results')
-        for track_frame in self._track_frames:
-            track_frame.refresh()
+        if lph.took_action():
+            return self.set_next_view(self.album)
+        else:
+            for track_frame in self._track_frames:
+                track_frame.refresh()
 
     def get_tags_to_delete(self):
         to_delete = {}
@@ -179,6 +218,8 @@ class SelectableSongFileView(SongFileView):
                 track_to_del.add(tag_id)
 
         return to_delete
+
+    # endregion
 
 
 def delete_all_tag_vals_prompt(track: SongFile, tag_id: str) -> bool:

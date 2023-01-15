@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import contextmanager
 from pathlib import Path
+from time import monotonic
 from typing import TYPE_CHECKING, Union, Iterable
 
 from tk_gui.elements import Element, HorizontalSeparator
@@ -17,7 +19,7 @@ from music.manager.update import AlbumInfo
 if TYPE_CHECKING:
     from tk_gui.typing import Layout
 
-__all__ = ['AlbumIdentifier', 'get_album_info', 'get_album_dir', 'with_separators', 'fix_windows_path']
+__all__ = ['AlbumIdentifier', 'get_album_info', 'get_album_dir', 'with_separators', 'fix_windows_path', 'call_timer']
 log = logging.getLogger(__name__)
 
 AlbumIdentifier = Union[AlbumInfo, AlbumDir, Path, str]
@@ -74,3 +76,11 @@ def fix_windows_path(path: Path) -> Path:
         return alt_path
     else:
         return path
+
+
+@contextmanager
+def call_timer(message: str):
+    start = monotonic()
+    yield
+    elapsed = monotonic() - start
+    log.debug(f'{message} in seconds={elapsed:,.3f}')

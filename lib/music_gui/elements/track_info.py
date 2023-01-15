@@ -9,17 +9,18 @@ from abc import abstractmethod
 from collections import defaultdict
 from itertools import count
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Any, Collection
+from typing import TYPE_CHECKING, Iterator, Any, Collection, Optional
 
 from ds_tools.caching.decorators import cached_property
-from tk_gui.elements import Element, ListBox, CheckBox
-from tk_gui.elements.frame import InteractiveFrame
+from tk_gui.elements import Element, ListBox, CheckBox, Image
+from tk_gui.elements.frame import InteractiveFrame, Frame
 from tk_gui.elements.rating import Rating
-from tk_gui.elements.text import normalize_text_ele_widths, PathLink, Multiline, Text, Input
+from tk_gui.elements.text import PathLink, Multiline, Text, Input
 from tk_gui.popups import BasicPopup
 from tk_gui.styles import StyleState
 
 from music.common.ratings import stars_from_256
+from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
 from music.manager.update import TrackInfo
 from .list_box import EditableListBox
@@ -27,21 +28,24 @@ from .menus import TextRightClickMenu, EditableTextRightClickMenu
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from tk_gui.typing import Layout, Bool, BindCallback
+    from tk_gui.typing import Layout, Bool, BindCallback, XY
 
 __all__ = ['TrackInfoFrame', 'SongFileFrame']
 log = logging.getLogger(__name__)
+
+ValueEle = Text | Multiline | Rating | ListBox
 
 
 class TrackMixin:
     disabled: bool
     track: TrackInfo | SongFile
+    show_cover: Bool = False
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}[track={self.track!r}]>'
 
     def get_custom_layout(self) -> Layout:
-        return normalize_text_ele_widths([row for row in self.build_rows()])  # noqa
+        return self.build_rows()
 
     def build_rows(self) -> Iterator[list[Element]]:
         raise NotImplementedError
@@ -123,12 +127,20 @@ class TrackInfoFrame(TrackMixin, InteractiveFrame):
 class SongFileFrame(TrackMixin, InteractiveFrame):
     track: SongFile
 
-    def __init__(self, track: TrackInfo | SongFile | str | Path, **kwargs):
+    def __init__(
+        self,
+        track: TrackInfo | SongFile | str | Path,
+        show_cover: Bool = True,
+        cover_size: XY = (250, 250),
+        **kwargs,
+    ):
         if isinstance(track, TrackInfo):
             track = track.path
         if isinstance(track, (str, Path)):
             track = SongFile(track)
         self.track = track
+        self.show_cover = show_cover
+        self.cover_size = cover_size
         self._tag_id_rows_map = defaultdict(list)
         super().__init__(**kwargs)
 
@@ -146,22 +158,42 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
         except KeyError:
             return []
 
+    # region Cover Image
+
+    @cached_property
+    def _cover_image_raw(self) -> Optional[bytes]:
+        try:
+            return self.track.get_cover_data()[0]
+        except TagNotFound as e:
+            log.warning(e)
+            return None
+        except Exception:  # noqa
+            log.error(f'Unable to load cover image for {self.track}', exc_info=True)
+            return None
+
+    @property
+    def cover_image_thumbnail(self) -> Image:
+        title = f'Track Album Cover: {self.file_name}'
+        return Image(image=self._cover_image_raw, size=self.cover_size, popup=True, popup_title=title)
+
+    # endregion
+
     # region Build Rows
 
     def build_rows(self) -> Iterator[list[Element]]:
         yield self._build_basic_info_row()
         yield self._build_metadata_row()
-        tag_id_rows_map = self._tag_id_rows_map
-        for tag_id, n, row in self._build_tag_rows():
-            tag_id_rows_map[tag_id].append(row)
-            yield row
+        if self.show_cover:
+            yield [self.cover_image_thumbnail, Frame(list(self.build_tag_rows()))]
+        else:
+            yield from self.build_tag_rows()
 
     def _build_basic_info_row(self):
         track = self.track
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
         link = PathLink(self.track.path, use_link_style=False, path_in_tooltip=True)
         return [
-            Text('File:'), Text(self.file_name, size=(50, 1), link=link, use_input_style=True),
+            Text('File:', size=(8, 1)), Text(self.file_name, size=(50, 1), link=link, use_input_style=True),
             Text('Length:'), Text(track.length_str, size=(6, 1), use_input_style=True),
             Text('Type:'), Text(tag_version, size=(20, 1), use_input_style=True),
         ]
@@ -169,31 +201,46 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
     def _build_metadata_row(self):
         info = self.track.info
         row = [
-            Text('Bitrate:'), Text(info['bitrate_str'], size=(14, 1), use_input_style=True),
+            Text('Bitrate:', size=(8, 1)), Text(info['bitrate_str'], size=(14, 1), use_input_style=True),
             Text('Sample Rate:'), Text(info['sample_rate_str'], size=(10, 1), use_input_style=True),
             Text('Bit Depth:'), Text(info['bits_per_sample'], size=(10, 1), use_input_style=True),
         ]
         for key in ('encoder', 'codec'):
             if value := info.get(key):
                 row.append(Text(f'{key.title()}:'))
-                row.append(Text(value, size=(15, 1)))
+                row.append(Text(value, size=(15, 1), use_input_style=True))
         return row
+
+    def build_tag_rows(self):
+        tag_id_rows_map = self._tag_id_rows_map
+        for tag_id, n, row in self._build_tag_rows():
+            tag_id_rows_map[tag_id].append(row)
+            yield row
+
+    @cached_property
+    def _label_len(self) -> int:
+        # Note: 8 is the length of the longest first static tag: `Bitrate:`
+        lengths = (8, *(len(disp_name) for trunc_id, tag_id, tag_name, disp_name, val in self._tag_id_name_values))
+        return max(lengths)
+
+    @cached_property
+    def _tag_id_name_values(self):
+        return [
+            (trunc_id, tag_id, tag_name, disp_name, val)
+            for trunc_id, tag_id, tag_name, disp_name, val in sorted(self.track.iter_tag_id_name_values())
+            if disp_name != 'Album Cover'
+        ]
 
     def _build_tag_rows(self):
         nums = defaultdict(count)
-        for trunc_id, tag_id, tag_name, disp_name, val in sorted(self.track.iter_tag_id_name_values()):
-            if disp_name == 'Album Cover':
-                continue
-
+        for trunc_id, tag_id, tag_name, disp_name, val in self._tag_id_name_values:
             # self.log.debug(f'Making tag row for {tag_id=} {tag_name=} {disp_name=} {val=}')
             n = next(nums[tag_id])
             uniq_id = f'{tag_id}--{n}' if n else tag_id
             yield tag_id, n, self._build_tag_row(tag_id, uniq_id, disp_name, val)
 
-    def _build_tag_row(
-        self, tag_id: str, uniq_id: str, disp_name: str, val: Any
-    ) -> tuple[Text, Text | Multiline | Rating | ListBox]:
-        key_ele = Text(disp_name, tooltip=uniq_id)
+    def _build_tag_row(self, tag_id: str, uniq_id: str, disp_name: str, val: Any) -> tuple[Text, ValueEle]:
+        key_ele = Text(disp_name, tooltip=uniq_id, size=(self._label_len, 1))
         if disp_name == 'Lyrics':
             binds = {'<Control-Button-1>': self._lyrics_popup_cb()}
             val_ele = Multiline(val, size=(48, 4), read_only=True, tooltip='Pop out with ctrl + click', binds=binds)
@@ -243,13 +290,26 @@ class SelectableSongFileFrame(SongFileFrame):
     def refresh(self):
         self.reset_selection()
 
-    def _build_tag_row(
-        self, tag_id: str, uniq_id: str, disp_name: str, val: Any
-    ) -> tuple[Text, CheckBox, Text | Multiline | Rating | ListBox]:
-        data = {'track_frame': self, 'tag_id': tag_id}
+    def _build_tag_row(self, tag_id: str, uniq_id: str, disp_name: str, val: Any) -> tuple[Text, CheckBox, ValueEle]:
         key_ele, val_ele = super()._build_tag_row(tag_id, uniq_id, disp_name, val)
-        sel_box = CheckBox('', disabled=self.disabled, data=data)
 
+        data = {'track_frame': self, 'tag_id': tag_id}
+        sel_box = CheckBox('', disabled=self.disabled, data=data)
+        sel_box.change_cb = self._box_toggled_callback(tag_id, sel_box, val_ele)
+
+        binds = {'<Button-1>': sel_box.toggle_as_callback()}
+        if multi_select_cb := self._multi_select_cb:
+            binds['<Shift-Button-1>'] = multi_select_cb
+            sel_box.bind('<Shift-Button-1>', multi_select_cb)
+
+        for ele in (key_ele, val_ele):
+            ele.data = data
+            for bind_key, cb in binds.items():
+                ele.bind(bind_key, cb)
+
+        return (key_ele, sel_box, val_ele)
+
+    def _box_toggled_callback(self, tag_id: str, sel_box: CheckBox, val_ele):
         def box_toggled_callback(*args):
             layer, state = val_ele.base_style_layer_and_state
             if sel_box.value:  # The tag is marked for deletion
@@ -268,15 +328,4 @@ class SelectableSongFileFrame(SongFileFrame):
 
             val_ele.update_style(**kwargs)
 
-        sel_box.change_cb = box_toggled_callback
-        binds = {'<Button-1>': sel_box.toggle_as_callback()}
-        if multi_select_cb := self._multi_select_cb:
-            binds['<Shift-Button-1>'] = multi_select_cb
-            sel_box.bind('<Shift-Button-1>', multi_select_cb)
-
-        for ele in (key_ele, val_ele):
-            ele.data = data
-            for bind_key, cb in binds.items():
-                ele.bind(bind_key, cb)
-
-        return (key_ele, sel_box, val_ele)
+        return box_toggled_callback

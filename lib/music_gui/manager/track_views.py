@@ -23,7 +23,7 @@ from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
 from music_gui.elements.menus import PathRightClickMenu
 from music_gui.elements.track_info import TrackInfoFrame, SongFileFrame, SelectableSongFileFrame
-from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators
+from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators, call_timer
 
 if TYPE_CHECKING:
     from tkinter import Event, BaseWidget
@@ -140,6 +140,26 @@ class SelectableSongFileView(SongFileView):
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(album, **kwargs)
         self._track_frames: list[SelectableSongFileFrame] = []
+
+    # def finalize_window(self):
+    #     with call_timer('Initialized window'):
+    #         window = self.window
+    #
+    #     if layout := self.get_post_window_layout():
+    #         with call_timer('Added rows'):
+    #             window.add_rows(layout, pack=True)
+    #         with call_timer('Updated idle tasks'):
+    #             window._update_idle_tasks()
+    #         with call_timer('Updated scroll region'):
+    #             try:
+    #                 window.update_scroll_region()
+    #             except TypeError:  # It was not scrollable
+    #                 pass
+    #     if parent := self.parent:
+    #         if isinstance(parent, View):
+    #             parent = parent.window
+    #         window.move_to_center(parent)
+    #     return window
 
     # region Layout / Elements
 

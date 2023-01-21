@@ -6,24 +6,22 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import HorizontalSeparator, Button, Text
-from tk_gui.elements.menu import Menu, MenuGroup, MenuItem, MenuProperty, CloseWindow
-from tk_gui.enums import CallbackAction
+from tk_gui.elements.menu import MenuProperty
 from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup, popup_ok
-from tk_gui.popups.about import AboutPopup
-from tk_gui.views.view import View
 from tk_gui.options import GuiOptions
 
 from music.files.track.track import SongFile
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
-from music_gui.elements.menus import PathRightClickMenu
+from music_gui.elements.menus import PathRightClickMenu, MusicManagerMenuBar
 from music_gui.elements.track_info import TrackInfoFrame, SongFileFrame, SelectableSongFileFrame
 from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators, call_timer
+from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event, BaseWidget
@@ -34,18 +32,9 @@ __all__ = ['TrackInfoView', 'SongFileView']
 log = logging.getLogger(__name__)
 
 
-class MenuBar(Menu):
-    with MenuGroup('File'):
-        MenuItem('Open')
-        CloseWindow()
-    with MenuGroup('Help'):
-        MenuItem('About', AboutPopup)
-
-
-class BaseTrackView(View, ABC, title='Track Info'):
-    menu = MenuProperty(MenuBar)
+class BaseTrackView(BaseView, ABC, title='Track Info'):
+    menu = MenuProperty(MusicManagerMenuBar)
     window_kwargs = {'exit_on_esc': True, 'right_click_menu': PathRightClickMenu(), 'scroll_y': True}
-    __next = None
     album: AlbumInfo | AlbumDir
 
     def get_pre_window_layout(self) -> Layout:
@@ -61,29 +50,6 @@ class BaseTrackView(View, ABC, title='Track Info'):
                 popup_input_invalid(str(e), logger=log)
 
         return None
-
-    def set_next_view(self, *args, view_cls: Type[View] = None, **kwargs) -> CallbackAction:
-        """
-        Set the next view that should be displayed.  From a Button callback, ``return self.set_next_view(...)`` can be
-        used to trigger the advancement to that view immediately.  If that behavior is not desired, then it can simply
-        be called without returning the value that is returned by this method.
-
-        :param args: Positional arguments to use when initializing the next view
-        :param view_cls: The class for the next View that should be displayed (defaults to the current class)
-        :param kwargs: Keyword arguments to use when initializing the next view
-        :return: The ``CallbackAction.EXIT`` callback action
-        """
-        if view_cls is None:
-            view_cls = self.__class__
-        self.__next = (view_cls, args, kwargs)
-        return CallbackAction.EXIT
-
-    def get_next_view(self) -> View | None:
-        try:
-            view_cls, args, kwargs = self.__next
-        except TypeError:
-            return None
-        return view_cls(*args, **kwargs)
 
 
 class TrackInfoView(BaseTrackView):

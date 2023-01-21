@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from cli_command_parser import Command, Counter, ParamGroup, Positional, inputs as i, main
+from cli_command_parser import Command, Counter, ParamGroup, Positional, Flag, inputs as i, main
 
 from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
@@ -10,6 +10,7 @@ log = logging.getLogger(__name__)
 
 class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
     path: Path = Positional(type=i.Path(), help='Path to an album or track')
+    album = Flag('-a', help='Show the album view instead of the track view')
     with ParamGroup('Common') as group:
         verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
 
@@ -19,13 +20,14 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
         init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
     def main(self):
+        from music_gui.views.album import AlbumView
         from music_gui.views.tracks import TrackInfoView, SongFileView, SelectableSongFileView
+
+        view_cls = AlbumView if self.album else SelectableSongFileView
 
         self.patch_and_set_mode()
         try:
-            # SongFileView.run_all(album=self.path)
-            # TrackInfoView.run_all(album=self.path)
-            SelectableSongFileView.run_all(album=self.path)
+            view_cls.run_all(album=self.path)
         except Exception:
             log.critical('Exiting run_gui due to unhandled exception', exc_info=True)
             raise

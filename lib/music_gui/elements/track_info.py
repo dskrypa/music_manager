@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Iterator, Any, Collection, Optional
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image
-from tk_gui.elements.frame import InteractiveFrame, Frame
+from tk_gui.elements.frame import InteractiveFrame, Frame, InteractiveRowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import PathLink, Multiline, Text, Input
 from tk_gui.popups import BasicPopup
@@ -70,7 +70,8 @@ class TrackMixin:
         return self.key_for('val', key, suffix)
 
     def _key_text(self, key: str, suffix: str = None) -> Text:
-        return Text(key.replace('_', ' ').title(), key=self.key_for('tag', key, suffix))
+        # return Text(key.replace('_', ' ').title(), size=(8, 1), key=self.key_for('tag', key, suffix))
+        return Text(key.replace('_', ' ').title(), size=(6, 1))
 
     def _build_rating(self, key: str, value, suffix: str = None):
         return Rating(value, key=self._val_key(key, suffix), show_value=True, pad=(0, 0), disabled=self.disabled)
@@ -101,19 +102,16 @@ class TrackInfoFrame(TrackMixin, InteractiveFrame):
         if keys:
             fields = [f for f in fields if f not in keys]
 
-        menu = TextRightClickMenu() if self.disabled else EditableTextRightClickMenu()
         data = self.track_info.to_dict()
-        text_keys = {'title', 'artist', 'name'}
         for key in fields:
             kwargs = {'key': self._val_key(key), 'disabled': self.disabled}
-            if key in text_keys:
-                kwargs['right_click_menu'] = menu
-
             if key == 'genre':
                 add_prompt = f'Enter a new {key} value to add to {self.track_info.title!r}'
-                val_ele = EditableListBox(data[key], add_title=f'Add {key}', add_prompt=add_prompt, **kwargs)
+                val_ele = EditableListBox(
+                    data[key], add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, **kwargs
+                )
             else:
-                val_ele = Input(data[key], size=(30, 1), **kwargs)
+                val_ele = Input(data[key], size=(50, 1), **kwargs)
 
             yield [self._key_text(key), val_ele]
 

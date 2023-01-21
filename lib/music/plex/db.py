@@ -5,6 +5,7 @@ Read directly from a copy of Plex's Sqlite3 DB.
 from __future__ import annotations
 
 import logging
+from collections import Counter, defaultdict
 from contextlib import closing
 from datetime import datetime
 from enum import Enum
@@ -12,14 +13,14 @@ from functools import cached_property
 from pathlib import Path
 from sqlite3 import Row, connect
 from typing import TYPE_CHECKING, Union, Iterable, Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, parse_qs
 
 from paramiko import SSHClient, AutoAddPolicy
 from scp import SCPClient
 
 from ds_tools.fs.paths import get_user_temp_dir
-# from ds_tools.utils.sqlite3 import Sqlite3Database
 
+from music.common.utils import MissingMixin
 from .config import config
 
 if TYPE_CHECKING:
@@ -32,23 +33,30 @@ log = logging.getLogger(__name__)
 DEFAULT_FILE_NAME = 'com.plexapp.plugins.library.db'
 
 
-class StreamType(Enum):
+class StreamType(MissingMixin, Enum):
     VIDEO = 1
     AUDIO = 2
     SUBTITLE = 3
     LYRIC = 4
 
-    @classmethod
-    def _missing_(cls, value) -> StreamType:
-        if isinstance(value, str):
-            try:
-                return cls._member_map_[value.upper()]  # noqa
-            except KeyError:
-                pass
-        return super()._missing_(value)  # noqa
+
+class MetaType(MissingMixin, Enum):
+    # These match the values in `from plexapi.utils import SEARCHTYPES`
+    MOVIE = 1
+    SHOW = 2
+    SEASON = 3
+    EPISODE = 4
+    ARTIST = 8
+    ALBUM = 9
+    TRACK = 10
+
+    @property
+    def alias(self) -> str:
+        return self.name.lower() + 's'
 
 
 Stream_Type = Union[StreamType, str, int]
+Meta_Type = Union[MetaType, str, int]
 
 
 class PlexDB:
@@ -58,6 +66,8 @@ class PlexDB:
         self.db = connect(db_path.as_posix())
         self.db.row_factory = Row
         self.db.create_function('num_loudness_keys', 1, num_loudness_keys, deterministic=True)
+        self.db.create_function('video_height_lte_720', 1, video_height_lte_720, deterministic=True)
+        self.db.create_function('video_resolution', 1, video_resolution, deterministic=True)
         self.execute_log_level = execute_log_level
 
     @classmethod
@@ -108,32 +118,99 @@ class PlexDB:
         query = 'SELECT id, media_item_id, media_part_id, extra_data FROM media_streams WHERE stream_type_id=?'
         return self.execute(query, params)
 
+    def find_stream_data(
+        self, stream_type: Stream_Type, metadata_type: Union[str, int], metadata_item_id: Union[str, int] = None
+    ):
+        stream_type = StreamType(stream_type).value
+        params = (stream_type, metadata_type, metadata_item_id) if metadata_item_id else (stream_type, metadata_type)
+        query = (
+            'SELECT streams.*'
+            ' FROM media_streams AS streams'
+            ' INNER JOIN media_items AS items ON items.id = streams.media_item_id'
+            ' INNER JOIN metadata_items AS meta ON meta.id = items.metadata_item_id'
+            ' WHERE streams.stream_type_id = ?'  # Values can be found in StreamType
+            ' AND meta.metadata_type = ?'  # values match those in `from plexapi.utils import SEARCHTYPES`
+        )
+        if metadata_item_id:
+            query += ' AND meta.id = ?'
+        return self.execute(query, params)
+
+    # region Movie Methods
+
+    def _find_movies(self, low_resolution: bool = False):
+        query = (
+            'SELECT'
+            ' movies.id AS movie_id,  movies.title AS movie,'
+            ' video_resolution(media_streams.extra_data) as resolution,'
+            ' media_items.size as size,'
+            ' library_sections.id AS lib_section_id,  library_sections.name AS lib_section'
+        )
+        query += _prepare_from_and_filters(StreamType.VIDEO, MetaType.MOVIE)
+        if low_resolution:
+            query += ' AND video_height_lte_720(media_streams.extra_data)'
+        return self.execute(query)
+
+    def find_low_res_movies(self):
+        movies = {}
+        for row in self._find_movies(True):
+            movie_id, movie, res, size, lib_section_id, lib_section = row
+            movies.setdefault(movie, {})[res] = int(size)
+        return movies
+
+    # endregion
+
+    # region Show Methods
+
+    def _find_shows(self, low_resolution: bool = False):
+        query = (
+            'SELECT'
+            ' episodes.id AS episode_id,  episodes."index" AS episode_num,  episodes.title AS episode_title,'
+            ' seasons.id AS season_id,    seasons."index" AS season_num,'
+            ' shows.id AS show_id,        shows.title AS show,'
+            ' video_resolution(media_streams.extra_data) as resolution,'
+            ' library_sections.id AS lib_section_id, library_sections.name AS lib_section'
+        )
+        query += _prepare_from_and_filters(StreamType.VIDEO, MetaType.EPISODE, MetaType.SEASON, MetaType.SHOW)
+        if low_resolution:
+            query += ' AND video_height_lte_720(media_streams.extra_data)'
+        return self.execute(query)
+
+    def find_low_res_show_name_map(self) -> dict[str, dict[str, dict[str, Union[str, None]]]]:
+        shows = {}
+        for row in self._find_shows(True):
+            ep_id, ep_num, ep_title, season_id, season_num, show_id, show, res, lib_section_id, lib_section = row
+            episode = f'[{ep_num}] {ep_title}'
+            shows.setdefault(show, {}).setdefault(season_num, {})[episode] = res
+        return shows
+
+    def find_low_res_show_counts(self):
+        shows = defaultdict(Counter)
+        for row in self._find_shows(False):
+            ep_id, ep_num, ep_title, season_id, season_num, show_id, show, res, lib_section_id, lib_section = row
+            shows[show][res] += 1
+
+        filtered = {
+            show: res_counts
+            for show, res_counts in shows.items()
+            if max(int(res.split('x', 1)[1]) for res, num in res_counts.items() if res) <= 720
+        }
+        return filtered
+
+    # endregion
+
+    # region Tracks Missing Analysys
+
     def _find_tracks_missing_analysis(self):
         query = (
             'SELECT'
-            ' tracks.id AS track_id,'
-            ' tracks."index" AS track_num,'
-            ' tracks.title AS track_title,'
-            ' albums.id AS album_id,'
-            ' albums.title AS album_title,'
-            ' artists.id AS artist_id,'
-            ' artists.title AS artist,'
-            ' library_sections.id AS lib_section_id,'
-            ' library_sections.name AS lib_section'
-            #
-            ' FROM media_streams'
-            ' INNER JOIN media_items ON media_items.id = media_streams.media_item_id'
-            ' INNER JOIN metadata_items AS tracks ON tracks.id = media_items.metadata_item_id'
-            ' INNER JOIN metadata_items AS albums ON albums.id = tracks.parent_id'
-            ' INNER JOIN metadata_items AS artists ON artists.id = albums.parent_id'
-            ' INNER JOIN library_sections ON library_sections.id = artists.library_section_id'
-            # Note: metadata_type values can be found in `from plexapi.utils import SEARCHTYPES`
-            ' WHERE media_streams.stream_type_id = 2'  # StreamType.AUDIO.value
-            ' AND tracks.metadata_type = 10'  # SEARCHTYPES['track']
-            ' AND albums.metadata_type = 9'  # SEARCHTYPES['album']
-            ' AND artists.metadata_type = 8'  # SEARCHTYPES['artist']
-            ' AND num_loudness_keys(media_streams.extra_data) = 0'
+            ' tracks.id AS track_id,    tracks."index" AS track_num,  tracks.title AS track_title,'
+            ' albums.id AS album_id,    albums.title AS album_title,'
+            ' artists.id AS artist_id,  artists.title AS artist,'
+            ' library_sections.id AS lib_section_id, library_sections.name AS lib_section'
         )
+        query += _prepare_from_and_filters(StreamType.AUDIO, MetaType.TRACK, MetaType.ALBUM, MetaType.ARTIST)
+        query += '\nAND num_loudness_keys(media_streams.extra_data) = 0'
+
         return self.execute(query)
 
     def find_missing_analysis_name_map(self) -> dict[str, dict[str, dict[str, list[str]]]]:
@@ -160,9 +237,61 @@ class PlexDB:
             section_tracks_map[section.title] = [section.fetchItem(tid) for tid in track_ids]
         return section_tracks_map
 
+    # endregion
+
+
+# region Registered DB Functions
+
 
 def num_loudness_keys(extra_data: str) -> int:
     return sum(1 for k, v in parse_qsl(extra_data) if k.startswith('ld:'))
+
+
+def video_height_lte_720(extra_data: str) -> bool:
+    try:
+        height = int(parse_qs(extra_data)['ma:height'][0])
+    except (TypeError, ValueError, IndexError, KeyError):
+        return False
+    return height <= 720
+
+
+def video_resolution(extra_data: str) -> Union[str, None]:
+    data = parse_qs(extra_data)
+    try:
+        width = int(data['ma:width'][0])
+        height = int(data['ma:height'][0])
+    except (TypeError, ValueError, IndexError, KeyError):
+        return None
+    # Note: Sqlite3 doesn't seem to like returning a tuple of ints
+    return f'{width}x{height}'
+
+
+# endregion
+
+
+def _prepare_from_and_filters(stream_type: Stream_Type, *metadata_types: Meta_Type) -> str:
+    """
+    :param stream_type: The type of media stream to search for
+    :param metadata_types: One or more metadata types, in order of child, parent, grandparent, etc
+    :return: The ``FROM ... JOIN ... WHERE ...`` portion of the query to use for the given types
+    """
+    stream_type = StreamType(stream_type)
+    metadata_types = [MetaType(mt) for mt in metadata_types]
+
+    query = ['', 'FROM media_streams', 'INNER JOIN media_items ON media_items.id = media_streams.media_item_id']
+
+    last = 'media_items'
+    for i, mdt in enumerate(metadata_types):
+        field = 'parent_id' if i else 'metadata_item_id'
+        query.append(f'INNER JOIN metadata_items AS {mdt.alias} ON {mdt.alias}.id = {last}.{field}')
+        last = mdt.alias
+
+    query += [
+        f'INNER JOIN library_sections ON library_sections.id = {last}.library_section_id',
+        f'WHERE media_streams.stream_type_id = {stream_type.value}',
+    ]
+    query.extend(f'AND {mdt.alias}.metadata_type = {mdt.value}' for mdt in metadata_types)
+    return '\n'.join(query)
 
 
 def get_db_file(name: str = DEFAULT_FILE_NAME, max_age: int = 180) -> Path:

@@ -5,7 +5,7 @@
 import shutil
 from pathlib import Path
 
-__all__ = ['deinit_colorama', 'can_add_bpm', 'find_ffmpeg', 'format_duration']
+__all__ = ['MissingMixin', 'deinit_colorama', 'can_add_bpm', 'find_ffmpeg', 'format_duration']
 
 
 def deinit_colorama():
@@ -49,3 +49,14 @@ def format_duration(seconds: float) -> str:
     d, h = divmod(h, 24)
     x = f'{x}{d}d' if d > 0 else x
     return f'{x}{h:02d}:{m:02d}:{s:02d}' if isinstance(s, int) else f'{x}{h:02d}:{m:02d}:{s:05.2f}'
+
+
+class MissingMixin:
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            try:
+                return cls._member_map_[value.upper()]  # noqa
+            except KeyError:
+                pass
+        return super()._missing_(value)  # noqa

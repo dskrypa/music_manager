@@ -19,7 +19,7 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
         init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
     def main(self):
-        from music_gui.manager.track_views import TrackInfoView, SongFileView, SelectableSongFileView
+        from music_gui.views.tracks import TrackInfoView, SongFileView, SelectableSongFileView
 
         self.patch_and_set_mode()
         try:

@@ -13,18 +13,18 @@ from typing import TYPE_CHECKING, Iterator, Any, Collection, Optional
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image
-from tk_gui.elements.frame import InteractiveFrame, Frame, InteractiveRowFrame
+from tk_gui.elements.frame import InteractiveFrame, Frame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import PathLink, Multiline, Text, Input
-from tk_gui.popups import BasicPopup
+from tk_gui.popups import BasicPopup, popup_ok
 from tk_gui.styles import StyleState
 
 from music.common.ratings import stars_from_256
 from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
-from music.manager.update import TrackInfo
+from music.manager.update import TrackInfo, AlbumInfo
+from ..utils import AlbumIdentifier, get_album_info
 from .list_box import EditableListBox
-from .menus import TextRightClickMenu, EditableTextRightClickMenu
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -34,6 +34,7 @@ __all__ = ['TrackInfoFrame', 'SongFileFrame']
 log = logging.getLogger(__name__)
 
 ValueEle = Text | Multiline | Rating | ListBox
+_multiple_covers_warned = set()
 
 
 class TrackMixin:
@@ -120,6 +121,67 @@ class TrackInfoFrame(TrackMixin, InteractiveFrame):
 
     def build_rows(self) -> Iterator[list[Element]]:
         yield from self.build_info_rows()
+
+
+class AlbumInfoFrame(InteractiveFrame):
+    album_info: AlbumInfo
+
+    def __init__(self, album: AlbumIdentifier, cover_size: XY = (250, 250), **kwargs):
+        self.album_info = get_album_info(album)
+        super().__init__(**kwargs)
+        self.cover_size = cover_size
+
+    def get_custom_layout(self) -> Layout:
+        cover_and_buttons = Frame([[self.cover_image_thumbnail], ])
+        tag_frame = Frame([*self.build_tag_rows()])
+        return [[cover_and_buttons, tag_frame]]
+
+    # region Cover Image
+
+    @cached_property
+    def _cover_images_raw(self) -> set[bytes]:
+        images = set()
+        missing = 0
+        for track in self.album_info.tracks.values():
+            try:
+                images.add(SongFile(track.path).get_cover_data()[0])
+            except TagNotFound as e:
+                log.warning(e)
+                missing += 1
+            except Exception:  # noqa
+                log.error(f'Unable to load cover image for {track}', exc_info=True)
+
+        n_img = len(images)
+        messages = []
+        if missing:
+            messages.append(f'cover images were missing for {missing} tracks')
+        if not n_img and not missing:
+            messages.append('no cover images were found')
+        elif n_img > 1:
+            messages.append(f'found {n_img} cover images')
+
+        if messages and self.album_info.path not in _multiple_covers_warned:
+            _multiple_covers_warned.add(self.album_info.path)
+            message = ' and '.join(messages)
+            popup_ok(f'Warning: {message} for {self.album_info}', keep_on_top=True)
+
+        return images
+
+    @cached_property
+    def _cover_image_raw(self) -> Optional[bytes]:
+        if (images := self._cover_images_raw) and len(images) == 1:
+            return next(iter(images))
+        return None
+
+    @property
+    def cover_image_thumbnail(self) -> Image:
+        title = f'Album Cover: {self.album_info.name}'
+        return Image(image=self._cover_image_raw, size=self.cover_size, popup=True, popup_title=title)
+
+    # endregion
+
+    def build_tag_rows(self):
+        return []
 
 
 class SongFileFrame(TrackMixin, InteractiveFrame):

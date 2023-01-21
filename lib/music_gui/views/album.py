@@ -22,7 +22,7 @@ from music.files.track.track import SongFile
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
 from music_gui.elements.menus import FullRightClickMenu, MusicManagerMenuBar
-from music_gui.elements.track_info import TrackInfoFrame, SongFileFrame, SelectableSongFileFrame
+from music_gui.elements.track_info import TrackInfoFrame, AlbumInfoFrame
 from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators, call_timer
 from .base import BaseView
 
@@ -60,7 +60,7 @@ class AlbumView(BaseView, ABC, title='Album Info'):
         yield [self.menu]
 
     def _prepare_album_frame(self) -> Frame:
-        return Frame([])
+        return AlbumInfoFrame(self.album)
 
     def _prepare_track_frame(self) -> ScrollFrame:
         track_frames = [TrackInfoFrame(track, disabled=True) for track in self.album.tracks.values()]

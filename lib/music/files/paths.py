@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 from itertools import chain
 from abc import ABC, abstractmethod
 from functools import cached_property
@@ -10,8 +12,12 @@ from typing import Iterable, Union
 
 __all__ = ['FileBasedObject', 'SafePath', 'sanitize_path']
 
+PathLike = Union[Path, str]
+
 
 class SafePath:
+    __slots__ = ('parts',)
+
     def __init__(self, parts: Union[str, Iterable[str]]):
         if isinstance(parts, str):
             self.parts = parts.split('/')
@@ -25,10 +31,10 @@ class SafePath:
     def __repr__(self):
         return f'<{self.__class__.__name__}({"/".join(self.parts)!r})>'
 
-    def __add__(self, other: 'SafePath') -> 'SafePath':
+    def __add__(self, other: SafePath) -> SafePath:
         return SafePath(tuple(chain(self.parts, other.parts)))
 
-    def __iadd__(self, other: 'SafePath') -> 'SafePath':
+    def __iadd__(self, other: SafePath) -> SafePath:
         self.parts = tuple(chain(self.parts, other.parts))
         return self
 

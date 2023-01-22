@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import struct
+from base64 import b64decode, b64encode
 from datetime import date
 from hashlib import sha256
 from io import BytesIO
@@ -16,7 +17,7 @@ from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type
 from urllib.parse import quote
 
 from mutagen import File, FileType
@@ -44,7 +45,7 @@ from music.text.name import Name
 from ..cover import prepare_cover_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
-from ..paths import FileBasedObject
+from ..paths import FileBasedObject, PathLike
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import (
     EXTRACT_PART_MATCH, LYRIC_URL_MATCH, SAMPLE_RATE_PAT, compiled_fnmatch_patterns, cleanup_album_name
@@ -55,6 +56,7 @@ if TYPE_CHECKING:
     from numpy import ndarray
     from PIL import Image
     from pydub import AudioSegment
+    from music.typing import OptStr
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
@@ -69,6 +71,9 @@ ImageTag = Union[APIC, MP4Cover, Picture]
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
+    tag_type: OptStr = None
+    file_type: OptStr = None
+    __ft_cls_map = {}
     __instances = {}                                                    # type: dict[Path, SongFile]
     _bpm = None                                                         # type: Optional[int]
     _f = None                                                           # type: Optional[MutagenFile]
@@ -91,36 +96,51 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     artist_url = TextTagProperty('wiki:artist', default=None)           # type: Optional[str]
     rating = TextTagProperty('rating', int, default=None, save=True)    # type: Optional[int]
 
-    def __new__(cls, file_path: Union[Path, str], *args, options=_NotSet, **kwargs):
+    def __init_subclass__(cls, ft_classes: Collection[Type[FileType]] = (), **kwargs):
+        super().__init_subclass__(**kwargs)
+        for c in ft_classes:
+            cls.__ft_cls_map[c] = cls
+
+    def __new__(cls, file_path: PathLike, *args, options=_NotSet, **kwargs):
         file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path
         try:
             return cls.__instances[file_path]
         except KeyError:
-            # options = (MP3, FLAC, MP4, ID3FileType) if options is _NotSet else options
-            if options is _NotSet:  # note: webm is not supported by mutagen
-                options = (MP3, FLAC, MP4, ID3FileType, WAVE, OggFLAC, OggVorbis, OggOpus)
-            ipod = hasattr(file_path, '_ipod')
-            filething = file_path.open('rb') if ipod else file_path
-            error = True
-            try:
-                music_file = File(filething, *args, options=options, **kwargs)
-            except Exception as e:
-                log.debug(f'Error loading {file_path}: {e}')
-                return None
+            if (music_file := cls._new_file(file_path, *args, options=options, **kwargs)) is not None:
+                mf_cls = cls.__ft_cls_map.get(type(music_file), cls)
+                # print(f'Found {mf_cls=} for {type(music_file)=}')
+                obj = super().__new__(mf_cls)
             else:
-                if music_file is None:      # mutagen.File is a function that returns different obj types based on the
-                    return None             # given file path - it may return None
-                error = False
-            finally:
-                if error and ipod:
-                    filething.close()
-
-            obj = super().__new__(cls)
+                return None
+                # print(f'No file initialized for {file_path=}')
+                # obj = super().__new__(cls)
             obj._init(music_file, file_path)
             cls.__instances[file_path] = obj
             return obj
 
-    def __init__(self, file_path: Union[Path, str], *args, **kwargs):
+    @classmethod
+    def _new_file(cls, file_path: PathLike, *args, options=_NotSet, **kwargs):
+        if options is _NotSet:  # note: webm is not supported by mutagen
+            options = (MP3, FLAC, MP4, ID3FileType, WAVE, OggFLAC, OggVorbis, OggOpus)
+        ipod = hasattr(file_path, '_ipod')
+        filething = file_path.open('rb') if ipod else file_path
+        error = True
+        try:
+            music_file = File(filething, *args, options=options, **kwargs)
+        except Exception as e:
+            log.debug(f'Error loading {file_path}: {e}')
+            return None
+        else:
+            if music_file is None:  # mutagen.File is a function that returns different obj types based on the
+                return None  # given file path - it may return None
+            error = False
+        finally:
+            if error and ipod:
+                filething.close()
+
+        return music_file
+
+    def __init__(self, file_path: PathLike, *args, **kwargs):
         if not getattr(self, '_SongFile__initialized', False):
             self._album_dir = None
             self._in_album_dir = False
@@ -174,7 +194,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def path(self) -> Path:
         return self._path
 
-    def rename(self, dest_path: Union[Path, str]):
+    def rename(self, dest_path: PathLike):
         old_path = self.path
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
@@ -191,7 +211,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             if dest_path.samefile(self.path) and ON_WINDOWS and dest_name != self.path.name:
                 use_temp = True
             else:
-                raise ValueError('Destination for {} already exists: {!r}'.format(self, dest_path.as_posix()))
+                raise ValueError(f'Destination for {self} already exists: {dest_path.as_posix()!r}')
 
         if use_temp:
             with TemporaryDirectory(dir=dest_path.parent.as_posix()) as tmp_dir:
@@ -210,10 +230,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         cls.__instances[dest_path] = self
 
     def save(self):
-        if self.tag_type == 'vorbis':
-            self._f.save(self._f.filename)
-        else:
-            self._f.tags.save(self._f.filename)
+        self._f.tags.save(self._f.filename)
 
     # region Metadata
 
@@ -228,54 +245,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return length
 
     @cached_property
-    def file_type(self) -> Optional[str]:
-        file = self._f
-        tags = file.tags
-        if isinstance(tags, MP4Tags) or isinstance(file, MP4):
-            return 'mp4'
-        elif isinstance(tags, _WaveID3) or isinstance(file, WAVE):
-            return 'wav'
-        elif isinstance(tags, ID3) or isinstance(file, MP3):
-            return 'mp3'
-        elif isinstance(tags, VCFLACDict) or isinstance(file, FLAC):
-            return 'flac'
-        elif isinstance(file, OggFileType):
-            return 'ogg'
-        return None
-
-    @cached_property
-    def tag_type(self) -> Optional[str]:
-        file = self._f
-        tags = file.tags
-        if isinstance(tags, MP4Tags) or isinstance(file, MP4):
-            return 'mp4'
-        elif isinstance(tags, ID3) or isinstance(file, MP3):
-            return 'id3'
-        elif isinstance(tags, VCFLACDict) or isinstance(file, OggFileType):
-            return 'vorbis'
-        return None
-
-    @cached_property
     def tag_version(self) -> str:
-        file = self._f
-        tags = file.tags
-        if isinstance(tags, MP4Tags):
-            return 'MP4'
-        elif isinstance(tags, _WaveID3):
-            return 'WAV/ID3'
-        elif isinstance(tags, ID3):
-            return 'ID3v{}.{}'.format(*tags.version[:2])
-        elif isinstance(tags, VCFLACDict):
-            return 'FLAC'
-        elif isinstance(file, OggFileType):
-            if isinstance(file, OggFLAC):
-                return 'OGG[flac]'
-            elif isinstance(file, OggVorbis):
-                return 'OGG[vorbis]'
-            elif isinstance(file, OggOpus):
-                return 'OGG[opus]'
-            return 'OGG[unknown]'
-        elif tags is None:
+        try:
+            tags = self._f.tags
+        except AttributeError:
+            tags = None
+        if tags is None:
             return '[no tags]'
         else:
             return tags.__name__
@@ -316,15 +291,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def sample_rate_khz(self) -> float:
         return self.sample_rate / 1000
 
-    @cached_property
+    @property
     def lossless(self) -> bool:
-        file_type = self.file_type
-        if file_type in ('flac', 'wav'):
-            return True
-        elif file_type == 'mp4':
-            return self._f.info.codec == 'alac'
-        elif file_type == 'ogg':
-            return isinstance(self._f, OggFLAC)
         return False
 
     @cached_property
@@ -366,16 +334,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # region Add/Remove/Get Tags
 
     def delete_tag(self, tag_id: str, save: bool = False):
-        tag_type = self.tag_type
         # TODO: When multiple values exist for the tag, make it possible to delete a specific index/value?
-        if tag_type == 'id3':
-            self.tags.delall(tag_id)
-        elif tag_type in ('mp4', 'vorbis'):
-            del self.tags[tag_id]
-        else:
-            raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={tag_type!r}')
+        self._delete_tag(tag_id)
         if save:
             self.save()
+
+    def _delete_tag(self, tag_id: str):
+        raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={self.tag_type!r}')
 
     def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG, remove_all=False) -> bool:
         tag_ids = list(map(self.normalize_tag_id, tag_ids))
@@ -406,74 +371,14 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def set_text_tag(self, tag: str, value, by_id: bool = False, replace: bool = True, save: bool = False):
         tag_id = tag if by_id else self.normalize_tag_id(tag)
-        tag_type = self.tag_type
-        if tag_type in ('mp4', 'vorbis'):
-            self._set_mp4_flac_text_tag(tag_id, value, replace)
-        elif tag_type == 'id3':
-            self._set_mp3_text_tag(tag, tag_id, value, replace)
-        else:
-            raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
+        self._set_text_tag(tag, tag_id, value, replace)
         if save:
             self.save()
 
-    def _set_mp3_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
-        tags = self._f.tags  # type: ID3
-        if tags is None:
-            self._f.add_tags()
-            tags = self._f.tags
-        tag_id = tag_id.upper()
-        try:
-            tag_id, desc = tag_id.split(':', 1)
-        except ValueError:
-            desc = None
-        try:
-            tag_cls = getattr(_frames, tag_id)
-        except AttributeError as e:
-            raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
+    def _set_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
+        if (tag_type := self.tag_type) not in ('mp4', 'vorbis'):
+            raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
 
-        frame_spec = tag_cls._framespec
-        spec_fields = {spec.name: spec for spec in frame_spec}
-        if desc and 'desc' not in spec_fields:
-            raise TypeError(f'Unhandled tag type - {tag=} has {desc=} but {tag_cls=} has {spec_fields=}')
-
-        value_spec = frame_spec[-1]  # type: Spec  # main value field is usually last
-        value_key = value_spec.name
-        kwargs = {'encoding': Encoding.UTF8} if 'encoding' in spec_fields else {}  # noqa
-        if tag_id == 'WXXX' and value and isinstance(value, str):
-            a, b = value.rsplit('/', 1)
-            value = f'{a}/{quote(b)}'
-        if not (isinstance(value, Collection) and not isinstance(value, str)):
-            value = [value]
-
-        if desc:
-            kwargs['desc'] = desc
-            values = tags.getall(tag_id)
-            values = [v for v in values if v.desc != desc] if replace else values  # Keep any with a different desc
-            for val in value:
-                val_kwargs = kwargs.copy()
-                val_kwargs[value_key] = val
-                values.append(tag_cls(**val_kwargs))
-        else:
-            if replace:
-                if not isinstance(value_spec.default, list) and isinstance(value, list) and len(value) == 1:
-                    kwargs[value_key] = value[0]
-                else:
-                    kwargs[value_key] = sorted(map(str, value))
-                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
-                values = [tag_cls(**kwargs)]
-            elif value_key == 'text' and isinstance(value_spec, MultiSpec):
-                text_values = set(chain.from_iterable(t.text for t in tags.getall(tag_id)))
-                text_values.update(map(str, value))
-                kwargs['text'] = sorted(text_values)
-                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
-                values = [tag_cls(**kwargs)]
-            else:
-                raise TypeError(f'Unable to add {value=} for {tag=} - {tag_cls=} has {value_key=} ({spec_fields=})')
-        log.debug(f'Setting {self}.tags.setall({tag_id=!r}, {value=!r})')
-        tags.setall(tag_id, values)
-
-    def _set_mp4_flac_text_tag(self, tag_id: str, value, replace: bool = False):
-        tag_type = self.tag_type
         tags = self._f.tags
         if replace:
             if not isinstance(value, list):
@@ -574,15 +479,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         :param str tag_id: A tag ID
         :return list: All tags from this file with the given ID
         """
-        if self.tag_type == 'id3':
-            try:
-                return self._f.tags.getall(tag_id.upper())  # all MP3 tags are uppercase; some MP4 tags are mixed case
-            except AttributeError:
-                if self._f.tags is None:
-                    return []
-                raise
         try:
-            return self._f.tags.get(tag_id, [])                 # MP4Tags doesn't have getall() and always returns a list
+            return self._f.tags.get(tag_id, [])  # MP4Tags doesn't have getall() and always returns a list
         except AttributeError:
             log.warning(f'No tags found for {self.path}')
             raise
@@ -626,41 +524,15 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def _normalize_values(self, values, strip: bool = True):
         if isinstance(values, bool):
             return [values]
-        elif self.tag_type == 'id3':
-            if not isinstance(values, list):
-                values = [values]
-            vals = []
-            for tag_obj in values:
-                try:
-                    text = tag_obj.text
-                except AttributeError:
-                    if isinstance(tag_obj, POPM):
-                        vals.append(tag_obj.rating)  # noqa
-                    else:
-                        vals.append(tag_obj)
-                else:
-                    if isinstance(text, str):
-                        vals.append(text)  # The text attr for USLT/Lyrics is a string, while most others are a list
-                    else:
-                        vals.extend(text)
-        elif self.tag_type == 'mp4':
-            vals = []
-            for value in values:
-                if isinstance(value, MP4FreeForm):
-                    if encoding := MP4_STR_ENCODINGS.get(value.dataformat):
-                        vals.append(value.decode(encoding))
-                    else:
-                        raise ValueError(f'Unexpected MP4FreeForm {value=} in {self}')
-                else:
-                    vals.append(value)
-        else:
-            vals = values
 
-        normalized = filter(None, vals)
+        normalized = filter(None, self._normalize_tag_values(values))
         if strip:
             return [value.strip() if isinstance(value, str) else value for value in normalized]
         else:
             return list(normalized)
+
+    def _normalize_tag_values(self, values):
+        return values
 
     def get_tag_value_or_values(self, tag: str, strip: bool = True, by_id: bool = False, default=_NotSet):
         values = self.get_tag_values(tag, strip, by_id, default)
@@ -746,7 +618,6 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def artists(self) -> set[Name]:
         if artist := self.tag_artist:
             artists = set(split_artists(artist))
-            # noinspection PyUnresolvedReferences
             if (album := self.album) and album.feat:
                 artists.update(album.feat)
             return artists
@@ -781,7 +652,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def year(self) -> Optional[int]:
         try:
             return self.date.year
-        except Exception:
+        except Exception:  # noqa
             return None
 
     def _num_tag(self, name: str) -> int:
@@ -1073,25 +944,16 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # region Cover Image Methods
 
     def get_cover_tag(self):
-        if self.tag_type == 'vorbis':
-            try:
-                return self._f.pictures[0]
-            except IndexError:
-                return None
-        else:
-            return self.get_tag('cover')
+        return self.get_tag('cover')
 
     def get_cover_data(self) -> tuple[bytes, str]:
         """Returns a tuple containing the raw cover data bytes, and the image type as a file extension"""
-        if (cover := self.get_cover_tag()) is None:
-            raise TagNotFound(f'{self} has no album cover')
         if self.tag_type in ('id3', 'vorbis'):
+            if (cover := self.get_cover_tag()) is None:
+                raise TagNotFound(f'{self} has no album cover')
             mime = cover.mime.split('/')[-1].lower()
             ext = 'jpg' if mime in ('jpg', 'jpeg') else mime
             return cover.data, ext
-        elif self.tag_type == 'mp4':
-            ext = 'jpg' if cover.imageformat == MP4Cover.FORMAT_JPEG else 'png'
-            return cover, ext
         else:
             raise TypeError(f'{self} has unexpected type={self.tag_type!r} for album cover extraction')
 
@@ -1126,37 +988,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def set_cover_data(self, image: Image.Image, dry_run: bool = False, max_width: int = 1200):
         image, data, mime_type = prepare_cover_image(image, self.tag_type, max_width)
         self._set_cover_data(image, data, mime_type, dry_run)
-
-    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
-        if self.tag_type == 'id3':
-            current = self.tags_for_id('APIC')
-            cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
-            if self._log_cover_changes(current, cover, dry_run):
-                self._f.tags.delall('APIC')
-                self._f.tags[cover.HashKey] = cover
-        elif self.tag_type == 'mp4':
-            current = self._f.tags['covr']
-            try:
-                cover_fmt = MP4_MIME_FORMAT_MAP[mime_type]
-            except KeyError as e:
-                raise ValueError(f'Invalid {mime_type=} for {self!r} - must be JPEG or PNG for MP4 cover images') from e
-            cover = MP4Cover(data, cover_fmt)
-            if self._log_cover_changes(current, cover, dry_run):
-                self._f.tags['covr'] = [cover]
-        elif self.tag_type == 'vorbis':
-            current = self._f.pictures
-            cover = Picture()
-            cover.type = PictureType.COVER_FRONT  # noqa
-            cover.mime = mime_type
-            cover.width, cover.height = image.size
-            cover.depth = 1 if image.mode == '1' else 32 if image.mode in ('I', 'F') else 8 * len(image.getbands())
-            cover.data = data
-            if self._log_cover_changes(current, cover, dry_run):
-                self._f.clear_pictures()
-                self._f.add_picture(cover)
-
         if not dry_run:
             self.save()
+
+    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
+        pass
 
     # endregion
 
@@ -1177,6 +1013,252 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return AudioSegment.from_file(self.path)
 
     # endregion
+
+
+class Id3SongFile(SongFile):
+    tag_type = 'id3'
+    _f: Union[MP3, ID3FileType, WAVE]
+
+    def tags_for_id(self, tag_id: str):
+        """
+        :param str tag_id: A tag ID
+        :return list: All tags from this file with the given ID
+        """
+        try:
+            return self._f.tags.getall(tag_id.upper())  # all MP3 tags are uppercase; some MP4 tags are mixed case
+        except AttributeError:
+            if self._f.tags is None:
+                return []
+            raise
+
+    def _normalize_tag_values(self, values):
+        if not isinstance(values, list):
+            values = [values]
+        vals = []
+        for tag_obj in values:
+            try:
+                text = tag_obj.text
+            except AttributeError:
+                if isinstance(tag_obj, POPM):
+                    vals.append(tag_obj.rating)  # noqa
+                else:
+                    vals.append(tag_obj)
+            else:
+                if isinstance(text, str):
+                    vals.append(text)  # The text attr for USLT/Lyrics is a string, while most others are a list
+                else:
+                    vals.extend(text)
+        return vals
+
+    def _set_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
+        tags = self._f.tags  # type: ID3
+        if tags is None:
+            self._f.add_tags()
+            tags = self._f.tags
+        tag_id = tag_id.upper()
+        try:
+            tag_id, desc = tag_id.split(':', 1)
+        except ValueError:
+            desc = None
+        try:
+            tag_cls = getattr(_frames, tag_id)
+        except AttributeError as e:
+            raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
+
+        frame_spec = tag_cls._framespec
+        spec_fields = {spec.name: spec for spec in frame_spec}
+        if desc and 'desc' not in spec_fields:
+            raise TypeError(f'Unhandled tag type - {tag=} has {desc=} but {tag_cls=} has {spec_fields=}')
+
+        value_spec = frame_spec[-1]  # type: Spec  # main value field is usually last
+        value_key = value_spec.name
+        kwargs = {'encoding': Encoding.UTF8} if 'encoding' in spec_fields else {}  # noqa
+        if tag_id == 'WXXX' and value and isinstance(value, str):
+            a, b = value.rsplit('/', 1)
+            value = f'{a}/{quote(b)}'
+        if not (isinstance(value, Collection) and not isinstance(value, str)):
+            value = [value]
+
+        if desc:
+            kwargs['desc'] = desc
+            values = tags.getall(tag_id)
+            values = [v for v in values if v.desc != desc] if replace else values  # Keep any with a different desc
+            for val in value:
+                val_kwargs = kwargs.copy()
+                val_kwargs[value_key] = val
+                values.append(tag_cls(**val_kwargs))
+        else:
+            if replace:
+                if not isinstance(value_spec.default, list) and isinstance(value, list) and len(value) == 1:
+                    kwargs[value_key] = value[0]
+                else:
+                    kwargs[value_key] = sorted(map(str, value))
+                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
+                values = [tag_cls(**kwargs)]
+            elif value_key == 'text' and isinstance(value_spec, MultiSpec):
+                text_values = set(chain.from_iterable(t.text for t in tags.getall(tag_id)))
+                text_values.update(map(str, value))
+                kwargs['text'] = sorted(text_values)
+                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
+                values = [tag_cls(**kwargs)]
+            else:
+                raise TypeError(f'Unable to add {value=} for {tag=} - {tag_cls=} has {value_key=} ({spec_fields=})')
+        log.debug(f'Setting {self}.tags.setall({tag_id=!r}, {value=!r})')
+        tags.setall(tag_id, values)
+
+    def _delete_tag(self, tag_id: str):
+        self.tags.delall(tag_id)
+
+    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
+        current = self.tags_for_id('APIC')
+        cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
+        if self._log_cover_changes(current, cover, dry_run):
+            self._f.tags.delall('APIC')
+            self._f.tags[cover.HashKey] = cover
+
+
+class Mp3SongFile(Id3SongFile, ft_classes=(MP3, ID3FileType)):
+    file_type = 'mp3'
+
+    @cached_property
+    def tag_version(self) -> str:
+        return 'ID3v{}.{}'.format(*self._f.tags.version[:2])
+
+
+class WavSongFile(Id3SongFile, ft_classes=(WAVE,)):
+    file_type = 'wav'
+
+    @cached_property
+    def tag_version(self) -> str:
+        if isinstance(self._f.tags, _WaveID3):
+            return 'WAV/ID3'
+        else:
+            return super().tag_version
+
+    @property
+    def lossless(self) -> bool:
+        return True
+
+
+class Mp4SongFile(SongFile, ft_classes=(MP4,)):
+    tag_type = 'mp4'
+    file_type = 'mp4'
+
+    @cached_property
+    def tag_version(self) -> str:
+        return 'MP4'
+
+    @cached_property
+    def lossless(self) -> bool:
+        return self._f.info.codec == 'alac'
+
+    def _normalize_tag_values(self, values):
+        vals = []
+        for value in values:
+            if isinstance(value, MP4FreeForm):
+                if encoding := MP4_STR_ENCODINGS.get(value.dataformat):
+                    vals.append(value.decode(encoding))
+                else:
+                    raise ValueError(f'Unexpected MP4FreeForm {value=} in {self}')
+            else:
+                vals.append(value)
+        return vals
+
+    def _delete_tag(self, tag_id: str):
+        del self.tags[tag_id]
+
+    def get_cover_data(self) -> tuple[bytes, str]:
+        """Returns a tuple containing the raw cover data bytes, and the image type as a file extension"""
+        if (cover := self.get_cover_tag()) is None:
+            raise TagNotFound(f'{self} has no album cover')
+        ext = 'jpg' if cover.imageformat == MP4Cover.FORMAT_JPEG else 'png'
+        return cover, ext
+
+    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
+        current = self._f.tags['covr']
+        try:
+            cover_fmt = MP4_MIME_FORMAT_MAP[mime_type]
+        except KeyError as e:
+            raise ValueError(f'Invalid {mime_type=} for {self!r} - must be JPEG or PNG for MP4 cover images') from e
+        cover = MP4Cover(data, cover_fmt)
+        if self._log_cover_changes(current, cover, dry_run):
+            self._f.tags['covr'] = [cover]
+
+
+class VorbisSongFile(SongFile):
+    tag_type = 'vorbis'
+    _f: Union[FLAC, OggFLAC, OggVorbis, OggOpus]
+
+    def save(self):
+        self._f.save(self._f.filename)
+
+    def _delete_tag(self, tag_id: str):
+        del self.tags[tag_id]
+
+    def get_cover_tag(self) -> Picture | None:
+        try:
+            return self._f.pictures[0]  # FLAC
+        except IndexError:
+            return None
+        except AttributeError:
+            pass
+        # Note: This uses `metadata_block_picture`, but apparently some programs may use `coverart` + `coverartmime`
+        # instead: https://mutagen.readthedocs.io/en/latest/user/vcomment.html
+        cover = self.get_tag('cover')
+        if isinstance(cover, Picture):  # FLAC
+            return cover
+        return Picture(b64decode(cover))
+
+    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
+        try:
+            current = self._f.pictures
+        except AttributeError:
+            current = self.get_cover_tag()
+
+        cover = Picture()
+        cover.type = PictureType.COVER_FRONT  # noqa
+        cover.mime = mime_type
+        cover.width, cover.height = image.size
+        cover.depth = 1 if image.mode == '1' else 32 if image.mode in ('I', 'F') else 8 * len(image.getbands())
+        cover.data = data
+        if self._log_cover_changes(current, cover, dry_run):
+            try:
+                self._f.clear_pictures()
+            except AttributeError:  # Ogg
+                self._f['metadata_block_picture'] = [b64encode(cover.write()).decode('ascii')]
+            else:
+                self._f.add_picture(cover)
+
+
+class FlacSongFile(VorbisSongFile, ft_classes=(FLAC,)):
+    file_type = 'flac'
+
+    @cached_property
+    def tag_version(self) -> str:
+        return 'FLAC'
+
+    @property
+    def lossless(self) -> bool:
+        return True
+
+
+class OggSongFile(VorbisSongFile, ft_classes=(OggFileType, OggFLAC, OggVorbis, OggOpus)):
+    file_type = 'ogg'
+
+    @cached_property
+    def tag_version(self) -> str:
+        file = self._f
+        if isinstance(file, OggFLAC):
+            return 'OGG[flac]'
+        elif isinstance(file, OggVorbis):
+            return 'OGG[vorbis]'
+        elif isinstance(file, OggOpus):
+            return 'OGG[opus]'
+        return 'OGG[unknown]'
+
+    @cached_property
+    def lossless(self) -> bool:
+        return isinstance(self._f, OggFLAC)
 
 
 def iter_music_files(paths: Paths) -> Iterator[SongFile]:

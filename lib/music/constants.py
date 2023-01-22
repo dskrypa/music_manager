@@ -18,7 +18,7 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'bpm': {'mp4': 'tmpo', 'id3': 'TBPM', 'vorbis': 'BPM'},
     'language': {'mp4': '----:com.apple.iTunes:LANGUAGE', 'id3': 'TLAN', 'vorbis': 'LANGUAGE'},
     'lyrics': {'mp4': '\xa9lyr', 'id3': 'USLT', 'vorbis': 'LYRICS'},
-    'cover': {'mp4': 'covr', 'id3': 'APIC'},  # vorbis: FLAC.pictures
+    'cover': {'mp4': 'covr', 'id3': 'APIC', 'vorbis': 'metadata_block_picture'},  # vorbis: FLAC.pictures
     'wiki:album': {'mp4': '----:WIKI:ALBUM', 'id3': 'WXXX:WIKI:ALBUM', 'vorbis': 'WIKI:ALBUM'},
     'wiki:artist': {'mp4': '----:WIKI:ARTIST', 'id3': 'WXXX:WIKI:ARTIST', 'vorbis': 'WIKI:ARTIST'},
     'kpop:gen': {'mp4': 'KPOP:GEN', 'id3': 'TXXX:KPOP:GEN', 'vorbis': 'KPOP:GEN'},

@@ -47,13 +47,6 @@ icon_cache = IconCache()
 
 
 def get_raw_cover_image(track: SongFile, propagate_not_found: bool = False) -> Optional[bytes]:
-    # TODO:
-    """
-      File "...\git\music_manager\lib\music\files\track\track.py", line 1078, in get_cover_tag
-        return self._f.pictures[0]
-               ^^^^^^^^^^^^^^^^
-    AttributeError: 'OggOpus' object has no attribute 'pictures'
-    """
     try:
         return track.get_cover_data()[0]
     except TagNotFound as e:

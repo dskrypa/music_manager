@@ -14,15 +14,21 @@ from typing import TYPE_CHECKING, Union, Iterable
 from tk_gui.elements import Element, HorizontalSeparator
 
 from music.files.album import AlbumDir
-from music.manager.update import AlbumInfo
+from music.files.track.track import SongFile
+from music.manager.update import AlbumInfo, TrackInfo
 
 if TYPE_CHECKING:
     from tk_gui.typing import Layout
 
-__all__ = ['AlbumIdentifier', 'get_album_info', 'get_album_dir', 'with_separators', 'fix_windows_path', 'call_timer']
+__all__ = [
+    'AlbumIdentifier', 'get_album_info', 'get_album_dir',
+    'TrackIdentifier', 'get_track_info', 'get_track_file',
+    'with_separators', 'fix_windows_path', 'call_timer',
+]
 log = logging.getLogger(__name__)
 
 AlbumIdentifier = Union[AlbumInfo, AlbumDir, Path, str]
+TrackIdentifier = Union[TrackInfo, SongFile, Path, str]
 
 
 def get_album_info(album: AlbumIdentifier) -> AlbumInfo:
@@ -39,6 +45,22 @@ def get_album_dir(album: AlbumIdentifier) -> AlbumDir:
     elif isinstance(album, (Path, str)):
         album = AlbumDir(_album_directory(album))
     return album
+
+
+def get_track_info(track: TrackIdentifier) -> TrackInfo:
+    if isinstance(track, (Path, str)):
+        track = SongFile(track)
+    if isinstance(track, SongFile):
+        track = TrackInfo.from_file(track)
+    return track
+
+
+def get_track_file(track: TrackIdentifier) -> SongFile:
+    if isinstance(track, TrackInfo):
+        track = track.path
+    if isinstance(track, (str, Path)):
+        track = SongFile(track)
+    return track
 
 
 def _album_directory(path: Path | str) -> Path:

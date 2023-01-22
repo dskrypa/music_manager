@@ -19,12 +19,13 @@ from music.files.track.track import SongFile
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
 from music_gui.elements.menus import PathRightClickMenu, MusicManagerMenuBar
-from music_gui.elements.track_info import TrackInfoFrame, SongFileFrame, SelectableSongFileFrame
-from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators, call_timer
+from music_gui.elements.file_frames import SongFileFrame, SelectableSongFileFrame
+from music_gui.elements.info_frames import TrackInfoFrame
+from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators
 from .base import BaseView
 
 if TYPE_CHECKING:
-    from tkinter import Event, BaseWidget
+    from tkinter import Event
     from tk_gui.typing import Layout
     from music.manager.update import AlbumInfo
 

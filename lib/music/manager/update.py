@@ -292,24 +292,28 @@ class AlbumInfo(Serializable, GenreMixin):
     # fmt: off
     title: str = Field(str)                         # Album title (tag)
     artist: str = Field(str)                        # Album artist name
+
     date: date | None = Field(parse_date)           # Album release date
     disk: int = Field(int)                          # Disk number
+    disks: int = Field(int, 1)                      # Total number of disks for this album
     genre: StrOrStrs = Field(lambda x: x)           # Album genre
-    tracks: TrackMap = Field(default_factory=dict)  # Mapping of {path: TrackInfo} for this album's tracks
+
     name: str = Field(str)                          # Directory name to be used
     parent: str = Field(str)                        # Artist name to use in file paths
     singer: str = Field(str)                        # Solo singer when in a group, to be sorted under that group
     solo_of_group: bool = Field(bool, False)        # Whether the singer is a soloist
+
     type: DiscoEntryType = Field(_normalize_type, DiscoEntryType.UNKNOWN)  # single, album, mini album, etc.
     number: int = Field(int)                        # This album is the Xth of its type from this artist
     numbered_type: str = Field(str)                 # The type + number within that type for this artist
-    disks: int = Field(int, 1)                      # Total number of disks for this album
+
     mp4: bool = Field(bool, False)                  # Whether the files in this album are mp4s
     cover_path: str = Field(str)                    # Path to a cover image
     cover_max_width: int = Field(int, 1200)         # Maximum width for new cover images
     wiki_album: str = Field(str)                    # URL of the Wiki page that this album matches
     wiki_artist: str = Field(str)                   # URL of the Wiki page that this album's artist matches
     kpop_gen: float = Field(float)                  # K-Pop generation
+    tracks: TrackMap = Field(default_factory=dict)  # Mapping of {path: TrackInfo} for this album's tracks
     # fmt: on
 
     def __repr__(self) -> str:

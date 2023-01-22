@@ -23,9 +23,9 @@ class EditableListBox(InteractiveRowFrame):
     def __init__(
         self,
         values: Collection[str],
-        key: str,
         add_title: str,
         add_prompt: str,
+        key: str = None,
         list_width: int = 30,
         **kwargs,
     ):
@@ -50,13 +50,9 @@ class EditableListBox(InteractiveRowFrame):
 
     @cached_property
     def button(self) -> Button:
-        return Button(
-            'Add...',
-            key=self.__key.replace('val::', 'add::', 1),
-            pad=(0, 0),
-            visible=not self.disabled,
-            cb=self.add_value,
-        )
+        if key := self.__key:
+            key = key.replace('val::', 'add::', 1)
+        return Button('Add...', key=key, pad=(0, 0), visible=not self.disabled, cb=self.add_value)
 
     def add_value(self, event: Event):
         if value := popup_get_text(self.add_prompt, self.add_title, bind_esc=True):

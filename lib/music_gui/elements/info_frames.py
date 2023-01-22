@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Iterator, Collection, Optional
+from typing import TYPE_CHECKING, Iterator, Collection, Optional, Sequence
 
 from ds_tools.caching.decorators import cached_property
-from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator, Button
-from tk_gui.elements.frame import InteractiveFrame, Frame
+from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
+from tk_gui.elements.buttons import Button, ButtonAction
+from tk_gui.elements.frame import InteractiveFrame, Frame, RowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import Multiline, Text, Input
 from tk_gui.popups import popup_ok
@@ -32,6 +33,14 @@ ValueEle = Text | Multiline | Rating | ListBox
 _multiple_covers_warned = set()
 
 
+class ButtonRow(RowFrame):
+    elements = None  # Necessary to satisfy the ABC
+
+    def __init__(self, buttons: Sequence[Button], **kwargs):
+        super().__init__(side='t', **kwargs)
+        self.elements = buttons
+
+
 class AlbumInfoFrame(InteractiveFrame):
     album_info: AlbumInfo
 
@@ -48,9 +57,9 @@ class AlbumInfoFrame(InteractiveFrame):
         yield [Frame([[self.cover_image_thumbnail]], size=cf_size), Frame([*self.build_tag_rows()])]
         yield [HorizontalSeparator()]
         buttons = list(self.buttons.values())
-        yield buttons[:4]
-        yield buttons[4:7]
-        yield [buttons[-1]]
+        yield [ButtonRow(buttons[:4])]
+        yield [ButtonRow(buttons[4:7])]
+        yield [ButtonRow(buttons[-1:])]
 
     # region Cover Image
 
@@ -149,18 +158,27 @@ class AlbumInfoFrame(InteractiveFrame):
 
     @cached_property
     def buttons(self) -> dict[str, Button]:
-        # TODO: Center & resize
+        kwargs = {'size': (18, 1), 'borderwidth': 3, 'action': ButtonAction.BIND_EVENT}
+        open_button = Button(
+            '\U0001f5c1',
+            key='open',
+            font=('Helvetica', 20),
+            size=(10, 1),
+            tooltip='Open',
+            borderwidth=3,
+            action=ButtonAction.BIND_EVENT,
+        )
         return {
-            'Clean & Add BPM': Button('Clean & Add BPM'),
-            'View All Tags': Button('View All Tags'),
-            'Edit': Button('Edit'),
-            'Wiki Update': Button('Wiki Update'),
+            'Clean & Add BPM': Button('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
+            'View All Tags': Button('View All Tags', key='view_all_tags', **kwargs),
+            'Edit': Button('Edit', key='edit_album', **kwargs),
+            'Wiki Update': Button('Wiki Update', key='wiki_update', **kwargs),
             #
-            'Sync Ratings From...': Button('Sync Ratings From...'),
-            'Sync Ratings To...': Button('Sync Ratings To...'),
-            'Copy Tags From...': Button('Copy Tags From...'),
+            'Sync Ratings From...': Button('Sync Ratings From...', key='sync_ratings_from', **kwargs),
+            'Sync Ratings To...': Button('Sync Ratings To...', key='sync_ratings_to', **kwargs),
+            'Copy Tags From...': Button('Copy Tags From...', key='copy_tags_from', **kwargs),
             #
-            'Open': Button('Open'),
+            'Open': open_button,
         }
 
 

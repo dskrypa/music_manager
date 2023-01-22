@@ -13,6 +13,7 @@ from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import HorizontalSeparator, Button, Text, Frame, ScrollFrame
 from tk_gui.elements.menu import Menu, MenuGroup, MenuItem, MenuProperty, CloseWindow
 from tk_gui.enums import CallbackAction
+from tk_gui.event_handling import button_handler
 from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup, popup_ok
 from tk_gui.popups.about import AboutPopup
 from tk_gui.views.view import View
@@ -45,8 +46,9 @@ class AlbumView(BaseView, ABC, title='Album Info'):
         self.album: AlbumInfo = get_album_info(album)
         self._track_frames: list[TrackInfoFrame] = []
 
+    @button_handler('open')
     @menu['File']['Open'].callback
-    def pick_next_album(self, event: Event):
+    def pick_next_album(self, event: Event, key=None):
         if path := pick_folder_popup(self.album.path.parent, 'Pick Album Directory', parent=self.window):
             log.debug(f'Selected album {path=}')
             try:
@@ -60,7 +62,7 @@ class AlbumView(BaseView, ABC, title='Album Info'):
         yield [self.menu]
 
     def _prepare_album_frame(self) -> Frame:
-        return AlbumInfoFrame(self.album, disabled=True)
+        return AlbumInfoFrame(self.album, disabled=True, anchor='n')
 
     def _prepare_track_frame(self) -> ScrollFrame:
         track_frames = [TrackInfoFrame(track, disabled=True) for track in self.album.tracks.values()]
@@ -69,6 +71,6 @@ class AlbumView(BaseView, ABC, title='Album Info'):
         return tracks_frame
 
     def get_post_window_layout(self) -> Layout:
-        yield [Text('Album Path:'), Text(self.album.path.as_posix(), use_input_style=True, size=(200, 1))]
+        yield [Text('Album Path:'), Text(self.album.path.as_posix(), use_input_style=True, size=(150, 1))]
         yield [HorizontalSeparator()]
         yield [self._prepare_album_frame(), self._prepare_track_frame()]

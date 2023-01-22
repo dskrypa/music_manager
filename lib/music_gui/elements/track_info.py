@@ -24,6 +24,7 @@ from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
 from music.manager.update import TrackInfo, AlbumInfo
 from ..utils import AlbumIdentifier, get_album_info
+from .images import icon_cache, get_raw_cover_image
 from .list_box import EditableListBox
 
 if TYPE_CHECKING:
@@ -144,12 +145,10 @@ class AlbumInfoFrame(InteractiveFrame):
         missing = 0
         for track in self.album_info.tracks.values():
             try:
-                images.add(SongFile(track.path).get_cover_data()[0])
-            except TagNotFound as e:
-                log.warning(e)
+                if image := get_raw_cover_image(SongFile(track.path), True):
+                    images.add(image)
+            except TagNotFound:
                 missing += 1
-            except Exception:  # noqa
-                log.error(f'Unable to load cover image for {track}', exc_info=True)
 
         n_img = len(images)
         messages = []
@@ -158,7 +157,7 @@ class AlbumInfoFrame(InteractiveFrame):
         if not n_img and not missing:
             messages.append('no cover images were found')
         elif n_img > 1:
-            messages.append(f'found {n_img} cover images')
+            messages.append(f'{n_img} cover images were found')
 
         if messages and self.album_info.path not in _multiple_covers_warned:
             _multiple_covers_warned.add(self.album_info.path)
@@ -175,8 +174,9 @@ class AlbumInfoFrame(InteractiveFrame):
 
     @property
     def cover_image_thumbnail(self) -> Image:
-        title = f'Album Cover: {self.album_info.name}'
-        return Image(image=self._cover_image_raw, size=self.cover_size, popup=True, popup_title=title)
+        # TODO: Right-click menu to add/replace the image
+        image = icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
+        return Image(image=image, size=self.cover_size, popup=True, popup_title=f'Album Cover: {self.album_info.name}')
 
     # endregion
 
@@ -222,19 +222,12 @@ class SongFileFrame(TrackMixin, InteractiveFrame):
 
     @cached_property
     def _cover_image_raw(self) -> Optional[bytes]:
-        try:
-            return self.track.get_cover_data()[0]
-        except TagNotFound as e:
-            log.warning(e)
-            return None
-        except Exception:  # noqa
-            log.error(f'Unable to load cover image for {self.track}', exc_info=True)
-            return None
+        return get_raw_cover_image(self.track)
 
     @property
     def cover_image_thumbnail(self) -> Image:
-        title = f'Track Album Cover: {self.file_name}'
-        return Image(image=self._cover_image_raw, size=self.cover_size, popup=True, popup_title=title)
+        image = icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
+        return Image(image=image, size=self.cover_size, popup=True, popup_title=f'Track Album Cover: {self.file_name}')
 
     # endregion
 

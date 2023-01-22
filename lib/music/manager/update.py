@@ -312,6 +312,10 @@ class AlbumInfo(Serializable, GenreMixin):
     kpop_gen: float = Field(float)                  # K-Pop generation
     # fmt: on
 
+    def __repr__(self) -> str:
+        title, artist = self.title, self.artist
+        return f'<{self.__class__.__name__}[{title=}, {artist=}]>'
+
     @property
     def ost(self):
         return self.type is DiscoEntryType.Soundtrack

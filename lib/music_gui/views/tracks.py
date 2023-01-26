@@ -14,6 +14,7 @@ from tk_gui.elements import HorizontalSeparator, Button, Text
 from tk_gui.elements.menu import MenuProperty
 from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup, popup_ok
 from tk_gui.options import GuiOptions
+from tk_gui.views.view import View
 
 from music.files.track.track import SongFile
 from music.files.album import AlbumDir
@@ -22,7 +23,6 @@ from music_gui.elements.menus import PathRightClickMenu, MusicManagerMenuBar
 from music_gui.elements.file_frames import SongFileFrame, SelectableSongFileFrame
 from music_gui.elements.info_frames import TrackInfoFrame
 from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators
-from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -33,7 +33,7 @@ __all__ = ['TrackInfoView', 'SongFileView']
 log = logging.getLogger(__name__)
 
 
-class BaseTrackView(BaseView, ABC, title='Track Info'):
+class BaseTrackView(View, ABC, title='Track Info'):
     menu = MenuProperty(MusicManagerMenuBar)
     window_kwargs = {'exit_on_esc': True, 'right_click_menu': PathRightClickMenu(), 'scroll_y': True}
     album: AlbumInfo | AlbumDir

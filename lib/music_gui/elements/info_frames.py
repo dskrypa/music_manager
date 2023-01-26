@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Iterator, Collection, Optional, Sequence
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
 from tk_gui.elements.buttons import Button, ButtonAction
-from tk_gui.elements.frame import InteractiveFrame, Frame, RowFrame
+from tk_gui.elements.frame import InteractiveFrame, Frame, RowFrame, BasicRowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import Multiline, Text, Input
 from tk_gui.popups import popup_ok
@@ -33,14 +33,6 @@ ValueEle = Text | Multiline | Rating | ListBox
 _multiple_covers_warned = set()
 
 
-class ButtonRow(RowFrame):
-    elements = None  # Necessary to satisfy the ABC
-
-    def __init__(self, buttons: Sequence[Button], **kwargs):
-        super().__init__(side='t', **kwargs)
-        self.elements = buttons
-
-
 class AlbumInfoFrame(InteractiveFrame):
     album_info: AlbumInfo
 
@@ -53,13 +45,15 @@ class AlbumInfoFrame(InteractiveFrame):
     def get_custom_layout(self) -> Layout:
         yield from self.build_meta_rows()
         width, height = self.cover_size
-        cf_size = (width + 10, height + 10)  # TODO: Need some way to force it - is an invisible image really necessary?
-        yield [Frame([[self.cover_image_thumbnail]], size=cf_size), Frame([*self.build_tag_rows()])]
+        yield [
+            Frame([[self.cover_image_thumbnail]], size=(width + 10, height + 10), pack_propagate=False),
+            Frame([*self.build_tag_rows()])
+        ]
         yield [HorizontalSeparator()]
         buttons = list(self.buttons.values())
-        yield [ButtonRow(buttons[:4])]
-        yield [ButtonRow(buttons[4:7])]
-        yield [ButtonRow(buttons[-1:])]
+        yield [BasicRowFrame(buttons[:4], side='t')]
+        yield [BasicRowFrame(buttons[4:7], side='t')]
+        yield [BasicRowFrame(buttons[-1:], side='t')]
 
     # region Cover Image
 

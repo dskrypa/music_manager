@@ -10,18 +10,15 @@ from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import HorizontalSeparator, Button, Text
-from tk_gui.elements.menu import MenuProperty
-from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup
+from tk_gui.popups import BoolPopup
 from tk_gui.options import GuiOptions
-from tk_gui.views.view import View
 
 from music.files.track.track import SongFile
 from music.files.album import AlbumDir
-from music.files.exceptions import InvalidAlbumDir
-from music_gui.elements.menus import PathRightClickMenu, MusicManagerMenuBar
 from music_gui.elements.file_frames import SongFileFrame, SelectableSongFileFrame
 from music_gui.elements.info_frames import TrackInfoFrame
 from music_gui.utils import LogAndPopupHelper, AlbumIdentifier, get_album_dir, get_album_info, with_separators
+from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -32,24 +29,8 @@ __all__ = ['TrackInfoView', 'SongFileView']
 log = logging.getLogger(__name__)
 
 
-class BaseTrackView(View, ABC, title='Track Info'):
-    menu = MenuProperty(MusicManagerMenuBar)
-    window_kwargs = {'exit_on_esc': True, 'right_click_menu': PathRightClickMenu(), 'scroll_y': True}
-    album: AlbumInfo | AlbumDir
-
-    def get_pre_window_layout(self) -> Layout:
-        yield [self.menu]
-
-    @menu['File']['Open'].callback
-    def pick_next_album(self, event: Event):
-        if path := pick_folder_popup(self.album.path.parent, 'Pick Album Directory', parent=self.window):
-            log.debug(f'Selected album {path=}')
-            try:
-                return self.set_next_view(AlbumDir(path))
-            except InvalidAlbumDir as e:
-                popup_input_invalid(str(e), logger=log)
-
-        return None
+class BaseTrackView(BaseView, ABC, title='Music Manager - Track Info'):
+    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True, 'scroll_y': True}
 
 
 class TrackInfoView(BaseTrackView):

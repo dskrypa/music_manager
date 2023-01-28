@@ -20,8 +20,8 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
         init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
 
     def main(self):
-        from music_gui.views.album import AlbumView
-        from music_gui.views.tracks import TrackInfoView, SongFileView, SelectableSongFileView
+        from music_gui.manager_views.album import AlbumView
+        from music_gui.manager_views.tracks import TrackInfoView, SongFileView, SelectableSongFileView
 
         view_cls = AlbumView if self.album else SelectableSongFileView
 

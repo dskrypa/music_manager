@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Iterator, Collection, Optional, Sequence
+from typing import TYPE_CHECKING, Iterator, Collection, Optional
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
-from tk_gui.elements.buttons import Button, ButtonAction
+from tk_gui.elements.buttons import Button, EventButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import Multiline, Text, Input
@@ -153,25 +153,19 @@ class AlbumInfoFrame(InteractiveFrame):
 
     @cached_property
     def buttons(self) -> dict[str, Button]:
-        kwargs = {'size': (18, 1), 'borderwidth': 3, 'action': ButtonAction.BIND_EVENT}
-        open_button = Button(
-            '\U0001f5c1',
-            key='open',
-            font=('Helvetica', 20),
-            size=(10, 1),
-            tooltip='Open',
-            borderwidth=3,
-            action=ButtonAction.BIND_EVENT,
+        kwargs = {'size': (18, 1), 'borderwidth': 3}
+        open_button = EventButton(
+            '\U0001f5c1', key='open', font=('Helvetica', 20), size=(10, 1), tooltip='Open', borderwidth=3
         )
         return {
-            'Clean & Add BPM': Button('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
-            'View All Tags': Button('View All Tags', key='view_all_tags', **kwargs),
-            'Edit': Button('Edit', key='edit_album', **kwargs),
-            'Wiki Update': Button('Wiki Update', key='wiki_update', **kwargs),
+            'Clean & Add BPM': EventButton('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
+            'View All Tags': EventButton('View All Tags', key='view_all_tags', **kwargs),
+            'Edit': EventButton('Edit', key='edit_album', **kwargs),
+            'Wiki Update': EventButton('Wiki Update', key='wiki_update', **kwargs),
             #
-            'Sync Ratings From...': Button('Sync Ratings From...', key='sync_ratings_from', **kwargs),
-            'Sync Ratings To...': Button('Sync Ratings To...', key='sync_ratings_to', **kwargs),
-            'Copy Tags From...': Button('Copy Tags From...', key='copy_tags_from', **kwargs),
+            'Sync Ratings From...': EventButton('Sync Ratings From...', key='sync_ratings_from', **kwargs),
+            'Sync Ratings To...': EventButton('Sync Ratings To...', key='sync_ratings_to', **kwargs),
+            'Copy Tags From...': EventButton('Copy Tags From...', key='copy_tags_from', **kwargs),
             #
             'Open': open_button,
         }

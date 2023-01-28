@@ -72,6 +72,7 @@ class FullRightClickMenu(Menu):
 class MusicManagerMenuBar(Menu):
     with MenuGroup('File'):
         MenuItem('Open')
+        MenuItem('Settings')
         CloseWindow()
     with MenuGroup('Help'):
         MenuItem('About', AboutPopup)

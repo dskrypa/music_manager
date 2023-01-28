@@ -27,7 +27,9 @@ def import_main(file_name: str, package: str = 'music.cli'):
             from subprocess import call
 
             bin_path = VENV_PATH.joinpath('Scripts' if ON_WINDOWS else 'bin')
-            environ.update(PYTHONHOME='', VIRTUAL_ENV=VENV_PATH.as_posix(), PATH=f'{bin_path.as_posix()}:{environ["PATH"]}')
+            environ.update(
+                PYTHONHOME='', VIRTUAL_ENV=VENV_PATH.as_posix(), PATH=f'{bin_path.as_posix()}:{environ["PATH"]}'
+            )
             cmd = [bin_path.joinpath('python.exe' if ON_WINDOWS else 'python').as_posix()] + sys.argv
             sys.exit(call(cmd, env=environ))
 

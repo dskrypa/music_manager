@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING, Iterator, Collection, Optional, Sequence
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
 from tk_gui.elements.buttons import Button, ButtonAction
-from tk_gui.elements.frame import InteractiveFrame, Frame, RowFrame, BasicRowFrame
+from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import Multiline, Text, Input
+from tk_gui.images.icons import placeholder_icon_cache
 from tk_gui.popups import popup_ok
 
 from music.common.disco_entry import DiscoEntryType
@@ -20,7 +21,7 @@ from music.files.exceptions import TagNotFound
 from music.files.track.track import SongFile
 from music.manager.update import TrackInfo, AlbumInfo
 from ..utils import AlbumIdentifier, TrackIdentifier, get_album_info, get_album_dir, get_track_info, get_track_file
-from .images import icon_cache, get_raw_cover_image
+from .images import get_raw_cover_image
 from .list_box import EditableListBox
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ class AlbumInfoFrame(InteractiveFrame):
     @property
     def cover_image_thumbnail(self) -> Image:
         # TODO: Right-click menu to add/replace the image
-        image = icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
+        image = placeholder_icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
         return Image(image=image, size=self.cover_size, popup=True, popup_title=f'Album Cover: {self.album_info.name}')
 
     # endregion

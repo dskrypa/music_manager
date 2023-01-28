@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from itertools import count
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from ds_tools.caching.decorators import cached_property
@@ -15,13 +14,14 @@ from tk_gui.elements import Element, ListBox, CheckBox, Image
 from tk_gui.elements.frame import InteractiveFrame, Frame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import PathLink, Multiline, Text
+from tk_gui.images.icons import placeholder_icon_cache
 from tk_gui.popups import BasicPopup
 from tk_gui.styles import StyleState
 
 from music.common.ratings import stars_from_256
 from music.files.track.track import SongFile
 from ..utils import TrackIdentifier, get_track_file
-from .images import icon_cache, get_raw_cover_image
+from .images import get_raw_cover_image
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -75,7 +75,7 @@ class SongFileFrame(InteractiveFrame):
 
     @property
     def cover_image_thumbnail(self) -> Image:
-        image = icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
+        image = placeholder_icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
         return Image(image=image, size=self.cover_size, popup=True, popup_title=f'Track Album Cover: {self.file_name}')
 
     # endregion
@@ -199,7 +199,7 @@ class SelectableSongFileFrame(SongFileFrame):
 
         data = {'track_frame': self, 'tag_id': tag_id}
         sel_box = CheckBox('', disabled=self.disabled, data=data)
-        sel_box.change_cb = self._box_toggled_callback(tag_id, sel_box, val_ele)
+        sel_box.var_change_cb = self._box_toggled_callback(tag_id, sel_box, val_ele)
 
         binds = {'<Button-1>': sel_box.toggle_as_callback()}
         if multi_select_cb := self._multi_select_cb:

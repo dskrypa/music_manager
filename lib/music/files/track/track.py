@@ -1117,7 +1117,7 @@ class Id3SongFile(SongFile):
             self._f.tags[cover.HashKey] = cover
 
 
-class Mp3SongFile(Id3SongFile, ft_classes=(MP3, ID3FileType)):
+class Mp3File(Id3SongFile, ft_classes=(MP3, ID3FileType)):
     file_type = 'mp3'
 
     @cached_property
@@ -1125,7 +1125,7 @@ class Mp3SongFile(Id3SongFile, ft_classes=(MP3, ID3FileType)):
         return 'ID3v{}.{}'.format(*self._f.tags.version[:2])
 
 
-class WavSongFile(Id3SongFile, ft_classes=(WAVE,)):
+class WavFile(Id3SongFile, ft_classes=(WAVE,)):
     file_type = 'wav'
 
     @cached_property
@@ -1140,7 +1140,7 @@ class WavSongFile(Id3SongFile, ft_classes=(WAVE,)):
         return True
 
 
-class Mp4SongFile(SongFile, ft_classes=(MP4,)):
+class Mp4File(SongFile, ft_classes=(MP4,)):
     tag_type = 'mp4'
     file_type = 'mp4'
 
@@ -1230,7 +1230,7 @@ class VorbisSongFile(SongFile):
                 self._f.add_picture(cover)
 
 
-class FlacSongFile(VorbisSongFile, ft_classes=(FLAC,)):
+class FlacFile(VorbisSongFile, ft_classes=(FLAC,)):
     file_type = 'flac'
 
     @cached_property
@@ -1242,7 +1242,7 @@ class FlacSongFile(VorbisSongFile, ft_classes=(FLAC,)):
         return True
 
 
-class OggSongFile(VorbisSongFile, ft_classes=(OggFileType, OggFLAC, OggVorbis, OggOpus)):
+class OggFile(VorbisSongFile, ft_classes=(OggFileType, OggFLAC, OggVorbis, OggOpus)):
     file_type = 'ogg'
 
     @cached_property

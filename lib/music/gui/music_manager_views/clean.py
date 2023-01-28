@@ -51,7 +51,7 @@ class CleanView(MainView, view_name='clean'):
         self.options = GuiOptions(self, disable_on_parsed=True)
         self.options.add_bool('bpm', 'Add BPM', bpm_ok, disabled=not bpm_ok, tooltip='requires Aubio')
         self.options.add_bool('dry_run', 'Dry Run')
-        self.options.add_input('threads', 'BPM Threads', 4, row=1, type=int, size=(5, 1))
+        self.options.add_input('threads', 'BPM Threads', 12, row=1, type=int, size=(5, 1))
         self.prog_tracker: Optional[ProgressTracker] = None
         self.output: Optional[Multiline] = None
         self.file_list: Optional[Multiline] = None

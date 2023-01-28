@@ -32,6 +32,8 @@ log = logging.getLogger(__name__)
 
 DEFAULT_FILE_NAME = 'com.plexapp.plugins.library.db'
 
+# region Enums
+
 
 class StreamType(MissingMixin, Enum):
     VIDEO = 1
@@ -57,6 +59,8 @@ class MetaType(MissingMixin, Enum):
 
 Stream_Type = Union[StreamType, str, int]
 Meta_Type = Union[MetaType, str, int]
+
+# endregion
 
 
 class PlexDB:

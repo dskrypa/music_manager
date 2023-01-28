@@ -13,6 +13,7 @@ from inspect import getsource
 from urllib.parse import urlencode
 from xml.etree.ElementTree import Element
 
+from plexapi import __version__ as PLEX_API_VERSION
 from plexapi.audio import Track, Album, Artist, Audio
 from plexapi.base import PlexObject, Playable, PlexPartialObject, PlexSession
 from plexapi.base import _DONT_RELOAD_FOR_KEYS, USER_DONT_RELOAD_FOR_KEYS
@@ -27,6 +28,7 @@ from .filters import get_attr_operator, get_attr_value, check_attrs
 __all__ = ['apply_plex_patches']
 log = logging.getLogger(__name__)
 
+PATCHED_VERSION = '4.13.2'
 _APPLIED_BASIC_PATCHES = False
 _APPLIED_PERF_PATCHES = False
 
@@ -184,7 +186,6 @@ def _apply_perf_patches(skip_changed: bool = True):
         get_user_attrib = data.find('User').attrib.get
         self._username = username = get_user_attrib('title')
         self._userId = cast_num(int, get_user_attrib('id'))
-        self._user = None  # Cache for user object
 
         # For backwards compatibility
         self.players = [player] if player else []
@@ -342,13 +343,13 @@ def _apply_perf_patches(skip_changed: bool = True):
 
     # region Patch Target Change Checks
 
-    # Last updated for PlexAPI version: 4.13.1 (2022-12-29)
-    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.11.2...4.13.1
+    # Last updated for PlexAPI version: 4.13.2 (2023-01-28)
+    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.13.1...4.13.2
     perf_patches = [
         (Track, '_loadData', track_load_data, '22b4a4bb6578276088cff20a5ae592a50deb8189b3d989aef90ac50b46e5b487'),
         (Audio, '_loadData', audio_load_data, '582a5d25a9fa824c426c0b7c1f011a7297a6211ec6d06d092b8909482cee1dbd'),
         (Playable, '_loadData', playable_load_data, 'c79cafa697dde0c0e81fe12b89e6f8452bf1723b39e467ff0cf608ff576692ee'),
-        (PlexSession, '_loadData', session_load_data, 'df1bdf69f48ca990707e20b9e7d4bfa86d7cba573c99fd5ecfc40e25677f8a56'),
+        (PlexSession, '_loadData', session_load_data, '249132147cc678ff7b0f9aeb078baedeb0bb52e023586458be75816bc50b2f9c'),
         (PlexObject, '_getAttrOperator', _get_attr_operator, '8379d358737730f32cae86016d812eae676305801367d7d9c5116c7272bf88de'),
         (PlexObject, '_getAttrValue', _get_attr_value, '2aa52b5a750f2bafab3ff195d9def179401e4f5e4cca53eac40c055aedc6db22'),
         (PlexObject, '_buildDetailsKey', build_details_key, 'f71b5ac061a50d27fa22ba28c7a5c3abe709222b0a9bb79b8cd526defa9508fe'),
@@ -362,13 +363,17 @@ def _apply_perf_patches(skip_changed: bool = True):
         method = getattr(cls, method_name)
         current_sha256 = sha256(getsource(method).encode('utf-8')).hexdigest()
         if current_sha256 != patched_sha256:
-            warnings.warn(PatchedMethodChanged(method.__qualname__, patched_sha256, current_sha256))
+            fqmn = f'{cls.__module__}.{method.__qualname__}'
+            warnings.warn(PatchedMethodChanged(fqmn, patched_sha256, current_sha256, skip_changed))
             if skip_changed:
                 continue
 
         setattr(cls, method_name, patched_method)
         # print(f'Patched {method.__qualname__}')
 
+    # Functions whose use was replaced in the methods patched above, but are not directly monkey-patched themselves
+    # TODO: If skip_changed, and these changed, but the methods using them were not, then those methods should probably
+    #  be skipped too
     util_perf_patches = [
         ('plexapi.utils.cast', cast, cast_num, 'a786e4c543ed60802e066de7c2b469d71096ff9236cf21c6d33c459f6a6ffeb4'),
         ('plexapi.utils.toDatetime', toDatetime, to_datetime, '56cfa4cc2ec8ca95a0eedf93ed558fbab2ef2370c75249b1c624902343fed414'),
@@ -382,13 +387,22 @@ def _apply_perf_patches(skip_changed: bool = True):
 
 
 class PatchedMethodChanged(UserWarning):
-    def __init__(self, method_name: str, old_hash: str, new_hash: str):
+    def __init__(self, method_name: str, old_hash: str, new_hash: str, skipping: bool = False):
         self.method_name = method_name
         self.old = old_hash
         self.new = new_hash
+        self.skipping = skipping
 
     def __str__(self) -> str:
-        return (
-            f'The source for {self.method_name} changed since the patch applied in music.plex.patches was written:'
-            f'\nold={self.old}\nnew={self.new}'
+        if self.skipping:
+            prefix = f'Skipping patch for {self.method_name} because'
+        else:
+            prefix = f'Patching {self.method_name} despite the fact that'
+        old_ver, new_ver = PATCHED_VERSION, PLEX_API_VERSION
+        lines = (
+            f'{prefix} its source changed since the patch applied in music.plex.patches was written.',
+            f'The patch written for plexapi {old_ver=} is outdated for {new_ver=}, which is currently installed.',
+            f'View the diff here:\nhttps://github.com/pkkid/python-plexapi/compare/{old_ver}...{new_ver}',
+            f'Method code hashes:\nold={self.old}\nnew={self.new}'
         )
+        return '\n'.join(lines)

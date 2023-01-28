@@ -9,10 +9,9 @@ from abc import ABC
 from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import HorizontalSeparator, Button, Text
 from tk_gui.elements.menu import MenuProperty
-from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup, popup_ok
+from tk_gui.popups import popup_input_invalid, pick_folder_popup, BoolPopup
 from tk_gui.options import GuiOptions
 from tk_gui.views.view import View
 
@@ -22,7 +21,7 @@ from music.files.exceptions import InvalidAlbumDir
 from music_gui.elements.menus import PathRightClickMenu, MusicManagerMenuBar
 from music_gui.elements.file_frames import SongFileFrame, SelectableSongFileFrame
 from music_gui.elements.info_frames import TrackInfoFrame
-from music_gui.utils import AlbumIdentifier, get_album_dir, get_album_info, with_separators
+from music_gui.utils import LogAndPopupHelper, AlbumIdentifier, get_album_dir, get_album_info, with_separators
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -71,38 +70,6 @@ class SongFileView(BaseTrackView):
         yield from with_separators(map(SongFileFrame, self.album), True)
 
 
-class LogAndPopupHelper:
-    __slots__ = ('popup_title', 'dry_run', 'lp', 'messages', 'log_level', 'default_message')
-
-    def __init__(self, popup_title: str, dry_run: bool, default_message: str = None, log_level: int = logging.INFO):
-        self.popup_title = popup_title
-        self.dry_run = dry_run
-        self.lp = LoggingPrefix(dry_run)
-        self.messages = []
-        self.log_level = log_level
-        self.default_message = default_message
-
-    def write(self, prefix: str, message: str):
-        with self.lp.past_tense() as lp:
-            self.messages.append(f'{lp[prefix]} {message}')
-        # The below message ends up using present tense
-        log.log(self.log_level, f'{lp[prefix]} {message}')
-
-    def __enter__(self) -> LogAndPopupHelper:
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_val is not None:
-            return
-        if message := '\n\n'.join(self.messages) or self.default_message:
-            popup_ok(message, title=self.popup_title)
-
-    def took_action(self, ignore_dry_run: bool = False) -> bool:
-        if self.dry_run and not ignore_dry_run:
-            return False
-        return bool(self.messages)
-
-
 class SelectableSongFileView(SongFileView):
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(album, **kwargs)
@@ -136,17 +103,13 @@ class SelectableSongFileView(SongFileView):
         options.add_bool('dry_run', 'Dry Run', default=False)
         return options
 
-    @cached_property
-    def delete_button(self) -> Button:
-        return Button('Delete\nSelected Tags', focus=False, side='bottom', cb=self.delete_selected_tags)
-
     def get_pre_window_layout(self) -> Layout:
         yield from super().get_pre_window_layout()
         yield [
             self.options.as_frame(),
             Text('Album:', anchor='s'),
             Text(self.album.path.as_posix(), use_input_style=True, anchor='s'),
-            self.delete_button,
+            Button('Delete\nSelected Tags', focus=False, side='bottom', cb=self.delete_selected_tags),
         ]
 
     def get_post_window_layout(self) -> Layout:

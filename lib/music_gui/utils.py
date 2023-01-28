@@ -11,7 +11,9 @@ from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Union, Iterable
 
+from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import Element, HorizontalSeparator
+from tk_gui.popups import popup_ok
 
 from music.files.album import AlbumDir
 from music.files.track.track import SongFile
@@ -23,12 +25,47 @@ if TYPE_CHECKING:
 __all__ = [
     'AlbumIdentifier', 'get_album_info', 'get_album_dir',
     'TrackIdentifier', 'get_track_info', 'get_track_file',
-    'with_separators', 'fix_windows_path', 'call_timer',
+    'LogAndPopupHelper', 'with_separators', 'fix_windows_path', 'call_timer',
 ]
 log = logging.getLogger(__name__)
 
 AlbumIdentifier = Union[AlbumInfo, AlbumDir, Path, str]
 TrackIdentifier = Union[TrackInfo, SongFile, Path, str]
+
+
+class LogAndPopupHelper:
+    __slots__ = ('popup_title', 'dry_run', 'lp', 'messages', 'log_level', 'default_message')
+
+    def __init__(self, popup_title: str, dry_run: bool, default_message: str = None, log_level: int = logging.INFO):
+        self.popup_title = popup_title
+        self.dry_run = dry_run
+        self.lp = LoggingPrefix(dry_run)
+        self.messages = []
+        self.log_level = log_level
+        self.default_message = default_message
+
+    def write(self, prefix: str, message: str):
+        with self.lp.past_tense() as lp:
+            self.messages.append(f'{lp[prefix]} {message}')
+        # The below message ends up using present tense
+        log.log(self.log_level, f'{lp[prefix]} {message}')
+
+    def __enter__(self) -> LogAndPopupHelper:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val is not None:
+            return
+        if message := '\n\n'.join(self.messages) or self.default_message:
+            popup_ok(message, title=self.popup_title)
+
+    def took_action(self, ignore_dry_run: bool = False) -> bool:
+        if self.dry_run and not ignore_dry_run:
+            return False
+        return bool(self.messages)
+
+
+# region Album / Track Type Normalization
 
 
 def get_album_info(album: AlbumIdentifier) -> AlbumInfo:
@@ -68,6 +105,9 @@ def _album_directory(path: Path | str) -> Path:
     if not path.is_dir():
         return path.parent
     return path
+
+
+# endregion
 
 
 def with_separators(rows: Iterable[Element | Iterable[Element]], wrap: bool = False) -> Layout:

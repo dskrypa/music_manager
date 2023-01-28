@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from cli_command_parser import Command, Counter, ParamGroup, Positional, Flag, inputs as i, main
+from cli_command_parser import Command, Counter, ParamGroup, Positional, Flag, inputs, main
 
 from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 
 class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
-    path: Path = Positional(type=i.Path(), help='Path to an album or track')
+    path: Path = Positional(type=inputs.Path(), help='Path to an album or track')
     album = Flag('-a', help='Show the album view instead of the track view')
     with ParamGroup('Common') as group:
         verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')

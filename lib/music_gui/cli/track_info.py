@@ -33,11 +33,11 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
             raise
 
     def patch_and_set_mode(self):
-        # from music.common.prompts import set_ui_mode, UIMode
+        from music.common.prompts import set_ui_mode, UIMode
         from music.files.patches import apply_mutagen_patches
 
         apply_mutagen_patches()
-        # set_ui_mode(UIMode.GUI)
+        set_ui_mode(UIMode.TK_GUI)
 
 
 # class Configure(MusicManagerGui, help='Configure registry entries for right-click actions'):

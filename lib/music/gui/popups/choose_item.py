@@ -9,6 +9,8 @@ from typing import Callable, Sequence, Any, Union, Collection
 from PySimpleGUI import Element, Text, Button, Radio, Column
 
 from ds_tools.input.prompts import _prepare_source
+from ds_tools.utils.grammar import a_or_an
+
 from ..base_view import event_handler
 from .base import BasePopup
 
@@ -82,12 +84,12 @@ def choose_item(
     Given a list of items from which only one value can be used, prompt the user to choose an item.  If only one item
     exists in the provided sequence, then that item is returned with no prompt.
 
-    :param Collection items: A sequence or sortable collection of items to choose from
-    :param str name: The name of the item to use in messages/prompts
+    :param items: A sequence or sortable collection of items to choose from
+    :param name: The name of the item to use in messages/prompts
     :param source: Where the items came from
-    :param str before: A message to be printed before listing the items to choose from (default: automatically generated
+    :param before: A message to be printed before listing the items to choose from (default: automatically generated
       using the provided name and source)
-    :param Callable repr_func: The function to use to generate a string representation of each item
+    :param repr_func: The function to use to generate a string representation of each item
     :return: The selected item
     """
     if not isinstance(items, Sequence):
@@ -99,9 +101,3 @@ def choose_item(
     else:
         popup = ChooseItemPopup(items, name, source, before, repr_func, **kwargs)
         return popup.get_result()
-
-
-def a_or_an(noun: str) -> str:
-    if not noun:
-        return 'a'
-    return 'an' if noun[0] in 'aeiou' else 'a'

@@ -10,6 +10,10 @@ from typing import Union, Callable, Collection, Any, Optional
 
 from ds_tools.input.prompts import choose_item as cli_choose_item, Color, get_input as cli_get_input, _NotSet
 from ds_tools.input.parsers import parse_yes_no
+
+from tk_gui.popups import popup_yes_no as tkg_yes_no, popup_get_text as tkg_get_text, popup_get_password as tkg_get_pw
+from tk_gui.popups import choose_item as tkg_choose_item
+
 from ..gui.popups.choose_item import choose_item as gui_choose_item
 from ..gui.popups.simple import popup_yes_no
 from ..gui.popups.text import popup_get_text
@@ -20,6 +24,7 @@ __all__ = ['choose_item', 'UIMode', 'set_ui_mode', 'get_input', 'getpass']
 class UIMode(Enum):
     CLI = 'cli'
     GUI = 'gui'
+    TK_GUI = 'tk_gui'
 
     @classmethod
     def current(cls):
@@ -58,6 +63,8 @@ def choose_item(
             error_color=error_color,
             repr_func=repr_func,
         )
+    elif UI_MODE == UIMode.TK_GUI:
+        return tkg_choose_item(items, item_name=name, source=source, text=before, repr_func=repr_func)
     else:
         return gui_choose_item(items, name, source, before=before, repr_func=repr_func)
 
@@ -77,14 +84,21 @@ def get_input(
     elif skip and default is _NotSet:
         raise ValueError(f'Unable to skip user prompt without a default value: {prompt!r}')
     elif parser is parse_yes_no:
+        if UI_MODE == UIMode.TK_GUI:
+            return tkg_yes_no(prompt, **kwargs)
         return popup_yes_no(prompt, **kwargs)
     else:
-        result = popup_get_text(prompt, **kwargs)
+        if UI_MODE == UIMode.TK_GUI:
+            result = tkg_get_text(prompt, **kwargs)
+        else:
+            result = popup_get_text(prompt, **kwargs)
         return parser(result)
 
 
 def getpass(prompt: str, **kwargs):
     if UI_MODE == UIMode.CLI:
         return cli_getpass(prompt)
+    elif UI_MODE == UIMode.TK_GUI:
+        return tkg_get_pw(prompt, **kwargs)
     else:
         return popup_get_text(prompt, password_char='*', **kwargs)

@@ -1,9 +1,30 @@
 venv*/
 .idea/
 __pycache__/
+_rst_backup/
 build/
 dist/
+temp/
 *.pyc
 *.egg-info
 .coverage
 coverage.xml
+
+# Ignore all directories/files under docs/ unless excluded here
+docs/*/
+docs/*.*
+!docs/.nojekyll
+!docs/requirements.txt
+!docs/_ext
+!docs/_templates
+# Ignore automatically generated RSTs
+!docs/_src
+docs/_src/*/
+!docs/_src/images
+docs/_src/api.rst
+docs/_src/examples.rst
+docs/_src/scripts.rst
+# Ignore static content except for the custom css
+!docs/_static
+docs/_static/**
+!docs/_static/rtd_custom.css

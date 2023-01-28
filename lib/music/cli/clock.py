@@ -1,6 +1,6 @@
 from cli_command_parser import Command, Counter, Flag, main
 
-from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
+from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 
 class Clock(Command, description='Clock'):

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, ParamGroup, main  # noqa
 
-from ..__version__ import __author_email__, __version__  # noqa
+from music.__version__ import __author_email__, __version__  # noqa
 
 if TYPE_CHECKING:
     from music.files.album import AlbumDir

@@ -1,8 +1,9 @@
-from ..__version__ import __author_email__, __version__  # noqa
 from ds_tools.argparsing import ArgParser
 from ds_tools.core.main import wrap_main
 from ds_tools.logging import init_logging
 from pypod.shell import iDeviceShell
+
+from music.__version__ import __author_email__, __version__  # noqa
 
 
 def parser():

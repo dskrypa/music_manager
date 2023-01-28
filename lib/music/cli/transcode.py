@@ -13,9 +13,8 @@ from cli_command_parser import Command, Counter, Positional, Option, ParamGroup,
 from mutagen import File
 
 from ds_tools.fs.paths import unique_path
-from ..files.track.track import SongFile
-
-from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
+from music.files.track.track import SongFile
+from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 
 log = logging.getLogger(__name__)

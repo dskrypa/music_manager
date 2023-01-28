@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, ParamGroup, main  # noqa
 
-from ..__version__ import __author_email__, __version__  # noqa
-from ..wiki import EntertainmentEntity
+from music.__version__ import __author_email__, __version__  # noqa
+from music.wiki import EntertainmentEntity
 
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
 

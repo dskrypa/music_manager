@@ -3,7 +3,7 @@ from pathlib import Path
 
 from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, main  # noqa
 
-from ..__version__ import __author_email__, __version__, __author__, __url__  # noqa
+from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
 log = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@
 import logging
 from datetime import date
 
-from ..__version__ import __author_email__, __version__  # noqa
+from music.__version__ import __author_email__, __version__  # noqa
 from ds_tools.argparsing import ArgParser
 from ds_tools.core.main import wrap_main
 

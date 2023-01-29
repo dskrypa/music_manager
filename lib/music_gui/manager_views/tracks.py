@@ -29,8 +29,8 @@ __all__ = ['TrackInfoView', 'SongFileView']
 log = logging.getLogger(__name__)
 
 
-class BaseTrackView(BaseView, ABC, title='Music Manager - Track Info'):
-    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True, 'scroll_y': True}
+class BaseTrackView(BaseView, ABC, title='Music Manager - Track Info', scroll_y=True):
+    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
 
 
 class TrackInfoView(BaseTrackView):
@@ -38,7 +38,7 @@ class TrackInfoView(BaseTrackView):
         super().__init__(**kwargs)
         self.album: AlbumInfo = get_album_info(album)
 
-    def get_post_window_layout(self) -> Layout:
+    def get_inner_layout(self) -> Layout:
         yield from with_separators(map(TrackInfoFrame, self.album.tracks.values()), True)
 
 
@@ -47,7 +47,7 @@ class SongFileView(BaseTrackView):
         super().__init__(**kwargs)
         self.album: AlbumDir = get_album_dir(album)
 
-    def get_post_window_layout(self) -> Layout:
+    def get_inner_layout(self) -> Layout:
         yield from with_separators(map(SongFileFrame, self.album), True)
 
 
@@ -55,26 +55,6 @@ class SelectableSongFileView(SongFileView):
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(album, **kwargs)
         self._track_frames: list[SelectableSongFileFrame] = []
-
-    # def finalize_window(self):
-    #     with call_timer('Initialized window'):
-    #         window = self.window
-    #
-    #     if layout := self.get_post_window_layout():
-    #         with call_timer('Added rows'):
-    #             window.add_rows(layout, pack=True)
-    #         with call_timer('Updated idle tasks'):
-    #             window._update_idle_tasks()
-    #         with call_timer('Updated scroll region'):
-    #             try:
-    #                 window.update_scroll_region()
-    #             except TypeError:  # It was not scrollable
-    #                 pass
-    #     if parent := self.parent:
-    #         if isinstance(parent, View):
-    #             parent = parent.window
-    #         window.move_to_center(parent)
-    #     return window
 
     # region Layout / Elements
 
@@ -92,12 +72,14 @@ class SelectableSongFileView(SongFileView):
             Text(self.album.path.as_posix(), use_input_style=True, anchor='s'),
             Button('Delete\nSelected Tags', focus=False, side='bottom', cb=self.delete_selected_tags),
         ]
+        yield [HorizontalSeparator()]
 
-    def get_post_window_layout(self) -> Layout:
-        for track in self.album:
+    def get_inner_layout(self) -> Layout:
+        for i, track in enumerate(self.album):
             frame = SelectableSongFileFrame(track, multi_select_cb=self.multi_select_cb)
             self._track_frames.append(frame)
-            yield [HorizontalSeparator()]
+            if i:
+                yield [HorizontalSeparator()]
             yield [frame]
 
     # endregion

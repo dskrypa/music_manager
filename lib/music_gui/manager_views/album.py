@@ -8,6 +8,7 @@ import logging
 from abc import ABC
 from typing import TYPE_CHECKING
 
+from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import HorizontalSeparator, Text, Frame, ScrollFrame
 from tk_gui.event_handling import button_handler
 from tk_gui.popups import popup_ok
@@ -32,13 +33,15 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
         super().__init__(**kwargs)
         self.album: AlbumInfo = get_album_info(album)
         self._track_frames: list[TrackInfoFrame] = []
+        self.editing = False
 
     # region Layout Generation
 
-    def _prepare_album_frame(self) -> Frame:
+    @cached_property
+    def album_info_frame(self) -> AlbumInfoFrame:
         return AlbumInfoFrame(self.album, disabled=True, anchor='n')
 
-    def _prepare_track_frame(self) -> ScrollFrame:
+    def _prepare_track_frames(self) -> ScrollFrame:
         track_frames = [TrackInfoFrame(track, disabled=True) for track in self.album.tracks.values()]
         self._track_frames.extend(track_frames)
         tracks_frame = ScrollFrame(with_separators(track_frames, True), scroll_y=True)
@@ -47,7 +50,7 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
     def get_inner_layout(self) -> Layout:
         yield [Text('Album Path:'), Text(self.album.path.as_posix(), use_input_style=True, size=(150, 1))]
         yield [HorizontalSeparator()]
-        yield [self._prepare_album_frame(), self._prepare_track_frame()]
+        yield [self.album_info_frame, self._prepare_track_frames()]
 
     # endregion
 
@@ -61,11 +64,21 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
     def view_all_tags(self, event: Event, key=None):
         from .tracks import SelectableSongFileView
 
-        # TODO: Add way to go back to this view
         return self.set_next_view(self.album, view_cls=SelectableSongFileView)
 
-    @button_handler('edit_album')
-    def edit_album(self, event: Event, key=None):
+    @button_handler('edit_album', 'cancel')
+    def toggle_edit_mode(self, event: Event, key=None):
+        if key == 'edit_album':
+            self.album_info_frame.enable()
+            for track_frame in self._track_frames:
+                track_frame.enable()
+        else:
+            self.album_info_frame.disable()
+            for track_frame in self._track_frames:
+                track_frame.disable()
+
+    @button_handler('save')
+    def save_changes(self, event: Event, key=None):
         popup_ok(f'Not implemented yet: {key}')
 
     @button_handler('wiki_update')

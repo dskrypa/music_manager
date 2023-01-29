@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
-from tk_gui.elements import Frame, EventButton, YScrollFrame
+from tk_gui.elements import Frame, EventButton, YScrollFrame, Button
 from tk_gui.elements.menu import MenuProperty
 from tk_gui.enums import CallbackAction
 from tk_gui.event_handling import button_handler
@@ -23,6 +23,7 @@ from tk_gui.options import GuiOptions
 
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
+from music_gui.elements.buttons import nav_button
 from music_gui.elements.menus import FullRightClickMenu, MusicManagerMenuBar
 
 if TYPE_CHECKING:
@@ -73,16 +74,19 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     def get_pre_window_layout(self) -> Layout:
         yield [self.menu]
 
-    def get_post_window_layout(self) -> Layout:
+    @cached_property
+    def back_button(self) -> Button | None:
         if not self.__prev_view:
+            return None
+        return nav_button('left')
+
+    def get_post_window_layout(self) -> Layout:
+        if (back_button := self.back_button) is None:
             yield from self.get_inner_layout()
         else:
-            back_button = EventButton(
-                '\u2770', key='prev_view', size=(1, 2), pad=(0, 0), font=('Helvetica', 60), anchor='w', side='left'
-            )
             frame_cls = YScrollFrame if self._scroll_y else Frame
-            content = frame_cls(self.get_inner_layout(), side='top')
-            yield Row.custom(self.window, [back_button, content], anchor='c')
+            row = [back_button, frame_cls(self.get_inner_layout(), side='top')]
+            yield Row.custom(self.window, row, anchor='c')
 
     def get_inner_layout(self) -> Layout:
         return []
@@ -175,6 +179,10 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     # endregion
 
     # region Run & Previous / Next Views
+
+    @property
+    def has_prev_view(self) -> bool:
+        return bool(self.__prev_view)
 
     @button_handler('prev_view')
     def return_to_prev_view(self, event: Event = None, key=None) -> CallbackAction | None:

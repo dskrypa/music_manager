@@ -9,7 +9,9 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 from time import monotonic
-from typing import TYPE_CHECKING, Union, Iterable
+from typing import TYPE_CHECKING, Union, Iterable, TypeVar, Iterator, Mapping
+
+from ordered_set import OrderedSet
 
 from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import Element, HorizontalSeparator
@@ -25,12 +27,14 @@ if TYPE_CHECKING:
 __all__ = [
     'AlbumIdentifier', 'get_album_info', 'get_album_dir',
     'TrackIdentifier', 'get_track_info', 'get_track_file',
-    'LogAndPopupHelper', 'with_separators', 'fix_windows_path', 'call_timer',
+    'LogAndPopupHelper', 'with_separators', 'fix_windows_path', 'call_timer', 'zip_maps',
 ]
 log = logging.getLogger(__name__)
 
 AlbumIdentifier = Union[AlbumInfo, AlbumDir, Path, str]
 TrackIdentifier = Union[TrackInfo, SongFile, Path, str]
+K = TypeVar('K')
+V = TypeVar('V')
 
 
 class LogAndPopupHelper:
@@ -146,3 +150,9 @@ def call_timer(message: str):
     yield
     elapsed = monotonic() - start
     log.debug(f'{message} in seconds={elapsed:,.3f}')
+
+
+def zip_maps(*mappings: Mapping[K, V]) -> Iterator[tuple[K, V, ...]]:
+    keys = OrderedSet(mappings[0]).intersection(*mappings[1:])
+    for key in keys:
+        yield key, *(m[key] for m in mappings)

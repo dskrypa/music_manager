@@ -60,15 +60,16 @@ class AlbumDiffView(MainView, view_name='album_diff'):
     def file_info_map(self):
         return self.album_info.get_file_info_map(self.album)
 
-    def get_dest_album_path(self):
+    def get_dest_album_path(self) -> Path | None:
         if self.options['no_album_move']:
             return None
-
-        dest_base_dir = self.album.path.parents[2] if self.options['rename_in_place'] else self.output_sorted_dir
-        dest_album_path = self.album_formatter.get_dest_path(self.album_info, dest_base_dir)
-        if dest_album_path and self.album.path != dest_album_path:
-            return dest_album_path
-        return None
+        new_base_dir = None if self.options['rename_in_place'] else self.output_sorted_dir
+        return self.album_info.get_new_path(new_base_dir)
+        # dest_base_dir = self.album.path.parents[2] if self.options['rename_in_place'] else self.output_sorted_dir
+        # dest_album_path = self.album_formatter.get_dest_path(self.album_info, dest_base_dir)
+        # if dest_album_path and self.album.path != dest_album_path:
+        #     return dest_album_path
+        # return None
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
@@ -76,15 +77,21 @@ class AlbumDiffView(MainView, view_name='album_diff'):
         options_frame = self.options.as_frame('apply_changes')
         if self.last_view and self.last_view.name != 'album':
             top_side_kwargs = dict(size=(6, 1), pad=(0, 0), font=('Helvetica', 20))
-            edit_button = Button('\u2190 Edit', key='edit', visible=True, **top_side_kwargs)
-            edit_col = Column([[edit_button]], key='col::edit', expand_x=True)
-            right_spacer = Text(key='spacer::1', **top_side_kwargs)
-            first_row = [edit_col, options_frame, right_spacer]
+            edit_button_col = Column(
+                [[Button('\u2190 Edit', key='edit', visible=True, **top_side_kwargs)]],
+                key='col::edit', expand_x=True
+            )
+            first_row = [edit_button_col, options_frame, Text(key='spacer::1', **top_side_kwargs)]
             self.binds['<Control-e>'] = 'edit'
         else:
             first_row = [options_frame]
 
-        layout = [first_row, [Text()], [HSep(), Text('Common Album Changes'), HSep()], [Text()]]
+        layout = [
+            first_row,
+            [Text()],
+            [HSep(), Text('Common Album Changes'), HSep()],
+            [Text()],
+        ]
 
         if diff_imgs := self.album_formatter.get_cover_image_diff(self.album_info):
             src_img_ele, new_img_ele = diff_imgs

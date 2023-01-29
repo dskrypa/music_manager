@@ -235,13 +235,13 @@ class AlbumFormatter:
 
         return resize_text_column(rows)
 
-    def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path = None) -> Optional[Path]:
-        try:
-            expected_rel_dir = new_album_info.expected_rel_dir
-        except AttributeError:
-            return None
-        dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
-        return dest_base_dir.joinpath(expected_rel_dir)
+    # def get_dest_path(self, new_album_info: AlbumInfo, dest_base_dir: Path = None) -> Optional[Path]:
+    #     try:
+    #         expected_rel_dir = new_album_info.expected_rel_dir
+    #     except AttributeError:
+    #         return None
+    #     dest_base_dir = new_album_info.dest_base_dir(self.album_dir, dest_base_dir)
+    #     return dest_base_dir.joinpath(expected_rel_dir)
 
     def get_album_data_rows(self, editable: bool = False):
         rows = []

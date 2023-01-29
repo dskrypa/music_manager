@@ -6,7 +6,7 @@ Utilities for formatting gui elements.
 
 import logging
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Iterator
 
 from PySimpleGUI import Text, Element, WRITE_ONLY_KEY, Image
 
@@ -28,7 +28,9 @@ def label_and_diff_keys(src: str, tag: str) -> tuple[Text, Text, Text, str, str]
     return label, sep_1, sep_2, f'src::{src}::{tag}', f'new::{src}::{tag}'
 
 
-def get_a_to_b(label: str, src_val: Union[str, Path], new_val: Union[str, Path], src: str, tag: str) -> list[Element]:
+def get_a_to_b(
+    label: str, src_val: Union[str, Path], new_val: Union[str, Path], src: str, tag: str
+) -> Iterator[list[Element]]:
     src_val = src_val.as_posix() if isinstance(src_val, Path) else src_val
     src_kwargs = {'size': (len(src_val), 1)} if len(src_val) > 50 else {}
     src_ele = ExtInput(src_val, disabled=True, key=f'src::{src}::{tag}', **src_kwargs)
@@ -50,7 +52,7 @@ def split_key(key: str) -> Optional[tuple[str, str, str]]:
             obj, item, sub_key = obj_key.rsplit('::', 2)
         else:
             obj, item = obj_key.rsplit('::', 1)
-    except Exception:
+    except Exception:  # noqa
         return None
     else:
         return key_type, obj, item

@@ -19,6 +19,7 @@ from pathlib import Path
 from string import capwords
 from typing import Union, Optional, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
 
+from ordered_set import OrderedSet
 from PIL import Image
 
 from ds_tools.caching.decorators import cached_property
@@ -30,7 +31,7 @@ from ..common.disco_entry import DiscoEntryType
 from ..common.ratings import stars_to_256
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.changes import get_common_changes
-from ..files.paths import SafePath
+from ..files.paths import SafePath, PathLike
 from ..files.track.track import SongFile
 
 __all__ = ['TrackInfo', 'AlbumInfo']
@@ -59,17 +60,25 @@ def parse_date(dt_str: str | date | None) -> Optional[date]:
 
 
 class GenreMixin:
+    genre: StrOrStrs
+
     def add_genre(self, genre: str):
         genre_set = self.genre_set
         genre_set.add(genre)
-        self.genre = genre_set  # noqa
+        self.genre = genre_set
 
     @property
     def genre_set(self) -> set[str]:
-        if genre := self.genre:  # noqa
+        if genre := self.genre:
             return {genre} if isinstance(genre, str) else set(genre)
         else:
             return set()
+
+    def get_genre_set(self, title_case: bool = False) -> set[str]:
+        if title_case:
+            return {normalize_case(genre) for genre in self.genre_set}
+        else:
+            return self.genre_set
 
     def genre_list(self, title_case: bool = False) -> list[str]:
         return self.norm_genres() if title_case else sorted(self.genre_set)
@@ -346,7 +355,7 @@ class AlbumInfo(Serializable, GenreMixin):
         self.name = self.name or self.title
         return self
 
-    def to_dict(self, title_case: bool = False):
+    def to_dict(self, title_case: bool = False, skip: Collection[str] = None):
         normalized = {
             'date': self.date.strftime('%Y-%m-%d') if self.date else None,  # noqa
             'tracks': {path: track.to_dict(title_case) for path, track in self.tracks.items()},
@@ -354,7 +363,8 @@ class AlbumInfo(Serializable, GenreMixin):
             'genre': self.genre_list(title_case),
         }
 
-        data = {key: normalized.get(key, getattr(self, key)) for key in self._fields}
+        keys = OrderedSet(self._fields).difference(skip) if skip else self._fields  # noqa
+        data = {key: normalized.get(key, getattr(self, key)) for key in keys}
         if title_case:
             for key in ('title', 'artist', 'name', 'parent', 'singer'):
                 if value := data[key]:
@@ -389,11 +399,11 @@ class AlbumInfo(Serializable, GenreMixin):
             yield cls.from_album_dir(album_dir)
 
     @classmethod
-    def from_path(cls, path: Union[str, Path]) -> AlbumInfo:
+    def from_path(cls, path: PathLike) -> AlbumInfo:
         album_dir = next(iter_album_dirs(path))
         return cls.from_album_dir(album_dir)
 
-    def dump(self, path: Union[str, Path], title_case: bool = False):
+    def dump(self, path: PathLike, title_case: bool = False):
         path = Path(path)
         if not path.parent.exists():
             path.parent.mkdir(parents=True)
@@ -403,7 +413,7 @@ class AlbumInfo(Serializable, GenreMixin):
             json.dump(self.to_dict(title_case), f, sort_keys=True, indent=4, ensure_ascii=False)
 
     @classmethod
-    def load(cls, path: Union[str, Path]) -> AlbumInfo:
+    def load(cls, path: PathLike) -> AlbumInfo:
         path = Path(path)
         if not path.is_file():
             raise ValueError(f'Invalid album info path: {path}')
@@ -490,7 +500,7 @@ class AlbumInfo(Serializable, GenreMixin):
         )
         return expected_rel_dir
 
-    def dest_base_dir(self, album_dir: AlbumDir, dest_base_dir: Union[Path, str, None] = None) -> Path:
+    def dest_base_dir(self, album_dir: AlbumDir, dest_base_dir: PathLike | None = None) -> Path:
         if dest_base_dir is None:
             expected_parent = Path(self.expected_rel_dir).parent
             log.debug(f'Comparing {expected_parent=} to {album_dir.path.parent.as_posix()}')
@@ -500,6 +510,18 @@ class AlbumInfo(Serializable, GenreMixin):
                 return Path('./sorted_{}'.format(date.today().strftime('%Y-%m-%d')))
         else:
             return Path(dest_base_dir)
+
+    def get_new_path(self, new_base_dir: PathLike | None = None) -> Path | None:
+        try:
+            expected_rel_dir = self.expected_rel_dir
+        except AttributeError:
+            return None
+        old_album_path = self.album_dir.path
+        new_base_dir = old_album_path.parents[2] if new_base_dir is None else Path(new_base_dir).expanduser()
+        new_album_path = self.dest_base_dir(self.album_dir, new_base_dir).joinpath(expected_rel_dir)
+        if old_album_path != new_album_path:
+            return new_album_path
+        return None
 
     def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
         expected_rel_dir = self.expected_rel_dir

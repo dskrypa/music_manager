@@ -142,6 +142,7 @@ class SongFileFrame(InteractiveFrame):
             yield tag_id, n, self._build_tag_row(tag_id, uniq_id, disp_name, val)
 
     def _build_tag_row(self, tag_id: str, uniq_id: str, disp_name: str, value: Any) -> tuple[Text, ValueEle]:
+        # TODO: The key for wiki album/artist is using a generic value
         key_ele = Text(disp_name, tooltip=uniq_id, size=(self._label_len, 1))
         if disp_name == 'Lyrics':
             binds = {'<Control-Button-1>': self._lyrics_popup_cb()}

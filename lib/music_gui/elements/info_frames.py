@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Collection
+from typing import TYPE_CHECKING, Iterator, Collection, Any
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
-from tk_gui.elements.buttons import Button, EventButton
+from tk_gui.elements.buttons import Button, EventButton as EButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import Multiline, Text, Input
@@ -31,13 +31,46 @@ if TYPE_CHECKING:
 __all__ = ['AlbumInfoFrame', 'TrackInfoFrame']
 log = logging.getLogger(__name__)
 
-ValueEle = Text | Multiline | Rating | ListBox
+ValueEle = Text | Multiline | Rating | ListBox | Combo | EditableListBox
+LRG_FONT = ('Helvetica', 20)
 
 
 # region Album / Track Info Frames
 
 
-class AlbumInfoFrame(InteractiveFrame):
+class TagModMixin:
+    _tag_vals_and_eles: dict[str, tuple[Any, ValueEle]]
+
+    def get_modified(self) -> dict[str, tuple[Any, Any]]:
+        modified = {}
+        for key, (original_val, val_ele) in self._tag_vals_and_eles.items():
+            # TODO: listbox value seems to always be None
+            if (value := val_ele.value) != original_val:
+                modified[key] = (original_val, value)
+        return modified
+
+
+class TagFrame(InteractiveFrame):
+    def enable(self):
+        if not self.disabled:
+            return
+
+        for row in self.rows:
+            for ele in row.elements:
+                try:
+                    if ele.key == 'mp4':  # Read-only
+                        continue
+                except AttributeError:
+                    pass
+                try:
+                    ele.enable()  # noqa
+                except AttributeError:
+                    pass
+
+        self.disabled = False
+
+
+class AlbumInfoFrame(TagModMixin, InteractiveFrame):
     album_info: AlbumInfo
 
     def __init__(self, album: AlbumIdentifier, cover_size: XY = (250, 250), **kwargs):
@@ -45,12 +78,13 @@ class AlbumInfoFrame(InteractiveFrame):
         self.album_info = get_album_info(album)
         self.album_dir = get_album_dir(album)
         self.cover_size = cover_size
+        self._tag_vals_and_eles = {}
 
     def get_custom_layout(self) -> Layout:
         yield from self.build_meta_rows()
         # TODO: Right-click menu to add/replace the image
         cover_image = AlbumCoverImageBuilder(self.album_info, self.cover_size).make_thumbnail_frame()
-        yield [cover_image, InteractiveFrame([*self.build_tag_rows()], disabled=self.disabled)]
+        yield [cover_image, TagFrame([*self.build_tag_rows()], disabled=self.disabled)]
         yield [HorizontalSeparator()]
         yield from self.build_buttons()
 
@@ -89,81 +123,83 @@ class AlbumInfoFrame(InteractiveFrame):
                 types = [de.real_name for de in DiscoEntryType]
                 if value and value not in types:
                     types.append(value)
-                val_ele = Combo(types, value, size=(48, None), disabled=disabled)
+                val_ele = Combo(types, value, size=(48, None), disabled=disabled, key=key)
             elif key == 'genre':
                 add_prompt = f'Enter a new {key} value to add to {self.album_info.title!r}'
                 val_ele = EditableListBox(
-                    value, add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, disabled=disabled
+                    value, add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, disabled=disabled, key=key
                 )
                 # kwargs |= {'size': (50, len(value)), 'pad': (5, 0), 'border': 2}
                 # val_ele = ListBox(value, default=value, disabled=disabled, scroll_y=False, **kwargs)
             elif key in {'mp4', 'solo_of_group'}:
                 kwargs['disabled'] = True if key == 'mp4' else disabled
-                val_ele = CheckBox('', default=value, pad=(0, 0), **kwargs)
+                val_ele = CheckBox('', default=value, pad=(0, 0), key=key, **kwargs)
             else:
                 if key.startswith('wiki_'):
                     kwargs['link'] = True
                 if value is None:
                     value = ''
-                val_ele = Input(value, size=(50, 1), disabled=disabled, **kwargs)
+                elif not isinstance(value, str):
+                    value = str(value)
+                val_ele = Input(value, size=(50, 1), disabled=disabled, key=key, **kwargs)
 
+            self._tag_vals_and_eles[key] = (value, val_ele)
             yield [key_ele, val_ele]
 
     def build_buttons(self) -> Layout:
-        yield [self.view_buttons_frame]
-        yield [self.edit_buttons_frame]
+        # These frames need to be in the same row for them to occupy the same space when visible
+        yield [self.view_buttons_frame, self.edit_buttons_frame]
 
     @cached_property
     def view_buttons_frame(self) -> Frame:
         kwargs = {'size': (18, 1), 'borderwidth': 3}
-        open_button = EventButton(
-            '\U0001f5c1', key='open', font=('Helvetica', 20), size=(10, 1), tooltip='Open', borderwidth=3
-        )
         rows = [
             [
-                EventButton('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
-                EventButton('View All Tags', key='view_all_tags', **kwargs),
-                EventButton('Edit', key='edit_album', **kwargs),
-                EventButton('Wiki Update', key='wiki_update', **kwargs),
+                EButton('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
+                EButton('View All Tags', key='view_all_tags', **kwargs),
+                EButton('Edit', key='edit_album', **kwargs),
+                EButton('Wiki Update', key='wiki_update', **kwargs),
             ],
             [
-                EventButton('Sync Ratings From...', key='sync_ratings_from', **kwargs),
-                EventButton('Sync Ratings To...', key='sync_ratings_to', **kwargs),
-                EventButton('Copy Tags From...', key='copy_tags_from', **kwargs),
+                EButton('Sync Ratings From...', key='sync_ratings_from', **kwargs),
+                EButton('Sync Ratings To...', key='sync_ratings_to', **kwargs),
+                EButton('Copy Tags From...', key='copy_tags_from', **kwargs),
             ],
-            [open_button],
+            [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open', borderwidth=3)],
         ]
-        return Frame([[BasicRowFrame(row, side='t')] for row in rows], visible=self.disabled)
+        return Frame([[BasicRowFrame(row, side='t')] for row in rows], visible=self.disabled, side='t')
 
     @cached_property
-    def edit_buttons_frame(self) -> Frame:
+    def edit_buttons_frame(self) -> BasicRowFrame:
         kwargs = {'size': (18, 1), 'borderwidth': 3}
-        buttons = [
-            EventButton('Review & Save Changes', key='save', **kwargs),
-            EventButton('Cancel', key='cancel', **kwargs),
-        ]
-        return Frame([[BasicRowFrame(buttons, side='t')]], visible=not self.disabled)
+        row = [EButton('Review & Save Changes', key='save', **kwargs), EButton('Cancel', key='cancel', **kwargs)]
+        return BasicRowFrame(row, side='t', anchor='c', visible=not self.disabled)
 
     def enable(self):
+        if not self.disabled:
+            return
         super().enable()
         self.view_buttons_frame.hide()
-        self.edit_buttons_frame.show()  # TODO: This is not working
+        self.edit_buttons_frame.show()
 
     def disable(self):
+        if self.disabled:
+            return
         super().disable()
         self.edit_buttons_frame.hide()
         self.view_buttons_frame.show()
 
 
-class TrackInfoFrame(InteractiveFrame):
+class TrackInfoFrame(TagModMixin, InteractiveFrame):
     track_info: TrackInfo
     song_file: SongFile
     show_cover: Bool = False
 
     def __init__(self, track: TrackIdentifier, **kwargs):
+        super().__init__(**kwargs)
         self.track_info = get_track_info(track)
         self.song_file = get_track_file(track)
-        super().__init__(**kwargs)
+        self._tag_vals_and_eles = {}
 
     @cached_property
     def path_str(self) -> str:
@@ -194,19 +230,25 @@ class TrackInfoFrame(InteractiveFrame):
         disabled = self.disabled
         data = self.track_info.to_dict()
         for key in fields:
-            key_ele = label_ele(key, size=(6, 1))
-            # TODO: The key for wiki album/artist is using a generic value
+            value = data[key]
             if key == 'genre':
                 add_prompt = f'Enter a new {key} value to add to {self.track_info.title!r}'
                 val_ele = EditableListBox(
-                    data[key], add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, disabled=disabled
+                    value, add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, disabled=disabled
                 )
             elif key == 'rating':
-                val_ele = Rating(data[key], show_value=True, pad=(0, 0), disabled=disabled)
+                if value is None:
+                    value = 0
+                val_ele = Rating(value, show_value=True, pad=(0, 0), disabled=disabled)
             else:
-                val_ele = Input(data[key], size=(50, 1), disabled=disabled)
+                if value is None:
+                    value = ''
+                elif not isinstance(value, str):
+                    value = str(value)
+                val_ele = Input(value, size=(50, 1), disabled=disabled)
 
-            yield [key_ele, val_ele]
+            self._tag_vals_and_eles[key] = (value, val_ele)
+            yield [label_ele(key, size=(6, 1)), val_ele]
 
 
 # endregion
@@ -260,7 +302,7 @@ class AlbumDiffFrame(InteractiveFrame):
         if not self._show_edit:
             yield [options_frame]
         else:
-            top_side_kwargs = dict(size=(6, 1), pad=(0, 0), font=('Helvetica', 20))
+            top_side_kwargs = dict(size=(6, 1), pad=(0, 0), font=LRG_FONT)
             edit_button_col = Frame([[Button('\u2190 Edit', key='edit', **top_side_kwargs)]], expand=True, fill='x')
             yield [edit_button_col, options_frame, Text(**top_side_kwargs)]
 
@@ -273,7 +315,7 @@ class AlbumDiffFrame(InteractiveFrame):
             return
 
         old_cover_img, new_cover_img = AlbumCoverImageBuilder(self.old_info).make_diff_thumbnails(new_cover_path)
-        yield [old_cover_img, Text('\u2794', font=('Helvetica', 20)), new_cover_img]
+        yield [old_cover_img, Text('\u2794', font=LRG_FONT), new_cover_img]
         yield [HorizontalSeparator()]
 
     def build_path_diff(self) -> Layout:

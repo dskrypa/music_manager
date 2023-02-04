@@ -9,6 +9,7 @@ from abc import ABC
 from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property
+from ds_tools.output.repr import rich_repr
 from tk_gui.elements import HorizontalSeparator, Text, Frame, ScrollFrame
 from tk_gui.event_handling import button_handler
 from tk_gui.popups import popup_ok
@@ -68,6 +69,7 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
 
     @button_handler('edit_album', 'cancel')
     def toggle_edit_mode(self, event: Event, key=None):
+        # TODO: Reset edits on cancel?
         if key == 'edit_album':
             self.album_info_frame.enable()
             for track_frame in self._track_frames:
@@ -79,7 +81,11 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
 
     @button_handler('save')
     def save_changes(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')
+        album_changes = self.album_info_frame.get_modified()
+        track_changes = [(tf.track_info, tf.get_modified()) for tf in self._track_frames]
+        track_changes_printable = [(tc[0].title, tc[1]) for tc in track_changes]
+        popup_ok(f'Album changes: {rich_repr(album_changes)}\n\nTrack changes: {rich_repr(track_changes_printable)}')
+        # TODO: Finish
 
     @button_handler('wiki_update')
     def wiki_update(self, event: Event, key=None):

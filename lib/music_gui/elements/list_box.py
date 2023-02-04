@@ -51,7 +51,8 @@ class EditableListBox(InteractiveRowFrame):
     @cached_property
     def button(self) -> Button:
         if key := self.__key:
-            key = key.replace('val::', 'add::', 1)
+            key = f'add::{key}'
+            # key = key.replace('val::', 'add::', 1)
         return Button('Add...', key=key, pad=(0, 0), visible=not self.disabled, cb=self.add_value)
 
     def add_value(self, event: Event):

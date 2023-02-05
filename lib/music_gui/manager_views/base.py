@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Optional
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button
 from tk_gui.elements.menu import MenuProperty
-from tk_gui.enums import CallbackAction
-from tk_gui.event_handling import button_handler
+from tk_gui.enums import CallbackAction, BindEvent, Anchor
+from tk_gui.event_handling import button_handler, event_handler
 from tk_gui.popups import popup_input_invalid, pick_folder_popup
 from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row

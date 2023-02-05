@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Iterator, Collection, Any
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output.formatting import ordinal_suffix
 
-from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
+from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator, Spacer
 from tk_gui.elements.buttons import Button, EventButton as EButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.rating import Rating
@@ -309,9 +309,12 @@ class AlbumDiffFrame(InteractiveFrame):
         yield from self.build_path_diff()
         yield from self.build_common_tag_diff()
         yield from self.build_track_diff()
+        # Force content to be top-aligned (there doesn't seem to be a better way).  Side/anchor/etc for this frame
+        # were ineffective.
+        yield [Spacer((10, 500), side='t')]
 
     def build_header(self) -> Layout:
-        options_frame = self.options.as_frame('apply_changes', change_cb=self.update_options)
+        options_frame = self.options.as_frame('apply_changes', change_cb=self.update_options, side='t')
         # TODO: Center options frame, maybe tweak "submit" button location?
         if not self._show_edit:
             yield [options_frame]
@@ -402,6 +405,9 @@ class TrackDiffFrame(InteractiveFrame):
         song_file: SongFile = None,
         **kwargs,
     ):
+        kwargs.setdefault('size', (850, None))
+        kwargs.setdefault('side', 't')
+        kwargs.setdefault('pack_propagate', False)
         super().__init__(**kwargs)
         self.old_info = old_info
         self.new_info = new_info
@@ -411,7 +417,6 @@ class TrackDiffFrame(InteractiveFrame):
 
     def get_custom_layout(self) -> Layout:
         yield [Text()]
-        # TODO: Make separator width/length consistent
         yield [HorizontalSeparator()]
         yield from self.build_name_diff()
         yield from self.build_tag_diff()

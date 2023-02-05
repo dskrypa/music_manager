@@ -9,8 +9,8 @@ from abc import ABC
 from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.output.repr import rich_repr
-from tk_gui.elements import HorizontalSeparator, Text, Frame, ScrollFrame
+# from ds_tools.output.repr import rich_repr
+from tk_gui.elements import HorizontalSeparator, Text, ScrollFrame
 from tk_gui.event_handling import button_handler
 from tk_gui.popups import popup_ok
 
@@ -81,11 +81,26 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
 
     @button_handler('save')
     def save_changes(self, event: Event, key=None):
-        album_changes = self.album_info_frame.get_modified()
-        track_changes = [(tf.track_info, tf.get_modified()) for tf in self._track_frames]
-        track_changes_printable = [(tc[0].title, tc[1]) for tc in track_changes]
-        popup_ok(f'Album changes: {rich_repr(album_changes)}\n\nTrack changes: {rich_repr(track_changes_printable)}')
-        # TODO: Finish
+        from .diff import AlbumDiffView
+
+        old_info = self.album
+        new_info = old_info.copy()
+        any_changes = False  # TODO: Implement __eq__ for AlbumInfo to skip the tracking here
+        if album_changes := self.album_info_frame.get_modified():
+            any_changes = True
+            # TODO: Re-calculate numbered_type if type/number changed
+            new_info.update_from_old_new_tuples(album_changes)
+
+        for tf in self._track_frames:
+            if modified := tf.get_modified():
+                any_changes = True
+                new_info.tracks[tf.track_info.path.as_posix()].update_from_old_new_tuples(modified)
+
+        if any_changes:
+            return self.set_next_view(view_cls=AlbumDiffView, old_info=old_info, new_info=new_info)
+        else:
+            popup_ok('No changes were made - there is nothing to save')
+            return
 
     @button_handler('wiki_update')
     def wiki_update(self, event: Event, key=None):

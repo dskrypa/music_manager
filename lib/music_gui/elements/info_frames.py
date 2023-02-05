@@ -283,6 +283,7 @@ class AlbumDiffFrame(InteractiveFrame):
 
     def build_header(self) -> Layout:
         options_frame = self.options.as_frame('apply_changes', change_cb=self.update_options)
+        # TODO: Center options frame, maybe tweak "submit" button location?
         if not self._show_edit:
             yield [options_frame]
         else:
@@ -304,6 +305,7 @@ class AlbumDiffFrame(InteractiveFrame):
 
     def build_path_diff(self) -> Layout:
         if new_album_path := self.new_album_path:
+            # TODO: Arrow is cut off on right side
             yield from get_a_to_b('Album Rename:', self.album_dir.path, new_album_path)
         else:
             yield [Text('Album Path:'), Text(self.album_dir.path.as_posix(), use_input_style=True, size=(150, 1))]
@@ -380,6 +382,7 @@ class TrackDiffFrame(InteractiveFrame):
 
     def get_custom_layout(self) -> Layout:
         yield [Text()]
+        # TODO: Make separator width/length consistent
         yield [HorizontalSeparator()]
         yield from self.build_name_diff()
         yield from self.build_tag_diff()
@@ -390,6 +393,7 @@ class TrackDiffFrame(InteractiveFrame):
         if old_name != new_name:
             yield from get_a_to_b('File Rename:', old_name, new_name)
         else:
+            # TODO: Make field width consistent
             yield [Text('File:'), Text(old_name, use_input_style=True), Text('(no change)')]
 
     def build_tag_diff(self) -> Layout:
@@ -453,7 +457,7 @@ def _build_diff_value_ele(key: str, value) -> CheckBox | ListBox | Text:
             kwargs = {'size': (45, len(value)), 'pad': (5, 0), 'border': 2}
             return ListBox(value, default=value, disabled=True, scroll_y=False, **kwargs)
         case _:
-            kwargs = {'disabled': True, 'use_input_style': True}
+            kwargs = {'use_input_style': True}
             if key.startswith('wiki_'):
                 kwargs['link'] = True
             return Text('' if value is None else value, size=(45, 1), **kwargs)

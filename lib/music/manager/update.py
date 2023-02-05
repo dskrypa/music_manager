@@ -15,7 +15,7 @@ import re
 from abc import ABC
 from collections import Counter
 from datetime import datetime, date
-from itertools import chain
+# from itertools import chain
 from pathlib import Path
 from string import capwords
 from typing import Union, Optional, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
@@ -114,6 +114,15 @@ class Serializable(ABC):
         if field in self._fields:
             return getattr(self, field)
         raise KeyError(f'Invalid {field=}')
+
+    def __setitem__(self, field: str, value):
+        if field not in self._fields:
+            raise KeyError(f'Invalid {field=}')
+        setattr(self, field, value)
+
+    def update_from_old_new_tuples(self, key_change_map: Mapping[str, tuple[Any, Any]]):
+        for key, (old_val, new_val) in key_change_map.items():
+            self[key] = new_val
 
 
 class Field(Generic[T, D]):

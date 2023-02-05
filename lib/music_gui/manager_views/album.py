@@ -9,7 +9,7 @@ from abc import ABC
 from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property
-# from ds_tools.output.repr import rich_repr
+
 from tk_gui.elements import HorizontalSeparator, Text, ScrollFrame
 from tk_gui.event_handling import button_handler
 from tk_gui.popups import popup_ok

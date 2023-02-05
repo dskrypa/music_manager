@@ -11,7 +11,7 @@ from tkinter import Frame, Listbox as TkListbox
 
 from PySimpleGUI import Text, HorizontalSeparator, Column, Button, Listbox
 
-from ds_tools.utils.misc import num_suffix
+from ds_tools.output.formatting import ordinal_suffix
 
 from music.common.ratings import stars_to_256
 from music.files.album import AlbumDir
@@ -301,7 +301,7 @@ class AlbumView(MainView, view_name='album'):
 
         album_info = AlbumInfo.from_dict(info_dict)
         if album_info.number and album_info.type and not album_info.numbered_type:
-            album_info.numbered_type = f'{album_info.number}{num_suffix(album_info.number)} {album_info.type.real_name}'
+            album_info.numbered_type = f'{album_info.number}{ordinal_suffix(album_info.number)} {album_info.type.real_name}'
 
         return AlbumDiffView(self.album, album_info, self.album_formatter, last_view=self)
 

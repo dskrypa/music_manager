@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Collection, Any
 
 from ds_tools.caching.decorators import cached_property
+from ds_tools.output.formatting import ordinal_suffix
+
 from tk_gui.elements import Element, ListBox, CheckBox, Image, Combo, HorizontalSeparator
 from tk_gui.elements.buttons import Button, EventButton as EButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
@@ -31,7 +33,7 @@ if TYPE_CHECKING:
 __all__ = ['AlbumInfoFrame', 'TrackInfoFrame']
 log = logging.getLogger(__name__)
 
-ValueEle = Text | Multiline | Rating | ListBox | Combo | EditableListBox
+ValueEle = Text | Multiline | Rating | ListBox | Combo | EditableListBox | Input
 LRG_FONT = ('Helvetica', 20)
 
 
@@ -79,6 +81,8 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         self.cover_size = cover_size
         self._tag_vals_and_eles = {}
 
+    # region Layout Generation
+
     def get_custom_layout(self) -> Layout:
         yield from self.build_meta_rows()
         # TODO: Right-click menu to add/replace the image
@@ -122,7 +126,9 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
                 types = [de.real_name for de in DiscoEntryType]
                 if value and value not in types:
                     types.append(value)
-                val_ele = Combo(types, value, size=(48, None), disabled=disabled, key=key)
+                val_ele = Combo(
+                    types, value, size=(48, None), disabled=disabled, key=key, change_cb=self._update_numbered_type
+                )
             elif key == 'genre':
                 val_ele = _genre_list_box(value, self.album_info, disabled, key=key)
             elif key in {'mp4', 'solo_of_group'}:
@@ -131,6 +137,8 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             else:
                 if key.startswith('wiki_'):
                     kwargs['link'] = True
+                elif key == 'number':
+                    kwargs['change_cb'] = self._update_numbered_type
                 value = _normalize_input_value(value)
                 val_ele = Input(value, size=(50, 1), disabled=disabled, key=key, **kwargs)
 
@@ -166,6 +174,10 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         row = [EButton('Review & Save Changes', key='save', **kwargs), EButton('Cancel', key='cancel', **kwargs)]
         return BasicRowFrame(row, side='t', anchor='c', visible=not self.disabled)
 
+    # endregion
+
+    # region Event Handling
+
     def enable(self):
         if not self.disabled:
             return
@@ -179,6 +191,23 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         super().disable()
         self.edit_buttons_frame.hide()
         self.view_buttons_frame.show()
+
+    def _update_numbered_type(self, var_name, unknown, action):
+        # Registered as a change_cb for `type` and `number`
+        type_val = DiscoEntryType(self._tag_vals_and_eles['type'][1].value)
+        if type_val == DiscoEntryType.UNKNOWN:
+            return
+        num_ele = self._tag_vals_and_eles['number'][1]
+        try:
+            num_val = int(num_ele.value.strip())
+        except (TypeError, ValueError, AttributeError):
+            # TODO: Mark num_ele as invalid if it has a value
+            return
+
+        num_type_ele: Input = self._tag_vals_and_eles['numbered_type'][1]
+        num_type_ele.update(f'{num_val}{ordinal_suffix(num_val)} {type_val.real_name}')
+
+    # endregion
 
 
 class TrackInfoFrame(TagModMixin, InteractiveFrame):

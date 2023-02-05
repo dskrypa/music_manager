@@ -107,12 +107,16 @@ class DiscoEntryType(Enum):
             log.debug(f'No DiscoEntryType exists for {name=}', stack_info=stack_info)
         return cls.UNKNOWN
 
+    @classmethod
+    def _missing_(cls, value):
+        return cls.for_name(value)  # noqa
+
     @cached_property
     def real_name(self) -> str:
         return self.value[0]
 
     @cached_property
-    def categories(self) -> tuple[str]:
+    def categories(self) -> tuple[str, ...]:
         return self.value[1]
 
     @cached_property

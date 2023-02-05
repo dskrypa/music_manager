@@ -303,12 +303,6 @@ class TrackInfo(Serializable, GenreMixin):
                 file.rename(file.path.with_name(filename))
 
 
-def _normalize_type(value: str | DiscoEntryType | None) -> DiscoEntryType:
-    if value is None:
-        return DiscoEntryType.UNKNOWN
-    return value if isinstance(value, DiscoEntryType) else DiscoEntryType.for_name(value)
-
-
 TrackMap = dict[str, TrackInfo]
 
 
@@ -328,7 +322,7 @@ class AlbumInfo(Serializable, GenreMixin):
     singer: str = Field(str)                        # Solo singer when in a group, to be sorted under that group
     solo_of_group: bool = Field(bool, False)        # Whether the singer is a soloist
 
-    type: DiscoEntryType = Field(_normalize_type, DiscoEntryType.UNKNOWN)  # single, album, mini album, etc.
+    type: DiscoEntryType = Field(DiscoEntryType, DiscoEntryType.UNKNOWN)  # single, album, mini album, etc.
     number: int = Field(int)                        # This album is the Xth of its type from this artist
     numbered_type: str = Field(str)                 # The type + number within that type for this artist
 

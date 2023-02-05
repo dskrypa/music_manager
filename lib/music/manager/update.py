@@ -90,6 +90,7 @@ class GenreMixin:
 
 class Serializable(ABC):
     _fields: dict[str, Field]
+    _cmp_fields: set[str]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -100,9 +101,11 @@ class Serializable(ABC):
         if '_Serializable__fields_initialized' not in cls.__dict__:
             cls.__fields_initialized = True
             cls._fields = {}
+            cls._cmp_fields = set()
 
     def __init__(self, **kwargs):
         self.update(**kwargs)
+        self.__modified = False
 
     def update(self, **kwargs):
         if bad := ', '.join(map(repr, (k for k in kwargs if k not in self._fields))):
@@ -118,11 +121,16 @@ class Serializable(ABC):
     def __setitem__(self, field: str, value):
         if field not in self._fields:
             raise KeyError(f'Invalid {field=}')
+        self.__modified = True
         setattr(self, field, value)
 
     def update_from_old_new_tuples(self, key_change_map: Mapping[str, tuple[Any, Any]]):
         for key, (old_val, new_val) in key_change_map.items():
             self[key] = new_val
+
+    @property
+    def was_modified(self) -> bool:
+        return self.__modified
 
 
 class Field(Generic[T, D]):
@@ -143,6 +151,8 @@ class Field(Generic[T, D]):
         self.name = name
         owner._init_fields()
         owner._fields[name] = self
+        if name not in ('genre', 'tracks'):
+            owner._cmp_fields.add(name)
 
     def __get__(self, instance: Serializable | None, owner: Type[Serializable]) -> Field | T | D:
         if instance is None:
@@ -215,6 +225,11 @@ class TrackInfo(Serializable, GenreMixin):
         return album.tracks[track.path.as_posix()]
 
     # endregion
+
+    def __eq__(self, other: TrackInfo) -> bool:
+        if not isinstance(other, TrackInfo) or self.get_genre_set() != other.get_genre_set():
+            return False
+        return all(getattr(self, field) == getattr(other, field) for field in self._cmp_fields)
 
     @cached_property
     def path(self) -> Path:
@@ -338,6 +353,20 @@ class AlbumInfo(Serializable, GenreMixin):
     def __repr__(self) -> str:
         title, artist = self.title, self.artist
         return f'<{self.__class__.__name__}[{title=}, {artist=}]>'
+
+    def __eq__(self, other: AlbumInfo) -> bool:
+        if not isinstance(other, AlbumInfo) or self.get_genre_set() != other.get_genre_set():
+            return False
+        return all(getattr(self, f) == getattr(other, f) for f in self._cmp_fields) and self.tracks == other.tracks
+
+    @property
+    def was_modified(self) -> bool:
+        return super().was_modified or any(t.was_modified for t in self.tracks.values())
+
+    def clean(self) -> AlbumInfo:
+        if self.was_modified:
+            return self.from_album_dir(self.album_dir)
+        return self
 
     @property
     def ost(self):

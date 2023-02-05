@@ -6,13 +6,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Mapping
 
 from ds_tools.caching.decorators import cached_property
 
-from tk_gui.elements import ListBox, CheckBox, HorizontalSeparator, Spacer
+from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer
 from tk_gui.elements.buttons import Button
-from tk_gui.elements.frame import InteractiveFrame, Frame
+from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import Text
 from tk_gui.options import GuiOptions
@@ -24,7 +24,7 @@ from ..utils import zip_maps
 from .images import AlbumCoverImageBuilder
 
 if TYPE_CHECKING:
-    from tk_gui.typing import Layout, XY, PathLike
+    from tk_gui.typing import Layout, XY, PathLike, TraceCallback
     from music.typing import StrOrStrs
 
 __all__ = ['AlbumDiffFrame']
@@ -44,8 +44,10 @@ class AlbumDiffFrame(InteractiveFrame):
         self,
         old_info: AlbumInfo,
         new_info: AlbumInfo,
-        options: GuiOptions,
+        *,
         output_sorted_dir: Path,
+        update_options_cb: TraceCallback,
+        options: GuiOptions,
         show_edit: bool = False,
         album_dir: AlbumDir = None,
         **kwargs,
@@ -55,14 +57,16 @@ class AlbumDiffFrame(InteractiveFrame):
         self.new_info = new_info
         self.album_dir = album_dir or get_album_dir(old_info)
         self.options = options
+        self._update_options_cb = update_options_cb
         self.output_sorted_dir = output_sorted_dir
         self._found_common_tag_change = False
         self._show_edit = show_edit
 
-    @cached_property
+    @property
     def new_album_path(self) -> Path | None:
         if self.options['no_album_move']:
             return None
+        # TODO: Rename in place dir may be wrong
         return self.new_info.get_new_path(None if self.options['rename_in_place'] else self.output_sorted_dir)
 
     # region Layout
@@ -78,13 +82,12 @@ class AlbumDiffFrame(InteractiveFrame):
         yield [Spacer((10, 500), side='t')]
 
     def build_header(self) -> Layout:
-        options_frame = self.options.as_frame('apply_changes', change_cb=self.update_options, side='t')
         if not self._show_edit:
-            yield [options_frame]
+            yield [self.options_frame]
         else:
             top_side_kwargs = dict(size=(6, 1), pad=(0, 0), font=LRG_FONT)
             edit_button_col = Frame([[Button('\u2190 Edit', key='edit', **top_side_kwargs)]], expand=True, fill='x')
-            yield [edit_button_col, options_frame, Text(**top_side_kwargs)]
+            yield [edit_button_col, self.options_frame, Text(**top_side_kwargs)]
 
         yield [Text()]
         yield [HorizontalSeparator(), Text('Common Album Changes'), HorizontalSeparator()]
@@ -99,10 +102,19 @@ class AlbumDiffFrame(InteractiveFrame):
         yield [HorizontalSeparator()]
 
     def build_path_diff(self) -> Layout:
-        if new_album_path := self.new_album_path:
-            yield from get_a_to_b('Album Rename:', self.album_dir.path, new_album_path)
-        else:
-            yield [Text('Album Path:'), Text(self.album_dir.path.as_posix(), use_input_style=True, size=(150, 1))]
+        yield [*self.path_diff_eles]
+
+    @cached_property
+    def path_diff_eles(self) -> tuple[Frame, BasicRowFrame]:
+        no_album_move = self.options['no_album_move']
+        rename_ele = Frame(
+            get_a_to_b('Album Rename:', self.album_dir.path, self.new_album_path), visible=not no_album_move
+        )
+        no_change_ele = BasicRowFrame(
+            [Text('Album Path:'), Text(self.album_dir.path.as_posix(), use_input_style=True, size=(150, 1))],
+            visible=no_album_move
+        )
+        return rename_ele, no_change_ele
 
     def build_common_tag_diff(self) -> Layout:
         yield from self._build_common_tag_diff()
@@ -138,17 +150,27 @@ class AlbumDiffFrame(InteractiveFrame):
 
     # endregion
 
-    def update_options(self, *args):
-        self.options.parse(self.window.results)
+    # region Options
+
+    @cached_property
+    def options_frame(self) -> Frame:
+        frame = self.options.as_frame('apply_changes', change_cb=self._update_options_cb, side='t')
+        key_ele_map = {key: ele for row in frame.rows for ele in row.elements if (key := getattr(ele, 'key', None))}
+        self.update_option_states(key_ele_map)
+        return frame
+
+    def update_option_states(self, key_ele_map: Mapping[str, CheckBox | Element]):
         if self.options['no_album_move']:
-            self.window['opt::rename_in_place'].disable()  # noqa
-            self.window['opt::no_album_move'].enable()  # noqa
+            key_ele_map['opt::rename_in_place'].disable()
+            key_ele_map['opt::no_album_move'].enable()
         elif self.options['rename_in_place']:
-            self.window['opt::no_album_move'].disable()  # noqa
-            self.window['opt::rename_in_place'].enable()  # noqa
+            key_ele_map['opt::no_album_move'].disable()
+            key_ele_map['opt::rename_in_place'].enable()
         else:
-            self.window['opt::rename_in_place'].enable()  # noqa
-            self.window['opt::no_album_move'].enable()  # noqa
+            key_ele_map['opt::rename_in_place'].enable()
+            key_ele_map['opt::no_album_move'].enable()
+
+    # endregion
 
 
 class TrackDiffFrame(InteractiveFrame):
@@ -257,6 +279,8 @@ def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike) -> Layout:
 def _diff_ele(value: PathLike) -> tuple[Text, int]:
     if isinstance(value, Path):
         value = value.as_posix()
+    elif value is None:
+        value = ''
     kwargs = {'use_input_style': True}
     if (val_len := len(value)) > 50:
         kwargs['size'] = (val_len, 1)

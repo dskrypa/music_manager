@@ -83,20 +83,16 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
     def save_changes(self, event: Event, key=None):
         from .diff import AlbumDiffView
 
-        old_info = self.album
+        old_info = self.album.clean()
         new_info = old_info.copy()
-        any_changes = False  # TODO: Implement __eq__ for AlbumInfo to skip the tracking here
         if album_changes := self.album_info_frame.get_modified():
-            any_changes = True
-            # TODO: Re-calculate numbered_type if type/number changed
             new_info.update_from_old_new_tuples(album_changes)
 
         for tf in self._track_frames:
             if modified := tf.get_modified():
-                any_changes = True
                 new_info.tracks[tf.track_info.path.as_posix()].update_from_old_new_tuples(modified)
 
-        if any_changes:
+        if old_info != new_info:
             return self.set_next_view(view_cls=AlbumDiffView, old_info=old_info, new_info=new_info)
         else:
             popup_ok('No changes were made - there is nothing to save')

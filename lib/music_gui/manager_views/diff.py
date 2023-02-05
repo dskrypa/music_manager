@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Mapping, Any
 from ds_tools.caching.decorators import cached_property
 from tk_gui.options import GuiOptions
 
-from music_gui.elements.info_frames import AlbumDiffFrame
+from music_gui.elements.diff_frames import AlbumDiffFrame
 from .base import BaseView
 
 if TYPE_CHECKING:

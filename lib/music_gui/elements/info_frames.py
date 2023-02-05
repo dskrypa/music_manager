@@ -44,7 +44,6 @@ class TagModMixin:
     def get_modified(self) -> dict[str, tuple[Any, Any]]:
         modified = {}
         for key, (original_val, val_ele) in self._tag_vals_and_eles.items():
-            # TODO: listbox value seems to always be None
             if (value := val_ele.value) != original_val:
                 modified[key] = (original_val, value)
         return modified
@@ -112,7 +111,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             'solo_of_group': 'Whether the singer is a soloist',
         }
         disabled = self.disabled
-        for key, value in self.album_info.to_dict(skip={'tracks'}).items():
+        for key, value in self.album_info.to_dict(skip={'tracks'}, genres_as_set=True).items():
             if tooltip := tooltips.get(key):
                 kwargs = {'tooltip': tooltip}
             else:
@@ -125,22 +124,14 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
                     types.append(value)
                 val_ele = Combo(types, value, size=(48, None), disabled=disabled, key=key)
             elif key == 'genre':
-                add_prompt = f'Enter a new {key} value to add to {self.album_info.title!r}'
-                val_ele = EditableListBox(
-                    value, add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, disabled=disabled, key=key
-                )
-                # kwargs |= {'size': (50, len(value)), 'pad': (5, 0), 'border': 2}
-                # val_ele = ListBox(value, default=value, disabled=disabled, scroll_y=False, **kwargs)
+                val_ele = _genre_list_box(value, self.album_info, disabled, key=key)
             elif key in {'mp4', 'solo_of_group'}:
                 kwargs['disabled'] = True if key == 'mp4' else disabled
                 val_ele = CheckBox('', default=value, pad=(0, 0), key=key, **kwargs)
             else:
                 if key.startswith('wiki_'):
                     kwargs['link'] = True
-                if value is None:
-                    value = ''
-                elif not isinstance(value, str):
-                    value = str(value)
+                value = _normalize_input_value(value)
                 val_ele = Input(value, size=(50, 1), disabled=disabled, key=key, **kwargs)
 
             self._tag_vals_and_eles[key] = (value, val_ele)
@@ -227,24 +218,17 @@ class TrackInfoFrame(TagModMixin, InteractiveFrame):
         if keys:
             fields = [f for f in fields if f not in keys]
 
-        disabled = self.disabled
-        data = self.track_info.to_dict()
+        track_info, disabled = self.track_info, self.disabled
         for key in fields:
-            value = data[key]
             if key == 'genre':
-                add_prompt = f'Enter a new {key} value to add to {self.track_info.title!r}'
-                val_ele = EditableListBox(
-                    value, add_title=f'Add {key}', add_prompt=add_prompt, list_width=40, disabled=disabled
-                )
+                value = track_info.genre_set.difference(track_info.album.genre_set)
+                val_ele = _genre_list_box(value, track_info, disabled)
             elif key == 'rating':
-                if value is None:
+                if (value := track_info[key]) is None:
                     value = 0
                 val_ele = Rating(value, show_value=True, pad=(0, 0), disabled=disabled)
             else:
-                if value is None:
-                    value = ''
-                elif not isinstance(value, str):
-                    value = str(value)
+                value = _normalize_input_value(track_info[key])
                 val_ele = Input(value, size=(50, 1), disabled=disabled)
 
             self._tag_vals_and_eles[key] = (value, val_ele)
@@ -437,6 +421,21 @@ class TrackDiffFrame(InteractiveFrame):
 
 
 # endregion
+
+
+def _genre_list_box(genres: Collection[str], info: TrackInfo | AlbumInfo, disabled: bool, **kwargs) -> EditableListBox:
+    kwargs.setdefault('add_title', 'Add genre')
+    kwargs.setdefault('add_prompt', f'Enter a new genre value to add to {info.title!r}')
+    kwargs.setdefault('list_width', 40)
+    return EditableListBox(sorted(genres), disabled=disabled, val_type=set, **kwargs)
+
+
+def _normalize_input_value(value) -> str:
+    if value is None:
+        value = ''
+    elif not isinstance(value, str):
+        value = str(value)
+    return value
 
 
 def _diff_row(key: str, old_val, new_val):

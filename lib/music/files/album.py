@@ -9,7 +9,6 @@ import logging
 import os
 from collections import defaultdict, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date
 from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Pattern
@@ -22,49 +21,47 @@ from ds_tools.fs.paths import iter_paths, Paths
 
 from music.common.disco_entry import DiscoEntryType
 from music.common.utils import format_duration
-from music.text.name import Name
 from .changes import get_common_changes
 from .cover import prepare_cover_image
 from .exceptions import InvalidAlbumDir
-from .parsing import AlbumName
 from .track.track import SongFile, iter_music_files
 
 if TYPE_CHECKING:
+    from datetime import date
     from PIL import Image
+    from music.text.name import Name
+    from music.typing import PathLike
+    from .parsing import AlbumName
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
-EXECUTOR = None     # type: Optional[ThreadPoolExecutor]
+EXECUTOR: Optional[ThreadPoolExecutor] = None
 
 
-class AlbumDir(ClearableCachedPropertyMixin):
+class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     __instances = {}
     path: Path
 
-    def __new__(cls, path: Union[Path, str]):
-        if not isinstance(path, Path):
-            path = Path(path).expanduser().resolve()
-
-        if path not in cls.__instances:
-            if any(p.is_dir() for p in path.iterdir()):
-                raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
-
-            obj = super().__new__(cls)
-            cls.__instances[path] = obj
-            return obj
-        else:
+    def __new__(cls, path: PathLike):
+        path = _normalize_init_path(path)
+        try:
             return cls.__instances[path]
-
-    def __init__(self, path: Union[Path, str]):
-        """
-        :param str|Path path: The path to a directory that contains one album's music files
-        """
-        if not isinstance(path, Path):
-            path = Path(path).expanduser().resolve()
+        except KeyError:
+            pass
         if any(p.is_dir() for p in path.iterdir()):
-            raise InvalidAlbumDir('Invalid album dir - contains directories: {}'.format(path.as_posix()))
+            raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
+
+        cls.__instances[path] = obj = super().__new__(cls)
+        return obj
+
+    def __init__(self, path: PathLike):
+        """
+        :param path: The path to a directory that contains one album's music files
+        """
+        path = _normalize_init_path(path)
+        if any(p.is_dir() for p in path.iterdir()):
+            raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
         self.path = path
-        self._album_score = -1
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.relative_path!r})>'
@@ -75,7 +72,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
     def __len__(self) -> int:
         return len(self.songs)
 
-    def __getitem__(self, path: Union[str, Path]) -> SongFile:
+    def __getitem__(self, path: PathLike) -> SongFile:
         if isinstance(path, str):
             path = Path(path).expanduser()
         try:
@@ -85,6 +82,16 @@ class AlbumDir(ClearableCachedPropertyMixin):
         path = path.resolve()
         return self.path_track_map[path]
 
+    def __contains__(self, item: PathLike | SongFile) -> bool:  # noqa  # Pycharm doesn't like the specific annotation
+        if isinstance(item, SongFile):
+            return item in self.songs
+        try:
+            self[item]
+        except KeyError:
+            return False
+        else:
+            return True
+
     @property
     def relative_path(self) -> str:
         try:
@@ -92,7 +99,7 @@ class AlbumDir(ClearableCachedPropertyMixin):
         except Exception:  # noqa
             return self.path.as_posix()
 
-    def move(self, dest_path: Union[Path, str]):
+    def move(self, dest_path: PathLike):
         if not isinstance(dest_path, Path):
             dest_path = Path(dest_path)
         dest_path = dest_path.expanduser().resolve()
@@ -425,6 +432,12 @@ def _album_dir_obj(self):
     except InvalidAlbumDir:
         pass
     return None
+
+
+def _normalize_init_path(path: PathLike) -> Path:
+    if not isinstance(path, Path):
+        path = Path(path).expanduser().resolve()
+    return path.parent if path.is_file() else path
 
 
 # Note: The only time this property is not available is in interactive sessions started for the files.track.base module

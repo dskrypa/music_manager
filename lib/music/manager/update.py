@@ -13,6 +13,7 @@ import json
 import logging
 import re
 from abc import ABC
+from collections import Counter
 from datetime import datetime, date
 from itertools import chain
 from pathlib import Path
@@ -109,6 +110,11 @@ class Serializable(ABC):
         for key, val in kwargs.items():
             setattr(self, key, val)
 
+    def __getitem__(self, field: str):
+        if field in self._fields:
+            return getattr(self, field)
+        raise KeyError(f'Invalid {field=}')
+
 
 class Field(Generic[T, D]):
     __slots__ = ('name', 'type', 'default', 'default_factory')
@@ -157,7 +163,7 @@ class TrackInfo(Serializable, GenreMixin):
     artist: str = Field(str)                    # Artist name (if different than the album artist)
     num: int = Field(int)                       # Track number
     genre: StrOrStrs = Field()                  # Track genre
-    rating: int = Field(int)                    # Rating out of 10
+    rating: int | None = Field(int)             # Rating out of 10
     name: str = Field(str)                      # File name to be used
     disk: int = Field(int)                      # The disk from which this track originated (if different than album's)
     # fmt: on
@@ -218,14 +224,14 @@ class TrackInfo(Serializable, GenreMixin):
             return SongFile(self.path).tag_type == 'mp4'
         return self.path.suffix.lower() == '.mp4'
 
-    def to_dict(self, title_case: bool = False) -> dict[str, Any]:
+    def to_dict(self, title_case: bool = False, genres_as_set: bool = False) -> dict[str, Any]:
         if title_case:
             return {
                 'artist': normalize_case(self.artist) if self.artist else self.artist,
                 'title': normalize_case(self.title) if self.title else self.title,
                 'name': normalize_case(self.name) if self.name else self.name,
                 'num': self.num,
-                'genre': self.norm_genres(),
+                'genre': self.get_genre_set(title_case) if genres_as_set else self.norm_genres(),
                 'rating': self.rating,
                 'disk': self.disk,
             }
@@ -235,7 +241,7 @@ class TrackInfo(Serializable, GenreMixin):
                 'artist': self.artist,
                 'num': self.num,
                 'name': self.name,
-                'genre': self.genre_list(),
+                'genre': self.get_genre_set(title_case) if genres_as_set else self.genre_list(),
                 'rating': self.rating,
                 'disk': self.disk,
             }
@@ -298,14 +304,15 @@ TrackMap = dict[str, TrackInfo]
 
 
 class AlbumInfo(Serializable, GenreMixin):
-    # fmt: off
+    _album_dir: AlbumDir
+    # region Fields
     title: str = Field(str)                         # Album title (tag)
     artist: str = Field(str)                        # Album artist name
 
     date: date | None = Field(parse_date)           # Album release date
     disk: int = Field(int)                          # Disk number
     disks: int = Field(int, 1)                      # Total number of disks for this album
-    genre: StrOrStrs = Field(lambda x: x)           # Album genre
+    genre: StrOrStrs = Field()                      # Album genre
 
     name: str = Field(str)                          # Directory name to be used
     parent: str = Field(str)                        # Artist name to use in file paths
@@ -323,7 +330,7 @@ class AlbumInfo(Serializable, GenreMixin):
     wiki_artist: str = Field(str)                   # URL of the Wiki page that this album's artist matches
     kpop_gen: float = Field(float)                  # K-Pop generation
     tracks: TrackMap = Field(default_factory=dict)  # Mapping of {path: TrackInfo} for this album's tracks
-    # fmt: on
+    # endregion
 
     def __repr__(self) -> str:
         title, artist = self.title, self.artist
@@ -335,12 +342,33 @@ class AlbumInfo(Serializable, GenreMixin):
 
     @property
     def album_dir(self) -> AlbumDir:
+        try:
+            return self._album_dir
+        except AttributeError:
+            pass
+
         paths = {Path(path).parent for path in self.tracks}
         if len(paths) == 1:
-            return AlbumDir(next(iter(paths)))
+            self._album_dir = album_dir = AlbumDir(next(iter(paths)))
+            return album_dir
         elif not paths:
             raise ValueError('No parent paths were found')
         raise ValueError(f'Found multiple parent paths: {sorted(paths)}')
+
+    @album_dir.setter
+    def album_dir(self, value: AlbumDir | PathLike):
+        if not isinstance(value, AlbumDir):
+            value = AlbumDir(value)
+        track_dirs = {Path(path).parent for path in self.tracks}
+        if len(track_dirs) != 1:
+            raise ValueError(f'Unable to validate path - found multiple track parent paths: {sorted(track_dirs)}')
+        track_dir: Path = next(iter(track_dirs))
+        if track_dir.samefile(value.path):
+            self._album_dir = value
+        else:
+            raise ValueError(
+                f"The provided album={value.path.as_posix()!r} does not match this album's dir={track_dir.as_posix()!r}"
+            )
 
     @property
     def path(self) -> Path:
@@ -355,12 +383,12 @@ class AlbumInfo(Serializable, GenreMixin):
         self.name = self.name or self.title
         return self
 
-    def to_dict(self, title_case: bool = False, skip: Collection[str] = None):
+    def to_dict(self, title_case: bool = False, skip: Collection[str] = None, genres_as_set: bool = False):
         normalized = {
-            'date': self.date.strftime('%Y-%m-%d') if self.date else None,  # noqa
-            'tracks': {path: track.to_dict(title_case) for path, track in self.tracks.items()},
+            'date': self.date.strftime('%Y-%m-%d') if self.date else None,
+            'tracks': {path: track.to_dict(title_case, genres_as_set) for path, track in self.tracks.items()},
             'type': self.type.real_name if self.type else None,
-            'genre': self.genre_list(title_case),
+            'genre': self.get_genre_set(title_case) if genres_as_set else self.genre_list(title_case),
         }
 
         keys = OrderedSet(self._fields).difference(skip) if skip else self._fields  # noqa
@@ -376,20 +404,22 @@ class AlbumInfo(Serializable, GenreMixin):
 
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> AlbumInfo:
-        file = next(iter(album_dir))  # type: SongFile
-        genres = set(chain.from_iterable(f.tag_genres for f in album_dir))
+        file: SongFile = next(iter(album_dir))
+        # genres = set(chain.from_iterable(f.tag_genres for f in album_dir))
         self = cls(
             title=file.tag_album,
             artist=file.tag_album_artist,
             date=file.date,
             disk=file.disk_num,
-            genre=next(iter(genres)) if len(genres) == 1 else None,
+            # genre=next(iter(genres)) if len(genres) == 1 else None,
+            genre=_common_genres(album_dir),
             name=file.tag_album,
             parent=file.tag_album_artist,
             mp4=all(f.tag_type == 'mp4' for f in album_dir),
             wiki_album=file.album_url,
             wiki_artist=file.artist_url,
         )
+        self._album_dir = album_dir
         self.tracks = {f.path.as_posix(): TrackInfo._from_file(f, self) for f in album_dir}
         return self
 
@@ -566,3 +596,9 @@ def normalize_case(text: str) -> str:
 
 def fields(serializable: Serializable | Type[Serializable]) -> Iterator[Field]:
     yield from serializable._fields.values()
+
+
+def _common_genres(files: Collection[SongFile]) -> set[str]:
+    genres = Counter(g for f in files for g in f.tag_genres)
+    n_files = len(files)
+    return {genre for genre, num in genres.items() if num == n_files}

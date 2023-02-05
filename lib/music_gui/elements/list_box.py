@@ -5,7 +5,7 @@ Editable list box, primarily intended to be used for genres.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Collection
+from typing import TYPE_CHECKING, Collection, Callable
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, Button
@@ -27,6 +27,7 @@ class EditableListBox(InteractiveRowFrame):
         add_prompt: str,
         key: str = None,
         list_width: int = 30,
+        val_type: Callable = None,
         **kwargs,
     ):
         kwargs.setdefault('pad', (0, 0))
@@ -36,6 +37,14 @@ class EditableListBox(InteractiveRowFrame):
         self._list_width = list_width
         self.add_title = add_title
         self.add_prompt = add_prompt
+        self._val_type = val_type
+
+    @property
+    def value(self):
+        value = self.list_box.value
+        if (val_type := self._val_type) is not None:
+            return val_type(value)
+        return value
 
     @cached_property
     def list_box(self) -> ListBox:
@@ -52,7 +61,6 @@ class EditableListBox(InteractiveRowFrame):
     def button(self) -> Button:
         if key := self.__key:
             key = f'add::{key}'
-            # key = key.replace('val::', 'add::', 1)
         return Button('Add...', key=key, pad=(0, 0), visible=not self.disabled, cb=self.add_value)
 
     def add_value(self, event: Event):

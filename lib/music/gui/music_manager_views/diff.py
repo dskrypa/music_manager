@@ -155,12 +155,10 @@ class AlbumDiffView(MainView, view_name='album_diff'):
 
         with Spinner(message='Applying Changes...') as spinner:
             file_tag_map = {file: info.tags() for file, info in self.file_info_map.items()}
-            if new_image_obj := self.album_info.get_new_cover(self.album, force=True):
-                image, data, mime_type = self.album._prepare_cover_image(new_image_obj)
-
+            image, data, mime_type = self.album_info.get_new_cover(self.album, force=True)
             for file, info in spinner(self.file_info_map.items()):  # type: SongFile, TrackInfo
                 file.update_tags(file_tag_map[file], dry_run, add_genre=self.options['add_genre'])
-                if new_image_obj is not None:
+                if image is not None:
                     spinner.update()
                     file._set_cover_data(image, data, mime_type, dry_run)
 

@@ -92,6 +92,11 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         else:
             return True
 
+    def refresh(self):
+        for track in self.songs:
+            track.clear_cached_properties()
+        self.clear_cached_properties()
+
     @property
     def relative_path(self) -> str:
         try:

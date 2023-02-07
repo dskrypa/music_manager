@@ -21,7 +21,7 @@ from string import capwords
 from typing import Union, Optional, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
 
 from ordered_set import OrderedSet
-from PIL import Image
+from PIL.Image import Image as PILImage, open as open_image
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.fs.paths import Paths
@@ -47,6 +47,7 @@ UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 T = TypeVar('T')
 D = TypeVar('D')
 StrOrStrs = Union[str, Collection[str]]
+ImageTuple = tuple[PILImage, bytes, str] | tuple[None, None, None]
 
 
 def parse_date(dt_str: str | date | None) -> Optional[date]:
@@ -365,7 +366,9 @@ class AlbumInfo(Serializable, GenreMixin):
 
     def clean(self) -> AlbumInfo:
         if self.was_modified:
-            return self.from_album_dir(self.album_dir)
+            album_dir = self.album_dir
+            album_dir.refresh()
+            return self.from_album_dir(album_dir)
         return self
 
     @property
@@ -483,7 +486,9 @@ class AlbumInfo(Serializable, GenreMixin):
             data = json.load(f)
         return cls.from_dict(data)
 
-    def get_file_info_map(self, album_dir: AlbumDir) -> dict[SongFile, TrackInfo]:
+    def get_file_info_map(self, album_dir: AlbumDir = None) -> dict[SongFile, TrackInfo]:
+        if album_dir is None:
+            album_dir = self.album_dir
         try:
             return {file: self.tracks[file.path.as_posix()] for file in album_dir}
         except KeyError as e:
@@ -503,7 +508,7 @@ class AlbumInfo(Serializable, GenreMixin):
         if not no_album_move:
             self.move_album(album_dir, dest_base_dir, dry_run)
 
-    def get_current_cover(self, file_info_map: dict[SongFile, TrackInfo]) -> Optional[Image.Image]:
+    def get_current_cover(self, file_info_map: dict[SongFile, TrackInfo]) -> Optional[PILImage]:
         try:
             song_file = next(iter(file_info_map))
             return song_file.get_cover_image()
@@ -511,10 +516,10 @@ class AlbumInfo(Serializable, GenreMixin):
             log.warning(f'Unable to compare the current cover image to {self.cover_path}: {e}')
             return None
 
-    def get_new_cover(self, album_dir: AlbumDir, file_img: Image.Image = None, force: bool = False) -> Image.Image:
+    def _get_new_cover(self, album_dir: AlbumDir, file_img: PILImage = None, force: bool = False) -> PILImage:
         if self.cover_path and (file_img or force):
             log.debug(f'Loading cover image from {self.cover_path}')
-            image = Image.open(self.cover_path)
+            image = open_image(self.cover_path)
             if not force and ComparableImage(image).is_same_as(ComparableImage(file_img)):
                 log.debug(f'The cover image for {album_dir} already matches {self.cover_path}')
                 image = None
@@ -524,18 +529,21 @@ class AlbumInfo(Serializable, GenreMixin):
             image = None
         return image
 
-    def _prepare_new_cover(self, album_dir: AlbumDir, image: Image.Image) -> tuple[Image.Image, bytes, str]:
-        return album_dir._prepare_cover_image(image, self.cover_max_width)
+    def get_new_cover(self, album_dir: AlbumDir = None, file_img: PILImage = None, force: bool = False) -> ImageTuple:
+        if album_dir is None:
+            album_dir = self.album_dir
+        if image := self._get_new_cover(album_dir, file_img, force):
+            return album_dir._prepare_cover_image(image, self.cover_max_width)
+        else:
+            return None, None, None
 
-    def update_tracks(self, album_dir: AlbumDir, dry_run: bool = False, add_genre: bool = True):
+    def update_tracks(self, album_dir: AlbumDir = None, dry_run: bool = False, add_genre: bool = True):
+        if album_dir is None:
+            album_dir = self.album_dir
         file_info_map = self.get_file_info_map(album_dir)
         file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
         file_img = self.get_current_cover(file_info_map) if self.cover_path else None
-        if image := self.get_new_cover(album_dir, file_img):
-            image, data, mime_type = self._prepare_new_cover(album_dir, image)
-        else:
-            image, data, mime_type = None, None, None
-
+        image, data, mime_type = self.get_new_cover(album_dir, file_img)
         common_changes = get_common_changes(
             album_dir, file_tag_map, extra_newline=True, dry_run=dry_run, add_genre=add_genre
         )

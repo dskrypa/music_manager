@@ -19,6 +19,7 @@ from platform import system
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type
 from urllib.parse import quote
+from weakref import WeakValueDictionary
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
@@ -74,7 +75,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_type: OptStr = None
     file_type: OptStr = None
     __ft_cls_map = {}
-    __instances = {}                                                    # type: dict[Path, SongFile]
+    __instances = WeakValueDictionary()                                 # type: dict[Path, SongFile]
     _bpm = None                                                         # type: Optional[int]
     _f = None                                                           # type: Optional[MutagenFile]
     _path = None                                                        # type: Optional[Path]

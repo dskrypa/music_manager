@@ -106,6 +106,7 @@ class AlbumDiffFrame(InteractiveFrame):
 
     @cached_property
     def path_diff_eles(self) -> tuple[Frame, BasicRowFrame]:
+        # Used by AlbumDiffView to toggle visibility when options change.
         no_album_move = self.options['no_album_move']
         rename_ele = Frame(
             get_a_to_b('Album Rename:', self.album_dir.path, self.new_album_path), visible=not no_album_move
@@ -154,7 +155,8 @@ class AlbumDiffFrame(InteractiveFrame):
 
     @cached_property
     def options_frame(self) -> Frame:
-        frame = self.options.as_frame('apply_changes', change_cb=self._update_options_cb, side='t')
+        # TODO: Maybe remove button / fix the button callback
+        frame = self.options.as_frame('save_changes', change_cb=self._update_options_cb, side='t')
         key_ele_map = {key: ele for row in frame.rows for ele in row.elements if (key := getattr(ele, 'key', None))}
         self.update_option_states(key_ele_map)
         return frame

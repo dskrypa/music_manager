@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Optional
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button
 from tk_gui.elements.menu import MenuProperty
-from tk_gui.enums import CallbackAction, BindEvent, Anchor
-from tk_gui.event_handling import button_handler, event_handler
+from tk_gui.enums import CallbackAction, BindEvent  # noqa
+from tk_gui.event_handling import button_handler, event_handler  # noqa
 from tk_gui.popups import popup_input_invalid, pick_folder_popup
 from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row
@@ -80,12 +80,20 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
             return None
         return nav_button('left')
 
+    @property
+    def next_button(self) -> Button | None:
+        return None
+
     def get_post_window_layout(self) -> Layout:
-        if (back_button := self.back_button) is None:
+        back_button, next_button = self.back_button, self.next_button
+        if back_button is next_button is None:
             yield from self.get_inner_layout()
         else:
             frame_cls = YScrollFrame if self._scroll_y else Frame
-            row = [back_button, frame_cls(self.get_inner_layout(), side='top')]
+            content = frame_cls(self.get_inner_layout(), side='top')
+            row = [ele for ele in (back_button, content, next_button) if ele is not None]
+            # TODO: The next button is not being displayed
+            log.debug(f'post_window_layout: {row}')
             yield Row.custom(self.window, row, anchor='c')
 
     def get_inner_layout(self) -> Layout:

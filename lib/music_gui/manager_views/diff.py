@@ -6,15 +6,24 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
+from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Any
 
 from ds_tools.caching.decorators import cached_property
+from ds_tools.output.prefix import LoggingPrefix
+from tk_gui.enums import CallbackAction
+from tk_gui.event_handling import button_handler
 from tk_gui.options import GuiOptions
+from tk_gui.popups import popup_error
 
+from music.files.album import AlbumDir
+from music_gui.elements.buttons import nav_button
 from music_gui.elements.diff_frames import AlbumDiffFrame
 from .base import BaseView
 
 if TYPE_CHECKING:
+    from tkinter import Event
+    from tk_gui.elements import Button
     from tk_gui.typing import Layout
     from music.manager.update import AlbumInfo
 
@@ -61,8 +70,11 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
             update_options_cb=self.update_options,
         )
 
+    @cached_property
+    def next_button(self) -> Button | None:
+        return nav_button('right')
+
     def get_inner_layout(self) -> Layout:
-        # TODO: Add submit/save "next" button + handling for it
         yield [self.album_diff_frame]
 
     # endregion
@@ -90,3 +102,59 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
             else:
                 rename_ele.show()
                 no_change_ele.hide()
+
+    @button_handler('next_view')
+    def save_changes(self, event: Event = None, key=None) -> CallbackAction | None:
+        from .album import AlbumView
+
+        options = self.options.parse(self.window.results)
+        dry_run = options['dry_run']
+        album_dir = self.new_info.album_dir
+        self._save_changes(album_dir, dry_run, options['add_genre'])
+        if dry_run:
+            return None
+
+        album_dir.refresh()
+        return self.set_next_view(view_cls=AlbumView, album=album_dir)
+
+    def _save_changes(self, album_dir: AlbumDir, dry_run: bool, add_genre: bool):
+        # TODO: Maybe add spinner
+        image, data, mime_type = self.new_info.get_new_cover(force=True)
+
+        file_info_map = self.new_info.get_file_info_map()
+        for song_file, track_info in file_info_map.items():
+            tags = track_info.tags()
+            song_file.update_tags(tags, dry_run, add_genre=add_genre)
+            if image is not None:
+                song_file._set_cover_data(image, data, mime_type, dry_run)
+
+            track_info.maybe_rename(song_file, dry_run)
+
+        if new_album_path := self.album_diff_frame.new_album_path:  # returns None if self.options['no_album_move']
+            self._move_album(album_dir, new_album_path, dry_run)
+
+    def _move_album(self, album_dir: AlbumDir, new_album_path: Path, dry_run: bool):
+        log.info(f'{LoggingPrefix(dry_run).move} {album_dir} -> {new_album_path.as_posix()}')
+        if dry_run:
+            return
+
+        orig_parent_path = album_dir.path.parent
+        try:
+            album_dir.move(new_album_path)
+        except OSError as e:
+            popup_error(
+                f'Unable to move album to {new_album_path.as_posix()!r}\n'
+                'The configured output_base_dir may need to be updated.\n'
+                f'Error: {e}'
+            )
+            return
+
+        for path in (orig_parent_path, orig_parent_path.parent):
+            log.log(19, f'Checking directory: {path}')
+            if path.exists() and next(path.iterdir(), None) is None:
+                log.log(19, f'Removing empty directory: {path}')
+                try:
+                    path.rmdir()
+                except OSError as e:
+                    popup_error(f'Unable to delete empty directory={path.as_posix()!r}:\n{e}')
+                    break

@@ -57,7 +57,7 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
 
     @cached_property
     def options(self) -> GuiOptions:
-        gui_options = GuiOptions()
+        gui_options = GuiOptions(None)
         gui_options.add_bool('dry_run', 'Dry Run', default=False)
         gui_options.add_bool(
             'add_genre', 'Add Genre', default=True, tooltip='Add any specified genres instead of replacing them'

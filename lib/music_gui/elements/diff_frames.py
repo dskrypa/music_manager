@@ -155,8 +155,7 @@ class AlbumDiffFrame(InteractiveFrame):
 
     @cached_property
     def options_frame(self) -> Frame:
-        # TODO: Maybe remove button / fix the button callback
-        frame = self.options.as_frame('save_changes', change_cb=self._update_options_cb, side='t')
+        frame = self.options.as_frame(change_cb=self._update_options_cb, side='t')
         key_ele_map = {key: ele for row in frame.rows for ele in row.elements if (key := getattr(ele, 'key', None))}
         self.update_option_states(key_ele_map)
         return frame

@@ -91,10 +91,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         else:
             frame_cls = YScrollFrame if self._scroll_y else Frame
             content = frame_cls(self.get_inner_layout(), side='top')
-            row = [ele for ele in (back_button, content, next_button) if ele is not None]
-            # TODO: The next button is not being displayed
-            log.debug(f'post_window_layout: {row}')
-            yield Row.custom(self.window, row, anchor='c')
+            row = [ele for ele in (back_button, next_button, content) if ele is not None]
+            yield Row.custom(self.window, row, anchor='n', expand=True, fill='both')
 
     def get_inner_layout(self) -> Layout:
         return []

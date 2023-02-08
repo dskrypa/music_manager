@@ -38,11 +38,19 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
     new_info: AlbumInfo
 
     def __init__(
-        self, old_info: AlbumInfo, new_info: AlbumInfo, options: GuiOptions | Mapping[str, Any] = None, **kwargs
+        self,
+        old_info: AlbumInfo,
+        new_info: AlbumInfo,
+        options: GuiOptions | Mapping[str, Any] = None,
+        *,
+        manually_edited: bool = True,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.album = self.old_info = old_info
         self.new_info = new_info
+        if manually_edited and options is None:
+            options = {'no_album_move': True}  # Default to True for manual edits, False for wiki edits
         self._options = options
 
     # region Layout Generation
@@ -114,7 +122,7 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         if dry_run:
             return None
 
-        album_dir.refresh()
+        album_dir.refresh()  # TODO: After edit, original tag values still persist...  Need to fix cache invalidation
         return self.set_next_view(view_cls=AlbumView, album=album_dir)
 
     def _save_changes(self, album_dir: AlbumDir, dry_run: bool, add_genre: bool):

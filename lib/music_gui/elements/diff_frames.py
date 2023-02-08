@@ -90,6 +90,7 @@ class AlbumDiffFrame(InteractiveFrame):
             yield [edit_button_col, self.options_frame, Text(**top_side_kwargs)]
 
         yield [Text()]
+        # TODO: The s at the end of 'changes' is getting cut off...
         yield [HorizontalSeparator(), Text('Common Album Changes'), HorizontalSeparator()]
         yield [Text()]
 
@@ -111,6 +112,7 @@ class AlbumDiffFrame(InteractiveFrame):
         rename_ele = Frame(
             get_a_to_b('Album Rename:', self.album_dir.path, self.new_album_path), visible=not no_album_move
         )
+        # TODO: This is slightly confusing in the "Common Album Changes" section
         no_change_ele = BasicRowFrame(
             [Text('Album Path:'), Text(self.album_dir.path.as_posix(), use_input_style=True, size=(150, 1))],
             visible=no_album_move

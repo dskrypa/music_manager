@@ -122,7 +122,7 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         if dry_run:
             return None
 
-        album_dir.refresh()  # TODO: After edit, original tag values still persist...  Need to fix cache invalidation
+        album_dir.refresh()
         return self.set_next_view(view_cls=AlbumView, album=album_dir)
 
     def _save_changes(self, album_dir: AlbumDir, dry_run: bool, add_genre: bool):

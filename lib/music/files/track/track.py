@@ -34,8 +34,7 @@ from mutagen.oggopus import OggOpus
 from mutagen.wave import WAVE, _WaveID3
 from plexapi.audio import Track
 
-from ds_tools.caching.decorators import cached_property
-from ds_tools.caching.mixins import ClearableCachedPropertyMixin
+from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 

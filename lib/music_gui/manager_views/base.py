@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
-from tk_gui.elements import Frame, EventButton, YScrollFrame, Button
+from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer
 from tk_gui.elements.menu import MenuProperty
 from tk_gui.enums import CallbackAction, BindEvent  # noqa
 from tk_gui.event_handling import button_handler, event_handler  # noqa
@@ -91,8 +91,11 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         else:
             frame_cls = YScrollFrame if self._scroll_y else Frame
             content = frame_cls(self.get_inner_layout(), side='top')
-            row = [ele for ele in (back_button, next_button, content) if ele is not None]
-            yield Row.custom(self.window, row, anchor='n', expand=True, fill='both')
+            if back_button is None:
+                back_button = Spacer(size=(53, 241), anchor='w', side='left')
+            elif next_button is None:
+                next_button = Spacer(size=(53, 241), anchor='e', side='right')
+            yield Row.custom(self.window, [back_button, next_button, content], anchor='n', expand=True, fill='both')
 
     def get_inner_layout(self) -> Layout:
         return []

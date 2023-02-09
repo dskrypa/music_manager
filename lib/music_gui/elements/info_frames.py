@@ -36,6 +36,12 @@ LRG_FONT = ('Helvetica', 20)
 class TagModMixin:
     _tag_vals_and_eles: dict[str, tuple[Any, ValueEle]]
 
+    # def reset_tag_values(self):
+    #     # TODO: Handle different element type update methods; depends on Combo being updated to support update
+    #     for key, (original_val, val_ele) in self._tag_vals_and_eles.items():
+    #         if (value := val_ele.value) != original_val:
+    #             val_ele.update(original_val)
+
     def get_modified(self) -> dict[str, tuple[Any, Any]]:
         modified = {}
         for key, (original_val, val_ele) in self._tag_vals_and_eles.items():

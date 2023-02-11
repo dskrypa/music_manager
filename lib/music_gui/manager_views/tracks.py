@@ -16,6 +16,7 @@ from tk_gui.options import GuiOptions
 from music.files.track.track import SongFile
 from music.files.album import AlbumDir
 from music_gui.elements.file_frames import SongFileFrame, SelectableSongFileFrame
+from music_gui.elements.helpers import IText
 from music_gui.elements.info_frames import TrackInfoFrame
 from music_gui.utils import LogAndPopupHelper, AlbumIdentifier, get_album_dir, get_album_info, with_separators
 from .base import BaseView
@@ -66,12 +67,8 @@ class SelectableSongFileView(SongFileView):
 
     def get_pre_window_layout(self) -> Layout:
         yield from super().get_pre_window_layout()
-        yield [
-            self.options.as_frame(),
-            Text('Album:', anchor='s'),
-            Text(self.album.path.as_posix(), use_input_style=True, anchor='s'),
-            Button('Delete\nSelected Tags', focus=False, side='bottom', cb=self.delete_selected_tags),
-        ]
+        del_button = Button('Delete\nSelected Tags', focus=False, side='bottom', cb=self.delete_selected_tags)
+        yield [self.options.as_frame(), Text('Album:', anchor='s'), IText(self.album.path, anchor='s'), del_button]
         yield [HorizontalSeparator()]
 
     def get_inner_layout(self) -> Layout:

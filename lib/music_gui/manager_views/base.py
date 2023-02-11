@@ -23,7 +23,7 @@ from tk_gui.options import GuiOptions
 
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
-from music_gui.elements.buttons import nav_button
+from music_gui.elements.helpers import nav_button
 from music_gui.elements.menus import FullRightClickMenu, MusicManagerMenuBar
 
 if TYPE_CHECKING:
@@ -183,7 +183,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     #     from tk_gui.event_handling import log_widget_data
     #
     #     # log_widget_data(self.window, event, parent=True)
-    #     log_widget_data(self.window, event)
+    #     log_widget_data(self.window, event, config=True)
+    #     # log_widget_data(self.window, event)
 
     # endregion
 

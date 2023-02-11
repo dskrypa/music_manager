@@ -14,7 +14,7 @@ from tk_gui.elements import HorizontalSeparator, Text, ScrollFrame, Button
 from tk_gui.event_handling import button_handler
 from tk_gui.popups import popup_ok
 
-from music_gui.elements.buttons import nav_button
+from music_gui.elements.helpers import IText, nav_button
 from music_gui.elements.info_frames import AlbumInfoFrame, TrackInfoFrame
 from music_gui.utils import AlbumIdentifier, get_album_info, with_separators
 from .base import BaseView
@@ -55,7 +55,7 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
         return tracks_frame
 
     def get_inner_layout(self) -> Layout:
-        yield [Text('Album Path:'), Text(self.album.path.as_posix(), use_input_style=True, size=(150, 1))]
+        yield [Text('Album Path:'), IText(self.album.path, size=(150, 1))]
         yield [HorizontalSeparator()]
         yield [self.album_info_frame, self._prepare_track_frames()]
 

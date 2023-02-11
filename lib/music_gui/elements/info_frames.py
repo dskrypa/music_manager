@@ -20,6 +20,7 @@ from music.common.disco_entry import DiscoEntryType
 from music.files import SongFile
 from music.manager.update import TrackInfo, AlbumInfo
 from ..utils import AlbumIdentifier, TrackIdentifier, get_album_info, get_album_dir, get_track_info, get_track_file
+from .helpers import IText
 from .images import AlbumCoverImageBuilder
 from .list_box import EditableListBox
 
@@ -83,9 +84,9 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
 
         data = {key: ' / '.join(sorted(values)) for key, values in data.items()}
         yield [
-            Text('Bitrate:'), Text(data['bitrate_str'], size=(18, 1), use_input_style=True),
-            Text('Sample Rate:'), Text(data['sample_rate_str'], size=(18, 1), use_input_style=True),
-            Text('Bit Depth:'), Text(data['bits_per_sample'], size=(18, 1), use_input_style=True),
+            Text('Bitrate:'), IText(data['bitrate_str'], size=(18, 1)),
+            Text('Sample Rate:'), IText(data['sample_rate_str'], size=(18, 1)),
+            Text('Bit Depth:'), IText(data['bits_per_sample'], size=(18, 1)),
         ]
         yield [HorizontalSeparator()]
 
@@ -216,12 +217,11 @@ class TrackInfoFrame(TagModMixin, InteractiveFrame):
         yield from self.build_info_rows()
 
     def build_meta_rows(self) -> Iterator[list[Element]]:
-        yield [Text('File:', size=(6, 1)), Text(self.file_name, size=(50, 1), use_input_style=True)]
+        yield [Text('File:', size=(6, 1)), IText(self.file_name, size=(50, 1))]
         sf = self.song_file
-        kwargs = {'use_input_style': True}
         yield [
-            Text('Length:', size=(6, 1)), Text(sf.length_str, size=(10, 1), **kwargs),
-            Text('Type:'), Text(sf.tag_version, size=(20, 1), **kwargs),
+            Text('Length:', size=(6, 1)),   IText(sf.length_str, size=(10, 1)),
+            Text('Type:'),                  IText(sf.tag_version, size=(20, 1)),
         ]
 
     def build_info_rows(self, keys: Collection[str] = None) -> Iterator[list[Element]]:

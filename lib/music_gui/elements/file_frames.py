@@ -21,6 +21,7 @@ from tk_gui.styles import StyleState
 from music.common.ratings import stars_from_256
 from music.files.track.track import SongFile
 from ..utils import TrackIdentifier, get_track_file
+from .helpers import IText
 from .images import get_raw_cover_image
 
 if TYPE_CHECKING:
@@ -95,22 +96,21 @@ class SongFileFrame(InteractiveFrame):
         tag_version = f'{track.tag_version} (lossless)' if track.lossless else track.tag_version
         link = PathLink(self.track.path, use_link_style=False, path_in_tooltip=True)
         return [
-            Text('File:', size=(8, 1)), Text(self.file_name, size=(50, 1), link=link, use_input_style=True),
-            Text('Length:'), Text(track.length_str, size=(6, 1), use_input_style=True),
-            Text('Type:'), Text(tag_version, size=(20, 1), use_input_style=True),
+            Text('File:', size=(8, 1)), IText(self.file_name, size=(50, 1), link=link),
+            Text('Length:'), IText(track.length_str, size=(6, 1)),
+            Text('Type:'), IText(tag_version, size=(20, 1)),
         ]
 
     def _build_metadata_row(self):
         info = self.track.info
         row = [
-            Text('Bitrate:', size=(8, 1)), Text(info['bitrate_str'], size=(14, 1), use_input_style=True),
-            Text('Sample Rate:'), Text(info['sample_rate_str'], size=(10, 1), use_input_style=True),
-            Text('Bit Depth:'), Text(info['bits_per_sample'], size=(10, 1), use_input_style=True),
+            Text('Bitrate:', size=(8, 1)), IText(info['bitrate_str'], size=(14, 1)),
+            Text('Sample Rate:'), IText(info['sample_rate_str'], size=(10, 1)),
+            Text('Bit Depth:'), IText(info['bits_per_sample'], size=(10, 1)),
         ]
         for key in ('encoder', 'codec'):
             if value := info.get(key):
-                row.append(Text(f'{key.title()}:'))
-                row.append(Text(value, size=(15, 1), use_input_style=True))
+                row += [Text(f'{key.title()}:'), IText(value, size=(15, 1))]
         return row
 
     def build_tag_rows(self):
@@ -151,7 +151,7 @@ class SongFileFrame(InteractiveFrame):
             try:
                 rating = stars_from_256(int(value), 10)
             except (ValueError, TypeError):
-                val_ele = Text(value, size=(50, 1), use_input_style=True)
+                val_ele = IText(value, size=(50, 1))
             else:
                 val_ele = Rating(rating, show_value=True, pad=(0, 0), disabled=self.disabled)
         elif disp_name == 'Genre':
@@ -160,7 +160,7 @@ class SongFileFrame(InteractiveFrame):
         else:
             if value is None:
                 value = ''
-            val_ele = Text(value, size=(50, 1), use_input_style=True)
+            val_ele = IText(value, size=(50, 1))
 
         return (key_ele, val_ele)
 

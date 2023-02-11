@@ -95,8 +95,9 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
         else:
             old_info, new_info = self._get_info_diff()
             if old_info != new_info:
-                # TODO: Use self.album_info_frame.reset_tag_values() instead (when implemented)
-                return self.set_next_view(self.album)
+                self.album_info_frame.reset_tag_values()
+                for track_frame in self._track_frames:
+                    track_frame.reset_tag_values()
 
             self.next_button.hide()
             self.album_info_frame.disable()

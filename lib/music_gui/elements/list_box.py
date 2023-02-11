@@ -14,9 +14,12 @@ from tk_gui.popups import popup_get_text
 
 if TYPE_CHECKING:
     from tkinter import Event
+    from music.typing import Bool
 
 __all__ = ['EditableListBox']
 log = logging.getLogger(__name__)
+
+_NotSet = object()
 
 
 class EditableListBox(InteractiveRowFrame):
@@ -70,6 +73,21 @@ class EditableListBox(InteractiveRowFrame):
     @property
     def elements(self) -> tuple[Element, ...]:
         return self.list_box, self.button
+
+    def update(
+        self,
+        selection: str | int | None = _NotSet,
+        *,
+        choices: Collection[str] = None,
+        disabled: Bool = None,
+        **kwargs,
+    ):
+        if choices is not None:
+            self.list_box.update_choices(choices, **kwargs)
+        if selection is not _NotSet:
+            self.list_box.select(selection)
+        if disabled is not None:
+            self.toggle_enabled(disabled)
 
     def enable(self):
         if not self.disabled:

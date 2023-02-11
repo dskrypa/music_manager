@@ -92,6 +92,7 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         new_options = self.options.parse(self.window.results)
         changed = {k: v for k, v in new_options.items() if v != old_options[k]}
         if 'add_genre' in changed or 'title_case' in changed:
+            # TODO: This results in losing the original previous view
             return self.set_next_view(old_info=self.old_info, new_info=self.new_info, options=self.options)
 
         album_diff_frame = self.album_diff_frame

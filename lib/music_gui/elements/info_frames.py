@@ -36,33 +36,21 @@ LRG_FONT = ('Helvetica', 20)
 class TagModMixin:
     _tag_vals_and_eles: dict[str, tuple[Any, ValueEle]]
 
-    def reset_tag_values(self):
-        for key, (original_val, val_ele) in self._tag_vals_and_eles.items():
-            if val_ele.value == original_val:
-                continue
-
-            match val_ele:
-                case Input() | Text():
-                    val_ele.update(original_val)
-                case ListBox():
-                    val_ele.update_choices(original_val, replace=True, select=True)
-                case EditableListBox():
-                    val_ele.list_box.update_choices(original_val, replace=True, select=True)
-                case Combo():
-                    val_ele.select(original_val)
-                case CheckBox():
-                    val_ele.value = original_val
-                case Rating():
-                    val_ele.update(original_val or 0)
-                case _:
-                    raise TypeError(f'Unexpected type={val_ele.__class__.__name__} for {val_ele=}')
-
-    def get_modified(self) -> dict[str, tuple[Any, Any]]:
-        modified = {}
+    def _iter_changes(self) -> Iterator[tuple[str, ValueEle, Any, Any]]:
         for key, (original_val, val_ele) in self._tag_vals_and_eles.items():
             if (value := val_ele.value) != original_val:
-                modified[key] = (original_val, value)
-        return modified
+                yield key, val_ele, original_val, value
+
+    def reset_tag_values(self):
+        for key, val_ele, original_val, value in self._iter_changes():
+            match val_ele:
+                case ListBox() | EditableListBox():
+                    val_ele.update(choices=original_val, replace=True, select=True)
+                case _:  # Input() | Text() | CheckBox() | Combo() | Rating()
+                    val_ele.update(original_val)
+
+    def get_modified(self) -> dict[str, tuple[Any, Any]]:
+        return {key: (original_val, value) for key, val_ele, original_val, value in self._iter_changes()}
 
 
 class AlbumInfoFrame(TagModMixin, InteractiveFrame):

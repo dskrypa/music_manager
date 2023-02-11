@@ -50,7 +50,10 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         self.album = self.old_info = old_info
         self.new_info = new_info
         if manually_edited and options is None:
-            options = {'no_album_move': True}  # Default to True for manual edits, False for wiki edits
+            options = {
+                'no_album_move': True,  # Default to True for manual edits, False for wiki edits
+                'repl_genres': True,    # Manual edits expect the submitted values to be used as seen
+            }
         self._options = options
 
     # region Layout Generation
@@ -59,9 +62,7 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
     def options(self) -> GuiOptions:
         gui_options = GuiOptions(None)
         gui_options.add_bool('dry_run', 'Dry Run', default=False)
-        gui_options.add_bool(
-            'add_genre', 'Add Genre', default=True, tooltip='Add any specified genres instead of replacing them'
-        )
+        gui_options.add_bool('repl_genres', 'Replace Genres', tooltip='Specified genres should replace existing ones')
         gui_options.add_bool('title_case', 'Title Case')
         gui_options.add_bool('no_album_move', 'Do Not Move Album')
         gui_options.add_bool('rename_in_place', 'Rename Album In-Place')
@@ -91,9 +92,10 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         old_options = dict(self.options.items())
         new_options = self.options.parse(self.window.results)
         changed = {k: v for k, v in new_options.items() if v != old_options[k]}
-        if 'add_genre' in changed or 'title_case' in changed:
-            # TODO: This results in losing the original previous view
-            return self.set_next_view(old_info=self.old_info, new_info=self.new_info, options=self.options)
+        if 'repl_genres' in changed or 'title_case' in changed:
+            return self.set_next_view(
+                old_info=self.old_info, new_info=self.new_info, options=self.options, retain_prev_view=True
+            )
 
         album_diff_frame = self.album_diff_frame
         album_diff_frame.update_option_states(self.window)  # noqa
@@ -119,21 +121,21 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         options = self.options.parse(self.window.results)
         dry_run = options['dry_run']
         album_dir = self.new_info.album_dir
-        self._save_changes(album_dir, dry_run, options['add_genre'])
+        self._save_changes(album_dir, dry_run, options['repl_genres'], options['title_case'])
         if dry_run:
             return None
 
         album_dir.refresh()
         return self.set_next_view(view_cls=AlbumView, album=album_dir)
 
-    def _save_changes(self, album_dir: AlbumDir, dry_run: bool, add_genre: bool):
+    def _save_changes(self, album_dir: AlbumDir, dry_run: bool, replace_genres: bool, title_case: bool):
         # TODO: Maybe add spinner
         image, data, mime_type = self.new_info.get_new_cover(force=True)
 
         file_info_map = self.new_info.get_file_info_map()
         for song_file, track_info in file_info_map.items():
-            tags = track_info.tags()
-            song_file.update_tags(tags, dry_run, add_genre=add_genre)
+            tags = track_info.tags(title_case)
+            song_file.update_tags(tags, dry_run, add_genre=not replace_genres)
             if image is not None:
                 song_file._set_cover_data(image, data, mime_type, dry_run)
 
@@ -142,7 +144,7 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
         if new_album_path := self.album_diff_frame.new_album_path:  # returns None if self.options['no_album_move']
             self._move_album(album_dir, new_album_path, dry_run)
 
-    def _move_album(self, album_dir: AlbumDir, new_album_path: Path, dry_run: bool):
+    def _move_album(self, album_dir: AlbumDir, new_album_path: Path, dry_run: bool):  # noqa
         log.info(f'{LoggingPrefix(dry_run).move} {album_dir} -> {new_album_path.as_posix()}')
         if dry_run:
             return
@@ -160,8 +162,8 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
 
         for path in (orig_parent_path, orig_parent_path.parent):
             log.log(19, f'Checking directory: {path}')
-            if path.exists() and next(path.iterdir(), None) is None:
-                log.log(19, f'Removing empty directory: {path}')
+            if len(path.parts) > 4 and path.exists() and next(path.iterdir(), None) is None:
+                log.log(19, f'Removing empty directory: {path.as_posix()}')
                 try:
                     path.rmdir()
                 except OSError as e:

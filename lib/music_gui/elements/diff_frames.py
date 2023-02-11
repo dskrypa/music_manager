@@ -128,12 +128,12 @@ class AlbumDiffFrame(InteractiveFrame):
         yield [Text()]
 
     def _build_common_tag_diff(self) -> Layout:
-        title_case, add_genre = self.options['title_case'], self.options['add_genre']
+        title_case, repl_genres = self.options['title_case'], self.options['repl_genres']
         old_data = self.old_info.to_dict(title_case, skip={'tracks'})
         new_data = self.new_info.to_dict(title_case, skip={'tracks'})
         for key, old_val, new_val in zip_maps(old_data, new_data):
             self._found_common_tag_change = True
-            if key == 'genre' and add_genre:
+            if key == 'genre' and not repl_genres:
                 new_val = sorted(_str_set(new_val) | _str_set(old_val))
             if (old_val or new_val) and old_val != new_val:
                 yield _diff_row(key, old_val, new_val)
@@ -142,8 +142,8 @@ class AlbumDiffFrame(InteractiveFrame):
         yield [HorizontalSeparator(), Text('Track Changes'), HorizontalSeparator()]
         title_case = self.options['title_case']
         old_genres = self.old_info.get_genre_set(title_case)
-        new_genres = self.new_info.get_genre_set(title_case)
-        if self.options['add_genre']:
+        new_genres = self.new_info.all_common_genres(title_case)
+        if not self.options['repl_genres']:
             new_genres.update(old_genres)
 
         genres = (old_genres, new_genres)
@@ -218,8 +218,8 @@ class TrackDiffFrame(InteractiveFrame):
 
     def build_tag_diff(self) -> Layout:
         title_case = self.options['title_case']
-        old_data = self.old_info.to_dict(title_case)
-        new_data = self.new_info.to_dict(title_case)
+        old_data = self.old_info.to_dict(title_case, genres_as_set=True)
+        new_data = self.new_info.to_dict(title_case, genres_as_set=True)
         for key, old_val, new_val in zip_maps(old_data, new_data):
             if key == 'genre':
                 yield from self.build_genre_diff(old_val, new_val)
@@ -234,12 +234,15 @@ class TrackDiffFrame(InteractiveFrame):
                 else:
                     yield _diff_row(key, old_val, new_val)
 
-    def build_genre_diff(self, old_val: StrOrStrs, new_val: StrOrStrs) -> Layout:
-        old_alb_vals, new_alb_vals = self.genres
-        new_vals = (_str_set(new_val) | new_alb_vals) if new_val else new_alb_vals.copy()
-        old_vals = _str_set(old_val)
-        if self.options['add_genre']:
+    def build_genre_diff(self, old_vals: set[str], new_val: set[str]) -> Layout:
+        # old genres are from unmodified TrackInfo, which already includes album genres
+        old_alb_vals, new_alb_vals = self.genres  # new will already include old if not repl_genres
+
+        new_vals = (new_val | new_alb_vals) if new_val else new_alb_vals.copy()
+        if not self.options['repl_genres']:
             new_vals.update(old_vals)
+
+        # if (new_vals != new_alb_vals) or (old_vals != new_vals):
         if (old_vals != old_alb_vals or new_vals != new_alb_vals) and ((old_vals or new_vals) and old_vals != new_vals):
             yield _diff_row('genre', sorted(old_vals), sorted(new_vals))
 
@@ -259,6 +262,8 @@ def _build_diff_value_ele(key: str, value) -> CheckBox | ListBox | Text:
         case bool():
             return CheckBox('', default=value, pad=(0, 0), disabled=True)
         case list():
+            if not value:
+                return Text('<removed>', size=(45, 1))
             kwargs = {'size': (45, len(value)), 'pad': (5, 0), 'border': 2}
             return ListBox(value, default=value, disabled=True, scroll_y=False, **kwargs)
         case _:

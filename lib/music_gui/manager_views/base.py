@@ -8,7 +8,7 @@ import logging
 from abc import ABC
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Type
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer
@@ -201,12 +201,19 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
             return None
         return self.set_next_view(*args, view_cls=view_cls, **kwargs)
 
+    def set_next_view(
+        self, *args, view_cls: Type[View] = None, retain_prev_view: bool = False, **kwargs
+    ) -> CallbackAction:
+        if retain_prev_view:
+            kwargs['prev_view'] = self.__prev_view
+        return super().set_next_view(*args, view_cls=view_cls, **kwargs)
+
     def get_next_view_spec(self) -> ViewSpec | None:
         try:
             view_cls, args, kwargs = super().get_next_view_spec()
         except TypeError:
             return None
-        if album := self.album:
+        if (album := self.album) and 'prev_view' not in kwargs:
             kwargs['prev_view'] = (self.__class__, (), {'album': album})
         return view_cls, args, kwargs
 

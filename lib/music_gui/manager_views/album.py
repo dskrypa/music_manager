@@ -61,7 +61,7 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
 
     # endregion
 
-    def _get_info_diff(self) -> tuple[AlbumInfo, AlbumInfo]:
+    def _get_info_diff(self) -> tuple[bool, AlbumInfo, AlbumInfo]:
         old_info = self.album.clean()
         new_info = old_info.copy()
         if album_changes := self.album_info_frame.get_modified():
@@ -76,7 +76,7 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
             if modified:
                 new_info.get_track(track_info).update_from_old_new_tuples(modified)
 
-        return old_info, new_info
+        return old_info != new_info, old_info, new_info
 
     def _iter_frames(self) -> Iterator[AlbumInfoFrame | TrackInfoFrame]:
         yield self.album_info_frame
@@ -95,29 +95,22 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
         return self.set_next_view(self.album, view_cls=SelectableSongFileView)
 
     @button_handler('edit_album', 'cancel')
-    def toggle_edit_mode(self, event: Event, key=None) -> CallbackAction | None:
-        if key == 'edit_album':
-            self.next_button.show()
-            for frame in self._iter_frames():
-                frame.enable()
-        else:
-            old_info, new_info = self._get_info_diff()
-            if old_info != new_info:
+    def toggle_edit_mode(self, event: Event, key=None):
+        if disable := key != 'edit_album':
+            if self._get_info_diff()[0]:
                 for frame in self._iter_frames():
                     frame.reset_tag_values()
 
-            self.next_button.hide()
-            for frame in self._iter_frames():
-                frame.disable()
-
-        return None
+        self.next_button.toggle_visibility(not disable)
+        for frame in self._iter_frames():
+            frame.toggle_enabled(disable)
 
     @button_handler('save', 'next_view')
     def save_changes(self, event: Event, key=None) -> CallbackAction | None:
         from .diff import AlbumDiffView
 
-        old_info, new_info = self._get_info_diff()
-        if old_info != new_info:
+        changed, old_info, new_info = self._get_info_diff()
+        if changed:
             return self.set_next_view(view_cls=AlbumDiffView, old_info=old_info, new_info=new_info)
         else:
             popup_ok('No changes were made - there is nothing to save')

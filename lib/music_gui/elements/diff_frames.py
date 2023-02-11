@@ -21,6 +21,7 @@ from music.files import AlbumDir, SongFile
 from music.manager.update import TrackInfo, AlbumInfo
 from ..utils import get_album_dir, get_track_file
 from ..utils import zip_maps
+from .helpers import IText
 from .images import AlbumCoverImageBuilder
 
 if TYPE_CHECKING:
@@ -90,7 +91,6 @@ class AlbumDiffFrame(InteractiveFrame):
             yield [edit_button_col, self.options_frame, Text(**top_side_kwargs)]
 
         yield [Text()]
-        # TODO: The s at the end of 'changes' is getting cut off...
         yield [HorizontalSeparator(), Text('Common Album Changes'), HorizontalSeparator()]
         yield [Text()]
 
@@ -108,14 +108,14 @@ class AlbumDiffFrame(InteractiveFrame):
     @cached_property
     def path_diff_eles(self) -> tuple[Frame, BasicRowFrame]:
         # Used by AlbumDiffView to toggle visibility when options change.
-        no_album_move = self.options['no_album_move']
-        rename_ele = Frame(
-            get_a_to_b('Album Rename:', self.album_dir.path, self.new_album_path), visible=not no_album_move
-        )
-        # TODO: This is slightly confusing in the "Common Album Changes" section
+        show_rename = not self.options['no_album_move']
+        old_path = self.album_dir.path
+        paths = (old_path, self.new_info.get_new_path(None), self.new_info.get_new_path(self.output_sorted_dir))
+        split = max(len(p.as_posix()) for p in paths) >= 50
+
+        rename_ele = Frame(get_a_to_b('Album Rename:', old_path, self.new_album_path, split), visible=show_rename)
         no_change_ele = BasicRowFrame(
-            [Text('Album Path:'), Text(self.album_dir.path.as_posix(), use_input_style=True, size=(150, 1))],
-            visible=no_album_move
+            [Text('Album Path:'), IText(old_path, size=(150, 1)), Text('(no change)')], visible=not show_rename
         )
         return rename_ele, no_change_ele
 
@@ -139,7 +139,7 @@ class AlbumDiffFrame(InteractiveFrame):
                 yield _diff_row(key, old_val, new_val)
 
     def build_track_diff(self) -> Layout:
-        yield [HorizontalSeparator(), Text('Track Changes'), HorizontalSeparator()]
+        yield [HorizontalSeparator(), Text('Track Changes', justify='c'), HorizontalSeparator()]
         title_case = self.options['title_case']
         old_genres = self.old_info.get_genre_set(title_case)
         new_genres = self.new_info.all_common_genres(title_case)
@@ -172,6 +172,33 @@ class AlbumDiffFrame(InteractiveFrame):
         else:
             key_ele_map['opt::rename_in_place'].enable()
             key_ele_map['opt::no_album_move'].enable()
+
+    # endregion
+
+    # region Update Methods
+
+    def update(self, key_ele_map: Mapping[str, CheckBox | Element], no_album_move: bool = None):
+        self.update_option_states(key_ele_map)
+        self.maybe_update_new_album_path()
+        if no_album_move is not None:
+            self.update_path_ele_visibility(no_album_move)
+
+    def maybe_update_new_album_path(self):
+        if new_album_path := self.new_album_path:
+            new_album_path = new_album_path.as_posix()
+        else:
+            new_album_path = ''
+
+        self.path_diff_eles[0].rows[-1].elements[-1].update(new_album_path)  # This updated the rename element value
+
+    def update_path_ele_visibility(self, no_album_move: bool):
+        rename_ele, no_change_ele = self.path_diff_eles
+        if no_album_move:
+            rename_ele.hide()
+            no_change_ele.show()
+        else:
+            rename_ele.show()
+            no_change_ele.hide()
 
     # endregion
 
@@ -214,7 +241,7 @@ class TrackDiffFrame(InteractiveFrame):
         if old_name != new_name:
             yield from get_a_to_b('File Rename:', old_name, new_name)
         else:
-            yield [Text('File:'), Text(old_name, use_input_style=True, size=(50, 1)), Text('(no change)')]
+            yield [Text('File:'), IText(old_name, size=(50, 1)), Text('(no change)')]
 
     def build_tag_diff(self) -> Layout:
         title_case = self.options['title_case']
@@ -267,34 +294,28 @@ def _build_diff_value_ele(key: str, value) -> CheckBox | ListBox | Text:
             kwargs = {'size': (45, len(value)), 'pad': (5, 0), 'border': 2}
             return ListBox(value, default=value, disabled=True, scroll_y=False, **kwargs)
         case _:
-            kwargs = {'use_input_style': True}
-            if key.startswith('wiki_'):
-                kwargs['link'] = True
-            return Text('' if value is None else value, size=(45, 1), **kwargs)
+            return IText(value, size=(45, 1), link=key.startswith('wiki_') or None)
 
 
-def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike) -> Layout:
-    old_ele, old_len = _diff_ele(old_val)
-    new_ele, new_len = _diff_ele(new_val)
-    if old_len + new_len > 200:
+def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike, split: bool = None) -> Layout:
+    old_ele, split_old = _diff_ele(old_val, split)
+    new_ele, split_new = _diff_ele(new_val, split, offset=3)
+    if split_old or split_new:
         yield [Text(label), old_ele]
-        # yield [Image(size=(len(label) * 7, 1)), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
-        yield [Spacer(size=(len(label) * 7, 1)), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
+        yield [Spacer(size=((len(label) + 1) * 7, 1)), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
     else:
         yield [Text(label), old_ele, Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
 
 
-def _diff_ele(value: PathLike) -> tuple[Text, int]:
+def _diff_ele(value: PathLike, split: bool = None, offset: int = 0) -> tuple[Text, bool]:
     if isinstance(value, Path):
         value = value.as_posix()
     elif value is None:
         value = ''
-    kwargs = {'use_input_style': True}
-    if (val_len := len(value)) > 50:
-        kwargs['size'] = (val_len, 1)
-    else:
-        kwargs['size'] = (50, 1)
-    return Text(value, **kwargs), val_len
+
+    if split is None:
+        split = len(value) > 50
+    return IText(value, size=((150 - offset) if split else 50, 1)), split
 
 
 def _str_set(values: StrOrStrs) -> set[str]:

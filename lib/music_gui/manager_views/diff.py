@@ -17,8 +17,8 @@ from tk_gui.options import GuiOptions
 from tk_gui.popups import popup_error
 
 from music.files.album import AlbumDir
-from music_gui.elements.buttons import nav_button
 from music_gui.elements.diff_frames import AlbumDiffFrame
+from music_gui.elements.helpers import nav_button
 from .base import BaseView
 
 if TYPE_CHECKING:
@@ -97,22 +97,9 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
                 old_info=self.old_info, new_info=self.new_info, options=self.options, retain_prev_view=True
             )
 
-        album_diff_frame = self.album_diff_frame
-        album_diff_frame.update_option_states(self.window)  # noqa
-        rename_ele, no_change_ele = album_diff_frame.path_diff_eles
-        if new_album_path := album_diff_frame.new_album_path:
-            new_album_path = new_album_path.as_posix()
-        else:
-            new_album_path = ''
-        rename_ele.rows[-1].elements[-1].update(new_album_path)
+        self.album_diff_frame.update(self.window, changed.get('no_album_move'))  # noqa
 
-        if 'no_album_move' in changed:
-            if changed['no_album_move']:
-                rename_ele.hide()
-                no_change_ele.show()
-            else:
-                rename_ele.show()
-                no_change_ele.hide()
+    # region Save Changes
 
     @button_handler('next_view')
     def save_changes(self, event: Event = None, key=None) -> CallbackAction | None:
@@ -169,3 +156,5 @@ class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
                 except OSError as e:
                     popup_error(f'Unable to delete empty directory={path.as_posix()!r}:\n{e}')
                     break
+
+    # endregion

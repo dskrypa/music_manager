@@ -1,5 +1,5 @@
 """
-
+View that separates common album fields from common fields that are usually different between tracks.
 """
 
 from __future__ import annotations
@@ -118,7 +118,9 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
 
     @button_handler('wiki_update')
     def wiki_update(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')
+        from .wiki_update import WikiUpdateView
+
+        return self.set_next_view(self.album, view_cls=WikiUpdateView)
 
     @button_handler('sync_ratings_from', 'sync_ratings_to')
     def sync_ratings_from(self, event: Event, key=None):

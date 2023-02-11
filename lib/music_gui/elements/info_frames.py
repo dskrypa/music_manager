@@ -10,11 +10,12 @@ from typing import TYPE_CHECKING, Iterator, Collection, Any
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output.formatting import ordinal_suffix
 
-from tk_gui.elements import Element, ListBox, CheckBox, Combo, HorizontalSeparator
+from tk_gui.elements import Element, ListBox, CheckBox, Combo, HorizontalSeparator, Multiline, Text, Input, Image
 from tk_gui.elements.buttons import EventButton as EButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
+from tk_gui.elements.menu import Menu, MenuItem
 from tk_gui.elements.rating import Rating
-from tk_gui.elements.text import Multiline, Text, Input
+from tk_gui.popups import pick_file_popup
 
 from music.common.disco_entry import DiscoEntryType
 from music.files import SongFile
@@ -68,9 +69,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
 
     def get_custom_layout(self) -> Layout:
         yield from self.build_meta_rows()
-        # TODO: Right-click menu to add/replace the image
-        cover_image = AlbumCoverImageBuilder(self.album_info, self.cover_size).make_thumbnail_frame()
-        yield [cover_image, TagFrame([*self.build_tag_rows()], disabled=self.disabled)]
+        yield [self.cover_image_frame, TagFrame([*self.build_tag_rows()], disabled=self.disabled)]
         yield [HorizontalSeparator()]
         yield from self.build_buttons()
 
@@ -131,6 +130,14 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
     def build_buttons(self) -> Layout:
         # These frames need to be in the same row for them to occupy the same space when visible
         yield [self.view_buttons_frame, self.edit_buttons_frame]
+
+    @cached_property
+    def cover_image_frame(self) -> Frame:
+        class ImageMenu(Menu):
+            MenuItem('Replace', callback=self._replace_cover_image, enabled=lambda me: not self.disabled)
+
+        cover_builder = AlbumCoverImageBuilder(self.album_info, self.cover_size)
+        return cover_builder.make_thumbnail_frame(right_click_menu=ImageMenu())
 
     @cached_property
     def view_buttons_frame(self) -> Frame:
@@ -194,6 +201,15 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
 
         num_type_ele: Input = self._tag_vals_and_eles['numbered_type'][1]
         num_type_ele.update(f'{num_val}{ordinal_suffix(num_val)} {type_val.real_name}')
+
+    def _replace_cover_image(self, event=None):
+        if self.disabled:
+            return
+        if path := pick_file_popup(title='Pick new album cover'):
+            cover_path_ele: Input = self._tag_vals_and_eles['cover_path'][1]
+            cover_path_ele.update(path.as_posix())
+            image_ele: Image = self.cover_image_frame.rows[0].elements[0]
+            image_ele.image = path
 
     # endregion
 

@@ -99,7 +99,7 @@ class AlbumDiffFrame(InteractiveFrame):
             return
 
         old_cover_img, new_cover_img = AlbumCoverImageBuilder(self.old_info).make_diff_thumbnails(new_cover_path)
-        yield [old_cover_img, Text('\u2794', font=LRG_FONT), new_cover_img]
+        yield [BasicRowFrame([old_cover_img, Text('\u2794', font=LRG_FONT), new_cover_img], anchor='c', side='t')]
         yield [HorizontalSeparator()]
 
     def build_path_diff(self) -> Layout:
@@ -113,10 +113,11 @@ class AlbumDiffFrame(InteractiveFrame):
         paths = (old_path, self.new_info.get_new_path(None), self.new_info.get_new_path(self.output_sorted_dir))
         split = max(len(p.as_posix()) for p in paths) >= 50
 
-        rename_ele = Frame(get_a_to_b('Album Rename:', old_path, self.new_album_path, split), visible=show_rename)
-        no_change_ele = BasicRowFrame(
-            [Text('Album Path:'), IText(old_path, size=(150, 1)), Text('(no change)')], visible=not show_rename
+        rename_ele = Frame(
+            get_a_to_b('Album Rename:', old_path, self.new_album_path, split), visible=show_rename, pad=(0, 0)
         )
+        no_change_row = [label_ele('Album Path:'), IText(old_path, size=(150, 1)), Text('(no change)')]
+        no_change_ele = BasicRowFrame(no_change_row, visible=not show_rename, pad=(0, 0))
         return rename_ele, no_change_ele
 
     def build_common_tag_diff(self) -> Layout:
@@ -301,10 +302,10 @@ def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike, split: bool = N
     old_ele, split_old = _diff_ele(old_val, split)
     new_ele, split_new = _diff_ele(new_val, split, offset=3)
     if split_old or split_new:
-        yield [Text(label), old_ele]
+        yield [label_ele(label), old_ele]
         yield [Spacer(size=((len(label) + 1) * 7, 1)), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
     else:
-        yield [Text(label), old_ele, Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
+        yield [label_ele(label), old_ele, Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
 
 
 def _diff_ele(value: PathLike, split: bool = None, offset: int = 0) -> tuple[Text, bool]:

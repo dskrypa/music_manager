@@ -67,13 +67,15 @@ class AlbumCoverImageBuilder:
             return next(iter(images))
         return None
 
-    def make_thumbnail(self) -> Image:
+    def make_thumbnail(self, **kwargs) -> Image:
         image = placeholder_icon_cache.image_or_placeholder(self._get_raw_cover_image(), self.cover_size)
-        return Image(image=image, size=self.cover_size, popup=True, popup_title=f'Album Cover: {self.album_info.name}')
+        return Image(
+            image=image, size=self.cover_size, popup=True, popup_title=f'Album Cover: {self.album_info.name}', **kwargs
+        )
 
-    def make_thumbnail_frame(self) -> Frame:
+    def make_thumbnail_frame(self, **kwargs) -> Frame:
         width, height = self.cover_size
-        return Frame([[self.make_thumbnail()]], size=(width + 10, height + 10), pack_propagate=False)
+        return Frame([[self.make_thumbnail(**kwargs)]], size=(width + 10, height + 10), pack_propagate=False)
 
     def make_diff_thumbnails(self, new_image: ImageType) -> tuple[Image, Image]:
         old_image_ele = self.make_thumbnail()

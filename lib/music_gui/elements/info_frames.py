@@ -177,14 +177,19 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
 
     def _update_numbered_type(self, var_name, unknown, action):
         # Registered as a change_cb for `type` and `number`
+        num_ele: Input = self._tag_vals_and_eles['number'][1]
+        value = ''
+        try:
+            value = num_ele.value.strip()
+            num_val = int(value)
+        except (TypeError, ValueError, AttributeError):
+            num_ele.validated(not value)
+            return
+        else:
+            num_ele.validated(True)
+
         type_val = DiscoEntryType(self._tag_vals_and_eles['type'][1].value)
         if type_val == DiscoEntryType.UNKNOWN:
-            return
-        num_ele = self._tag_vals_and_eles['number'][1]
-        try:
-            num_val = int(num_ele.value.strip())
-        except (TypeError, ValueError, AttributeError):
-            # TODO: Mark num_ele as invalid if it has a value
             return
 
         num_type_ele: Input = self._tag_vals_and_eles['numbered_type'][1]

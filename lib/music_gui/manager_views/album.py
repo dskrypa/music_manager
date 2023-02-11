@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 
 from ds_tools.caching.decorators import cached_property
 
@@ -67,11 +67,20 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
         if album_changes := self.album_info_frame.get_modified():
             new_info.update_from_old_new_tuples(album_changes)
 
-        for tf in self._track_frames:
-            if modified := tf.get_modified():
-                new_info.tracks[tf.track_info.path.as_posix()].update_from_old_new_tuples(modified)
+        track_info_modifications = [(tf.track_info, tf.get_modified()) for tf in self._track_frames]
+        any_genres_modified = 'genre' in album_changes or any('genre' in mod for _, mod in track_info_modifications)
+
+        for track_info, modified in track_info_modifications:
+            if any_genres_modified and 'genre' not in modified:
+                modified['genre'] = (old_info.get_track(track_info).get_genre_set(), set())
+            if modified:
+                new_info.get_track(track_info).update_from_old_new_tuples(modified)
 
         return old_info, new_info
+
+    def _iter_frames(self) -> Iterator[AlbumInfoFrame | TrackInfoFrame]:
+        yield self.album_info_frame
+        yield from self._track_frames
 
     # region Event Handlers
 
@@ -89,20 +98,17 @@ class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
     def toggle_edit_mode(self, event: Event, key=None) -> CallbackAction | None:
         if key == 'edit_album':
             self.next_button.show()
-            self.album_info_frame.enable()
-            for track_frame in self._track_frames:
-                track_frame.enable()
+            for frame in self._iter_frames():
+                frame.enable()
         else:
             old_info, new_info = self._get_info_diff()
             if old_info != new_info:
-                self.album_info_frame.reset_tag_values()
-                for track_frame in self._track_frames:
-                    track_frame.reset_tag_values()
+                for frame in self._iter_frames():
+                    frame.reset_tag_values()
 
             self.next_button.hide()
-            self.album_info_frame.disable()
-            for track_frame in self._track_frames:
-                track_frame.disable()
+            for frame in self._iter_frames():
+                frame.disable()
 
         return None
 

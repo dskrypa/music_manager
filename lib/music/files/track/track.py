@@ -17,7 +17,7 @@ from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type, Mapping
 from urllib.parse import quote
 from weakref import WeakValueDictionary
 
@@ -827,14 +827,22 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # region Tag Updates
 
-    def update_tags(self, name_value_map, dry_run=False, no_log=None, none_level=19, add_genre=False):
+    def update_tags(
+        self,
+        name_value_map: Mapping[str, Any],
+        dry_run: bool = False,
+        no_log: Collection[str] = None,
+        none_level: int = 19,
+        add_genre: bool = False,
+    ):
         """
-        :param dict name_value_map: Mapping of {tag name: new value}
-        :param bool dry_run: Whether tags should actually be updated
-        :param container no_log: Names of tags for which updates should not be logged
-        :param int none_level: If no changes need to be made, the log level for the message stating that.
-        :param bool add_genre: Add any specified genres instead of replacing them
+        :param name_value_map: Mapping of {tag name: new value}
+        :param dry_run: Whether tags should actually be updated
+        :param no_log: Names of tags for which updates should not be logged
+        :param none_level: If no changes need to be made, the log level for the message stating that.
+        :param add_genre: Add any specified genres instead of replacing them
         """
+        # log.debug(f'update_tags: {name_value_map=}, {dry_run=}, {add_genre=}')
         no_log = no_log or ()
         to_log = {}
         to_update = {}

@@ -232,6 +232,10 @@ class TrackInfo(Serializable, GenreMixin):
             return False
         return all(getattr(self, field) == getattr(other, field) for field in self._cmp_fields)
 
+    def __repr__(self) -> str:
+        kw_str = ', '.join(f'{k}={getattr(self, k)!r}' for k in self._fields)
+        return f'<{self.__class__.__name__}[{kw_str}]>'
+
     @cached_property
     def path(self) -> Path:
         # Far from ideal, but a better solution would require more changes to other places in the code at this point
@@ -248,6 +252,10 @@ class TrackInfo(Serializable, GenreMixin):
         elif self.path.exists():
             return SongFile(self.path).tag_type == 'mp4'
         return self.path.suffix.lower() == '.mp4'
+
+    def get_all_genres(self, title_case: bool = False) -> set[str]:
+        genres = self.get_genre_set(title_case) | self.album.get_genre_set(title_case)
+        return {genre for genre in genres if genre}
 
     def to_dict(self, title_case: bool = False, genres_as_set: bool = False) -> dict[str, Any]:
         if title_case:
@@ -271,7 +279,7 @@ class TrackInfo(Serializable, GenreMixin):
                 'disk': self.disk,
             }
 
-    def tags(self) -> dict[str, Any]:
+    def tags(self, title_case: bool = False) -> dict[str, Any]:
         album = self.album
         disk = self.disk or album.disk
         tags = {
@@ -279,7 +287,7 @@ class TrackInfo(Serializable, GenreMixin):
             'artist': self.artist or album.artist,
             'track': (self.num, len(album.tracks)) if self.mp4 else self.num,
             'date': album.date.strftime('%Y%m%d') if album.date else None,  # noqa
-            'genre': list(filter(None, self.genre_set.union(album.genre_set))) or None,
+            'genre': sorted(self.get_all_genres(title_case)),
             'album': album.title,
             'album_artist': album.artist,
             'disk': (disk, album.disks) if self.mp4 else disk,
@@ -360,16 +368,21 @@ class AlbumInfo(Serializable, GenreMixin):
             return False
         return all(getattr(self, f) == getattr(other, f) for f in self._cmp_fields) and self.tracks == other.tracks
 
-    @property
-    def was_modified(self) -> bool:
-        return super().was_modified or any(t.was_modified for t in self.tracks.values())
-
     def clean(self) -> AlbumInfo:
         if self.was_modified:
             album_dir = self.album_dir
             album_dir.refresh()
             return self.from_album_dir(album_dir)
         return self
+
+    def copy(self) -> AlbumInfo:
+        return self.from_dict(self.to_dict())
+
+    # region Calculated / Custom Properties
+
+    @property
+    def was_modified(self) -> bool:
+        return super().was_modified or any(t.was_modified for t in self.tracks.values())
 
     @property
     def ost(self):
@@ -409,33 +422,9 @@ class AlbumInfo(Serializable, GenreMixin):
     def path(self) -> Path:
         return self.album_dir.path
 
-    @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> AlbumInfo:
-        kwargs = {key: val for key, val in data.items() if key in cls._fields and key != 'tracks'}
-        self = cls(**kwargs)
-        if tracks := data.get('tracks'):
-            self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
-        self.name = self.name or self.title
-        return self
+    # endregion
 
-    def to_dict(self, title_case: bool = False, skip: Collection[str] = None, genres_as_set: bool = False):
-        normalized = {
-            'date': self.date.strftime('%Y-%m-%d') if self.date else None,
-            'tracks': {path: track.to_dict(title_case, genres_as_set) for path, track in self.tracks.items()},
-            'type': self.type.real_name if self.type else None,
-            'genre': self.get_genre_set(title_case) if genres_as_set else self.genre_list(title_case),
-        }
-
-        keys = OrderedSet(self._fields).difference(skip) if skip else self._fields  # noqa
-        data = {key: normalized.get(key, getattr(self, key)) for key in keys}
-        if title_case:
-            for key in ('title', 'artist', 'name', 'parent', 'singer'):
-                if value := data[key]:
-                    data[key] = normalize_case(value)
-        return data
-
-    def copy(self) -> AlbumInfo:
-        return self.from_dict(self.to_dict())
+    # region Deserialization / Alternate Constructor Classmethods
 
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> AlbumInfo:
@@ -468,14 +457,14 @@ class AlbumInfo(Serializable, GenreMixin):
         album_dir = next(iter_album_dirs(path))
         return cls.from_album_dir(album_dir)
 
-    def dump(self, path: PathLike, title_case: bool = False):
-        path = Path(path)
-        if not path.parent.exists():
-            path.parent.mkdir(parents=True)
-
-        log.info(f'Dumping album info to {path}')
-        with path.open('w', encoding='utf-8', newline='\n') as f:
-            json.dump(self.to_dict(title_case), f, sort_keys=True, indent=4, ensure_ascii=False)
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> AlbumInfo:
+        kwargs = {key: val for key, val in data.items() if key in cls._fields and key != 'tracks'}
+        self = cls(**kwargs)
+        if tracks := data.get('tracks'):
+            self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
+        self.name = self.name or self.title
+        return self
 
     @classmethod
     def load(cls, path: PathLike) -> AlbumInfo:
@@ -486,6 +475,37 @@ class AlbumInfo(Serializable, GenreMixin):
             data = json.load(f)
         return cls.from_dict(data)
 
+    # endregion
+
+    # region Serialization Methods
+
+    def to_dict(self, title_case: bool = False, skip: Collection[str] = None, genres_as_set: bool = False):
+        normalized = {
+            'date': self.date.strftime('%Y-%m-%d') if self.date else None,
+            'tracks': {path: track.to_dict(title_case, genres_as_set) for path, track in self.tracks.items()},
+            'type': self.type.real_name if self.type else None,
+            'genre': self.get_genre_set(title_case) if genres_as_set else self.genre_list(title_case),
+        }
+
+        keys = OrderedSet(self._fields).difference(skip) if skip else self._fields  # noqa
+        data = {key: normalized.get(key, getattr(self, key)) for key in keys}
+        if title_case:
+            for key in ('title', 'artist', 'name', 'parent', 'singer'):
+                if value := data[key]:
+                    data[key] = normalize_case(value)
+        return data
+
+    def dump(self, path: PathLike, title_case: bool = False):
+        path = Path(path)
+        if not path.parent.exists():
+            path.parent.mkdir(parents=True)
+
+        log.info(f'Dumping album info to {path}')
+        with path.open('w', encoding='utf-8', newline='\n') as f:
+            json.dump(self.to_dict(title_case), f, sort_keys=True, indent=4, ensure_ascii=False)
+
+    # endregion
+
     def get_file_info_map(self, album_dir: AlbumDir = None) -> dict[SongFile, TrackInfo]:
         if album_dir is None:
             album_dir = self.album_dir
@@ -494,19 +514,21 @@ class AlbumInfo(Serializable, GenreMixin):
         except KeyError as e:
             raise ValueError(f'Invalid {self.__class__.__name__} for {album_dir} - missing one more more files: {e}')
 
-    def update_and_move(
-        self,
-        album_dir: Optional[AlbumDir] = None,
-        dest_base_dir: Optional[Path] = None,
-        dry_run: bool = False,
-        no_album_move: bool = False,
-        add_genre: bool = True,
-    ):
-        album_dir = album_dir or self.album_dir
-        if self.tracks:
-            self.update_tracks(album_dir, dry_run, add_genre)
-        if not no_album_move:
-            self.move_album(album_dir, dest_base_dir, dry_run)
+    def get_track(self, track_identifier: PathLike | TrackInfo | SongFile) -> TrackInfo:
+        if isinstance(track_identifier, (SongFile, TrackInfo)):
+            track_identifier = track_identifier.path.as_posix()
+        elif isinstance(track_identifier, Path):
+            track_identifier = track_identifier.as_posix()
+        return self.tracks[track_identifier]
+
+    def all_common_genres(self, title_case: bool = False) -> set[str]:
+        album_genres = self.get_genre_set(title_case)
+        all_track_genres = Counter(g for ti in self.tracks.values() for g in ti.get_genre_set(title_case))
+        n_files = len(self.tracks)
+        common_track_genres = {genre for genre, num in all_track_genres.items() if num == n_files}
+        return album_genres | common_track_genres
+
+    # region Cover-Related Methods
 
     def get_current_cover(self, file_info_map: dict[SongFile, TrackInfo]) -> Optional[PILImage]:
         try:
@@ -537,23 +559,9 @@ class AlbumInfo(Serializable, GenreMixin):
         else:
             return None, None, None
 
-    def update_tracks(self, album_dir: AlbumDir = None, dry_run: bool = False, add_genre: bool = True):
-        if album_dir is None:
-            album_dir = self.album_dir
-        file_info_map = self.get_file_info_map(album_dir)
-        file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
-        file_img = self.get_current_cover(file_info_map) if self.cover_path else None
-        image, data, mime_type = self.get_new_cover(album_dir, file_img)
-        common_changes = get_common_changes(
-            album_dir, file_tag_map, extra_newline=True, dry_run=dry_run, add_genre=add_genre
-        )
-        for file, info in file_info_map.items():
-            log.debug(f'Matched {file} to {info.title}')
-            file.update_tags(file_tag_map[file], dry_run, no_log=common_changes, add_genre=add_genre)
-            if image is not None:
-                file._set_cover_data(image, data, mime_type, dry_run)
+    # endregion
 
-            info.maybe_rename(file, dry_run)
+    # region Target Path Methods
 
     @property
     def expected_rel_dir(self) -> str:
@@ -593,6 +601,42 @@ class AlbumInfo(Serializable, GenreMixin):
             return new_album_path
         return None
 
+    # endregion
+
+    # region Update & Move Methods
+
+    def update_and_move(
+        self,
+        album_dir: Optional[AlbumDir] = None,
+        dest_base_dir: Optional[Path] = None,
+        dry_run: bool = False,
+        no_album_move: bool = False,
+        add_genre: bool = True,
+    ):
+        album_dir = album_dir or self.album_dir
+        if self.tracks:
+            self.update_tracks(album_dir, dry_run, add_genre)
+        if not no_album_move:
+            self.move_album(album_dir, dest_base_dir, dry_run)
+
+    def update_tracks(self, album_dir: AlbumDir = None, dry_run: bool = False, add_genre: bool = True):
+        if album_dir is None:
+            album_dir = self.album_dir
+        file_info_map = self.get_file_info_map(album_dir)
+        file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
+        file_img = self.get_current_cover(file_info_map) if self.cover_path else None
+        image, data, mime_type = self.get_new_cover(album_dir, file_img)
+        common_changes = get_common_changes(
+            album_dir, file_tag_map, extra_newline=True, dry_run=dry_run, add_genre=add_genre
+        )
+        for file, info in file_info_map.items():
+            log.debug(f'Matched {file} to {info.title}')
+            file.update_tags(file_tag_map[file], dry_run, no_log=common_changes, add_genre=add_genre)
+            if image is not None:
+                file._set_cover_data(image, data, mime_type, dry_run)
+
+            info.maybe_rename(file, dry_run)
+
     def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
         expected_rel_dir = self.expected_rel_dir
         dest_base_dir = self.dest_base_dir(album_dir, dest_base_dir)
@@ -611,6 +655,8 @@ class AlbumInfo(Serializable, GenreMixin):
                         path.rmdir()
         else:
             log.log(19, f'Album {album_dir} is already in the expected dir: {expected_dir}')
+
+    # endregion
 
 
 def _album_format(date, num, solo_ost):

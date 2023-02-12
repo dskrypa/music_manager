@@ -135,6 +135,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
     def cover_image_frame(self) -> Frame:
         class ImageMenu(Menu):
             MenuItem('Replace', callback=self._replace_cover_image, enabled=lambda me: not self.disabled)
+            # TODO: Include get_wiki_cover_choice?
 
         cover_builder = AlbumCoverImageBuilder(self.album_info, self.cover_size)
         return cover_builder.make_thumbnail_frame(right_click_menu=ImageMenu())

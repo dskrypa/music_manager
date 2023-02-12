@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.enums import CallbackAction
     from tk_gui.typing import Layout
-    from tk_gui.views.view import ViewSpec
     from music.manager.update import AlbumInfo
 
 __all__ = ['AlbumView']
@@ -88,7 +87,7 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
     @button_handler('clean_and_add_bpm')
     def clean_and_add_bpm(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')
+        popup_ok(f'Not implemented yet: {key}')  # TODO
 
     @button_handler('view_all_tags')
     def view_all_tags(self, event: Event, key=None) -> CallbackAction:
@@ -131,10 +130,10 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
     @button_handler('sync_ratings_from', 'sync_ratings_to')
     def sync_ratings_from(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')
+        popup_ok(f'Not implemented yet: {key}')  # TODO
 
     @button_handler('copy_tags_from')
     def copy_tags_from(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')
+        popup_ok(f'Not implemented yet: {key}')  # TODO
 
     # endregion

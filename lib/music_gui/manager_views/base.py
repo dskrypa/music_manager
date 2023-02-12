@@ -19,7 +19,7 @@ from tk_gui.popups import popup_input_invalid, pick_folder_popup
 from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row
 from tk_gui.views.view import View, ViewSpec
-from tk_gui.options import OldGuiOptions as GuiOptions
+from tk_gui.options import GuiOptions, BoolOption, PopupOption, ListboxOption, DirectoryOption, SubmitOption
 
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
@@ -107,22 +107,20 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     @menu['File']['Settings'].callback
     def update_settings(self, event):
         config = self.window.config
-        options = GuiOptions(submit='Save', title=None)
-        with options.layout.next_row():
-            options.add_bool('remember_pos', 'Remember Last Window Position', config.remember_position)
-            options.add_bool('remember_size', 'Remember Last Window Size', config.remember_size)
-        with options.layout.next_row():
-            options.add_popup(
-                'style', 'Style', StylePopup, default=config.style, popup_kwargs={'show_buttons': True}
-            )
-        with options.layout.next_row():
-            options.add_directory('output_base_dir', 'Output Directory', config['output_base_dir'])
-        with options.layout.next_row():
-            options.add_listbox(
-                'rm_tags', 'Tags to Remove', config.get('rm_tags', []), extendable=True, prompt_name='tag to remove'
-            )
-
-        results = options.run_popup()
+        kwargs = {'label_size': (16, 1), 'size': (30, None)}
+        rm_kwargs = {'extendable': True, 'prompt_name': 'tag to remove'} | kwargs
+        style_kwargs = {'popup_kwargs': {'show_buttons': True}} | kwargs
+        layout = [
+            [
+                BoolOption('remember_pos', 'Remember Last Window Position', config.remember_position),
+                BoolOption('remember_size', 'Remember Last Window Size', config.remember_size),
+            ],
+            [PopupOption('style', 'Style', StylePopup, default=config.style, **style_kwargs)],
+            [DirectoryOption('output_base_dir', 'Output Directory', default=config['output_base_dir'], **kwargs)],
+            [ListboxOption('rm_tags', 'Tags to Remove', config.get('rm_tags', []), **rm_kwargs)],
+            [SubmitOption()],
+        ]
+        results = GuiOptions(layout).run_popup()
         config.update(results, ignore_none=True, ignore_empty=True)
         self.clear_cached_properties()
         return results

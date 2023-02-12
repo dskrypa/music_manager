@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import HorizontalSeparator, Button, Text
 from tk_gui.popups import BoolPopup
-from tk_gui.options import OldGuiOptions
+from tk_gui.options import GuiOptions, BoolOption
 
 from music.files.track.track import SongFile
 from music.files.album import AlbumDir
@@ -60,10 +60,8 @@ class SelectableSongFileView(SongFileView):
     # region Layout / Elements
 
     @cached_property
-    def options(self) -> OldGuiOptions:
-        options = OldGuiOptions(None)
-        options.add_bool('dry_run', 'Dry Run', default=False)
-        return options
+    def options(self) -> GuiOptions:
+        return GuiOptions([[BoolOption('dry_run', 'Dry Run')]])
 
     def get_pre_window_layout(self) -> Layout:
         yield from super().get_pre_window_layout()

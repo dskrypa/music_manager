@@ -12,7 +12,7 @@ from ds_tools.caching.decorators import cached_property
 from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.enums import CallbackAction
 from tk_gui.event_handling import button_handler
-from tk_gui.options import OldGuiOptions
+from tk_gui.options import GuiOptions, BoolOption
 from tk_gui.popups import popup_error
 
 from music.files.album import AlbumDir
@@ -40,7 +40,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         self,
         old_info: AlbumInfo,
         new_info: AlbumInfo,
-        options: OldGuiOptions | Mapping[str, Any] = None,
+        options: GuiOptions | Mapping[str, Any] = None,
         *,
         manually_edited: bool = True,
         **kwargs,
@@ -58,13 +58,15 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
     # region Layout Generation
 
     @cached_property
-    def options(self) -> OldGuiOptions:
-        gui_options = OldGuiOptions(None)
-        gui_options.add_bool('dry_run', 'Dry Run', default=False)
-        gui_options.add_bool('repl_genres', 'Replace Genres', tooltip='Specified genres should replace existing ones')
-        gui_options.add_bool('title_case', 'Title Case')
-        gui_options.add_bool('no_album_move', 'Do Not Move Album')
-        gui_options.add_bool('rename_in_place', 'Rename Album In-Place')
+    def options(self) -> GuiOptions:
+        options = [
+            BoolOption('dry_run', 'Dry Run'),
+            BoolOption('repl_genres', 'Replace Genres', tooltip='Specified genres should replace existing ones'),
+            BoolOption('title_case', 'Title Case'),
+            BoolOption('no_album_move', 'Do Not Move Album'),
+            BoolOption('rename_in_place', 'Rename Album In-Place'),
+        ]
+        gui_options = GuiOptions([options])
         gui_options.update(self._options)
         return gui_options
 

@@ -10,12 +10,9 @@ from typing import TYPE_CHECKING, Mapping
 
 from ds_tools.caching.decorators import cached_property
 
-from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer
-from tk_gui.elements.buttons import Button
+from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer, Text, Button
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.rating import Rating
-from tk_gui.elements.text import Text
-from tk_gui.options import OldGuiOptions as GuiOptions
 
 from music.files import AlbumDir, SongFile
 from music.manager.update import TrackInfo, AlbumInfo
@@ -25,6 +22,7 @@ from .helpers import IText, section_header
 from .images import AlbumCoverImageBuilder
 
 if TYPE_CHECKING:
+    from tk_gui.options import GuiOptions
     from tk_gui.typing import Layout, XY, PathLike, TraceCallback
     from music.typing import StrOrStrs
 

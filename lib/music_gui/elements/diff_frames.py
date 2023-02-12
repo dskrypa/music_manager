@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Mapping
 
 from ds_tools.caching.decorators import cached_property
 
-from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer, Text, Button
-from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
+from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer, Text, EventButton
+from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame, InteractiveScrollFrame
 from tk_gui.elements.rating import Rating
 
 from music.files import AlbumDir, SongFile
@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 LRG_FONT = ('Helvetica', 20)
 
 
-class AlbumDiffFrame(InteractiveFrame):
+class AlbumDiffFrame(InteractiveScrollFrame):
     old_info: AlbumInfo
     new_info: AlbumInfo
     album_dir: AlbumDir
@@ -51,6 +51,8 @@ class AlbumDiffFrame(InteractiveFrame):
         album_dir: AlbumDir = None,
         **kwargs,
     ):
+        kwargs.setdefault('scroll_y', True)
+        kwargs.setdefault('pad', (0, 0))
         super().__init__(**kwargs)
         self.old_info = old_info
         self.new_info = new_info
@@ -68,6 +70,14 @@ class AlbumDiffFrame(InteractiveFrame):
         # TODO: Rename in place dir may be wrong
         return self.new_info.get_new_path(None if self.options['rename_in_place'] else self.output_sorted_dir)
 
+    def pack_into(self, row):
+        super().pack_into(row)
+        width, height = self.window.size
+        outer_frame = self.widget
+        inner_frame = outer_frame.inner_widget
+        req_width = inner_frame.winfo_reqwidth()
+        self._update_scroll_region(outer_frame, inner_frame, (req_width, height))
+
     # region Layout
 
     def get_custom_layout(self) -> Layout:
@@ -76,17 +86,13 @@ class AlbumDiffFrame(InteractiveFrame):
         yield from self.build_path_diff()
         yield from self.build_common_tag_diff()
         yield from self.build_track_diff()
-        # Force content to be top-aligned (there doesn't seem to be a better way).  Side/anchor/etc for this frame
-        # were ineffective.
-        yield [Spacer((10, 500), side='t')]
 
     def build_header(self) -> Layout:
         if not self._show_edit:
             yield [self.options_frame]
         else:
-            top_side_kwargs = dict(size=(6, 1), pad=(0, 0), font=LRG_FONT)
-            edit_button_col = Frame([[Button('\u2190 Edit', key='edit', **top_side_kwargs)]], expand=True, fill='x')
-            yield [edit_button_col, self.options_frame, Text(**top_side_kwargs)]
+            edit_button = EventButton('\u2190 Edit', key='edit', side='l', size=(10, 1), pad=(0, 0), font=LRG_FONT)
+            yield [edit_button, Spacer((166, 52), pad=(0, 0), side='r'), self.options_frame]
 
         yield [Text()]
         yield section_header('Common Album Changes')
@@ -156,7 +162,7 @@ class AlbumDiffFrame(InteractiveFrame):
 
     @cached_property
     def options_frame(self) -> Frame:
-        frame = self.options.as_frame(change_cb=self._update_options_cb, side='t')
+        frame = self.options.as_frame(change_cb=self._update_options_cb, side='t', pad=(0, 0))
         key_ele_map = {key: ele for row in frame.rows for ele in row.elements if (key := getattr(ele, 'key', None))}
         self.update_option_states(key_ele_map)
         return frame

@@ -21,7 +21,7 @@ from music.files import AlbumDir, SongFile
 from music.manager.update import TrackInfo, AlbumInfo
 from ..utils import get_album_dir, get_track_file
 from ..utils import zip_maps
-from .helpers import IText
+from .helpers import IText, section_header
 from .images import AlbumCoverImageBuilder
 
 if TYPE_CHECKING:
@@ -91,7 +91,7 @@ class AlbumDiffFrame(InteractiveFrame):
             yield [edit_button_col, self.options_frame, Text(**top_side_kwargs)]
 
         yield [Text()]
-        yield [HorizontalSeparator(), Text('Common Album Changes'), HorizontalSeparator()]
+        yield section_header('Common Album Changes')
         yield [Text()]
 
     def build_cover_diff(self) -> Layout:
@@ -140,7 +140,7 @@ class AlbumDiffFrame(InteractiveFrame):
                 yield _diff_row(key, old_val, new_val)
 
     def build_track_diff(self) -> Layout:
-        yield [HorizontalSeparator(), Text('Track Changes', justify='c'), HorizontalSeparator()]
+        yield section_header('Track Changes')
         title_case = self.options['title_case']
         old_genres = self.old_info.get_genre_set(title_case)
         new_genres = self.new_info.all_common_genres(title_case)

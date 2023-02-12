@@ -5,7 +5,6 @@ View that separates common album fields from common fields that are usually diff
 from __future__ import annotations
 
 import logging
-from abc import ABC
 from typing import TYPE_CHECKING, Iterator
 
 from ds_tools.caching.decorators import cached_property
@@ -29,7 +28,7 @@ __all__ = ['AlbumView']
 log = logging.getLogger(__name__)
 
 
-class AlbumView(BaseView, ABC, title='Music Manager - Album Info'):
+class AlbumView(BaseView, title='Music Manager - Album Info'):
     window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
 
     def __init__(self, album: AlbumIdentifier, *, editable: bool = False, **kwargs):

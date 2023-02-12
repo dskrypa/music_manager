@@ -5,7 +5,6 @@ View that provides a diff between original Album/track info and submitted/propos
 from __future__ import annotations
 
 import logging
-from abc import ABC
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Any
 
@@ -31,7 +30,7 @@ __all__ = ['AlbumDiffView']
 log = logging.getLogger(__name__)
 
 
-class AlbumDiffView(BaseView, ABC, title='Music Manager - Album Info Diff'):
+class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
     window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
     album: AlbumInfo
     old_info: AlbumInfo

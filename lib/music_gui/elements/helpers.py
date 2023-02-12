@@ -7,9 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Any
 
-from tk_gui.elements import Button, ButtonAction, Text
+from tk_gui.elements import Button, ButtonAction, Text, HorizontalSeparator
 
-__all__ = ['nav_button', 'IText']
+__all__ = ['nav_button', 'IText', 'section_header']
 
 
 def nav_button(side: Literal['left', 'right'], key: str = None, **kwargs) -> Button:
@@ -26,3 +26,7 @@ def IText(value: Any = '', *args, **kwargs) -> Text:
     elif value is None:
         value = ''
     return Text(value, *args, use_input_style=True, **kwargs)
+
+
+def section_header(text: str) -> list[HorizontalSeparator, Text, HorizontalSeparator]:
+    return [HorizontalSeparator(), Text(text, justify='c'), HorizontalSeparator()]

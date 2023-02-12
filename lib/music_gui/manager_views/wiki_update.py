@@ -54,14 +54,14 @@ class WikiUpdateView(BaseView, ABC, title='Music Manager - Wiki Update'):
         return gui_options
 
     def _prepare_option_layout(self):
-        # TODO: Fix URL + collab mode label/value alignment
-        yield [InputOption('album_url', 'Album URL', size=(80, 1), tooltip='A wiki URL')]
+        yield [InputOption('album_url', 'Album URL', label_size=(11, 1), size=(80, 1), tooltip='A wiki URL')]
         artist_url_tip = 'Force the use of the given artist instead of an automatically discovered one'
-        yield [InputOption('artist_url', 'Artist URL', size=(80, 1), tooltip=artist_url_tip)]
+        yield [InputOption('artist_url', 'Artist URL', label_size=(11, 1), size=(80, 1), tooltip=artist_url_tip)]
 
         collab_mode_tip = 'List collaborators in the artist tag, the title tag, or both (default: artist)'
         collab_mode_opt = DropdownOption(
-            'collab_mode', 'Collab Mode', 'artist', choices=('title', 'artist', 'both'), tooltip=collab_mode_tip
+            'collab_mode', 'Collab Mode', 'artist', choices=('title', 'artist', 'both'),
+            label_size=(11, 1), tooltip=collab_mode_tip
         )
         yield [
             OptionColumn([collab_mode_opt, OptionGrid(self._prepare_option_grid())]),
@@ -91,7 +91,6 @@ class WikiUpdateView(BaseView, ABC, title='Music Manager - Wiki Update'):
         artist_sites = config.get('wiki_update:artist_sites', ALL_SITES[:-1])
         album_sites = config.get('wiki_update:album_sites', ALL_SITES[:-1])
         kwargs = {'choices': ALL_SITES, 'label_size': (9, 1), 'tooltip': 'The wiki sites to search'}
-        # TODO: fix alignment
         yield ListboxOption('artist_sites', 'Artist Sites', default=artist_sites, **kwargs)
         yield ListboxOption('album_sites', 'Album Sites', default=album_sites, **kwargs)
 

@@ -5,7 +5,7 @@ View that separates common album fields from common fields that are usually diff
 from __future__ import annotations
 
 import logging
-from abc import ABC
+from pathlib import Path
 from traceback import format_exc
 from typing import TYPE_CHECKING, Mapping, Any
 
@@ -13,16 +13,17 @@ from ds_tools.caching.decorators import cached_property
 from db_cache.utils import get_user_cache_dir
 from ds_tools.output.printer import Printer
 
-from tk_gui.elements import HorizontalSeparator, Text, Button, Spacer
+from tk_gui.elements import Text, Button, Spacer, EventButton
 from tk_gui.event_handling import button_handler
-from tk_gui.options import GuiOptions, OptionColumn, OptionGrid, InputOption, BoolOption, DropdownOption, ListboxOption
+from tk_gui.options import GuiOptions, OptionColumn, OptionGrid
+from tk_gui.options.options import InputOption, BoolOption, DropdownOption, ListboxOption, SubmitOption
 from tk_gui.popups import popup_ok, popup_error
 from tk_gui.tasks import run_task_with_spinner
 
 from music.manager.config import UpdateConfig
 from music.manager.wiki_update import WikiUpdater
-from music_gui.elements.helpers import IText, nav_button
-from music_gui.utils import AlbumIdentifier, get_album_info
+from music_gui.elements.helpers import IText, nav_button, section_header
+from music_gui.utils import AlbumIdentifier, get_album_info, LogAndPopupHelper
 from .base import BaseView
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ log = logging.getLogger(__name__)
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
 
 
-class WikiUpdateView(BaseView, ABC, title='Music Manager - Wiki Update'):
+class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
     window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
 
     def __init__(self, album: AlbumIdentifier, options: GuiOptions | Mapping[str, Any] = None, **kwargs):
@@ -103,12 +104,15 @@ class WikiUpdateView(BaseView, ABC, title='Music Manager - Wiki Update'):
         return nav_button('right')
 
     def get_inner_layout(self) -> Layout:
-        yield [HorizontalSeparator(), Text('Wiki Match Options', justify='c'), HorizontalSeparator()]
+        yield section_header('Wiki Match Options')
         yield [Text()]
         yield [Text('Selected Album Path:'), IText(self.album.path, size=(150, 1))]
         yield [Text()]
         yield [self.options.as_frame(side='t')]
         yield [Text()]
+        yield section_header('Advanced Options')
+        yield [Text()]
+        yield [EventButton('Reset Page Cache...', key='reset_page_cache', side='t')]
         yield [Spacer((10, 500), side='t')]
 
     # endregion
@@ -135,6 +139,26 @@ class WikiUpdateView(BaseView, ABC, title='Music Manager - Wiki Update'):
             else:
                 popup_ok('No changes are necessary - there is nothing to save')
                 return None
+
+    @button_handler('reset_page_cache')
+    def reset_page_cache(self, event: Event, key=None):
+        from wiki_nodes.http import MediaWikiClient
+
+        sites = OptionColumn(
+            BoolOption(site_dir.name, f'Reset cache: {site_dir.name}')
+            for site_dir in Path(get_user_cache_dir('wiki')).iterdir()
+            if site_dir.is_dir()
+        )
+        opt_layout = [[sites, OptionColumn([BoolOption('dry_run', 'Dry Run'), SubmitOption()], anchor_elements='n')]]
+        results = GuiOptions(opt_layout).run_popup(title="Reset which sites' page caches?")
+        with LogAndPopupHelper(
+            'Clear Cache Results', results.pop('dry_run'), 'No sites were selected for the cache to be cleared'
+        ) as lph:
+            for site, clear in results.items():
+                if clear:
+                    lph.write('reset', f'page cache for {site}')
+                    if not lph.dry_run:
+                        MediaWikiClient(site)._cache.reset_caches(hard=True)
 
     # endregion
 

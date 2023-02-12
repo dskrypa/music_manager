@@ -19,7 +19,7 @@ from tk_gui.popups import popup_input_invalid, pick_folder_popup
 from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row
 from tk_gui.views.view import View, ViewSpec
-from tk_gui.options import GuiOptions
+from tk_gui.options import OldGuiOptions as GuiOptions
 
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
@@ -108,16 +108,16 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     def update_settings(self, event):
         config = self.window.config
         options = GuiOptions(submit='Save', title=None)
-        with options.next_row() as options:
+        with options.layout.next_row():
             options.add_bool('remember_pos', 'Remember Last Window Position', config.remember_position)
             options.add_bool('remember_size', 'Remember Last Window Size', config.remember_size)
-        with options.next_row() as options:
+        with options.layout.next_row():
             options.add_popup(
                 'style', 'Style', StylePopup, default=config.style, popup_kwargs={'show_buttons': True}
             )
-        with options.next_row() as options:
+        with options.layout.next_row():
             options.add_directory('output_base_dir', 'Output Directory', config['output_base_dir'])
-        with options.next_row() as options:
+        with options.layout.next_row():
             options.add_listbox(
                 'rm_tags', 'Tags to Remove', config.get('rm_tags', []), extendable=True, prompt_name='tag to remove'
             )
@@ -183,8 +183,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     #     from tk_gui.event_handling import log_widget_data
     #
     #     # log_widget_data(self.window, event, parent=True)
-    #     log_widget_data(self.window, event, config=True)
-    #     # log_widget_data(self.window, event)
+    #     # log_widget_data(self.window, event, config=True)
+    #     log_widget_data(self.window, event)
 
     # endregion
 

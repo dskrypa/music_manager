@@ -154,8 +154,9 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
                 EButton('Sync Ratings To...', key='sync_ratings_to', **kwargs),
                 EButton('Copy Tags From...', key='copy_tags_from', **kwargs),
             ],
-            [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open', borderwidth=3)],
+            [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)],
         ]
+        # TODO: forward / back buttons for browsing the current directory around the Open button?
         return Frame([[BasicRowFrame(row, side='t')] for row in rows], visible=self.disabled, side='t')
 
     @cached_property

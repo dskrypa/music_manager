@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.enums import CallbackAction
     from tk_gui.typing import Layout
+    from tk_gui.views.view import ViewSpec
     from music.manager.update import AlbumInfo
 
 __all__ = ['WikiUpdateView']
@@ -135,7 +136,13 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         else:
             old_info = self.album.clean()
             if old_info != new_info:
-                return self.set_next_view(view_cls=AlbumDiffView, old_info=old_info, new_info=new_info)
+                return self.set_next_view(
+                    view_cls=AlbumDiffView,
+                    old_info=old_info,
+                    new_info=new_info,
+                    manually_edited=False,
+                    options={key: options[key] for key in ('title_case', 'no_album_move')},
+                )
             else:
                 popup_ok('No changes are necessary - there is nothing to save')
                 return None
@@ -161,6 +168,14 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
                         MediaWikiClient(site)._cache.reset_caches(hard=True)
 
     # endregion
+
+    def get_prev_view(self) -> ViewSpec | None:
+        if self.prev_view_name == 'AlbumDiffView':
+            from .album import AlbumView
+
+            return AlbumView, (), {'album': self.album}
+        else:
+            return super().get_prev_view()
 
     def _get_update_config(self, parsed: dict[str, Any]) -> UpdateConfig:
         config = self.window.config

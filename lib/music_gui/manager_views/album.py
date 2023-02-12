@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.enums import CallbackAction
     from tk_gui.typing import Layout
+    from tk_gui.views.view import ViewSpec
     from music.manager.update import AlbumInfo
 
 __all__ = ['AlbumView']
@@ -31,21 +32,22 @@ log = logging.getLogger(__name__)
 class AlbumView(BaseView, title='Music Manager - Album Info'):
     window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
 
-    def __init__(self, album: AlbumIdentifier, *, editable: bool = False, **kwargs):
+    def __init__(self, album: AlbumIdentifier, *, editable: bool = False, edited: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.album: AlbumInfo = get_album_info(album)
         self._track_frames: list[TrackInfoFrame] = []
         self.editing = editable
+        self.edited = edited
 
     # region Layout Generation
 
     @cached_property
     def album_info_frame(self) -> AlbumInfoFrame:
-        return AlbumInfoFrame(self.album, disabled=True, anchor='n')
+        return AlbumInfoFrame(self.album, disabled=not self.editing, anchor='n')
 
     @cached_property
     def next_button(self) -> Button | None:
-        return nav_button('right', visible=self.editing)
+        return nav_button('right', visible=self.editing, tooltip='Review & Save Changes')
 
     def _prepare_track_frames(self) -> ScrollFrame:
         track_frames = [TrackInfoFrame(track, disabled=True) for track in self.album.tracks.values()]
@@ -61,8 +63,9 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
     # endregion
 
     def _get_info_diff(self) -> tuple[bool, AlbumInfo, AlbumInfo]:
-        old_info = self.album.clean()
-        new_info = old_info.copy()
+        old_info = self.album.clean(self.edited)
+        new_info = self.album.copy()
+
         if album_changes := self.album_info_frame.get_modified():
             new_info.update_from_old_new_tuples(album_changes)
 
@@ -94,7 +97,10 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         return self.set_next_view(self.album, view_cls=SelectableSongFileView)
 
     @button_handler('edit_album', 'cancel')
-    def toggle_edit_mode(self, event: Event, key=None):
+    def toggle_edit_mode(self, event: Event, key=None) -> CallbackAction | None:
+        if self.edited and key == 'cancel':
+            return self.set_next_view(album=self.album.clean(True))
+
         if disable := key != 'edit_album':
             if self._get_info_diff()[0]:
                 for frame in self._iter_frames():
@@ -103,6 +109,8 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         self.next_button.toggle_visibility(not disable)
         for frame in self._iter_frames():
             frame.toggle_enabled(disable)
+
+        return None
 
     @button_handler('save', 'next_view')
     def save_changes(self, event: Event, key=None) -> CallbackAction | None:

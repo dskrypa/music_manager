@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.elements import Button
     from tk_gui.typing import Layout
+    from tk_gui.views.view import ViewSpec
     from music.manager.update import AlbumInfo
 
 __all__ = ['AlbumDiffView']
@@ -78,11 +79,22 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             output_sorted_dir=self.output_sorted_dir,
             options=self.options,
             update_options_cb=self.update_options,
+            show_edit=self.prev_view_name == 'WikiUpdateView',
         )
 
     @cached_property
+    def back_button(self) -> Button | None:
+        if (prev_view_name := self.prev_view_name) == 'WikiUpdateView':
+            tooltip = 'Return to wiki match options'
+        elif prev_view_name == 'AlbumView':
+            tooltip = 'Edit album'
+        else:
+            tooltip = None
+        return nav_button('left', tooltip=tooltip)
+
+    @cached_property
     def next_button(self) -> Button | None:
-        return nav_button('right')
+        return nav_button('right', tooltip='Save Changes')
 
     def get_inner_layout(self) -> Layout:
         yield [self.album_diff_frame]
@@ -99,6 +111,22 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             )
 
         self.album_diff_frame.update(self.window, changed.get('no_album_move'))  # noqa
+
+    def _edit_album_view_spec(self) -> ViewSpec:
+        from .album import AlbumView
+
+        return AlbumView, (), {'album': self.new_info, 'editable': True, 'edited': True, 'prev_view': None}
+
+    @button_handler('edit')
+    def edit_info(self, event: Event = None, key=None) -> CallbackAction:
+        view_cls, args, kwargs = self._edit_album_view_spec()
+        return self.set_next_view(*args, view_cls=view_cls, **kwargs)
+
+    def get_prev_view(self) -> ViewSpec | None:
+        if self.prev_view_name == 'AlbumView':
+            return self._edit_album_view_spec()
+        else:
+            return super().get_prev_view()
 
     # region Save Changes
 

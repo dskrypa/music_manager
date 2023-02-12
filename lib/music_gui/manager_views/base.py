@@ -118,11 +118,12 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
             [PopupOption('style', 'Style', StylePopup, default=config.style, **style_kwargs)],
             [DirectoryOption('output_base_dir', 'Output Directory', default=config['output_base_dir'], **kwargs)],
             [ListboxOption('rm_tags', 'Tags to Remove', config.get('rm_tags', []), **rm_kwargs)],
-            [SubmitOption()],
+            [SubmitOption('save', 'Save')],
         ]
         results = GuiOptions(layout).run_popup()
-        config.update(results, ignore_none=True, ignore_empty=True)
-        self.clear_cached_properties()
+        if results.pop('save', False):
+            config.update(results, ignore_none=True, ignore_empty=True)
+            self.clear_cached_properties()
         return results
 
     @cached_property
@@ -192,10 +193,21 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     def has_prev_view(self) -> bool:
         return bool(self.__prev_view)
 
+    @property
+    def prev_view_name(self) -> str | None:
+        try:
+            view_cls, args, kwargs = self.__prev_view
+        except TypeError:
+            return None
+        return view_cls.__name__
+
+    def get_prev_view(self) -> ViewSpec | None:
+        return self.__prev_view
+
     @button_handler('prev_view')
     def return_to_prev_view(self, event: Event = None, key=None) -> CallbackAction | None:
         try:
-            view_cls, args, kwargs = self.__prev_view
+            view_cls, args, kwargs = self.get_prev_view()
         except TypeError:
             return None
         return self.set_next_view(*args, view_cls=view_cls, **kwargs)
@@ -205,6 +217,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     ) -> CallbackAction:
         if retain_prev_view:
             kwargs['prev_view'] = self.__prev_view
+        elif view_cls is None:
+            kwargs.setdefault('prev_view', None)
         return super().set_next_view(*args, view_cls=view_cls, **kwargs)
 
     def get_next_view_spec(self) -> ViewSpec | None:

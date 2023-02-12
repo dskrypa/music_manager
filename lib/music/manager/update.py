@@ -368,8 +368,9 @@ class AlbumInfo(Serializable, GenreMixin):
             return False
         return all(getattr(self, f) == getattr(other, f) for f in self._cmp_fields) and self.tracks == other.tracks
 
-    def clean(self) -> AlbumInfo:
-        if self.was_modified:
+    def clean(self, force: bool = False) -> AlbumInfo:
+        if force or self.was_modified:
+            log.debug(f'Returning a clean AlbumInfo instance for {self}')
             album_dir = self.album_dir
             album_dir.refresh()
             return self.from_album_dir(album_dir)

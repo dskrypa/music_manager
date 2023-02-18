@@ -51,7 +51,7 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
     def _prepare_track_frames(self) -> ScrollFrame:
         track_frames = [TrackInfoFrame(track, disabled=True) for track in self.album.tracks.values()]
         self._track_frames.extend(track_frames)
-        tracks_frame = ScrollFrame(with_separators(track_frames, True), scroll_y=True)
+        tracks_frame = ScrollFrame(with_separators(track_frames, True), scroll_y=True, fill_y=True)
         return tracks_frame
 
     def get_inner_layout(self) -> Layout:

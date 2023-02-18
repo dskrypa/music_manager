@@ -44,6 +44,7 @@ WINDOW_KWARGS = {
     'config': DEFAULT_CONFIG,
     'right_click_menu': FullRightClickMenu(),
     'anchor_elements': 'n',
+    'margins': (5, 0),
 }
 
 
@@ -71,6 +72,12 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     # region Layout Generation
 
+    # def init_window(self):
+    #     from tk_gui.event_handling import ClickHighlighter
+    #     window = super().init_window()
+    #     ClickHighlighter(level=1, log_event=True, log_event_kwargs={'window': window}).register(window)
+    #     return window
+
     def get_pre_window_layout(self) -> Layout:
         yield [self.menu]
 
@@ -90,7 +97,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
             yield from self.get_inner_layout()
         else:
             frame_cls = YScrollFrame if self._scroll_y else Frame
-            content = frame_cls(self.get_inner_layout(), side='top')
+            kwargs = {'fill_y': True} if self._scroll_y else {}
+            content = frame_cls(self.get_inner_layout(), side='top', pad=(0, 0), **kwargs)
             if back_button is None:
                 back_button = Spacer(size=(53, 241), anchor='w', side='left')
             elif next_button is None:
@@ -179,11 +187,11 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     # @event_handler(BindEvent.LEFT_CLICK.event)
     # def _handle_left_click(self, event: Event):
-    #     from tk_gui.event_handling import log_widget_data
+    #     from tk_gui.widgets.utils import log_event_widget_data
     #
-    #     # log_widget_data(self.window, event, parent=True)
-    #     # log_widget_data(self.window, event, config=True)
-    #     log_widget_data(self.window, event)
+    #     log_event_widget_data(self.window, event)
+    #     # log_event_widget_data(self.window, event, parent=True)
+    #     # log_event_widget_data(self.window, event, show_config=True)
 
     # endregion
 

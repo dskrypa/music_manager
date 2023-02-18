@@ -52,7 +52,9 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         **kwargs,
     ):
         kwargs.setdefault('scroll_y', True)
-        kwargs.setdefault('pad', (0, 0))
+        kwargs.setdefault('fill_y', True)
+        kwargs.setdefault('expand', True)
+        kwargs.setdefault('pad', (2, 2))  # Auto-fill of available space doesn't work with (0, 0) for some reason...
         super().__init__(**kwargs)
         self.old_info = old_info
         self.new_info = new_info
@@ -69,14 +71,6 @@ class AlbumDiffFrame(InteractiveScrollFrame):
             return None
         # TODO: Rename in place dir may be wrong
         return self.new_info.get_new_path(None if self.options['rename_in_place'] else self.output_sorted_dir)
-
-    def pack_into(self, row):
-        super().pack_into(row)
-        width, height = self.window.size
-        outer_frame = self.widget
-        inner_frame = outer_frame.inner_widget
-        req_width = inner_frame.winfo_reqwidth()
-        self._update_scroll_region(outer_frame, inner_frame, (req_width, height))
 
     # region Layout
 
@@ -115,8 +109,9 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         show_rename = not self.options['no_album_move']
         old_path = self.album_dir.path
         paths = (old_path, self.new_info.get_new_path(None), self.new_info.get_new_path(self.output_sorted_dir))
-        split = max(len(p.as_posix()) for p in paths) >= 50
+        split = max(len(p.as_posix() if p else '') for p in paths) >= 50
 
+        # TODO: The 2nd (->) line's alignment is a bit off on the right
         rename_ele = Frame(
             get_a_to_b('Album Rename:', old_path, self.new_album_path, split), visible=show_rename, pad=(0, 0)
         )
@@ -141,7 +136,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
             if key == 'genre' and not repl_genres:
                 new_val = sorted(_str_set(new_val) | _str_set(old_val))
             if (old_val or new_val) and old_val != new_val:
-                yield _diff_row(key, old_val, new_val)
+                yield _diff_row(key, old_val, new_val, is_track=False)
 
     def build_track_diff(self) -> Layout:
         yield section_header('Track Changes')
@@ -255,16 +250,14 @@ class TrackDiffFrame(InteractiveFrame):
         for key, old_val, new_val in zip_maps(old_data, new_data):
             if key == 'genre':
                 yield from self.build_genre_diff(old_val, new_val)
+            elif not ((old_val or new_val) and old_val != new_val):
+                continue
+            elif key == 'rating':
+                old_ele = Rating(old_val, show_value=True, pad=(0, 0), disabled=True)
+                new_ele = Rating(new_val, show_value=True, pad=(0, 0), disabled=True)
+                yield [label_ele(key), Text('from'), old_ele, Text('to'), new_ele]
             else:
-                if not ((old_val or new_val) and old_val != new_val):
-                    continue
-
-                if key == 'rating':
-                    old_ele = Rating(old_val, show_value=True, pad=(0, 0), disabled=True)
-                    new_ele = Rating(new_val, show_value=True, pad=(0, 0), disabled=True)
-                    yield [label_ele(key), Text('from'), old_ele, Text('to'), new_ele]
-                else:
-                    yield _diff_row(key, old_val, new_val)
+                yield _diff_row(key, old_val, new_val)
 
     def build_genre_diff(self, old_vals: set[str], new_val: set[str]) -> Layout:
         # old genres are from unmodified TrackInfo, which already includes album genres
@@ -282,20 +275,20 @@ class TrackDiffFrame(InteractiveFrame):
 # endregion
 
 
-def _diff_row(key: str, old_val, new_val):
+def _diff_row(key: str, old_val, new_val, is_track: bool = True):
     # log.debug(f'album: {key} is different: {old_val=!r} != {new_val=!r}')
-    old_ele = _build_diff_value_ele(key, old_val)
-    new_ele = _build_diff_value_ele(key, new_val)
+    old_ele = _build_diff_value_ele(key, old_val, is_track)
+    new_ele = _build_diff_value_ele(key, new_val, is_track)
     return [label_ele(key), Text('from'), old_ele, Text('to'), new_ele]
 
 
-def _build_diff_value_ele(key: str, value) -> CheckBox | ListBox | Text:
+def _build_diff_value_ele(key: str, value, is_track: bool = True) -> CheckBox | ListBox | Text:
     match value:
         case bool():
             return CheckBox('', default=value, pad=(0, 0), disabled=True)
         case list():
             if not value:
-                return Text('<removed>', size=(45, 1))
+                return Text('<no value>' if is_track else '<no common value>', size=(45, 1))
             kwargs = {'size': (45, len(value)), 'pad': (5, 0), 'border': 2}
             return ListBox(value, default=value, disabled=True, scroll_y=False, **kwargs)
         case _:

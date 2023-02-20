@@ -17,7 +17,7 @@ from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type, Mapping
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type, Mapping, TypeVar
 from urllib.parse import quote
 from weakref import WeakValueDictionary
 
@@ -69,6 +69,7 @@ MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover
 MutagenFile = Union[MP3, MP4, FLAC, FileType]
 ImageTag = Union[APIC, MP4Cover, Picture]
 TagsType = Union[ID3, MP4Tags, VCFLACDict]
+T = TypeVar('T')
 
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
@@ -341,75 +342,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # endregion
 
-    # region Add/Remove/Get Tags
-
-    def delete_tag(self, tag_id: str, save: bool = False):
-        # TODO: When multiple values exist for the tag, make it possible to delete a specific index/value?
-        self._delete_tag(tag_id)
-        if save:
-            self.save()
-
-    def _delete_tag(self, tag_id: str):
-        raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={self.tag_type!r}')
-
-    def remove_all_tags(self, dry_run: Bool = False):
-        log.info(f'{LoggingPrefix(dry_run).remove} ALL tags from {self}')
-        if not dry_run:
-            self._f.tags.delete(self._f.filename)
-
-    def remove_tags(self, tag_ids: Iterable[str], dry_run: Bool = False, log_lvl: int = logging.DEBUG) -> bool:
-        tag_ids = list(map(self.normalize_tag_id, tag_ids))
-        to_remove = {
-            tag_id: val if isinstance(val, list) else [val]
-            for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
-        }
-        if not to_remove:
-            log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
-            return False
-
-        rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
-        info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
-        log.info(f'{LoggingPrefix(dry_run).remove} tags from {self}: {info_str}')
-        log.debug(f'\t{self}: {rm_str}')
-        if not dry_run:
-            for tag_id in to_remove:
-                self.delete_tag(tag_id)
-            self.save()
-        return True
-
-    def set_text_tag(self, tag: str, value, by_id: bool = False, replace: bool = True, save: bool = False):
-        tag_id = tag if by_id else self.normalize_tag_id(tag)
-        self._set_text_tag(tag, tag_id, value, replace)
-        if save:
-            self.save()
-
-    def _set_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
-        if (tag_type := self.tag_type) not in ('mp4', 'vorbis'):
-            raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
-
-        tags = self._f.tags
-        if replace:
-            if not isinstance(value, list):
-                value = [value]
-        else:
-            existing = set(self.tags_for_id(tag_id))
-            if isinstance(value, Collection) and not isinstance(value, str):
-                existing.update(value)
-            else:
-                existing.add(value)
-            value = sorted(existing)
-
-        if tag_type == 'vorbis' and tag_id in ('TRACKNUMBER', 'DISCNUMBER', 'POPM', 'BPM'):
-            value = list(map(str, value))
-        elif tag_type == 'mp4' and tag_id.startswith('----:'):
-            value = [v.encode('utf-8') if isinstance(v, str) else v for v in value]
-
-        log.debug(f'Setting {self}.tags[{tag_id!r}] = {value!r}')
-        try:
-            tags[tag_id] = value
-        except Exception as e:
-            log.error(f'Error setting tag={tag_id!r} on {self} to {value=!r}: {e}')
-            raise
+    # region Input Normalization
 
     def normalize_tag_id(self, tag_name_or_id: str) -> str:
         if type_to_id := TYPED_TAG_MAP.get(tag_name_or_id.lower()):
@@ -482,6 +415,86 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         except KeyError as e:
             raise UnsupportedTagForFileType(tag_name, self) from e
 
+    # endregion
+
+    # region Tag Removal
+
+    def delete_tag(self, tag_id: str, save: bool = False):
+        # TODO: When multiple values exist for the tag, make it possible to delete a specific index/value?
+        self._delete_tag(tag_id)
+        if save:
+            self.save()
+
+    def _delete_tag(self, tag_id: str):
+        raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={self.tag_type!r}')
+
+    def remove_all_tags(self, dry_run: Bool = False):
+        log.info(f'{LoggingPrefix(dry_run).remove} ALL tags from {self}')
+        if not dry_run:
+            self._f.tags.delete(self._f.filename)
+
+    def remove_tags(self, tag_ids: Iterable[str], dry_run: Bool = False, log_lvl: int = logging.DEBUG) -> bool:
+        tag_ids = list(map(self.normalize_tag_id, tag_ids))
+        to_remove = {
+            tag_id: val if isinstance(val, list) else [val]
+            for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
+        }
+        if not to_remove:
+            log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
+            return False
+
+        rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
+        info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
+        log.info(f'{LoggingPrefix(dry_run).remove} tags from {self}: {info_str}')
+        log.debug(f'\t{self}: {rm_str}')
+        if not dry_run:
+            for tag_id in to_remove:
+                self.delete_tag(tag_id)
+            self.save()
+        return True
+
+    # endregion
+
+    # region Tag Update / Addition
+
+    def set_text_tag(self, tag: str, value, by_id: bool = False, replace: bool = True, save: bool = False):
+        tag_id = tag if by_id else self.normalize_tag_id(tag)
+        self._set_text_tag(tag, tag_id, value, replace)
+        if save:
+            self.save()
+
+    def _set_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
+        if (tag_type := self.tag_type) not in ('mp4', 'vorbis'):
+            raise TypeError(f'Unable to set {tag!r} for {self} because its extension is {tag_type!r}')
+
+        tags = self._f.tags
+        if replace:
+            if not isinstance(value, list):
+                value = [value]
+        else:
+            existing = set(self.tags_for_id(tag_id))
+            if isinstance(value, Collection) and not isinstance(value, str):
+                existing.update(value)
+            else:
+                existing.add(value)
+            value = sorted(existing)
+
+        if tag_type == 'vorbis' and tag_id in ('TRACKNUMBER', 'DISCNUMBER', 'POPM', 'BPM'):
+            value = list(map(str, value))
+        elif tag_type == 'mp4' and tag_id.startswith('----:'):
+            value = [v.encode('utf-8') if isinstance(v, str) else v for v in value]
+
+        log.debug(f'Setting {self}.tags[{tag_id!r}] = {value!r}')
+        try:
+            tags[tag_id] = value
+        except Exception as e:
+            log.error(f'Error setting tag={tag_id!r} on {self} to {value=!r}: {e}')
+            raise
+
+    # endregion
+
+    # region Get Tag Values
+
     def tags_for_id(self, tag_id: str):
         """
         :param str tag_id: A tag ID
@@ -500,25 +513,29 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         """
         return self.tags_for_id(self.normalize_tag_id(tag_name))
 
-    def get_tag(self, tag: str, by_id: bool = False):
+    def _get_tags(self, tag: str, by_id: Bool = False):
+        if by_id:
+            return self.tags_for_id(tag)
+        else:
+            return self.tags_for_name(tag)
+
+    def get_tag(self, tag: str, by_id: Bool = False):
         """
-        :param str tag: The name of the tag to retrieve, or the tag ID if by_id is set to True
-        :param bool by_id: The provided value was a tag ID rather than a tag name
+        :param tag: The name of the tag to retrieve, or the tag ID if by_id is set to True
+        :param by_id: The provided value was a tag ID rather than a tag name
         :return: The tag object if there was a single instance of the tag with the given name/ID
         :raises: :class:`TagValueException` if multiple tags were found with the given name/ID
         :raises: :class:`TagNotFound` if no tags were found with the given name/ID
         """
-        tags = self.tags_for_id(tag) if by_id else self.tags_for_name(tag)
+        tags = self._get_tags(tag, by_id)
         if len(tags) > 1:
-            fmt = 'Multiple {!r} tags found for {}: {}'
-            raise TagValueException(fmt.format(tag, self, ', '.join(map(repr, tags))))
+            raise TagValueException(f'Multiple {tag!r} tags found for {self}: ' + ', '.join(map(repr, tags)))
         elif not tags:
             raise TagNotFound(f'No {tag!r} tags were found for {self}')
         return tags[0]
 
-    def get_tag_values(self, tag: str, strip: bool = True, by_id: bool = False, default=_NotSet):
-        tags = self.tags_for_id(tag) if by_id else self.tags_for_name(tag)
-        if not tags:
+    def get_tag_values(self, tag: str, strip: bool = True, by_id: Bool = False, default=_NotSet):
+        if not (tags := self._get_tags(tag, by_id)):
             if default is not _NotSet:
                 return [default]
             raise TagNotFound(f'No {tag!r} tags were found for {self}')
@@ -542,56 +559,43 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def _normalize_tag_values(self, values):
         return values
 
-    def get_tag_value_or_values(self, tag: str, strip: bool = True, by_id: bool = False, default=_NotSet):
+    def get_tag_value_or_values(self, tag: str, strip: bool = True, by_id: Bool = False, default=_NotSet):
         values = self.get_tag_values(tag, strip, by_id, default)
         if isinstance(values, list) and len(values) == 1 and tag.upper() not in ('\xa9GEN', 'TCON', 'GENRE'):
             return values[0]
         return values
 
-    def tag_text(self, tag: str, strip: bool = True, by_id: bool = False, default=_NotSet):
+    def tag_text(self, tag: str, strip: bool = True, by_id: Bool = False, default: T = _NotSet) -> str | T:
         """
-        :param str tag: The name of the tag to retrieve, or the tag ID if by_id is set to True
-        :param bool strip: Strip leading/trailing spaces from the value before returning it
-        :param bool by_id: The provided value was a tag ID rather than a tag name
-        :param None|Str default: Default value to return when a TagValueException would otherwise be raised
-        :return str: The text content of the tag with the given name if there was a single value
+        :param tag: The name of the tag to retrieve, or the tag ID if by_id is set to True
+        :param strip: Strip leading/trailing spaces from the value before returning it
+        :param by_id: The provided value was a tag ID rather than a tag name
+        :param default: Default value to return when a TagValueException would otherwise be raised
+        :return: The text content of the tag with the given name if there was a single value
         :raises: :class:`TagValueException` if multiple values existed for the given tag
         """
         try:
             values = self.get_tag_values(tag, strip=strip, by_id=by_id)
         except TagNotFound:
-            if default is not _NotSet:
-                return default
-            raise
+            if default is _NotSet:
+                raise
+            return default
         return ';'.join(map(str, values))
 
-    def all_tag_text(self, tag_name: str, suppress_exc: bool = True):
-        try:
-            for tag in self.tags_for_name(tag_name):
-                yield from tag
-        except KeyError as e:
-            if suppress_exc:
-                log.debug('{} has no {} tags - {}'.format(self, tag_name, e))
-            else:
-                raise e
-
     def iter_clean_tags(self) -> Iterator[tuple[str, str, Any]]:
-        id3 = self.tag_type == 'id3'
         for tag, value in self._f.tags.items():
-            _tag = tag[:4] if id3 else tag
-            yield _tag, self.normalize_tag_name(_tag), value
+            yield tag, self.normalize_tag_name(tag), value
 
     def iter_tag_id_name_values(self) -> Iterator[tuple[str, str, str, str, Any]]:
-        id3 = self.tag_type == 'id3'
         for tag_id, value in self._f.tags.items():
             disp_name = self._get_tag_display_name(tag_id)
-            trunc_id = tag_id[:4] if id3 else tag_id
             tag_name = self.normalize_tag_name(tag_id)
             # log.debug(f'Processing values for {tag_name=} {tag_id=} {value=} on {self}')
             if values := self._normalize_values(value):
                 if isinstance(values, list) and len(values) == 1 and disp_name != 'Genre':
                     values = values[0]
-                yield trunc_id, tag_id, tag_name, disp_name, values
+                # tag_id is yielded 2x to be consistent between ID3 and other tag types
+                yield tag_id, tag_id, tag_name, disp_name, values
 
     # endregion
 
@@ -612,6 +616,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             'bpm': self.bpm(calculate=False),
         }
 
+    # region Artist Tag Properties
+
     @cached_property
     def all_artists(self) -> set[Name]:
         return self.album_artists.union(self.artists)
@@ -626,7 +632,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def artists(self) -> set[Name]:
         if artist := self.tag_artist:
             artists = set(split_artists(artist))
-            if (album := self.album) and album.feat:
+            if (album := self.album_name) and album.feat:
                 artists.update(album.feat)
             return artists
         return set()
@@ -643,8 +649,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return next(iter(artists))
         return None
 
+    # endregion
+
+    # region Album Name Tag Properties
+
     @cached_property
-    def album(self) -> Optional[AlbumName]:
+    def album_name(self) -> Optional[AlbumName]:
         if album := self.tag_album:
             return AlbumName.parse(album, self.tag_artist)
         return None
@@ -657,7 +667,20 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None
 
     @cached_property
-    def year(self) -> Optional[int]:
+    def album_name_cleaned(self) -> str:
+        return cleanup_album_name(self.tag_album, self.tag_artist) or self.tag_album
+
+    @cached_property
+    def album_name_cleaned_plus_and_part(self) -> tuple[str, Optional[str]]:
+        """Tuple of title, part"""
+        return _extract_album_part(self.album_name_cleaned)
+
+    # endregion
+
+    # region Numeric Tag Properties
+
+    @cached_property
+    def year(self) -> OptInt:
         try:
             return self.date.year
         except Exception:  # noqa
@@ -665,20 +688,19 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def _num_tag(self, name: str) -> int:
         orig = value = self.tag_text(name, default=None)
-        if value:
-            if '/' in value:
-                value = value.split('/', 1)[0].strip()
-            if ',' in value:
-                value = value.split(',', 1)[0].strip()
-            if value.startswith('('):
-                value = value[1:].strip()
-
-            try:
-                value = int(value)
-            except Exception as e:
-                log.debug(f'{self}: Error converting {name} num={orig!r} [{value!r}] to int: {e}')
-                value = 0
-        return value or 0
+        if not value:
+            return 0
+        if '/' in value:
+            value = value.split('/', 1)[0].strip()
+        if ',' in value:
+            value = value.split(',', 1)[0].strip()
+        if value.startswith('('):
+            value = value[1:].strip()
+        try:
+            return int(value)
+        except Exception as e:
+            log.debug(f'{self}: Error converting {name} num={orig!r} [{value!r}] to int: {e}')
+            return 0
 
     @cached_property
     def track_num(self) -> int:
@@ -689,7 +711,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return self._num_tag('disk')
 
     @property
-    def star_rating_10(self) -> Optional[int]:
+    def star_rating_10(self) -> OptInt:
         if (rating := self.rating) is not None:
             return stars_from_256(rating, 10)
         return None
@@ -699,7 +721,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         self.rating = stars_to_256(value, 10)
 
     @property
-    def star_rating(self) -> Optional[int]:
+    def star_rating(self) -> OptInt:
         """
         This implementation uses the ranges specified here: https://en.wikipedia.org/wiki/ID3#ID3v2_rating_tag_issue
 
@@ -713,20 +735,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def star_rating(self, value: Union[int, float]):
         self.rating = stars_to_256(value, 5)
 
-    @cached_property
-    def album_name_cleaned(self) -> str:
-        return cleanup_album_name(self.tag_album, self.tag_artist) or self.tag_album
-
-    @cached_property
-    def album_name_cleaned_plus_and_part(self) -> tuple[str, Optional[str]]:
-        """Tuple of title, part"""
-        return _extract_album_part(self.album_name_cleaned)
-
     # endregion
 
     # region Hash / Fingerprint Methods
 
-    def tagless_sha256sum(self):
+    def tagless_sha256sum(self) -> str:
         with self.path.open('rb') as f:
             tmp = BytesIO(f.read())
 
@@ -739,9 +752,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         tmp.seek(0)
         return sha256(tmp.read()).hexdigest()
 
-    def sha256sum(self):
-        with self.path.open('rb') as f:
-            return sha256(f.read()).hexdigest()
+    def sha256sum(self) -> str:
+        return sha256(self.path.read_bytes()).hexdigest()
 
     # @cached_property
     # def acoustid_fingerprint(self):
@@ -800,7 +812,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # region BPM
 
-    def bpm(self, save: bool = True, calculate: bool = True) -> Optional[int]:
+    def bpm(self, save: bool = True, calculate: bool = True) -> OptInt:
         """
         :param save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
         :param calculate: If the BPM was not already stored in a tag, calculate it
@@ -1131,6 +1143,15 @@ class Id3SongFile(SongFile):
         if self._log_cover_changes(current, cover, dry_run):
             self._f.tags.delall('APIC')
             self._f.tags[cover.HashKey] = cover
+
+    def iter_clean_tags(self) -> Iterator[tuple[str, str, Any]]:
+        for full_tag, value in self._f.tags.items():
+            tag = full_tag[:4]
+            yield tag, self.normalize_tag_name(tag), value
+
+    def iter_tag_id_name_values(self) -> Iterator[tuple[str, str, str, str, Any]]:
+        for tag_id, tag_id, tag_name, disp_name, values in super().iter_tag_id_name_values():
+            yield tag_id[:4], tag_id, tag_name, disp_name, values
 
 
 class Mp3File(Id3SongFile, ft_classes=(MP3, ID3FileType)):

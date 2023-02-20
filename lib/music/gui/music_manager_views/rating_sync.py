@@ -4,6 +4,8 @@ Sync ratings view
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 from functools import cached_property
 from itertools import chain
 from typing import Any
@@ -111,7 +113,7 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
             del self.__dict__[f'{loc}_formatter']
             self.render()
 
-    def _back_kwargs(self, last: 'MainView') -> dict[str, Any]:
+    def _back_kwargs(self, last: MainView) -> dict[str, Any]:
         if last.name == 'album':
             return {'album': last.album}  # noqa
         return {}

@@ -215,7 +215,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
 
     @cached_property
     def names(self) -> set[AlbumName]:
-        return {music_file.album for music_file in self.songs}
+        return {music_file.album_name for music_file in self.songs}
 
     @cached_property
     def name(self) -> Optional[AlbumName]:
@@ -223,7 +223,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             if len(names) == 1:
                 return next(iter(names))
 
-            names = Counter(music_file.album for music_file in self.songs)
+            names = Counter(music_file.album_name for music_file in self.songs)
             name = max(names.items(), key=lambda kv: kv[1])[0]  # noqa
             return name
 

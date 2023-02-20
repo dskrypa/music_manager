@@ -2,14 +2,23 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import re
 from fnmatch import translate as fnmatch_to_regex_str
-from typing import Iterable, Pattern, Union
+from typing import TYPE_CHECKING, Iterable, Pattern, Union
+
+if TYPE_CHECKING:
+    from music.typing import OptStr
 
 __all__ = [
     'ALBUM_CLEANUP_RE_FUNCS', 'EXTRACT_PART_MATCH', 'GROUP_TITLE_MATCH_FUNCS', 'LYRIC_URL_MATCH', 'SAMPLE_RATE_PAT',
-    'compiled_fnmatch_patterns', 'cleanup_album_name'
+    'glob_patterns', 'cleanup_album_name', 'cleanup_lyrics', 'split_album_part',
 ]
+
+StrsOrPatterns = Iterable[Union[str, Pattern]]
+
+# region Globals
 
 ALBUM_CLEANUP_RE_FUNCS = (
     (re.compile(r'^\[\d{4}[0-9.]*\](.*)', re.IGNORECASE).match, lambda m: m.group(1).strip()),
@@ -34,7 +43,10 @@ LYRIC_URL_MATCH = re.compile(r'^(.*)(https?://\S+)$', re.DOTALL).match
 SAMPLE_RATE_PAT = re.compile(r'\((\d+(?:\.\d+)?)\s*kHz\)', re.IGNORECASE)
 
 
-def compiled_fnmatch_patterns(patterns: Iterable[Union[str, Pattern]]) -> list[Pattern]:
+# endregion
+
+
+def glob_patterns(patterns: StrsOrPatterns) -> list[Pattern]:
     if patterns:
         return [re.compile(fnmatch_to_regex_str(p)[4:-3]) if isinstance(p, str) else p for p in patterns]
     return []
@@ -54,3 +66,19 @@ def cleanup_album_name(album: str, artist: str = None) -> str:
                 break
 
     return album.replace(' : ', ': ').strip()
+
+
+def cleanup_lyrics(lyrics: str) -> OptStr:
+    if m := LYRIC_URL_MATCH(lyrics):
+        return m.group(1).strip() + '\r\n'
+    return None
+
+
+def split_album_part(title: str) -> tuple[str, OptStr]:
+    if m := EXTRACT_PART_MATCH(title):
+        title, part = map(str.strip, m.groups())
+    else:
+        part = None
+    if title.endswith(' -'):
+        title = title[:-1].strip()
+    return title, part

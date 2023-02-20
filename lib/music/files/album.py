@@ -305,28 +305,11 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         callback: ProgressCB = None,
         extras: Collection[str] = None,
     ):
-        keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
         i = 0
         for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
-            try:
-                rm_tag_match = _rm_tag_matcher(music_file.tag_type, extras)
-            except TypeError as e:
-                raise TypeError(f'Unhandled tag type={music_file.tag_type!r} for {music_file=}') from e
-            if (track_tags := music_file.tags) is not None:
-                if music_file.tag_type == 'vorbis':
-                    # noinspection PyArgumentList
-                    if to_remove := {tag for tag, val in track_tags if rm_tag_match(tag) and tag not in keep_tags}:
-                        if i:
-                            log.debug('')
-                else:
-                    # noinspection PyArgumentList
-                    if to_remove := {tag for tag in track_tags if rm_tag_match(tag) and tag not in keep_tags}:
-                        if i:
-                            log.debug('')
-
-                i += int(music_file.remove_tags(to_remove, dry_run))
+            i += int(music_file.remove_bad_tags(dry_run, extras))
 
         if not i:
             mid = f'songs in {tracks}' if isinstance(tracks, cls) else 'provided songs'
@@ -355,33 +338,6 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         image, data, mime_type = self._prepare_cover_image(image, max_width)
         for song_file in self.songs:
             song_file._set_cover_data(image, data, mime_type, dry_run)
-
-
-def _rm_tag_matcher(tag_type: str, extras: Collection[str] = None) -> Callable:
-    try:
-        matchers = _rm_tag_matcher._matchers
-    except AttributeError:
-        matchers = _rm_tag_matcher._matchers = {
-            'id3': ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP')).match,
-            'mp4': FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt')).match,
-            'vorbis': ReMatcher(('UPLOAD.*', 'WWW.*', 'COMM.*', 'UPC', '(?:TRACK|DIS[CK])TOTAL')).match
-        }
-    try:
-        matcher = matchers[tag_type]
-    except KeyError as e:
-        raise TypeError(f'Unhandled tag type: {tag_type}') from e
-    else:
-        if extras:
-            extras = set(map(str.lower, extras))
-
-            def _matcher(value):
-                if matcher(value):  # noqa
-                    return True
-                return value.lower() in extras
-
-            return _matcher
-        else:
-            return matcher
 
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:

@@ -17,7 +17,7 @@ from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Iterable, Collection, Pattern, Type, Mapping, TypeVar
+from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Collection, Type, Mapping, TypeVar, Callable
 from urllib.parse import quote
 from weakref import WeakValueDictionary
 
@@ -35,6 +35,8 @@ from mutagen.wave import WAVE, _WaveID3
 from plexapi.audio import Track
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
+from ds_tools.core.decorate import cached_classproperty
+from ds_tools.core.patterns import PatternMatcher, FnMatcher, ReMatcher
 from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
 from ds_tools.output.prefix import LoggingPrefix
@@ -48,16 +50,14 @@ from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueExce
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject, PathLike
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
-from .patterns import (
-    EXTRACT_PART_MATCH, LYRIC_URL_MATCH, SAMPLE_RATE_PAT, compiled_fnmatch_patterns, cleanup_album_name
-)
+from .patterns import StrsOrPatterns, SAMPLE_RATE_PAT, cleanup_lyrics, glob_patterns, cleanup_album_name
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
 if TYPE_CHECKING:
     from numpy import ndarray
     from PIL import Image
     from pydub import AudioSegment
-    from music.typing import OptStr, OptInt, Bool
+    from music.typing import OptStr, OptInt, Bool, StrIter
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
@@ -175,6 +175,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # region Internal Methods
 
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> PatternMatcher:  # noqa
+        return FnMatcher(())
+
     def _init(self, mutagen_file: MutagenFile, path: Path):
         self._f = mutagen_file
         self._path = path
@@ -191,8 +195,6 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.rel_path!r})>'
 
-    # endregion
-
     @cached_property
     def extended_repr(self) -> str:
         try:
@@ -200,6 +202,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         except Exception:  # noqa
             info = ''
         return f'<{self.__class__.__name__}({self.rel_path!r}){info}>'
+
+    # endregion
+
+    # region Path & Save
 
     @property
     def path(self) -> Path:
@@ -242,6 +248,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def save(self):
         self._f.tags.save(self._f.filename)
+
+    # endregion
 
     # region Metadata
 
@@ -433,7 +441,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         if not dry_run:
             self._f.tags.delete(self._f.filename)
 
-    def remove_tags(self, tag_ids: Iterable[str], dry_run: Bool = False, log_lvl: int = logging.DEBUG) -> bool:
+    def remove_tags(self, tag_ids: StrIter, dry_run: Bool = False, log_lvl: int = logging.DEBUG) -> bool:
         tag_ids = list(map(self.normalize_tag_id, tag_ids))
         to_remove = {
             tag_id: val if isinstance(val, list) else [val]
@@ -599,8 +607,6 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # endregion
 
-    # region Tag-Related Properties
-
     @property
     def common_tag_info(self) -> dict[str, Union[str, int, float, bool, None]]:
         return {
@@ -671,9 +677,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return cleanup_album_name(self.tag_album, self.tag_artist) or self.tag_album
 
     @cached_property
-    def album_name_cleaned_plus_and_part(self) -> tuple[str, Optional[str]]:
+    def album_name_cleaned_plus_and_part(self) -> tuple[str, OptStr]:
         """Tuple of title, part"""
-        return _extract_album_part(self.album_name_cleaned)
+        from .patterns import split_album_part
+
+        return split_album_part(self.album_name_cleaned)
 
     # endregion
 
@@ -786,15 +794,14 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def cleanup_lyrics(self, dry_run: Bool = False):
         changes = 0
-        tag_type = self.tag_type
+        is_id3 = self.tag_type == 'id3'
         new_lyrics = []
         for lyric_tag in self.tags_for_name('lyrics'):
-            lyric = lyric_tag.text if tag_type == 'id3' else lyric_tag
-            if m := LYRIC_URL_MATCH(lyric):
-                new_lyric = m.group(1).strip() + '\r\n'
+            lyric = lyric_tag.text if is_id3 else lyric_tag
+            if new_lyric := cleanup_lyrics(lyric):
                 self._log_update('lyrics', lyric, new_lyric, dry_run)
                 if not dry_run:
-                    if tag_type == 'id3':
+                    if is_id3:
                         lyric_tag.text = new_lyric
                     else:
                         new_lyrics.append(new_lyric)
@@ -804,13 +811,40 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
         if changes and not dry_run:
             log.info(f'Saving changes to lyrics in {self}')
-            if tag_type != 'id3':
+            if not is_id3:  # TODO: ...why not?
                 self.set_text_tag('lyrics', new_lyrics)
             self.save()
 
     def fix_song_tags(self, dry_run: Bool = False):
         self.cleanup_title(dry_run)
         self.cleanup_lyrics(dry_run)
+
+    def _get_rm_tag_matcher(self, extras: Collection[str] = None) -> Callable[[str], Bool]:
+        rm_tag_matcher: PatternMatcher = self._rm_tag_matcher  # noqa
+        pat_match = rm_tag_matcher.match if rm_tag_matcher.patterns else lambda tag: False
+        if not extras:
+            return pat_match
+
+        extras = set(map(str.lower, extras))
+
+        def pat_or_extra_match(tag_value: str) -> bool:
+            if pat_match(tag_value):
+                return True
+            return tag_value.lower() in extras
+
+        return pat_or_extra_match
+
+    def get_bad_tags(self, extras: Collection[str] = None) -> set[str] | None:
+        if (track_tags := self.tags) is None:
+            return None
+        rm_tag_match = self._get_rm_tag_matcher(extras)
+        keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}
+        return {tag for tag in track_tags if rm_tag_match(tag) and tag not in keep_tags}
+
+    def remove_bad_tags(self, dry_run: Bool = False, extras: Collection[str] = None) -> bool:
+        if to_remove := self.get_bad_tags(extras):
+            return self.remove_tags(to_remove, dry_run)
+        return False
 
     # endregion
 
@@ -917,14 +951,14 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def get_tag_updates(
         self,
-        tag_ids: Iterable[str],
+        tag_ids: StrIter,
         value: str,
-        patterns: Iterable[Union[str, Pattern]] = None,
+        patterns: StrsOrPatterns = None,
         partial: bool = False,
     ):
         if partial and not patterns:
             raise ValueError('Unable to perform partial tag update without any patterns')
-        patterns = compiled_fnmatch_patterns(patterns)
+        patterns = glob_patterns(patterns)
         to_update = {}
         for tag_id in tag_ids:
             if names_by_type := TYPED_TAG_MAP.get(tag_id):
@@ -1056,9 +1090,16 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # endregion
 
 
+# region SongFile Subclasses
+
+
 class Id3SongFile(SongFile):
     tag_type = 'id3'
     _f: Union[MP3, ID3FileType, WAVE]
+
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> ReMatcher:  # noqa
+        return ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP'))
 
     def tags_for_id(self, tag_id: str):
         """
@@ -1211,6 +1252,10 @@ class Mp4File(SongFile, ft_classes=(MP4,)):
     tag_type = 'mp4'
     file_type = 'mp4'
 
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> FnMatcher:  # noqa
+        return FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt'))
+
     @cached_property
     def tag_version(self) -> str:
         return 'MP4'
@@ -1256,6 +1301,10 @@ class VorbisSongFile(SongFile):
     tag_type = 'vorbis'
     _f: Union[FLAC, OggFLAC, OggVorbis, OggOpus]
 
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> ReMatcher:  # noqa
+        return ReMatcher(('UPLOAD.*', 'WWW.*', 'COMM.*', 'UPC', '(?:TRACK|DIS[CK])TOTAL'))
+
     def save(self):
         self._f.save(self._f.filename)
 
@@ -1296,6 +1345,12 @@ class VorbisSongFile(SongFile):
             else:
                 self._f.add_picture(cover)
 
+    def get_bad_tags(self, extras: Collection[str] = None) -> set[str] | None:
+        if (track_tags := self.tags) is None:
+            return None
+        rm_tag_match = self._get_rm_tag_matcher(extras)
+        return {tag for tag, val in track_tags if rm_tag_match(tag)}
+
 
 class FlacFile(VorbisSongFile, ft_classes=(FLAC,)):
     file_type = 'flac'
@@ -1328,6 +1383,9 @@ class OggFile(VorbisSongFile, ft_classes=(OggFileType, OggFLAC, OggVorbis, OggOp
         return isinstance(self._f, OggFLAC)
 
 
+# endregion
+
+
 def iter_music_files(paths: Paths) -> Iterator[SongFile]:
     non_music_exts = {'.jpg', '.jpeg', '.png', '.jfif', '.part', '.pdf', '.zip', '.webp'}
     for file_path in iter_files(paths):
@@ -1337,15 +1395,6 @@ def iter_music_files(paths: Paths) -> Iterator[SongFile]:
         else:
             if file_path.suffix not in non_music_exts:
                 log.log(5, f'Not a music file: {file_path}')
-
-
-def _extract_album_part(title: str) -> tuple[str, Optional[str]]:
-    part = None
-    if m := EXTRACT_PART_MATCH(title):
-        title, part = map(str.strip, m.groups())
-    if title.endswith(' -'):
-        title = title[:-1].strip()
-    return title, part
 
 
 if __name__ == '__main__':

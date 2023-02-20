@@ -113,11 +113,11 @@ class CleanView(MainView, view_name='clean'):
         with output_log_handler(self.output, level=0, logger=self.result_logger):
             for album in self.albums:
                 album.remove_bad_tags(dry_run, self.prog_tracker.update, extras=rm_tags)
-                album.fix_song_tags(dry_run, add_bpm=False, callback=self.prog_tracker.update)
+                album.fix_song_tags(dry_run, add_bpm=False, cb=self.prog_tracker.update)
 
             if self.no_alb_files:
                 AlbumDir._remove_bad_tags(self.no_alb_files, dry_run, self.prog_tracker.update, extras=rm_tags)
-                AlbumDir._fix_song_tags(self.no_alb_files, dry_run, add_bpm=False, callback=self.prog_tracker.update)
+                AlbumDir._fix_song_tags(self.no_alb_files, dry_run, add_bpm=False, cb=self.prog_tracker.update)
 
             if self.options['bpm']:
                 self.prog_tracker.text.update('Adding BPM...')

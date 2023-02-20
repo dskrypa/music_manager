@@ -37,6 +37,7 @@ from plexapi.audio import Track
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from ds_tools.fs.paths import iter_files, Paths
 from ds_tools.output.formatting import readable_bytes
+from ds_tools.output.prefix import LoggingPrefix
 
 from music.common.ratings import stars_to_256, stars_from_256, stars
 from music.common.utils import format_duration
@@ -56,7 +57,7 @@ if TYPE_CHECKING:
     from numpy import ndarray
     from PIL import Image
     from pydub import AudioSegment
-    from music.typing import OptStr
+    from music.typing import OptStr, OptInt, Bool
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
@@ -67,39 +68,46 @@ MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover
 
 MutagenFile = Union[MP3, MP4, FLAC, FileType]
 ImageTag = Union[APIC, MP4Cover, Picture]
+TagsType = Union[ID3, MP4Tags, VCFLACDict]
 
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     """Adds some properties/methods to mutagen.File types that facilitate other functions"""
+    # region Class Attributes
     tag_type: OptStr = None
     file_type: OptStr = None
     __ft_cls_map = {}
-    __instances = WeakValueDictionary()                                 # type: dict[Path, SongFile]
-    _bpm = None                                                         # type: Optional[int]
-    _f = None                                                           # type: Optional[MutagenFile]
-    _path = None                                                        # type: Optional[Path]
-    tags = MusicFileProperty('tags')                                    # type: Union[ID3, MP4Tags, VCFLACDict]
-    filename = MusicFileProperty('filename')                            # type: str
-    length = MusicFileProperty('info.length')                           # type: float   # length of this song in seconds
-    channels = MusicFileProperty('info.channels')                       # type: int
-    bits_per_sample = MusicFileProperty('info.bits_per_sample')         # type: int
-    _bitrate = MusicFileProperty('info.bitrate')                        # type: int
-    _sample_rate = MusicFileProperty('info.sample_rate')                # type: int
-    tag_artist = TextTagProperty('artist', default=None)                # type: Optional[str]
-    tag_album_artist = TextTagProperty('album_artist', default=None)    # type: Optional[str]
-    tag_title = TextTagProperty('title', default=None)                  # type: Optional[str]
-    tag_album = TextTagProperty('album', default=None)                  # type: Optional[str]
-    tag_genre = TextTagProperty('genre', default=None)                  # type: Optional[str]
-    tag_genres = TagValuesProperty('genre', default=None)               # type: list[str]
-    date = TextTagProperty('date', parse_file_date, default=None)       # type: Optional[date]
-    album_url = TextTagProperty('wiki:album', default=None)             # type: Optional[str]
-    artist_url = TextTagProperty('wiki:artist', default=None)           # type: Optional[str]
-    rating = TextTagProperty('rating', int, default=None, save=True)    # type: Optional[int]
+    __instances: dict[Path, SongFile] = WeakValueDictionary()
+    # endregion
+    # region Instance Attributes + File/Tag Properties
+    _bpm: OptInt = None
+    _f: Optional[MutagenFile] = None
+    _path: Optional[Path] = None
+    tags: TagsType              = MusicFileProperty('tags')
+    filename: str               = MusicFileProperty('filename')
+    length: float               = MusicFileProperty('info.length')  # length of this song in seconds
+    channels: int               = MusicFileProperty('info.channels')
+    bits_per_sample: int        = MusicFileProperty('info.bits_per_sample')
+    _bitrate: int               = MusicFileProperty('info.bitrate')
+    _sample_rate: int           = MusicFileProperty('info.sample_rate')
+    tag_artist: OptStr          = TextTagProperty('artist', default=None)
+    tag_album_artist: OptStr    = TextTagProperty('album_artist', default=None)
+    tag_title: OptStr           = TextTagProperty('title', default=None)
+    tag_album: OptStr           = TextTagProperty('album', default=None)
+    tag_genre: OptStr           = TextTagProperty('genre', default=None)
+    tag_genres: list[str]       = TagValuesProperty('genre', default=None)
+    date: Optional[date]        = TextTagProperty('date', parse_file_date, default=None)
+    album_url: OptStr           = TextTagProperty('wiki:album', default=None)
+    artist_url: OptStr          = TextTagProperty('wiki:artist', default=None)
+    rating: OptInt              = TextTagProperty('rating', int, default=None, save=True)
+    # endregion
 
     def __init_subclass__(cls, ft_classes: Collection[Type[FileType]] = (), **kwargs):
         super().__init_subclass__(**kwargs)
         for c in ft_classes:
             cls.__ft_cls_map[c] = cls
+
+    # region Constructors
 
     def __new__(cls, file_path: PathLike, *args, options=_NotSet, **kwargs):
         file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path
@@ -161,6 +169,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
         path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
         return cls(path)
+
+    # endregion
 
     # region Internal Methods
 
@@ -342,32 +352,30 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def _delete_tag(self, tag_id: str):
         raise TypeError(f'Cannot delete tag_id={tag_id!r} for {self} because its tag type={self.tag_type!r}')
 
-    def remove_tags(self, tag_ids: Iterable[str], dry_run=False, log_lvl=logging.DEBUG, remove_all=False) -> bool:
-        tag_ids = list(map(self.normalize_tag_id, tag_ids))
-        prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
-        if remove_all:
-            log.info(f'{prefix} ALL tags from {self}')
-            if not dry_run:
-                self._f.tags.delete(self._f.filename)
-        else:
-            to_remove = {
-                tag_id: val if isinstance(val, list) else [val]
-                for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
-            }
-            if to_remove:
-                rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
-                info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
+    def remove_all_tags(self, dry_run: Bool = False):
+        log.info(f'{LoggingPrefix(dry_run).remove} ALL tags from {self}')
+        if not dry_run:
+            self._f.tags.delete(self._f.filename)
 
-                log.info(f'{prefix} tags from {self}: {info_str}')
-                log.debug(f'\t{self}: {rm_str}')
-                if not dry_run:
-                    for tag_id in to_remove:
-                        self.delete_tag(tag_id)
-                    self.save()
-                return True
-            else:
-                log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
-                return False
+    def remove_tags(self, tag_ids: Iterable[str], dry_run: Bool = False, log_lvl: int = logging.DEBUG) -> bool:
+        tag_ids = list(map(self.normalize_tag_id, tag_ids))
+        to_remove = {
+            tag_id: val if isinstance(val, list) else [val]
+            for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
+        }
+        if not to_remove:
+            log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
+            return False
+
+        rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
+        info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
+        log.info(f'{LoggingPrefix(dry_run).remove} tags from {self}: {info_str}')
+        log.debug(f'\t{self}: {rm_str}')
+        if not dry_run:
+            for tag_id in to_remove:
+                self.delete_tag(tag_id)
+            self.save()
+        return True
 
     def set_text_tag(self, tag: str, value, by_id: bool = False, replace: bool = True, save: bool = False):
         tag_id = tag if by_id else self.normalize_tag_id(tag)

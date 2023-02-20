@@ -11,12 +11,13 @@ from collections import defaultdict, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Pattern
+from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Pattern, Any
 
 from mutagen.id3 import TDRC, ID3
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.core.patterns import FnMatcher, ReMatcher
+from ds_tools.output.prefix import LoggingPrefix
 from ds_tools.fs.paths import iter_paths, Paths
 
 from music.common.disco_entry import DiscoEntryType
@@ -36,6 +37,8 @@ if TYPE_CHECKING:
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
 EXECUTOR: Optional[ThreadPoolExecutor] = None
+
+ProgressCB = Callable[[SongFile, int], Any]
 
 
 class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
@@ -66,6 +69,8 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.relative_path!r})>'
 
+    # region Tracks / Container Methods
+
     def __iter__(self) -> Iterator[SongFile]:
         return iter(self.songs)
 
@@ -91,6 +96,24 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             return False
         else:
             return True
+
+    @cached_property
+    def songs(self) -> list[SongFile]:
+        songs = list(iter_music_files(self.path))
+        for song in songs:
+            song._in_album_dir = True
+            song._album_dir = self
+        try:
+            songs.sort(key=lambda t: (t.disk_num, t.track_num))
+        except Exception as e:
+            log.debug(f'Error sorting tracks in {self}: {e}', exc_info=True)
+        return songs
+
+    @cached_property
+    def path_track_map(self) -> dict[Path, SongFile]:
+        return {track.path: track for track in self.songs}
+
+    # endregion
 
     def refresh(self):
         for track in self.songs:
@@ -119,22 +142,6 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         self.path = dest_path
         self.__class__.__instances[self.path] = self
         self.clear_cached_properties()
-
-    @cached_property
-    def songs(self) -> list[SongFile]:
-        songs = list(iter_music_files(self.path))
-        for song in songs:
-            song._in_album_dir = True
-            song._album_dir = self
-        try:
-            songs.sort(key=lambda t: (t.disk_num, t.track_num))
-        except Exception as e:
-            log.debug(f'Error sorting tracks in {self}: {e}', exc_info=True)
-        return songs
-
-    @cached_property
-    def path_track_map(self) -> dict[Path, SongFile]:
-        return {track.path: track for track in self.songs}
 
     # region Tag-based Properties
 
@@ -272,14 +279,15 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
 
     # endregion
 
-    def fix_song_tags(self, dry_run: bool = False, add_bpm: bool = False, callback: Callable = None):
+    def fix_song_tags(self, dry_run: bool = False, add_bpm: bool = False, callback: ProgressCB = None):
         self._fix_song_tags(self.songs, dry_run=dry_run, add_bpm=add_bpm, callback=callback)
 
     @classmethod
     def _fix_song_tags(
-        cls, tracks: Iterable[SongFile], dry_run: bool = False, add_bpm: bool = False, callback: Callable = None
+        cls, tracks: Iterable[SongFile], dry_run: bool = False, add_bpm: bool = False, callback: ProgressCB = None
     ):
-        prefix, add_msg, rmv_msg = ('[DRY RUN] ', 'Would add', 'remove') if dry_run else ('', 'Adding', 'removing')
+        lp = LoggingPrefix(dry_run)
+        rmv_msg = 'remove' if dry_run else 'removing'
         for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
@@ -298,7 +306,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             if (not tdrc) and txxx_date:
                 file_date = txxx_date[0].text[0]
 
-                log.info(f'{prefix}{add_msg} TDRC={file_date} to {music_file} and {rmv_msg} its TXXX:DATE tag')
+                log.info(f'{lp.add} TDRC={file_date} to {music_file} and {rmv_msg} its TXXX:DATE tag')
                 if not dry_run:
                     track_tags.add(TDRC(text=file_date))
                     track_tags.delall('TXXX:DATE')
@@ -309,7 +317,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
                 bpm = _file.bpm(False, False)
                 if bpm is None:
                     bpm = _file.bpm(not dry_run, calculate=True)
-                    log.info(f'{prefix}{add_msg} BPM={bpm} to {_file}')
+                    log.info(f'{lp.add} BPM={bpm} to {_file}')
 
             global EXECUTOR
             if EXECUTOR is None:
@@ -319,7 +327,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             for future in as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
                 future.result()
 
-    def remove_bad_tags(self, dry_run: bool = False, callback: Callable = None, extras: Collection[str] = None):
+    def remove_bad_tags(self, dry_run: bool = False, callback: ProgressCB = None, extras: Collection[str] = None):
         self._remove_bad_tags(self, dry_run, callback, extras)
 
     @classmethod
@@ -327,7 +335,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         cls,
         tracks: Iterable[SongFile],
         dry_run: bool = False,
-        callback: Callable = None,
+        callback: ProgressCB = None,
         extras: Collection[str] = None,
     ):
         keep_tags = {'----:com.apple.iTunes:ISRC', '----:com.apple.iTunes:LANGUAGE'}

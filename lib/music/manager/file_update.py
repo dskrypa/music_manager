@@ -88,7 +88,10 @@ def clean_tags(paths: Paths, dry_run: bool = False, add_bpm: bool = False, verbo
 
 def remove_tags(paths: Paths, tag_ids: Iterable[str], dry_run: bool = False, remove_all: bool = False):
     for music_file in iter_music_files(paths):
-        music_file.remove_tags(tag_ids, dry_run, logging.INFO, remove_all)
+        if remove_all:
+            music_file.remove_all_tags(dry_run)
+        else:
+            music_file.remove_tags(tag_ids, dry_run, logging.INFO)
 
 
 def add_track_bpm(paths: Paths, parallel: int = 4, dry_run: bool = False, verbosity: int = 0):

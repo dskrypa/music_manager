@@ -23,7 +23,7 @@ from weakref import WeakValueDictionary
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
-from mutagen.id3 import ID3, POPM, Frames, _frames, ID3FileType, APIC, PictureType, Encoding
+from mutagen.id3 import ID3, POPM, TDRC, Frames, _frames, ID3FileType, APIC, PictureType, Encoding
 from mutagen.id3._specs import MultiSpec, Spec
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover, AtomDataType, MP4FreeForm
@@ -764,11 +764,11 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # region Tag Cleanup
 
-    def _log_update(self, tag_name: str, orig_val: str, new_val: str, dry_run: bool):
-        prefix, upd_msg = ('[DRY RUN] ', 'Would update') if dry_run else ('', 'Updating')
-        log.info(f'{prefix}{upd_msg} {tag_name} for {self} from {tag_repr(orig_val)!r} to {tag_repr(new_val)!r}')
+    def _log_update(self, tag_name: str, orig_val: str, new_val: str, dry_run: Bool):
+        lp = LoggingPrefix(dry_run)
+        log.info(f'{lp.update} {tag_name} for {self} from {tag_repr(orig_val)!r} to {tag_repr(new_val)!r}')
 
-    def cleanup_title(self, dry_run: bool = False, only_matching: bool = False):
+    def cleanup_title(self, dry_run: Bool = False, only_matching: Bool = False):
         if not (title := self.tag_title):
             log.debug(f'No title found for {self}')
             return
@@ -784,7 +784,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             else:
                 log.debug(f'Found sample rate={m.group(0)!r} in title of {self}, but it is the full title')
 
-    def cleanup_lyrics(self, dry_run: bool = False):
+    def cleanup_lyrics(self, dry_run: Bool = False):
         changes = 0
         tag_type = self.tag_type
         new_lyrics = []
@@ -808,30 +808,34 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 self.set_text_tag('lyrics', new_lyrics)
             self.save()
 
+    def fix_song_tags(self, dry_run: Bool = False):
+        self.cleanup_title(dry_run)
+        self.cleanup_lyrics(dry_run)
+
     # endregion
 
     # region BPM
+
+    def _get_bpm(self) -> OptInt:
+        try:
+            return int(self.tag_text('bpm'))
+        except (TagException, ValueError):
+            return None
 
     def bpm(self, save: bool = True, calculate: bool = True) -> OptInt:
         """
         :param save: If the BPM was not already stored in a tag, save the calculated BPM in a tag.
         :param calculate: If the BPM was not already stored in a tag, calculate it
-        :return int: This track's BPM from a tag if available, or calculated
+        :return: This track's BPM from a tag if available, or calculated
         """
-        try:
-            bpm = int(self.tag_text('bpm'))
-        except (TagException, ValueError):
-            if calculate:
-                bpm = self._calculate_bpm(save)
-            else:
-                bpm = None
+        if bpm := self._get_bpm():
+            return bpm
+        elif calculate:
+            return self._calculate_bpm(save)
+        else:
+            return bpm
 
-        if bpm == 0 and calculate:
-            bpm = self._calculate_bpm(save)
-
-        return bpm
-
-    def _calculate_bpm(self, save: bool = True):
+    def _calculate_bpm(self, save: bool = True) -> OptInt:
         from .bpm import get_bpm
 
         if not (bpm := self._bpm):
@@ -842,6 +846,15 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self.save()
 
         return bpm
+
+    def maybe_add_bpm(self, dry_run: Bool = False) -> str:
+        if bpm := self._get_bpm():
+            level, message = 19, f'{self} already has a value stored for BPM={bpm}'
+        else:
+            bpm = self._calculate_bpm(not dry_run)
+            level, message = 20, f'{LoggingPrefix(dry_run).add} BPM={bpm} to {self}'
+        log.log(level, message)
+        return message
 
     # endregion
 
@@ -1152,6 +1165,23 @@ class Id3SongFile(SongFile):
     def iter_tag_id_name_values(self) -> Iterator[tuple[str, str, str, str, Any]]:
         for tag_id, tag_id, tag_name, disp_name, values in super().iter_tag_id_name_values():
             yield tag_id[:4], tag_id, tag_name, disp_name, values
+
+    def fix_song_tags(self, dry_run: Bool = False):
+        super().fix_song_tags(dry_run)
+        if not isinstance((track_tags := self.tags), ID3):
+            log.debug(f'Skipping tag fix due to no tags present in {self}')
+            return
+
+        tdrc = track_tags.getall('TDRC')
+        txxx_date = track_tags.getall('TXXX:DATE')
+        if (not tdrc) and txxx_date:
+            file_date = txxx_date[0].text[0]
+            rmv_msg = 'remove' if dry_run else 'removing'
+            log.info(f'{LoggingPrefix(dry_run).add} TDRC={file_date} to {self} and {rmv_msg} its TXXX:DATE tag')
+            if not dry_run:
+                track_tags.add(TDRC(text=file_date))
+                track_tags.delall('TXXX:DATE')
+                self.save()
 
 
 class Mp3File(Id3SongFile, ft_classes=(MP3, ID3FileType)):

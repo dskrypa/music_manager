@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import atexit
 import logging
 import os
 from collections import defaultdict, Counter
@@ -13,11 +12,8 @@ from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Pattern, Any
 
-from mutagen.id3 import TDRC, ID3
-
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.core.patterns import FnMatcher, ReMatcher
-from ds_tools.output.prefix import LoggingPrefix
 from ds_tools.fs.paths import iter_paths, Paths
 
 from music.common.disco_entry import DiscoEntryType
@@ -36,7 +32,6 @@ if TYPE_CHECKING:
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
-EXECUTOR: Optional[ThreadPoolExecutor] = None
 
 ProgressCB = Callable[[SongFile, int], Any]
 
@@ -286,45 +281,17 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     def _fix_song_tags(
         cls, tracks: Iterable[SongFile], dry_run: bool = False, add_bpm: bool = False, callback: ProgressCB = None
     ):
-        lp = LoggingPrefix(dry_run)
-        rmv_msg = 'remove' if dry_run else 'removing'
         for n, music_file in enumerate(tracks, 1):
             if callback:
                 callback(music_file, n)
-            music_file.cleanup_title(dry_run)
-            music_file.cleanup_lyrics(dry_run)
-            tag_type = music_file.tag_type
-            if tag_type != 'id3':
-                # log.debug(f'Skipping tag fix for non-MP3: {music_file}')
-                continue
-            elif not isinstance((track_tags := music_file.tags), ID3):
-                log.debug(f'Skipping tag fix due to no tags present in {music_file}')
-                continue
 
-            tdrc = track_tags.getall('TDRC')
-            txxx_date = track_tags.getall('TXXX:DATE')
-            if (not tdrc) and txxx_date:
-                file_date = txxx_date[0].text[0]
+            music_file.fix_song_tags(dry_run)
 
-                log.info(f'{lp.add} TDRC={file_date} to {music_file} and {rmv_msg} its TXXX:DATE tag')
-                if not dry_run:
-                    track_tags.add(TDRC(text=file_date))
-                    track_tags.delall('TXXX:DATE')
-                    music_file.save()
+        if not add_bpm:
+            return
 
-        if add_bpm:
-            def bpm_func(_file):
-                bpm = _file.bpm(False, False)
-                if bpm is None:
-                    bpm = _file.bpm(not dry_run, calculate=True)
-                    log.info(f'{lp.add} BPM={bpm} to {_file}')
-
-            global EXECUTOR
-            if EXECUTOR is None:
-                EXECUTOR = ThreadPoolExecutor(max_workers=8)
-                atexit.register(EXECUTOR.shutdown)
-
-            for future in as_completed({EXECUTOR.submit(bpm_func, music_file) for music_file in tracks}):
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            for future in as_completed([executor.submit(music_file.maybe_add_bpm, dry_run) for music_file in tracks]):
                 future.result()
 
     def remove_bad_tags(self, dry_run: bool = False, callback: ProgressCB = None, extras: Collection[str] = None):

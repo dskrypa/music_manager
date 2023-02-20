@@ -96,22 +96,9 @@ def remove_tags(paths: Paths, tag_ids: Iterable[str], dry_run: bool = False, rem
 
 def add_track_bpm(paths: Paths, parallel: int = 4, dry_run: bool = False, verbosity: int = 0):
     _init_logging = partial(init_logging, verbosity, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
-    add_bpm_func = partial(_add_bpm, dry_run=dry_run)
+    add_bpm_func = partial(SongFile.maybe_add_bpm, dry_run=dry_run)
     # Using a list instead of an iterator because pool.map needs to be able to chunk the items
     tracks = [f for f in iter_music_files(paths) if f.tag_type != 'vorbis']
     # May result in starvation if one proc finishes first due to less work, but it's simpler than a queue-based approach
     with Pool(parallel, _init_logging) as pool:
         pool.map(add_bpm_func, tracks)
-
-
-def _add_bpm(track: SongFile, dry_run: bool = False):
-    prefix, add_msg = ('[DRY RUN] ', 'Would add') if dry_run else ('', 'Adding')
-    bpm = track.bpm(False, False)
-    if bpm is None or bpm == 0:
-        bpm = track.bpm(not dry_run, calculate=True)
-        level, message = 20, f'{prefix}{add_msg} BPM={bpm} to {track}'
-    else:
-        level, message = 19, f'{track} already has BPM={bpm}'
-
-    log.log(level, message)
-    return message

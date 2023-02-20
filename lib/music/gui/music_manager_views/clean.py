@@ -13,9 +13,9 @@ from PySimpleGUI import Text, Multiline, Column
 
 from ds_tools.fs.paths import Paths
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
-from ...common.utils import can_add_bpm
-from ...files.album import AlbumDir, iter_albums_or_files
-from ...manager.file_update import _add_bpm
+from music.common.utils import can_add_bpm
+from music.files.album import AlbumDir, iter_albums_or_files
+from music.files.track.track import SongFile
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..options import GuiOptions, GuiOptionError, SingleParsingError
 from ..popups.simple import popup_ok, popup_input_invalid
@@ -52,6 +52,7 @@ class CleanView(MainView, view_name='clean'):
         self.options.add_bool('bpm', 'Add BPM', bpm_ok, disabled=not bpm_ok, tooltip='requires Aubio')
         self.options.add_bool('dry_run', 'Dry Run')
         self.options.add_input('threads', 'BPM Threads', 12, row=1, type=int, size=(5, 1))
+
         self.prog_tracker: Optional[ProgressTracker] = None
         self.output: Optional[Multiline] = None
         self.file_list: Optional[Multiline] = None
@@ -60,8 +61,10 @@ class CleanView(MainView, view_name='clean'):
         full_layout, kwargs = super().get_render_args()
 
         win_w, win_h = self._window_size
+
         file_list_str = '\n'.join(sorted((f.path.as_posix() for f in self.files)))
         self.file_list = Multiline(file_list_str, key='file_list', size=((win_w - 395) // 7, 5), disabled=True)
+
         file_col = Column([[Text(f'Files ({len(self.files)}):')], [self.file_list]], key='col::file_list')
         total_steps = len(self.files) * (3 if self.options['bpm'] else 2)
         bar_w = (win_w - 159) // 11
@@ -119,7 +122,7 @@ class CleanView(MainView, view_name='clean'):
             if self.options['bpm']:
                 self.prog_tracker.text.update('Adding BPM...')
                 _init_logging = partial(init_logging, 2, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
-                add_bpm_func = partial(_add_bpm, dry_run=dry_run)
+                add_bpm_func = partial(SongFile.maybe_add_bpm, dry_run=dry_run)
                 with Pool(self.options['threads'], _init_logging) as pool:
                     for result in self.prog_tracker(pool.imap_unordered(add_bpm_func, list(self.files))):
                         self.result_logger.info(result)

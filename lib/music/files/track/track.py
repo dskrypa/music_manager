@@ -7,13 +7,11 @@ Song File / Audio Track
 from __future__ import annotations
 
 import logging
-import os
 import struct
 from base64 import b64decode, b64encode
 from datetime import date
 from hashlib import sha256
 from io import BytesIO
-from itertools import chain
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
@@ -23,7 +21,7 @@ from weakref import WeakValueDictionary
 
 from mutagen import File, FileType
 from mutagen.flac import VCFLACDict, FLAC, Picture
-from mutagen.id3 import ID3, POPM, TDRC, Frames, _frames, ID3FileType, APIC, PictureType, Encoding
+from mutagen.id3 import ID3, POPM, TDRC, Frames, Frame, _frames, ID3FileType, APIC, PictureType, Encoding
 from mutagen.id3._specs import MultiSpec, Spec
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4Tags, MP4, MP4Cover, AtomDataType, MP4FreeForm
@@ -157,18 +155,22 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @classmethod
     def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> SongFile:
-        if ON_WINDOWS:
-            if isinstance(root, Path):  # Path does not work for network shares in Windows
-                root = root.as_posix()
-            if root.startswith('/') and not root.startswith('//'):
-                root = '/' + root
-
         if isinstance(track_or_rel_path, str):
             rel_path = track_or_rel_path
         else:
             rel_path = track_or_rel_path.media[0].parts[0].file
 
-        path = os.path.join(root, rel_path[1:] if rel_path.startswith('/') else rel_path)
+        if ON_WINDOWS and (root_str := root.as_posix() if isinstance(root, Path) else root).startswith('/'):
+            # Path requires 2 parts for a leading // to be preserved on Windows.  If the root is for a network location
+            # and has only 1 part, the additional leading / is always stripped.
+            if not root_str.startswith('//'):
+                root_str = '/' + root_str
+            if root_str.endswith('/'):
+                root_str = root_str[:-1]
+            path = Path(root_str + ('' if rel_path.startswith('/') else '/') + rel_path)
+        else:
+            path = Path(root).joinpath(rel_path[1:] if rel_path.startswith('/') else rel_path)
+
         return cls(path)
 
     # endregion
@@ -1132,11 +1134,13 @@ class Id3SongFile(SongFile):
                     vals.extend(text)
         return vals
 
-    def _set_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
-        tags = self._f.tags  # type: ID3
-        if tags is None:
+    def _get_or_create_id3_tags(self) -> ID3:
+        if (tags := self._f.tags) is None:
             self._f.add_tags()
             tags = self._f.tags
+        return tags
+
+    def _normalize_tag_id_cls(self, tag_id: str) -> tuple[str, OptStr, Type[Frame]]:
         tag_id = tag_id.upper()
         try:
             tag_id, desc = tag_id.split(':', 1)
@@ -1145,46 +1149,47 @@ class Id3SongFile(SongFile):
         try:
             tag_cls = getattr(_frames, tag_id)
         except AttributeError as e:
-            raise ValueError(f'Invalid tag for {self}: {tag} (no frame class found for it)') from e
+            raise ValueError(f'Invalid {tag_id=} for {self} - no frame class found for it') from e
+        if desc and ('desc' not in (spec_fields := {spec.name: spec for spec in tag_cls._framespec})):
+            raise TypeError(f'Unhandled tag type - {tag_id=} has {desc=} but {tag_cls=} has {spec_fields=}')
+        return tag_id, desc, tag_cls
 
-        frame_spec = tag_cls._framespec
-        spec_fields = {spec.name: spec for spec in frame_spec}
-        if desc and 'desc' not in spec_fields:
-            raise TypeError(f'Unhandled tag type - {tag=} has {desc=} but {tag_cls=} has {spec_fields=}')
-
-        value_spec = frame_spec[-1]  # type: Spec  # main value field is usually last
-        value_key = value_spec.name
-        kwargs = {'encoding': Encoding.UTF8} if 'encoding' in spec_fields else {}  # noqa
+    def _set_text_tag(self, tag: str, tag_id: str, value, replace: bool = True):
+        """
+        :param tag: A tag name or ID
+        :param tag_id: The normalized ID for ``tag``
+        :param value: The value to store
+        :param replace: Whether the value should replace any existing value(s) or be appended to them
+        """
+        tag_id, desc, tag_cls = self._normalize_tag_id_cls(tag_id)
         if tag_id == 'WXXX' and value and isinstance(value, str):
             a, b = value.rsplit('/', 1)
             value = f'{a}/{quote(b)}'
         if not (isinstance(value, Collection) and not isinstance(value, str)):
             value = [value]
 
-        if desc:
-            kwargs['desc'] = desc
-            values = tags.getall(tag_id)
-            values = [v for v in values if v.desc != desc] if replace else values  # Keep any with a different desc
-            for val in value:
-                val_kwargs = kwargs.copy()
-                val_kwargs[value_key] = val
-                values.append(tag_cls(**val_kwargs))
+        value_spec: Spec = tag_cls._framespec[-1]  # main value field is usually last
+        value_key = value_spec.name
+
+        kwargs = {'encoding': Encoding.UTF8} if any(s.name == 'encoding' for s in tag_cls._framespec) else {}  # noqa
+        tags = self._get_or_create_id3_tags()
+        if desc:  # Values with a matching desc may be replaced, others should always be retained
+            values = [v for v in tags.getall(tag_id) if v.desc != desc] if replace else tags.getall(tag_id)
+            values.extend(tag_cls(desc=desc, **kwargs, **{value_key: val}) for val in value)
+        elif not replace and (value_key != 'text' or not isinstance(value_spec, MultiSpec)):
+            spec_fields = {spec.name: spec for spec in tag_cls._framespec}
+            raise TypeError(f'Unable to add {value=} for {tag=} - {tag_cls=} has {value_key=} ({spec_fields=})')
         else:
-            if replace:
-                if not isinstance(value_spec.default, list) and isinstance(value, list) and len(value) == 1:
-                    kwargs[value_key] = value[0]
-                else:
-                    kwargs[value_key] = sorted(map(str, value))
-                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
-                values = [tag_cls(**kwargs)]
-            elif value_key == 'text' and isinstance(value_spec, MultiSpec):
-                text_values = set(chain.from_iterable(t.text for t in tags.getall(tag_id)))
-                text_values.update(map(str, value))
-                kwargs['text'] = sorted(text_values)
-                log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
-                values = [tag_cls(**kwargs)]
+            if not replace:
+                kwargs['text'] = sorted({v for t in tags.getall(tag_id) for v in t.text} | set(map(str, value)))
+            elif not isinstance(value_spec.default, list) and isinstance(value, list) and len(value) == 1:
+                kwargs[value_key] = value[0]
             else:
-                raise TypeError(f'Unable to add {value=} for {tag=} - {tag_cls=} has {value_key=} ({spec_fields=})')
+                kwargs[value_key] = sorted(map(str, value))
+
+            log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
+            values = [tag_cls(**kwargs)]
+
         log.debug(f'Setting {self}.tags.setall({tag_id=!r}, {value=!r})')
         tags.setall(tag_id, values)
 

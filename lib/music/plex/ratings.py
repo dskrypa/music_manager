@@ -4,16 +4,22 @@ Plex Track rating utilities
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Union, Iterable
+from threading import Event
+from typing import TYPE_CHECKING, Union, Iterable
 
 from ..common.ratings import stars
 from ..files.track.track import SongFile
 from .config import config
 from .server import LocalPlexServer
 from .utils import parse_filters
+
+if TYPE_CHECKING:
+    from plexapi.audio import Track
 
 __all__ = ['find_and_rate', 'sync_ratings', 'adjust_track_ratings']
 log = logging.getLogger(__name__)
@@ -67,7 +73,7 @@ def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None,
 
 
 class RatingSynchronizer:
-    __slots__ = ('plex', 'dry_run', 'path_filter', 'prefix', 'parallel')
+    __slots__ = ('plex', 'dry_run', 'path_filter', 'prefix', 'parallel', 'interrupted')
 
     def __init__(self, plex: LocalPlexServer, path_filter: str = None, parallel: int = 4):
         if config.server_root is None:
@@ -77,6 +83,7 @@ class RatingSynchronizer:
         self.path_filter = path_filter
         self.prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
         self.parallel = parallel
+        self.interrupted = Event()
 
     def sync(self, to_plex: bool):
         kwargs = {'mood__ne': 'Duplicate Rating'}
@@ -92,10 +99,17 @@ class RatingSynchronizer:
 
         with ThreadPoolExecutor(max_workers=self.parallel) as executor:
             futures = (executor.submit(func, track) for track in tracks)
-            for future in as_completed(futures):
-                future.result()
+            try:
+                for future in as_completed(futures):
+                    future.result()
+            except BaseException:  # inside the as_completed loop
+                self.interrupted.set()
+                executor.shutdown(cancel_futures=True)
+                raise
 
-    def _sync_to_file(self, track):
+    def _sync_to_file(self, track: Track):
+        if self.interrupted.is_set():
+            return
         file = SongFile.for_plex_track(track, config.server_root)
         file_stars = file.star_rating_10
         plex_stars = track.userRating
@@ -106,7 +120,9 @@ class RatingSynchronizer:
             if not self.dry_run:
                 file.star_rating_10 = plex_stars
 
-    def _sync_to_plex(self, track):
+    def _sync_to_plex(self, track: Track):
+        if self.interrupted.is_set():
+            return
         file = SongFile.for_plex_track(track, config.server_root)
         if (file_stars := file.star_rating_10) is None:
             log.log(9, f'No rating is stored for {file}')
@@ -122,7 +138,7 @@ class RatingSynchronizer:
 
 
 def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating: int = 10, offset: int = -1):
-    from ..common.ratings import stars
+    from music.common.ratings import stars
 
     prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
     for track in plex.get_tracks(userRating__gte=min_rating, userRating__lte=max_rating):

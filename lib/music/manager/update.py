@@ -15,7 +15,6 @@ import re
 from abc import ABC
 from collections import Counter
 from datetime import datetime, date
-# from itertools import chain
 from pathlib import Path
 from string import capwords
 from typing import Union, Optional, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
@@ -430,13 +429,11 @@ class AlbumInfo(Serializable, GenreMixin):
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> AlbumInfo:
         file: SongFile = next(iter(album_dir))
-        # genres = set(chain.from_iterable(f.tag_genres for f in album_dir))
         self = cls(
             title=file.tag_album,
             artist=file.tag_album_artist,
             date=file.date,
             disk=file.disk_num,
-            # genre=next(iter(genres)) if len(genres) == 1 else None,
             genre=_common_genres(album_dir),
             name=file.tag_album,
             parent=file.tag_album_artist,

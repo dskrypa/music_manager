@@ -11,7 +11,6 @@ import struct
 from base64 import b64decode, b64encode
 from datetime import date
 from hashlib import sha256
-from io import BytesIO
 from pathlib import Path
 from platform import system
 from tempfile import TemporaryDirectory
@@ -30,7 +29,6 @@ from mutagen.oggflac import OggFLAC
 from mutagen.oggvorbis import OggVorbis
 from mutagen.oggopus import OggOpus
 from mutagen.wave import WAVE, _WaveID3
-from plexapi.audio import Track
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from ds_tools.core.decorate import cached_classproperty
@@ -43,7 +41,7 @@ from music.common.ratings import stars_to_256, stars_from_256, stars
 from music.common.utils import format_duration
 from music.constants import TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_DISPLAY_NAME_MAP
 from music.text.name import Name
-from ..cover import prepare_cover_image
+from ..cover import prepare_cover_image, bytes_to_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject, PathLike
@@ -52,9 +50,8 @@ from .patterns import StrsOrPatterns, SAMPLE_RATE_PAT, cleanup_lyrics, glob_patt
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
 
 if TYPE_CHECKING:
-    from numpy import ndarray
-    from PIL import Image
-    from pydub import AudioSegment
+    from PIL.Image import Image as PILImage
+    from plexapi.audio import Track
     from music.typing import OptStr, OptInt, Bool, StrIter
 
 __all__ = ['SongFile', 'iter_music_files']
@@ -68,6 +65,8 @@ MutagenFile = Union[MP3, MP4, FLAC, FileType]
 ImageTag = Union[APIC, MP4Cover, Picture]
 TagsType = Union[ID3, MP4Tags, VCFLACDict]
 T = TypeVar('T')
+ID3Tag = TypeVar('ID3Tag', bound=Frame)
+TagChanges = dict[str, tuple[Any, Any]]
 
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
@@ -360,6 +359,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 return type_to_id[self.tag_type]
             except KeyError as e:
                 raise UnsupportedTagForFileType(tag_name_or_id, self) from e
+
         id_to_name = tag_id_to_name_map_for_type(self.tag_type)
         if tag_name_or_id in id_to_name:
             return tag_name_or_id
@@ -396,6 +396,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                 return disp_name_map[tag_id if func is str else func(tag_id)]
             except KeyError:
                 pass
+
         if self.tag_type == 'id3' and len(tag_id) > 4:
             trunc_id = tag_id[:4]
             for func in (str, str.upper):
@@ -403,6 +404,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                     return disp_name_map[trunc_id if func is str else func(trunc_id)]
                 except KeyError:
                     pass
+
         tag_name = tag_name or self.normalize_tag_name(tag_id)
         for func in (str, str.lower):
             try:
@@ -750,6 +752,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # region Hash / Fingerprint Methods
 
     def tagless_sha256sum(self) -> str:
+        from io import BytesIO
+
         with self.path.open('rb') as f:
             tmp = BytesIO(f.read())
 
@@ -932,24 +936,29 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
                     to_log[tag_name] = (file_val, new_value)
 
         if to_update:
-            from ..changes import print_tag_changes
-            if to_log:
-                print_tag_changes(self, to_log, dry_run)
-
-            do_save = True
-            for tag_name, (file_val, new_value) in to_update.items():
-                if not dry_run:
-                    replace = not (add_genre and tag_name == 'genre')
-                    log.log(9, f'Calling {self!r}.set_text_tag({tag_name=!r}, {new_value=!r}, {replace=!r})')
-                    try:
-                        self.set_text_tag(tag_name, new_value, by_id=False, replace=replace)
-                    except TagException as e:
-                        do_save = False
-                        log.error(f'Error setting tag={tag_name} on {self}: {e}')
-            if do_save and not dry_run:
-                self.save()
+            self._update_tags(to_update, to_log, dry_run, add_genre)
         else:
             log.log(none_level, f'No changes to make for {self.extended_repr}')
+
+    def _update_tags(self, to_update: TagChanges, to_log: TagChanges, dry_run: bool, add_genre: bool):
+        from ..changes import print_tag_changes
+
+        if to_log:
+            print_tag_changes(self, to_log, dry_run)
+
+        do_save = True
+        for tag_name, (file_val, new_value) in to_update.items():
+            if not dry_run:
+                replace = not (add_genre and tag_name == 'genre')
+                log.log(9, f'Calling {self!r}.set_text_tag({tag_name=!r}, {new_value=!r}, {replace=!r})')
+                try:
+                    self.set_text_tag(tag_name, new_value, by_id=False, replace=replace)
+                except TagException as e:
+                    do_save = False
+                    log.error(f'Error setting tag={tag_name} on {self}: {e}')
+
+        if do_save and not dry_run:
+            self.save()
 
     def get_tag_updates(
         self,
@@ -1025,69 +1034,44 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def get_cover_data(self) -> tuple[bytes, str]:
         """Returns a tuple containing the raw cover data bytes, and the image type as a file extension"""
-        if self.tag_type in ('id3', 'vorbis'):
-            if (cover := self.get_cover_tag()) is None:
-                raise TagNotFound(f'{self} has no album cover')
-            mime = cover.mime.split('/')[-1].lower()
-            ext = 'jpg' if mime in ('jpg', 'jpeg') else mime
-            return cover.data, ext
-        else:
+        if self.tag_type not in ('id3', 'vorbis'):
             raise TypeError(f'{self} has unexpected type={self.tag_type!r} for album cover extraction')
+        elif (cover := self.get_cover_tag()) is None:
+            raise TagNotFound(f'{self} has no album cover')
+        mime = cover.mime.split('/')[-1].lower()
+        ext = 'jpg' if mime in ('jpg', 'jpeg') else mime
+        return cover.data, ext
 
-    def get_cover_image(self, extras: bool = False) -> Union[Image.Image, tuple[Image.Image, bytes, str]]:
-        from PIL import Image
-
-        data, ext = self.get_cover_data()
-        image = Image.open(BytesIO(data))
-        return (image, data, ext) if extras else image
+    def get_cover_image(self) -> PILImage:
+        return bytes_to_image(self.get_cover_data()[0])
 
     def del_cover_tag(self, save: bool = False, dry_run: bool = False):
-        prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
-        log.info(f'{prefix} tags from {self}: cover')
+        log.info(f'{LoggingPrefix(dry_run).remove} tags from {self}: cover')
         if not dry_run:
-            if self.tag_type == 'vorbis':
-                self._f.clear_pictures()
-            else:
-                self.delete_tag(self.normalize_tag_id('cover'))
+            self._del_cover_tag()
             if save:
                 self.save()
 
-    def _log_cover_changes(self, current: list[ImageTag], cover: ImageTag, dry_run: bool):
-        if current:
-            del_prefix = '[DRY RUN] Would remove' if dry_run else 'Removing'
-            log.info(f'{del_prefix} existing image(s) from {self}: {current}')
+    def _del_cover_tag(self):
+        self.delete_tag(self.normalize_tag_id('cover'))
 
-        set_prefix = '[DRY RUN] Would add' if dry_run else 'Adding'
+    def _log_cover_changes(self, current: list[ImageTag], cover: ImageTag, dry_run: bool):
+        lp = LoggingPrefix(dry_run)
+        if current:
+            log.info(f'{lp.remove} existing image(s) from {self}: {current}')
+
         size = len(cover) if self.tag_type == 'mp4' else len(cover.data)
-        log.info(f'{set_prefix} cover image to {self}: [{readable_bytes(size)}] {cover!r}')
+        log.info(f'{lp.add} cover image to {self}: [{readable_bytes(size)}] {cover!r}')
         return not dry_run
 
-    def set_cover_data(self, image: Image.Image, dry_run: bool = False, max_width: int = 1200):
+    def set_cover_data(self, image: PILImage, dry_run: bool = False, max_width: int = 1200):
         image, data, mime_type = prepare_cover_image(image, self.tag_type, max_width)
         self._set_cover_data(image, data, mime_type, dry_run)
         if not dry_run:
             self.save()
 
-    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
-        pass
-
-    # endregion
-
-    # region Experimental
-
-    @cached_property
-    def decibels(self) -> ndarray:
-        from librosa import load, stft, amplitude_to_db
-
-        data, sample_rate = load(self.path, sr=None, mono=False)
-        stft_coefficients = stft(data)  # short-term Fourier transform coefficients
-        return amplitude_to_db(abs(stft_coefficients))
-
-    @cached_property
-    def audio_segment(self) -> AudioSegment:
-        from pydub import AudioSegment
-
-        return AudioSegment.from_file(self.path)
+    def _set_cover_data(self, image: PILImage, data: bytes, mime_type: str, dry_run: bool = False):
+        raise TypeError(f'Setting cover data is not supported for {self} with type={self.tag_type!r}')
 
     # endregion
 
@@ -1099,14 +1083,12 @@ class Id3SongFile(SongFile):
     tag_type = 'id3'
     _f: Union[MP3, ID3FileType, WAVE]
 
-    @cached_classproperty
-    def _rm_tag_matcher(cls) -> ReMatcher:  # noqa
-        return ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP'))
+    # region Basic Functionality
 
-    def tags_for_id(self, tag_id: str):
+    def tags_for_id(self, tag_id: str) -> list[ID3Tag]:
         """
-        :param str tag_id: A tag ID
-        :return list: All tags from this file with the given ID
+        :param tag_id: A tag ID
+        :return: All tags from this file with the given ID
         """
         try:
             return self._f.tags.getall(tag_id.upper())  # all MP3 tags are uppercase; some MP4 tags are mixed case
@@ -1196,21 +1178,13 @@ class Id3SongFile(SongFile):
     def _delete_tag(self, tag_id: str):
         self.tags.delall(tag_id)
 
-    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
-        current = self.tags_for_id('APIC')
-        cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
-        if self._log_cover_changes(current, cover, dry_run):
-            self._f.tags.delall('APIC')
-            self._f.tags[cover.HashKey] = cover
+    # endregion
 
-    def iter_clean_tags(self) -> Iterator[tuple[str, str, Any]]:
-        for full_tag, value in self._f.tags.items():
-            tag = full_tag[:4]
-            yield tag, self.normalize_tag_name(tag), value
+    # region Tag Cleanup
 
-    def iter_tag_id_name_values(self) -> Iterator[tuple[str, str, str, str, Any]]:
-        for tag_id, tag_id, tag_name, disp_name, values in super().iter_tag_id_name_values():
-            yield tag_id[:4], tag_id, tag_name, disp_name, values
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> ReMatcher:  # noqa
+        return ReMatcher(('TXXX(?::|$)(?!KPOP:GEN)', 'PRIV.*', 'WXXX(?::|$)(?!WIKI:A)', 'COMM.*', 'TCOP'))
 
     def fix_song_tags(self, dry_run: Bool = False):
         super().fix_song_tags(dry_run)
@@ -1228,6 +1202,35 @@ class Id3SongFile(SongFile):
                 track_tags.add(TDRC(text=file_date))
                 track_tags.delall('TXXX:DATE')
                 self.save()
+
+    # endregion
+
+    # region Cover Image Methods
+
+    def _set_cover_data(self, image: PILImage, data: bytes, mime_type: str, dry_run: bool = False):
+        current = self.tags_for_id('APIC')
+        cover = APIC(mime=mime_type, type=PictureType.COVER_FRONT, data=data)  # noqa
+        if self._log_cover_changes(current, cover, dry_run):
+            self._f.tags.delall('APIC')
+            self._f.tags[cover.HashKey] = cover
+
+    # endregion
+
+    # region Tag Iteration Helpers
+
+    def iter_clean_tags(self) -> Iterator[tuple[str, str, Any]]:
+        for full_tag, value in self._f.tags.items():
+            tag = full_tag[:4]
+            yield tag, self.normalize_tag_name(tag), value
+
+    def iter_tag_id_name_values(self) -> Iterator[tuple[str, str, str, str, Any]]:
+        for tag_id, tag_id, tag_name, disp_name, values in super().iter_tag_id_name_values():
+            yield tag_id[:4], tag_id, tag_name, disp_name, values
+
+    # endregion
+
+
+# region MP3 & WAV
 
 
 class Mp3File(Id3SongFile, ft_classes=(MP3, ID3FileType)):
@@ -1253,13 +1256,14 @@ class WavFile(Id3SongFile, ft_classes=(WAVE,)):
         return True
 
 
+# endregion
+
+
 class Mp4File(SongFile, ft_classes=(MP4,)):
     tag_type = 'mp4'
     file_type = 'mp4'
 
-    @cached_classproperty
-    def _rm_tag_matcher(cls) -> FnMatcher:  # noqa
-        return FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt'))
+    # region Basic Properties & Functionality
 
     @cached_property
     def tag_version(self) -> str:
@@ -1284,6 +1288,18 @@ class Mp4File(SongFile, ft_classes=(MP4,)):
     def _delete_tag(self, tag_id: str):
         del self.tags[tag_id]
 
+    # endregion
+
+    # region Tag Cleanup
+
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> FnMatcher:  # noqa
+        return FnMatcher(('*itunes*', '??ID', '?cmt', 'ownr', 'xid ', 'purd', 'desc', 'ldes', 'cprt'))
+
+    # endregion
+
+    # region Cover Image Methods
+
     def get_cover_data(self) -> tuple[bytes, str]:
         """Returns a tuple containing the raw cover data bytes, and the image type as a file extension"""
         if (cover := self.get_cover_tag()) is None:
@@ -1291,7 +1307,7 @@ class Mp4File(SongFile, ft_classes=(MP4,)):
         ext = 'jpg' if cover.imageformat == MP4Cover.FORMAT_JPEG else 'png'
         return cover, ext
 
-    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
+    def _set_cover_data(self, image: PILImage, data: bytes, mime_type: str, dry_run: bool = False):
         current = self._f.tags['covr']
         try:
             cover_fmt = MP4_MIME_FORMAT_MAP[mime_type]
@@ -1301,20 +1317,38 @@ class Mp4File(SongFile, ft_classes=(MP4,)):
         if self._log_cover_changes(current, cover, dry_run):
             self._f.tags['covr'] = [cover]
 
+    # endregion
+
 
 class VorbisSongFile(SongFile):
     tag_type = 'vorbis'
     _f: Union[FLAC, OggFLAC, OggVorbis, OggOpus]
 
-    @cached_classproperty
-    def _rm_tag_matcher(cls) -> ReMatcher:  # noqa
-        return ReMatcher(('UPLOAD.*', 'WWW.*', 'COMM.*', 'UPC', '(?:TRACK|DIS[CK])TOTAL'))
+    # region Basic Functionality
 
     def save(self):
         self._f.save(self._f.filename)
 
     def _delete_tag(self, tag_id: str):
         del self.tags[tag_id]
+
+    # endregion
+
+    # region Tag Cleanup
+
+    @cached_classproperty
+    def _rm_tag_matcher(cls) -> ReMatcher:  # noqa
+        return ReMatcher(('UPLOAD.*', 'WWW.*', 'COMM.*', 'UPC', '(?:TRACK|DIS[CK])TOTAL'))
+
+    def get_bad_tags(self, extras: Collection[str] = None) -> set[str] | None:
+        if (track_tags := self.tags) is None:
+            return None
+        rm_tag_match = self._get_rm_tag_matcher(extras)
+        return {tag for tag, val in track_tags if rm_tag_match(tag)}
+
+    # endregion
+
+    # region Cover Image Methods
 
     def get_cover_tag(self) -> Picture | None:
         try:
@@ -1330,7 +1364,7 @@ class VorbisSongFile(SongFile):
             return cover
         return Picture(b64decode(cover))
 
-    def _set_cover_data(self, image: Image.Image, data: bytes, mime_type: str, dry_run: bool = False):
+    def _set_cover_data(self, image: PILImage, data: bytes, mime_type: str, dry_run: bool = False):
         try:
             current = self._f.pictures
         except AttributeError:
@@ -1350,11 +1384,13 @@ class VorbisSongFile(SongFile):
             else:
                 self._f.add_picture(cover)
 
-    def get_bad_tags(self, extras: Collection[str] = None) -> set[str] | None:
-        if (track_tags := self.tags) is None:
-            return None
-        rm_tag_match = self._get_rm_tag_matcher(extras)
-        return {tag for tag, val in track_tags if rm_tag_match(tag)}
+    def _del_cover_tag(self):
+        self._f.clear_pictures()
+
+    # endregion
+
+
+# region Flac & Ogg
 
 
 class FlacFile(VorbisSongFile, ft_classes=(FLAC,)):
@@ -1387,6 +1423,8 @@ class OggFile(VorbisSongFile, ft_classes=(OggFileType, OggFLAC, OggVorbis, OggOp
     def lossless(self) -> bool:
         return isinstance(self._f, OggFLAC)
 
+
+# endregion
 
 # endregion
 

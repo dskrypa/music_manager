@@ -44,7 +44,7 @@ from music.text.name import Name
 from ..cover import prepare_cover_image, bytes_to_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..parsing import split_artists, AlbumName
-from ..paths import FileBasedObject, PathLike
+from ..paths import FileBasedObject
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import StrsOrPatterns, SAMPLE_RATE_PAT, cleanup_lyrics, glob_patterns, cleanup_album_name
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
@@ -52,7 +52,7 @@ from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
     from plexapi.audio import Track
-    from music.typing import OptStr, OptInt, Bool, StrIter
+    from music.typing import PathLike, OptStr, OptInt, Bool, StrIter
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)

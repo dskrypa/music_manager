@@ -17,7 +17,7 @@ from collections import Counter
 from datetime import datetime, date
 from pathlib import Path
 from string import capwords
-from typing import Union, Optional, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
+from typing import TYPE_CHECKING, Union, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
 
 from ordered_set import OrderedSet
 from PIL.Image import Image as PILImage, open as open_image
@@ -31,8 +31,11 @@ from ..common.disco_entry import DiscoEntryType
 from ..common.ratings import stars_to_256
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.changes import get_common_changes
-from ..files.paths import SafePath, PathLike
+from ..files.paths import SafePath
 from ..files.track.track import SongFile
+
+if TYPE_CHECKING:
+    from music.typing import PathLike
 
 __all__ = ['TrackInfo', 'AlbumInfo']
 log = logging.getLogger(__name__)
@@ -49,7 +52,7 @@ StrOrStrs = Union[str, Collection[str]]
 ImageTuple = tuple[PILImage, bytes, str] | tuple[None, None, None]
 
 
-def parse_date(dt_str: str | date | None) -> Optional[date]:
+def parse_date(dt_str: str | date | None) -> date | None:
     if dt_str is None or isinstance(dt_str, date):
         return dt_str
     for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y.%m.%d', '%Y'):
@@ -528,7 +531,7 @@ class AlbumInfo(Serializable, GenreMixin):
 
     # region Cover-Related Methods
 
-    def get_current_cover(self, file_info_map: dict[SongFile, TrackInfo]) -> Optional[PILImage]:
+    def get_current_cover(self, file_info_map: dict[SongFile, TrackInfo]) -> PILImage | None:
         try:
             song_file = next(iter(file_info_map))
             return song_file.get_cover_image()
@@ -605,8 +608,8 @@ class AlbumInfo(Serializable, GenreMixin):
 
     def update_and_move(
         self,
-        album_dir: Optional[AlbumDir] = None,
-        dest_base_dir: Optional[Path] = None,
+        album_dir: AlbumDir = None,
+        dest_base_dir: Path = None,
         dry_run: bool = False,
         no_album_move: bool = False,
         add_genre: bool = True,
@@ -635,7 +638,7 @@ class AlbumInfo(Serializable, GenreMixin):
 
             info.maybe_rename(file, dry_run)
 
-    def move_album(self, album_dir: AlbumDir, dest_base_dir: Optional[Path] = None, dry_run: bool = False):
+    def move_album(self, album_dir: AlbumDir, dest_base_dir: Path = None, dry_run: bool = False):
         expected_rel_dir = self.expected_rel_dir
         dest_base_dir = self.dest_base_dir(album_dir, dest_base_dir)
 

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 from itertools import chain
 from abc import ABC, abstractmethod
 from functools import cached_property
@@ -11,8 +12,6 @@ from pathlib import Path
 from typing import Iterable, Union
 
 __all__ = ['FileBasedObject', 'SafePath', 'sanitize_path']
-
-PathLike = Union[Path, str]
 
 
 class SafePath:
@@ -48,11 +47,11 @@ class FileBasedObject(ABC):
     @property
     def rel_path(self) -> str:
         try:
-            return self.path.relative_to(Path('.').resolve()).as_posix()
-        except Exception:
+            return self.path.relative_to(Path.cwd()).as_posix()
+        except Exception:  # noqa
             return self.path.as_posix()
 
-    def basename(self, no_ext=False, trim_prefix=False) -> str:
+    def basename(self, no_ext: bool = False, trim_prefix: bool = False) -> str:
         basename = self.path.stem if no_ext else self.path.name
         return _trim_prefix(basename) if trim_prefix else basename
 
@@ -60,7 +59,7 @@ class FileBasedObject(ABC):
     def ext(self) -> str:
         return self.path.suffix[1:]
 
-    def __fspath__(self):
+    def __fspath__(self) -> str:
         return self.path.as_posix()
 
 
@@ -78,8 +77,8 @@ def _trim_prefix(basename: str) -> str:
     try:
         prefix_match = _trim_prefix._prefix_match
     except AttributeError:
-        import re
         prefix_match = _trim_prefix._prefix_match = re.compile(r'\d+\.?\s*(.*)').match
+
     if m := prefix_match(basename):
         basename = m.group(1)
     return basename

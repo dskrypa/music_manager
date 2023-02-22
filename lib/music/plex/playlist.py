@@ -19,13 +19,14 @@ from plexapi.exceptions import BadRequest
 from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
-from ds_tools.fs.paths import prepare_path, PathLike
+from ds_tools.fs.paths import prepare_path
 from ds_tools.output.color import colored
 from ds_tools.output.formatting import bullet_list
 from .exceptions import InvalidPlaylist
 from .query import QueryResults
 
 if TYPE_CHECKING:
+    from music.typing import PathLike
     from .server import LocalPlexServer
 
 __all__ = ['PlexPlaylist', 'dump_playlists', 'compare_playlists', 'list_playlists']

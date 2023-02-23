@@ -4,14 +4,15 @@ View: Interface for cleaning undesirable tags and calculating/adding BPM if desi
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from functools import partial, cached_property
 from multiprocessing import Pool
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from PySimpleGUI import Text, Multiline, Column
 
-from ds_tools.fs.paths import Paths
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 
 from music.common.utils import can_add_bpm
@@ -24,6 +25,9 @@ from ..popups.simple import popup_ok, popup_input_invalid
 from ..progress import ProgressTracker
 from ..utils import output_log_handler
 from .main import MainView
+
+if TYPE_CHECKING:
+    from ds_tools.fs.paths import Paths
 
 __all__ = ['CleanView']
 
@@ -61,13 +65,11 @@ class CleanView(MainView, view_name='clean'):
 
     def get_render_args(self) -> RenderArgs:
         full_layout, kwargs = super().get_render_args()
-
         win_w, win_h = self._window_size
-
-        file_list_str = '\n'.join(sorted((f.path.as_posix() for f in self.files)))
+        file_list_str = '\n'.join(sorted(f.path_str for f in self.files))
         self.file_list = Multiline(file_list_str, key='file_list', size=((win_w - 395) // 7, 5), disabled=True)
-
         file_col = Column([[Text(f'Files ({len(self.files)}):')], [self.file_list]], key='col::file_list')
+
         total_steps = len(self.files) * (3 if self.options['bpm'] else 2)
         bar_w = (win_w - 159) // 11
         track_text = Text('', size=(bar_w - 12, 1))

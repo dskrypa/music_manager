@@ -87,7 +87,9 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
     @button_handler('clean_and_add_bpm')
     def clean_and_add_bpm(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')  # TODO
+        from .clean import CleanView
+
+        return self.set_next_view(self.album, view_cls=CleanView)
 
     @button_handler('view_all_tags')
     def view_all_tags(self, event: Event, key=None) -> CallbackAction:

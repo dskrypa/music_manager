@@ -283,6 +283,7 @@ def _diff_row(key: str, old_val, new_val, is_track: bool = True):
 
 
 def _build_diff_value_ele(key: str, value, is_track: bool = True) -> CheckBox | ListBox | Text:
+    # TODO: More builders should go by type like this since there may be multiple values for tags that normally have 1
     match value:
         case bool():
             return CheckBox('', default=value, pad=(0, 0), disabled=True)

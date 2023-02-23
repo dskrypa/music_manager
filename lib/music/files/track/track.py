@@ -206,6 +206,15 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.rel_path!r})>'
 
+    def __hash__(self) -> int:
+        return hash(self.__class__) ^ hash(self.path)
+
+    def __eq__(self, other: SongFile) -> bool:
+        return self.path == other.path
+
+    def __lt__(self, other: SongFile) -> bool:
+        return self.path_str < other.path_str
+
     @cached_property
     def extended_repr(self) -> str:
         try:
@@ -221,6 +230,10 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     @property
     def path(self) -> Path:
         return self._path
+
+    @cached_property
+    def path_str(self) -> str:
+        return self.path.as_posix()
 
     def rename(self, dest_path: PathLike):
         old_path = self.path

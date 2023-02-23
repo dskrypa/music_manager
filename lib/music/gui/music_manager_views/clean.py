@@ -13,8 +13,10 @@ from PySimpleGUI import Text, Multiline, Column
 
 from ds_tools.fs.paths import Paths
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
+
 from music.common.utils import can_add_bpm
 from music.files.album import AlbumDir, iter_albums_or_files
+from music.files.bulk_actions import remove_bad_tags, fix_song_tags
 from music.files.track.track import SongFile
 from ..base_view import event_handler, Event, EventData, RenderArgs
 from ..options import GuiOptions, GuiOptionError, SingleParsingError
@@ -116,8 +118,8 @@ class CleanView(MainView, view_name='clean'):
                 album.fix_song_tags(dry_run, add_bpm=False, cb=self.prog_tracker.update)
 
             if self.no_alb_files:
-                AlbumDir._remove_bad_tags(self.no_alb_files, dry_run, self.prog_tracker.update, extras=rm_tags)
-                AlbumDir._fix_song_tags(self.no_alb_files, dry_run, add_bpm=False, cb=self.prog_tracker.update)
+                remove_bad_tags(self.no_alb_files, dry_run, self.prog_tracker.update, extras=rm_tags)
+                fix_song_tags(self.no_alb_files, dry_run, add_bpm=False, cb=self.prog_tracker.update)
 
             if self.options['bpm']:
                 self.prog_tracker.text.update('Adding BPM...')

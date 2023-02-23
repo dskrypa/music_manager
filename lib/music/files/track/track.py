@@ -19,11 +19,11 @@ from urllib.parse import quote
 from weakref import WeakValueDictionary
 
 from mutagen import File, FileType
-from mutagen.flac import VCFLACDict, FLAC, Picture
+from mutagen.flac import FLAC, Picture
 from mutagen.id3 import ID3, POPM, TDRC, Frames, Frame, _frames, ID3FileType, APIC, PictureType, Encoding
 from mutagen.id3._specs import MultiSpec, Spec
 from mutagen.mp3 import MP3
-from mutagen.mp4 import MP4Tags, MP4, MP4Cover, AtomDataType, MP4FreeForm
+from mutagen.mp4 import MP4, MP4Cover, AtomDataType, MP4FreeForm
 from mutagen.ogg import OggFileType, OggPage
 from mutagen.oggflac import OggFLAC
 from mutagen.oggvorbis import OggVorbis
@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
     from plexapi.audio import Track
     from music.typing import PathLike, OptStr, OptInt, Bool, StrIter
+    from ..typing import MutagenFile, ImageTag, TagsType, ID3Tag, TagChanges
 
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
@@ -61,12 +62,7 @@ ON_WINDOWS = system().lower() == 'windows'
 MP4_STR_ENCODINGS = {AtomDataType.UTF8: 'utf-8', AtomDataType.UTF16: 'utf-16be'}  # noqa
 MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover.FORMAT_PNG}
 
-MutagenFile = Union[MP3, MP4, FLAC, FileType]
-ImageTag = Union[APIC, MP4Cover, Picture]
-TagsType = Union[ID3, MP4Tags, VCFLACDict]
 T = TypeVar('T')
-ID3Tag = TypeVar('ID3Tag', bound=Frame)
-TagChanges = dict[str, tuple[Any, Any]]
 
 
 class SongFile(ClearableCachedPropertyMixin, FileBasedObject):

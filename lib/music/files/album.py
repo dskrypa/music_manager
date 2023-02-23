@@ -7,16 +7,16 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict, Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Union, Optional, Callable, Iterable, Collection, Any
+from typing import TYPE_CHECKING, Iterator, Union, Optional, Collection
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.fs.paths import iter_paths, Paths
 
 from music.common.disco_entry import DiscoEntryType
 from music.common.utils import format_duration
+from .bulk_actions import remove_bad_tags, fix_song_tags
 from .changes import get_common_changes
 from .cover import prepare_cover_image
 from .exceptions import InvalidAlbumDir
@@ -29,12 +29,10 @@ if TYPE_CHECKING:
     from music.typing import PathLike, Strings, StrIter
     from .parsing import AlbumName
     from .track.patterns import StrsOrPatterns
+    from .typing import ProgressCB
 
 __all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
-
-ProgressCB = Callable[[SongFile, int], Any]
-TrackIter = Iterable[SongFile]
 
 
 class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
@@ -276,28 +274,10 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     # endregion
 
     def fix_song_tags(self, dry_run: bool = False, add_bpm: bool = False, cb: ProgressCB = None):
-        self._fix_song_tags(self.songs, dry_run=dry_run, add_bpm=add_bpm, cb=cb)
-
-    @classmethod
-    def _fix_song_tags(cls, tracks: TrackIter, dry_run: bool = False, add_bpm: bool = False, cb: ProgressCB = None):
-        for music_file in _iter_with_callbacks(tracks, cb):
-            music_file.fix_song_tags(dry_run)
-
-        if not add_bpm:
-            return
-
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            for future in as_completed([executor.submit(music_file.maybe_add_bpm, dry_run) for music_file in tracks]):
-                future.result()
+        fix_song_tags(self.songs, dry_run=dry_run, add_bpm=add_bpm, cb=cb)
 
     def remove_bad_tags(self, dry_run: bool = False, cb: ProgressCB = None, extras: Strings = None):
-        self._remove_bad_tags(self, dry_run, cb, extras)
-
-    @classmethod
-    def _remove_bad_tags(cls, tracks: TrackIter, dry_run: bool = False, cb: ProgressCB = None, extras: Strings = None):
-        if not sum(music_file.remove_bad_tags(dry_run, extras) for music_file in _iter_with_callbacks(tracks, cb)):
-            mid = f'songs in {tracks}' if isinstance(tracks, cls) else 'provided songs'
-            log.debug(f'None of the {mid} had any tags that needed to be removed')
+        remove_bad_tags(self, dry_run=dry_run, cb=cb, extras=extras)
 
     def update_tags_with_value(
         self,
@@ -322,14 +302,6 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         image, data, mime_type = self._prepare_cover_image(image, max_width)
         for song_file in self.songs:
             song_file._set_cover_data(image, data, mime_type, dry_run)
-
-
-def _iter_with_callbacks(tracks: TrackIter, callback: ProgressCB = None) -> Iterator[SongFile]:
-    for n, music_file in enumerate(tracks, 1):
-        if callback:
-            callback(music_file, n)
-
-        yield music_file
 
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:

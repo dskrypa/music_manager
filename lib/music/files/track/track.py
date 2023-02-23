@@ -43,6 +43,7 @@ from music.constants import TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_
 from music.text.name import Name
 from ..cover import prepare_cover_image, bytes_to_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
+from ..exceptions import InvalidAlbumDir
 from ..parsing import split_artists, AlbumName
 from ..paths import FileBasedObject
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
     from plexapi.audio import Track
     from music.typing import PathLike, OptStr, OptInt, Bool, StrIter
+    from ..album import AlbumDir
     from ..typing import MutagenFile, ImageTag, TagsType, ID3Tag, TagChanges
 
 __all__ = ['SongFile', 'iter_music_files']
@@ -169,6 +171,18 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return cls(path)
 
     # endregion
+
+    @cached_property
+    def album_dir(self) -> AlbumDir | None:
+        from ..album import AlbumDir
+
+        if album_dir := self._album_dir is not None:
+            return album_dir
+        try:
+            return AlbumDir(self.path.parent)
+        except InvalidAlbumDir:
+            pass
+        return None
 
     # region Internal Methods
 

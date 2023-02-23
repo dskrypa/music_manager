@@ -31,6 +31,7 @@ from ..common.disco_entry import DiscoEntryType
 from ..common.ratings import stars_to_256
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.changes import get_common_changes
+from ..files.cover import prepare_cover_image
 from ..files.paths import SafePath
 from ..files.track.track import SongFile
 
@@ -556,7 +557,7 @@ class AlbumInfo(Serializable, GenreMixin):
         if album_dir is None:
             album_dir = self.album_dir
         if image := self._get_new_cover(album_dir, file_img, force):
-            return album_dir._prepare_cover_image(image, self.cover_max_width)
+            return prepare_cover_image(image, {f.tag_type for f in album_dir.songs}, self.cover_max_width)
         else:
             return None, None, None
 

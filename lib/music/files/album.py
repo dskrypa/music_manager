@@ -24,7 +24,7 @@ from .track.track import SongFile, iter_music_files
 
 if TYPE_CHECKING:
     from datetime import date
-    from PIL import Image
+    from PIL.Image import Image as PILImage
     from music.text.name import Name
     from music.typing import PathLike, Strings, StrIter
     from .parsing import AlbumName
@@ -295,11 +295,8 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         else:
             log.info(f'No changes to make for {self}')
 
-    def _prepare_cover_image(self, image: Image.Image, max_width: int = 1200) -> tuple[Image.Image, bytes, str]:
-        return prepare_cover_image(image, {f.tag_type for f in self.songs}, max_width)
-
-    def set_cover_data(self, image: Image.Image, dry_run: bool = False, max_width: int = 1200):
-        image, data, mime_type = self._prepare_cover_image(image, max_width)
+    def set_cover_data(self, image: PILImage, dry_run: bool = False, max_width: int = 1200):
+        image, data, mime_type = prepare_cover_image(image, {f.tag_type for f in self.songs}, max_width)
         for song_file in self.songs:
             song_file._set_cover_data(image, data, mime_type, dry_run)
 
@@ -324,24 +321,10 @@ def iter_albums_or_files(paths: Paths) -> Iterator[Union[AlbumDir, SongFile]]:
             yield SongFile(path)
 
 
-def _album_dir_obj(self):
-    if self._album_dir is not None:
-        return self._album_dir
-    try:
-        return AlbumDir(self.path.parent)
-    except InvalidAlbumDir:
-        pass
-    return None
-
-
 def _normalize_init_path(path: PathLike) -> Path:
     if not isinstance(path, Path):
         path = Path(path).expanduser().resolve()
     return path.parent if path.is_file() else path
-
-
-# Note: The only time this property is not available is in interactive sessions started for the files.track.base module
-SongFile.album_dir_obj = cached_property(_album_dir_obj)
 
 
 if __name__ == '__main__':

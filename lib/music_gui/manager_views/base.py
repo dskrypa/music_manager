@@ -115,7 +115,9 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     @menu['File']['Settings'].callback
     def update_settings(self, event):
         config = self.window.config
+        log.debug(f'Preparing options view for {config.data=}')
         kwargs = {'label_size': (16, 1), 'size': (30, None)}
+
         rm_kwargs = {'extendable': True, 'prompt_name': 'tag to remove'} | kwargs
         style_kwargs = {'popup_kwargs': {'show_buttons': True}} | kwargs
         layout = [
@@ -128,7 +130,9 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
             [ListboxOption('rm_tags', 'Tags to Remove', config.get('rm_tags', []), **rm_kwargs)],
             [SubmitOption('save', 'Save')],
         ]
+
         results = GuiOptions(layout).run_popup()
+        log.debug(f'Options view {results=}')
         if results.pop('save', False):
             config.update(results, ignore_none=True, ignore_empty=True)
             self.clear_cached_properties()

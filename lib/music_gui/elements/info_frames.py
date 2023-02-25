@@ -151,9 +151,9 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
                 EButton('Wiki Update', key='wiki_update', **kwargs),
             ],
             [
-                EButton('Sync Ratings From...', key='sync_ratings_from', **kwargs),
-                EButton('Sync Ratings To...', key='sync_ratings_to', **kwargs),
-                EButton('Copy Tags From...', key='copy_tags_from', **kwargs),
+                EButton('Sync Ratings From...', key='sync_ratings_from', disabled=True, **kwargs),
+                EButton('Sync Ratings To...', key='sync_ratings_to', disabled=True, **kwargs),
+                EButton('Copy Tags From...', key='copy_tags_from', disabled=True, **kwargs),
             ],
             [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)],
         ]

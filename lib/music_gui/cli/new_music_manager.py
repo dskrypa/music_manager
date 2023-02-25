@@ -68,7 +68,7 @@ class Clean(MusicManagerGui, help='Open directly to the Clean view for the given
     path = Positional(nargs='+', help='The directory containing files to clean')
     with ParamGroup('Wait Options', mutually_exclusive=True):
         multi_instance_wait: float = Option(
-            '-w', default=1, help='Seconds to wait for multiple instances started together to collaborate on paths'
+            '-w', default=0.5, help='Seconds to wait for multiple instances started together to collaborate on paths'
         )
         no_wait = Flag('-W', help='Do not wait for other instances')
 

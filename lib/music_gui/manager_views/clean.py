@@ -47,15 +47,15 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
     progress_text: Text
     log_box: Multiline
 
-    def __init__(self, album: AlbumIdentifier = None, path: Paths = None, **kwargs):
-        if (not album and not path) or (album and path):
-            raise TypeError(f'{self.__class__.__name__} requires an album XOR path')
+    def __init__(self, album: AlbumIdentifier = None, path_or_paths: Paths = None, **kwargs):
+        if (not album and not path_or_paths) or (album and path_or_paths):
+            raise TypeError(f'{self.__class__.__name__} requires an album XOR path_or_paths')
         super().__init__(**kwargs)
         if album:
             self.album = get_album_dir(album)
             self.files = sorted(self.album)
         else:
-            self.files = sorted(iter_music_files(path))
+            self.files = sorted(iter_music_files(path_or_paths))
 
     # region Layout Generation
 

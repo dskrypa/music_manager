@@ -74,6 +74,10 @@ class MusicManagerMenuBar(Menu):
         MenuItem('Open')
         MenuItem('Settings')
         CloseWindow()
+    with MenuGroup('Actions'):
+        MenuItem('Clean')
+        MenuItem('View Album')
+        MenuItem('Wiki Update')
     with MenuGroup('Help'):
         MenuItem('About', AboutPopup)
 

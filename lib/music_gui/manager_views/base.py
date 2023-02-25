@@ -178,13 +178,6 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     # region Event Handlers
 
-    @button_handler('open')
-    @menu['File']['Open'].callback
-    def pick_next_album(self, event: Event, key=None):
-        if album_dir := self.get_album_selection():
-            return self.set_next_view(album_dir)
-        return None
-
     # @event_handler(BindEvent.LEFT_CLICK.event)
     # def _handle_left_click(self, event: Event):
     #     from tk_gui.widgets.utils import log_event_widget_data
@@ -192,6 +185,38 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     #     log_event_widget_data(self.window, event)
     #     # log_event_widget_data(self.window, event, parent=True)
     #     # log_event_widget_data(self.window, event, show_config=True)
+
+    @button_handler('open')
+    @menu['File']['Open'].callback
+    def pick_next_album(self, event: Event, key=None):
+        if album_dir := self.get_album_selection():
+            return self.set_next_view(album_dir)
+        return None
+
+    def _maybe_take_action(self, view_cls: Type[View]):
+        if (album := self.album) and not isinstance(self, view_cls):
+            return self.set_next_view(album, view_cls=view_cls)
+        elif album_dir := self.get_album_selection():
+            return self.set_next_view(album_dir, view_cls=view_cls)
+        return None
+
+    @menu['Actions']['Clean'].callback
+    def take_action_clean(self, event: Event):
+        from .clean import CleanView
+
+        return self._maybe_take_action(CleanView)
+
+    @menu['Actions']['View Album'].callback
+    def take_action_clean(self, event: Event):
+        from .album import AlbumView
+
+        return self._maybe_take_action(AlbumView)
+
+    @menu['Actions']['Wiki Update'].callback
+    def take_action_clean(self, event: Event):
+        from .wiki_update import WikiUpdateView
+
+        return self._maybe_take_action(WikiUpdateView)
 
     # endregion
 
@@ -210,6 +235,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         return view_cls.__name__
 
     def get_prev_view(self) -> ViewSpec | None:
+        # TODO: Store list/deque of previous views?
         return self.__prev_view
 
     @button_handler('prev_view')

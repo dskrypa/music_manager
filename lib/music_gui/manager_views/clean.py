@@ -1,4 +1,5 @@
 """
+View: Interface for cleaning undesirable tags and calculating/adding BPM if desired.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING
 from ds_tools.caching.decorators import cached_property
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 
-from tk_gui.elements import Text, Frame, InteractiveFrame, Button, ProgressBar
+from tk_gui.elements import Text, Frame, InteractiveFrame, ProgressBar
 from tk_gui.elements.buttons import EventButton as EButton
 from tk_gui.elements.text import Multiline, gui_log_handler
 from tk_gui.event_handling import button_handler
@@ -28,7 +29,7 @@ from .base import BaseView
 if TYPE_CHECKING:
     from tkinter import Event
     from ds_tools.fs.paths import Paths
-    from tk_gui.typing import Layout
+    from tk_gui.typing import Layout, XY
     from music.files.album import AlbumDir
 
 __all__ = ['CleanView']
@@ -41,6 +42,10 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
     window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
     album: AlbumDir | None = None
     files: list[SongFile]
+
+    progress_bar: ProgressBar
+    progress_text: Text
+    log_box: Multiline
 
     def __init__(self, album: AlbumIdentifier = None, path: Paths = None, **kwargs):
         if (not album and not path) or (album and path):
@@ -70,28 +75,22 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
     def options_frame(self) -> InteractiveFrame:
         return self.options.as_frame()
 
-    @cached_property
-    def progress_bar(self) -> ProgressBar:
-        # TODO: Width
-        return ProgressBar(len(self.files))
-
-    @cached_property
-    def progress_text(self) -> Text:
-        return Text('', size=(max(len(f.path_str) for f in self.files) + 1, 1))
-
-    @cached_property
-    def log_box(self) -> Multiline:
-        # TODO: Width
-        return Multiline(expand=True, read_only=True, auto_scroll=True)
-
     def get_inner_layout(self) -> Layout:
+        monitor = self.window.monitor
+        mon_w, mon_h = monitor.width, monitor.height
+        char_w, char_h = self.window.style.text_size('M')
         file_list_str = '\n'.join(f.path_str for f in self.files)
-        file_list = Multiline(file_list_str, size=(None, 5), expand=True, read_only=True)
+        file_list = Multiline(file_list_str, size=(mon_w // char_w, 5), expand=True, read_only=True)
         yield [
-            # TODO: Alignment of these needs work
             Frame([[self.options_frame], [EButton('Run', key='run_clean')]]),
             Frame([[Text(f'Files ({len(self.files)}):')], [file_list]]),
         ]
+        # self.progress_bar = ProgressBar(len(self.files), size=(None, 30), fill_x=True, fill_x_pct=0.89, side='t')
+        self.progress_bar = ProgressBar(len(self.files), size=(mon_w, 30), side='t')
+        self.progress_text = Text('', size=((mon_w // char_w) - 12, 1))
+        self.log_box = Multiline(
+            size=(mon_w // char_w, mon_h // char_h), read_only=True, auto_scroll=True, expand=True, fill='both'
+        )
         yield [self.progress_bar]
         yield [Text('Processing:'), self.progress_text]
         yield [self.log_box]
@@ -111,7 +110,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
         dry_run = options['dry_run']
         rm_tags = self.window.config.get('rm_tags', None)
 
-        with gui_log_handler(self.log_box, logger=result_logger):
+        with gui_log_handler(self.log_box, result_logger, 'music', 'music_gui'):
             remove_bad_tags(self.files, dry_run=dry_run, cb=self._update_progress, extras=rm_tags)
             fix_song_tags(self.files, dry_run=dry_run, add_bpm=False, cb=self._update_progress)
             if options['bpm']:

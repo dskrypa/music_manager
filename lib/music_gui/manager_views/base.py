@@ -75,7 +75,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     # def init_window(self):
     #     from tk_gui.event_handling import ClickHighlighter
     #     window = super().init_window()
-    #     ClickHighlighter(level=1, log_event=True, log_event_kwargs={'window': window}).register(window)
+    #     ClickHighlighter(level=0, log_event=True, log_event_kwargs={'window': window}).register(window)
     #     return window
 
     def get_pre_window_layout(self) -> Layout:

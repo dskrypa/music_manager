@@ -5,7 +5,7 @@
 import logging
 from pathlib import Path
 
-from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, inputs, main
+from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, inputs, main  # noqa
 
 from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
 
@@ -64,8 +64,34 @@ class Open(MusicManagerGui, help='Open directly to the Album view for the given 
         self.run_gui(view_cls, album=self.path)
 
 
-# class Configure(MusicManagerGui, help='Configure registry entries for right-click actions'):
-#     dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
-#
-#     def main(self):
-#         configure(self.dry_run)
+class Clean(MusicManagerGui, help='Open directly to the Clean view for the given path'):
+    path = Positional(nargs='+', help='The directory containing files to clean')
+    with ParamGroup('Wait Options', mutually_exclusive=True):
+        multi_instance_wait: float = Option(
+            '-w', default=1, help='Seconds to wait for multiple instances started together to collaborate on paths'
+        )
+        no_wait = Flag('-W', help='Do not wait for other instances')
+
+    def main(self):
+        if self.no_wait:
+            clean_paths = self.path
+        else:
+            from music.manager.init_ipc import get_clean_paths
+
+            if (clean_paths := get_clean_paths(self.multi_instance_wait, self.path)) is None:
+                log.debug('Exiting non-primary clean process')
+                return
+
+        from music_gui.manager_views.clean import CleanView
+
+        log.debug(f'Clean paths={clean_paths}')
+        self.run_gui(CleanView, path_or_paths=clean_paths)
+
+
+class Configure(MusicManagerGui, help='Configure registry entries for right-click actions'):
+    dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
+
+    def main(self):
+        from music.registry import configure_music_manager_gui
+
+        configure_music_manager_gui(self.dry_run, ' (New)')

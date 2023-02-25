@@ -9,23 +9,27 @@ from pathlib import Path
 from winreg import HKEY_CLASSES_ROOT, OpenKey, QueryValue, CreateKeyEx, SetValue, REG_SZ, KEY_WRITE, KEY_READ
 from winreg import QueryValueEx, SetValueEx
 
-__all__ = []
+__all__ = ['configure_music_manager_gui']
 log = logging.getLogger(__name__)
 
 
-def configure_music_manager_gui(dry_run: bool):
+def configure_music_manager_gui(dry_run: bool, suffix: str = None):
     _verify_runtime()
 
     command_str = _get_command_str()
+    update_name, clean_name = 'Update Album Tags', 'Clean Tags'
+    if suffix:
+        update_name += suffix
+        clean_name += suffix
 
-    add_context_command('*\\shell', 'Update Album Tags', 'open "%L" -vv', command_str, dry_run)
-    add_context_command('Directory\\shell', 'Update Album Tags', 'open "%L" -vv', command_str, dry_run)
-    # add_context_command('Directory\\Background\\shell', 'Update Album Tags', 'open "%L" -vv', command_str, dry_run)
+    add_context_command('*\\shell', update_name, 'open "%L" -vv', command_str, dry_run)
+    add_context_command('Directory\\shell', update_name, 'open "%L" -vv', command_str, dry_run)
+    # add_context_command('Directory\\Background\\shell', update_name, 'open "%L" -vv', command_str, dry_run)
 
-    add_context_command('*\\shell', 'Clean Tags', 'clean "%1" -vv', command_str, dry_run)
-    add_context_command('Directory\\shell', 'Clean Tags', 'clean "%1" -vv', command_str, dry_run)
-    # add_context_command('Directory\\shell', 'Clean Tags', 'clean "%1" -vv -W', command_str, dry_run)
-    # add_context_command('Directory\\Background\\shell', 'Clean Tags', 'clean "%1" -vv', command_str, dry_run)
+    add_context_command('*\\shell', clean_name, 'clean "%1" -vv', command_str, dry_run)
+    add_context_command('Directory\\shell', clean_name, 'clean "%1" -vv', command_str, dry_run)
+    # add_context_command('Directory\\shell', clean_name, 'clean "%1" -vv -W', command_str, dry_run)
+    # add_context_command('Directory\\Background\\shell', clean_name, 'clean "%1" -vv', command_str, dry_run)
     # if entry == 'Clean Tags':
     #     maybe_set_key(f'{hkcr_path}\\{entry}', 'Player', dry_run, 'MultiSelectModel')
     #     maybe_set_key(f'*\\shell\\Clean Tags', 'Player', dry_run, 'MultiSelectModel')
@@ -98,4 +102,4 @@ def set_value(key_path: str, value: str, dry_run: bool = False, var_name: str = 
             if var_name:
                 SetValueEx(entry_key, var_name, 0, REG_SZ, value)
             else:
-                SetValue(entry_key, None, REG_SZ, expected)  # noqa
+                SetValue(entry_key, None, REG_SZ, value)  # noqa

@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, main  # noqa
 
@@ -70,9 +69,12 @@ class Clean(MusicManagerGui, help='Open directly to the Clean view for the given
     def main(self):
         if self.no_wait:
             clean_paths = self.path
-        elif (clean_paths := get_clean_paths(self.multi_instance_wait, self.path)) is None:
-            log.debug('Exiting non-primary clean process')
-            return
+        else:
+            from music.manager.init_ipc import get_clean_paths
+
+            if (clean_paths := get_clean_paths(self.multi_instance_wait, self.path)) is None:
+                log.debug('Exiting non-primary clean process')
+                return
 
         log.debug(f'Clean paths={clean_paths}')
         self.run_gui(('init_view', {'view': 'clean', 'path': clean_paths}))
@@ -85,71 +87,3 @@ class Configure(MusicManagerGui, help='Configure registry entries for right-clic
         from music.registry import configure_music_manager_gui
 
         configure_music_manager_gui(self.dry_run)
-
-
-def get_clean_paths(max_wait: int, arg_paths):
-    from os import getpid
-    from selectors import DefaultSelector, EVENT_READ
-    from socket import socket
-    from time import monotonic
-    from filelock import FileLock
-    from psutil import Process, NoSuchProcess
-    from ds_tools.fs.paths import get_user_cache_dir
-
-    cache_dir = Path(get_user_cache_dir('music_manager'))
-    with FileLock(cache_dir.joinpath('init.lock').as_posix()):
-        pid = getpid()
-        active_path = cache_dir.joinpath('active_pid_port.txt')
-        try:
-            with active_path.open('r') as f:
-                active_pid, port = map(int, f.read().split(','))
-        except OSError:
-            active = True
-        else:
-            try:
-                active = not Process(active_pid).is_running()
-            except NoSuchProcess:
-                active = True
-
-        sock = socket()
-        if active:
-            sock.bind(('localhost', 0))
-            sock.listen(100)
-            sock.setblocking(False)
-            port = sock.getsockname()[1]
-            log.info(f'Primary instance with {pid=} {port=}')
-            with active_path.open('w') as f:
-                f.write(f'{pid},{port}')
-        else:
-            log.info(f'Follower instance with {pid=} {port=}')
-
-    if active:
-        paths = list(arg_paths)
-        selector = DefaultSelector()
-
-        def accept(sock, mask):
-            conn, addr = sock.accept()
-            conn.setblocking(False)
-            selector.register(conn, EVENT_READ, read)
-
-        def read(conn, mask):
-            if data := conn.recv(2000):
-                paths.append(data.decode('utf-8'))
-                # log.debug(f'Received path={data!r} from other instance')
-            else:
-                selector.unregister(conn)
-                conn.close()
-
-        selector.register(sock, EVENT_READ, accept)
-        start = monotonic()
-        while (monotonic() - start) < max_wait:
-            for key, mask in selector.select(0.1):
-                key.data(key.fileobj, mask)
-    else:
-        paths = None
-        sock.connect(('localhost', port))
-        for path in arg_paths:
-            sock.send(path.encode('utf-8'))
-
-    sock.close()
-    return paths

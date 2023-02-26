@@ -130,12 +130,14 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
         return self.set_next_view(self.album, view_cls=WikiUpdateView)
 
-    @button_handler('sync_ratings_from', 'sync_ratings_to')
-    def sync_ratings_from(self, event: Event, key=None):
+    @button_handler('sync_album_ratings')
+    def sync_album_ratings(self, event: Event, key=None):
+        # TODO: For both sync ratings and copy tags, there could be 1 button each, with a dialog to pick the
+        #  to/from albums, with a <-> button to swap which is in the to/from position
         popup_ok(f'Not implemented yet: {key}')  # TODO
 
-    @button_handler('copy_tags_from')
-    def copy_tags_from(self, event: Event, key=None):
+    @button_handler('copy_album_tags')
+    def copy_album_tags(self, event: Event, key=None):
         popup_ok(f'Not implemented yet: {key}')  # TODO
 
     # endregion

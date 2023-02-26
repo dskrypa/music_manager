@@ -11,7 +11,7 @@ from ds_tools.caching.decorators import cached_property
 from ds_tools.output.formatting import ordinal_suffix
 
 from tk_gui.elements import Element, ListBox, CheckBox, Combo, HorizontalSeparator, Multiline, Text, Input, Image
-from tk_gui.elements.buttons import EventButton as EButton
+from tk_gui.elements.buttons import Button, EventButton as EButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.menu import Menu, MenuItem
 from tk_gui.elements.rating import Rating
@@ -127,10 +127,6 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             self._tag_vals_and_eles[key] = (value, val_ele)
             yield [key_ele, val_ele]
 
-    def build_buttons(self) -> Layout:
-        # These frames need to be in the same row for them to occupy the same space when visible
-        yield [self.view_buttons_frame, self.edit_buttons_frame]
-
     @cached_property
     def cover_image_frame(self) -> Frame:
         class ImageMenu(Menu):
@@ -140,25 +136,34 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         cover_builder = AlbumCoverImageBuilder(self.album_info, self.cover_size)
         return cover_builder.make_thumbnail_frame(right_click_menu=ImageMenu())
 
+    # endregion
+
+    # region Layout Generation - Buttons
+
+    def build_buttons(self) -> Layout:
+        # These frames need to be in the same row for them to occupy the same space when visible
+        yield [self.view_buttons_frame, self.edit_buttons_frame]
+
     @cached_property
     def view_buttons_frame(self) -> Frame:
-        kwargs = {'size': (18, 1), 'borderwidth': 3}
-        rows = [
-            [
-                EButton('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
-                EButton('View All Tags', key='view_all_tags', **kwargs),
-                EButton('Edit', key='edit_album', **kwargs),
-                EButton('Wiki Update', key='wiki_update', **kwargs),
-            ],
-            [
-                EButton('Sync Ratings From...', key='sync_ratings_from', disabled=True, **kwargs),
-                EButton('Sync Ratings To...', key='sync_ratings_to', disabled=True, **kwargs),
-                EButton('Copy Tags From...', key='copy_tags_from', disabled=True, **kwargs),
-            ],
-            [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)],
-        ]
+        rows = [[BasicRowFrame(row, side='t')] for row in self._build_view_buttons()]
         # TODO: forward / back buttons for browsing the current directory around the Open button?
-        return Frame([[BasicRowFrame(row, side='t')] for row in rows], visible=self.disabled, side='t')
+        return Frame(rows, visible=self.disabled, side='t')
+
+    def _build_view_buttons(self) -> Iterator[list[Button]]:  # noqa
+        kwargs = {'size': (18, 1), 'borderwidth': 3}
+        yield [
+            EButton('Clean & Add BPM', key='clean_and_add_bpm', **kwargs),
+            EButton('View All Tags', key='view_all_tags', **kwargs),
+            EButton('Edit', key='edit_album', **kwargs),
+            EButton('Wiki Update', key='wiki_update', **kwargs),
+        ]
+        kwargs['size'] = (25, 1)
+        yield [
+            EButton('Sync Ratings Between Albums', key='sync_album_ratings', disabled=True, **kwargs),
+            EButton('Copy Tags Between Albums', key='copy_album_tags', disabled=True, **kwargs),
+        ]
+        yield [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)]
 
     @cached_property
     def edit_buttons_frame(self) -> BasicRowFrame:

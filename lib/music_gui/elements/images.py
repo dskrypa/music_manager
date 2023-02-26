@@ -49,8 +49,8 @@ class AlbumCoverImageBuilder:
         images, missing = self._process_tracks()
         n_img = len(images)
         messages = []
-        if missing:
-            messages.append(f'cover images were missing for {missing} tracks')
+        # if missing:
+        #     messages.append(f'cover images were missing for {missing} tracks')
         if not n_img and not missing:
             messages.append('no cover images were found')
         elif n_img > 1:

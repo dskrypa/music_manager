@@ -50,7 +50,7 @@ WINDOW_KWARGS = {
 
 class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     menu = MenuProperty(MusicManagerMenuBar)
-    window_kwargs = WINDOW_KWARGS
+    default_window_kwargs = WINDOW_KWARGS
     album: AlbumInfo | AlbumDir
     _scroll_y: bool = False
 
@@ -98,7 +98,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
             yield from self.get_inner_layout()
         else:
             frame_cls = YScrollFrame if self._scroll_y else Frame
-            kwargs = {'fill_y': True} if self._scroll_y else {}
+            kwargs = {'fill_y': True, 'scroll_y_amount': 1} if self._scroll_y else {}
             content = frame_cls(self.get_inner_layout(), side='top', pad=(0, 0), **kwargs)
             if back_button is None:
                 back_button = Spacer(size=(53, 241), anchor='w', side='left')
@@ -273,7 +273,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
 
 class InitialView(BaseView, title='Music Manager'):
-    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True, 'anchor_elements': 'c'}
+    default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True, 'anchor_elements': 'c'}
     album = None
 
     def get_post_window_layout(self) -> Layout:

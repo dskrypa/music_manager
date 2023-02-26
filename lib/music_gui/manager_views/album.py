@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 
 class AlbumView(BaseView, title='Music Manager - Album Info'):
-    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
+    default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}
 
     def __init__(self, album: AlbumIdentifier, *, editable: bool = False, edited: bool = False, **kwargs):
         super().__init__(**kwargs)
@@ -51,7 +51,7 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
     def _prepare_track_frames(self) -> ScrollFrame:
         track_frames = [TrackInfoFrame(track, disabled=True) for track in self.album.tracks.values()]
         self._track_frames.extend(track_frames)
-        tracks_frame = ScrollFrame(with_separators(track_frames, True), scroll_y=True, fill_y=True)
+        tracks_frame = ScrollFrame(with_separators(track_frames, True), scroll_y=True, fill_y=True, scroll_y_amount=1)
         return tracks_frame
 
     def get_inner_layout(self) -> Layout:

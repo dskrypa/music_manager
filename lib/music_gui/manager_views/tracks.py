@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 
 class BaseTrackView(BaseView, ABC, title='Music Manager - Track Info', scroll_y=True):
-    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
+    default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}
 
 
 class TrackInfoView(BaseTrackView):

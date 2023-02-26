@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 
 class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
-    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
+    default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}
     album: AlbumInfo
     old_info: AlbumInfo
     new_info: AlbumInfo

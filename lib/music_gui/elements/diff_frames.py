@@ -53,6 +53,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     ):
         kwargs.setdefault('scroll_y', True)
         kwargs.setdefault('fill_y', True)
+        kwargs.setdefault('scroll_y_amount', 1)
         kwargs.setdefault('expand', True)
         kwargs.setdefault('pad', (2, 2))  # Auto-fill of available space doesn't work with (0, 0) for some reason...
         super().__init__(**kwargs)

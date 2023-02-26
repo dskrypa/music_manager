@@ -39,7 +39,7 @@ result_logger.propagate = False
 
 
 class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
-    window_kwargs = BaseView.window_kwargs | {'exit_on_esc': True}
+    default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}
     album: AlbumDir | None = None
     files: list[SongFile]
 

@@ -148,13 +148,11 @@ class AlbumFormatter:
 
         if images := self.get_wiki_cover_images(dl_all):
             if title := choose_image(images):
-                cover_dir = Path(get_user_cache_dir('music_manager/cover_art'))
+                cover_dir = get_user_cache_dir('music_manager/cover_art')
                 name = title.split(':', 1)[1] if title.lower().startswith('file:') else title
                 path = cover_dir.joinpath(name)
                 if not path.is_file():
-                    img_data = self.wiki_client.get_image(title)
-                    with path.open('wb') as f:
-                        f.write(img_data)
+                    path.write_bytes(self.wiki_client.get_image(title))
                 return path
         return None
 

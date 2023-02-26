@@ -93,16 +93,16 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         return None
 
     def get_post_window_layout(self) -> Layout:
-        back_button, next_button = self.back_button, self.next_button
-        if back_button is next_button is None:
+        back_button, next_button, scroll_y = self.back_button, self.next_button, self._scroll_y
+        if back_button is next_button is None and not scroll_y:
             yield from self.get_inner_layout()
         else:
-            frame_cls = YScrollFrame if self._scroll_y else Frame
-            kwargs = {'fill_y': True, 'scroll_y_amount': 1} if self._scroll_y else {}
+            frame_cls = YScrollFrame if scroll_y else Frame
+            kwargs = {'fill_y': True, 'scroll_y_amount': 1} if scroll_y else {}
             content = frame_cls(self.get_inner_layout(), side='top', pad=(0, 0), **kwargs)
             if back_button is None:
                 back_button = Spacer(size=(53, 241), anchor='w', side='left')
-            elif next_button is None:
+            if next_button is None:
                 next_button = Spacer(size=(53, 241), anchor='e', side='right')
             yield Row.custom(self.window, [back_button, next_button, content], anchor='n', expand=True, fill='both')
 

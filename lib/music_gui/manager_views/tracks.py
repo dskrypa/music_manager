@@ -106,7 +106,7 @@ class SelectableSongFileView(SongFileView):
                     track.remove_tags(tag_ids)
 
         if lph.took_action():
-            return self.set_next_view(self.album)
+            return self.set_next_view(self.album, retain_prev_view=True)
         else:
             for track_frame in self._track_frames:
                 track_frame.refresh()

@@ -126,6 +126,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         if self.prev_view_name == 'AlbumView':
             return self._edit_album_view_spec()
         else:
+            # TODO: Remember selected wiki update options
             return super().get_prev_view()
 
     # region Save Changes

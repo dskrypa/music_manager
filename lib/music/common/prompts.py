@@ -4,6 +4,7 @@ Unification of CLI and GUI prompts
 :author: Doug Skrypa
 """
 
+import logging
 from enum import Enum
 from getpass import getpass as cli_getpass
 from typing import Union, Callable, Collection, Any, Optional
@@ -19,6 +20,7 @@ from ..gui.popups.simple import popup_yes_no
 from ..gui.popups.text import popup_get_text
 
 __all__ = ['choose_item', 'UIMode', 'set_ui_mode', 'get_input', 'getpass']
+log = logging.getLogger(__name__)
 
 
 class UIMode(Enum):
@@ -51,6 +53,7 @@ def choose_item(
     error_color: Color = 9,
     repr_func: Callable = repr,
 ):
+    log.debug(f'choose_item with {UI_MODE=}: {list(items)}')
     if UI_MODE == UIMode.CLI:
         return cli_choose_item(
             items,

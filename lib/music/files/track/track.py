@@ -1089,6 +1089,9 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     def set_cover_data(self, image: PILImage, dry_run: bool = False, max_width: int = 1200):
         image, data, mime_type = prepare_cover_image(image, self.tag_type, max_width)
+        self.set_prepared_cover_data(image, data, mime_type, dry_run)
+
+    def set_prepared_cover_data(self, image: PILImage, data: bytes, mime_type: str, dry_run: bool = False):
         self._set_cover_data(image, data, mime_type, dry_run)
         if not dry_run:
             self.save()

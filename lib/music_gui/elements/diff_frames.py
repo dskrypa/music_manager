@@ -113,6 +113,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         split = max(len(p.as_posix() if p else '') for p in paths) >= 50
 
         # TODO: The 2nd (->) line's alignment is a bit off on the right
+        # TODO: If the album doesn't need to move, show the no change row
         rename_ele = Frame(
             get_a_to_b('Album Rename:', old_path, self.new_album_path, split), visible=show_rename, pad=(0, 0)
         )

@@ -146,7 +146,6 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         return self.set_next_view(view_cls=AlbumView, album=album_dir)
 
     def _save_changes(self, album_dir: AlbumDir, dry_run: bool, replace_genres: bool, title_case: bool):
-        # TODO: Maybe add spinner
         image, data, mime_type = self.new_info.get_new_cover(force=True)
 
         file_info_map = self.new_info.get_file_info_map()
@@ -154,7 +153,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             tags = track_info.tags(title_case)
             song_file.update_tags(tags, dry_run, add_genre=not replace_genres)
             if image is not None:
-                song_file._set_cover_data(image, data, mime_type, dry_run)
+                song_file.set_prepared_cover_data(image, data, mime_type, dry_run)
 
             track_info.maybe_rename(song_file, dry_run)
 

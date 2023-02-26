@@ -80,7 +80,6 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
             BoolOption('hide_edition', 'Hide Edition', tooltip='Exclude the edition from the album title, if present (default: include it)'),
         ]
         # TODO: If cover was missing, make update_cover default to True
-        # TODO: Is update_cover working...?
         yield [
             BoolOption('update_cover', 'Update Cover', tooltip='Update the cover art for the album if it does not match an image in the matched wiki page'),
             BoolOption('ignore_genre', 'Ignore Genre', tooltip='Ignore genre instead of combining/replacing genres'),

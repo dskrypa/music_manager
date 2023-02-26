@@ -160,7 +160,7 @@ class AlbumDiffView(MainView, view_name='album_diff'):
                 file.update_tags(file_tag_map[file], dry_run, add_genre=self.options['add_genre'])
                 if image is not None:
                     spinner.update()
-                    file._set_cover_data(image, data, mime_type, dry_run)
+                    file.set_prepared_cover_data(image, data, mime_type, dry_run)
 
                 spinner.update()
                 info.maybe_rename(file, dry_run)

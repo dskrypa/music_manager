@@ -180,10 +180,10 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
             return super().get_prev_view()
 
     def _get_update_config(self, parsed: dict[str, Any]) -> UpdateConfig:
-        config = self.window.config
         log.info(f'Parsed options:')
-
         Printer('json-pretty').pprint(parsed)
+
+        config = self.window.config
         if set(parsed['artist_sites']) != set(config.get('wiki_update:artist_sites', ())):
             config['wiki_update:artist_sites'] = sorted(parsed['artist_sites'])
         if set(parsed['album_sites']) != set(config.get('wiki_update:album_sites', ())):

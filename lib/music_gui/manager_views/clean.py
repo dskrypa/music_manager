@@ -14,10 +14,10 @@ from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 
 from tk_gui.elements import Text, Frame, InteractiveFrame, ProgressBar
 from tk_gui.elements.buttons import EventButton as EButton
-from tk_gui.elements.text import Multiline, gui_log_handler
+from tk_gui.elements.text import Multiline, IntInput, gui_log_handler
 from tk_gui.event_handling import button_handler
-from tk_gui.options import GuiOptions, BoolOption, InputOption
-from tk_gui.popups import popup_ok
+from tk_gui.options import GuiOptions, BoolOption, InputOption, GuiOptionError
+from tk_gui.popups import popup_ok, popup_error
 
 from music.common.utils import can_add_bpm
 from music.files.bulk_actions import remove_bad_tags, fix_song_tags
@@ -29,7 +29,7 @@ from .base import BaseView
 if TYPE_CHECKING:
     from tkinter import Event
     from ds_tools.fs.paths import Paths
-    from tk_gui.typing import Layout, XY
+    from tk_gui.typing import Layout
     from music.files.album import AlbumDir
 
 __all__ = ['CleanView']
@@ -67,7 +67,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
                 BoolOption('bpm', 'Add BPM', bpm_ok, disabled=not bpm_ok, tooltip='requires Aubio'),
                 BoolOption('dry_run', 'Dry Run'),
             ],
-            [InputOption('threads', 'BPM Threads', 12, type=int, size=(5, 1))],
+            [InputOption('threads', 'BPM Threads', 12, type=int, size=(5, 1), input_cls=IntInput)],
         ]
         return GuiOptions(option_layout)
 
@@ -103,7 +103,12 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
 
     @button_handler('run_clean')
     def run_clean(self, event: Event = None, key=None):
-        options = self.options.parse(self.window.results)
+        try:
+            options = self.options.parse(self.window.results)
+        except GuiOptionError as e:
+            popup_error(e)
+            return
+
         self.options_frame.disable()
         self.progress_bar.update(0, max_value=len(self.files) * (3 if options['bpm'] else 2))
 

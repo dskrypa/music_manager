@@ -25,6 +25,8 @@ from .track.track import SongFile, iter_music_files
 if TYPE_CHECKING:
     from datetime import date
     from PIL.Image import Image as PILImage
+    from watchdog.events import FileSystemEvent
+    from watchdog.observers import Observer
     from music.text.name import Name
     from music.typing import PathLike, Strings, StrIter
     from .parsing import AlbumName
@@ -35,17 +37,27 @@ __all__ = ['MultiAlbumDir', 'AlbumDir', 'iter_album_dirs', 'iter_albums_or_files
 log = logging.getLogger(__name__)
 
 
-class MultiAlbumDir:
+class MultiAlbumDir(ClearableCachedPropertyMixin):
     def __init__(self, path: Path):
         if not path.is_dir():
             raise TypeError(f'Invalid multi-album dir={path.as_posix()!r} - not a directory')
         self.path = path
+        if (observer := self.observer) is not None:
+            log.debug(f'Configuring watchdog observer for {self.path.as_posix()}')
+            observer.schedule(self, self.path.as_posix())
+            observer.start()
 
     @cached_property
     def _album_paths(self) -> list[Path]:
         album_paths = [p for p in self.path.iterdir() if p.is_dir()]
         album_paths.sort(key=lambda p: p.name.lower())
         return album_paths
+
+    @cached_property
+    def _album_dirs(self) -> set[AlbumDir]:
+        return set()
+
+    # region Container Methods
 
     def __len__(self) -> int:
         return len(self._album_paths)
@@ -56,6 +68,10 @@ class MultiAlbumDir:
     def __iter__(self) -> Iterator[AlbumDir]:
         for path in self._album_paths:
             yield AlbumDir(path)
+
+    # endregion
+
+    # region Index Methods
 
     def index(self, album: AlbumDir | PathLike) -> int:
         path = album.path if isinstance(album, AlbumDir) else _normalize_init_path(album)
@@ -74,6 +90,40 @@ class MultiAlbumDir:
         except IndexError:
             return None
         return None if index >= len(self._album_paths) else index
+
+    # endregion
+
+    # region File Watch Methods
+
+    @cached_property
+    def observer(self) -> Observer | None:
+        try:
+            from watchdog.observers import Observer
+        except ImportError:
+            return None
+        return Observer()
+
+    def dispatch(self, event: FileSystemEvent):
+        if event.is_directory or event.event_type == 'deleted':  # It registers dir moves out / dir deletion as non-dir
+            log.debug(f'Resetting cached properties due to {event=} for {self.path.as_posix()}')
+            for album_dir in self._album_dirs:
+                album_dir.clear_cached_properties(
+                    'parent', 'prev_sibling', 'next_sibling', 'has_prev_sibling', 'has_next_sibling'
+                )
+            self.clear_cached_properties('_album_paths', '_album_dirs')
+        # else:
+        #     log.debug(f'Ignoring {event=}')
+
+    def close(self):
+        if (observer := self.observer) is not None:
+            log.debug(f'Stopping {observer=} for {self.path.as_posix()}')
+            observer.stop()
+            observer.join()
+
+    def __del__(self):
+        self.close()
+
+    # endregion
 
 
 class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
@@ -108,7 +158,9 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
 
     @cached_property
     def parent(self) -> MultiAlbumDir:
-        return MultiAlbumDir(self.path.parent)
+        parent = MultiAlbumDir(self.path.parent)
+        parent._album_dirs.add(self)
+        return parent
 
     @cached_property
     def prev_sibling(self) -> AlbumDir | None:

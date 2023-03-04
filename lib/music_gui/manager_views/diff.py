@@ -54,6 +54,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
                 'repl_genres': True,    # Manual edits expect the submitted values to be used as seen
             }
         self._options = options
+        self.state_data['modified'] = True
 
     # region Layout Generation
 
@@ -63,13 +64,10 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             BoolOption('dry_run', 'Dry Run'),
             BoolOption('repl_genres', 'Replace Genres', tooltip='Specified genres should replace existing ones'),
             BoolOption('title_case', 'Title Case'),
-            # TODO: On returning to diff from edit of wiki results, no_album_move should not be True
             BoolOption('no_album_move', 'Do Not Move Album'),
             BoolOption('rename_in_place', 'Rename Album In-Place'),
         ]
-        gui_options = GuiOptions([options])
-        gui_options.update(self._options)
-        return gui_options
+        return self.init_gui_options([options], self._options)
 
     @cached_property
     def album_diff_frame(self) -> AlbumDiffFrame:
@@ -94,7 +92,8 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
 
     @cached_property
     def next_button(self) -> Button | None:
-        # TODO: Sometimes clicking this button doesn't seem to register on the 1st (or even 2nd) time
+        # Note: Sometimes clicking this button doesn't seem to register on the 1st (or even 2nd) time
+        # The problem seems to be related to tooltips: https://github.com/python/cpython/issues/90338
         return nav_button('right', tooltip='Save Changes')
 
     def get_inner_layout(self) -> Layout:
@@ -106,6 +105,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         old_options = dict(self.options.items())
         new_options = self.options.parse(self.window.results)
         changed = {k: v for k, v in new_options.items() if v != old_options[k]}
+        self.update_gui_options(new_options)
         if 'repl_genres' in changed or 'title_case' in changed:
             spec = self.as_view_spec(old_info=self.old_info, new_info=self.new_info, options=self.options)
             return self.go_to_next_view(spec, forget_last=True)
@@ -125,7 +125,6 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
     def go_to_prev_view(self, **kwargs) -> CallbackAction | None:
         if self.gui_state.prev_view_name == 'AlbumView':
             kwargs.update(forget_last=True, **self._edit_album_view_kwargs())
-        # TODO: Remember selected wiki update options
         return super().go_to_prev_view(**kwargs)
 
     # region Save Changes
@@ -135,6 +134,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         from .album import AlbumView
 
         options = self.options.parse(self.window.results)
+        self.update_gui_options(options)
         dry_run = options['dry_run']
         album_dir = self.new_info.album_dir
         self._save_changes(album_dir, dry_run, options['repl_genres'], options['title_case'])

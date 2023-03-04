@@ -53,9 +53,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
 
     @cached_property
     def options(self) -> GuiOptions:
-        gui_options = GuiOptions(self._prepare_option_layout())
-        gui_options.update(self._options)
-        return gui_options
+        return self.init_gui_options(self._prepare_option_layout(), self._options)
 
     def _prepare_option_layout(self):
         yield [InputOption('album_url', 'Album URL', label_size=(11, 1), size=(80, 1), tooltip='A wiki URL')]
@@ -128,6 +126,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         from .diff import AlbumDiffView
 
         options = self.options.parse(self.window.results)
+        self.update_gui_options(options)
         update_config = self._get_update_config(options)
         if not (new_info := GuiWikiUpdater(self.album, update_config, options).get_album_info()):
             return None
@@ -310,7 +309,6 @@ class GuiWikiUpdater:
         path = get_user_cache_dir('music_manager/cover_art').joinpath(name)
         if not path.is_file():
             log.debug(f'Saving wiki cover choice in cache: {path.as_posix()}')
-            # path.write_bytes(self.wiki_client.get_image(title))
             path.write_bytes(data)
         return path
 

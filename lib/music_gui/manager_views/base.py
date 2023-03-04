@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional, Type, Any, Iterable, Mapping
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer
@@ -20,11 +21,13 @@ from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row
 from tk_gui.views import View, ViewSpec
 from tk_gui.options import GuiOptions, BoolOption, PopupOption, ListboxOption, DirectoryOption, SubmitOption
+from tk_gui.options.layout import OptionComponent
 
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
 from music_gui.elements.helpers import nav_button
 from music_gui.elements.menus import FullRightClickMenu, MusicManagerMenuBar
+from music_gui.utils import find_values
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -47,6 +50,9 @@ WINDOW_KWARGS = {
     'margins': (5, 0),
 }
 
+_OptionLayout = Iterable[Iterable[OptionComponent]]
+_Options = Mapping[str, Any] | GuiOptions | None
+
 
 class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     menu = MenuProperty(MusicManagerMenuBar)
@@ -65,6 +71,52 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         except AttributeError:
             path_str = ''
         return f'<{self.__class__.__name__}[{self.title}][{path_str}]>'
+
+    # region Shared State / Options
+
+    @property
+    def state_data(self) -> dict[str, Any]:
+        try:
+            album_path = self.album.path
+        except AttributeError:
+            album_path = None
+        state_data = self.gui_state.data
+        if state_data.get('album_path') != album_path:
+            return self._reset_state_data(state_data, album_path)
+        return state_data
+
+    def reset_state_data(self) -> dict[str, Any]:
+        try:
+            album_path = self.album.path
+        except AttributeError:
+            album_path = None
+        return self._reset_state_data(self.gui_state.data, album_path)
+
+    def _reset_state_data(self, state_data, album_path) -> dict[str, Any]:  # noqa
+        state_data['album_path'] = album_path
+        state_data['modified'] = False
+        state_data['options'] = defaultdict(dict)
+        return state_data
+
+    def get_shared_options(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        options = self.state_data['options']
+        return options['common'], options[self.__class__.__name__]
+
+    def init_gui_options(self, option_layout: _OptionLayout, options: _Options = None) -> GuiOptions:
+        common, previous = self.get_shared_options()
+        gui_options = GuiOptions(option_layout)
+        mappings = (previous, common, options) if options else (previous, common)
+        if overrides := find_values(gui_options.options, *mappings):
+            gui_options.update(overrides)
+        return gui_options
+
+    def update_gui_options(self, options: _Options):
+        if options:
+            common, previous = self.get_shared_options()
+            common.update(options)
+            previous.update(options)
+
+    # endregion
 
     # region Layout Generation
 

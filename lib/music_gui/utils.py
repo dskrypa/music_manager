@@ -27,14 +27,16 @@ if TYPE_CHECKING:
 __all__ = [
     'AlbumIdentifier', 'get_album_info', 'get_album_dir',
     'TrackIdentifier', 'get_track_info', 'get_track_file',
-    'LogAndPopupHelper', 'with_separators', 'fix_windows_path', 'call_timer', 'zip_maps',
+    'LogAndPopupHelper', 'with_separators', 'fix_windows_path', 'call_timer', 'zip_maps', 'find_value', 'find_values',
 ]
 log = logging.getLogger(__name__)
 
+_NotSet = object()
 AlbumIdentifier = Union[AlbumInfo, AlbumDir, Path, str]
 TrackIdentifier = Union[TrackInfo, SongFile, Path, str]
 K = TypeVar('K')
 V = TypeVar('V')
+D = TypeVar('D')
 
 
 class LogAndPopupHelper:
@@ -156,3 +158,24 @@ def zip_maps(*mappings: Mapping[K, V]) -> Iterator[tuple[K, V, ...]]:
     keys = OrderedSet(mappings[0]).intersection(*mappings[1:])
     for key in keys:
         yield key, *(m[key] for m in mappings)
+
+
+def find_value(key: K, *mappings: Mapping[K, V], default: D = _NotSet) -> V | D:
+    for mapping in mappings:
+        try:
+            return mapping[key]
+        except KeyError:
+            pass
+    if default is _NotSet:
+        raise KeyError(key)
+    return default
+
+
+def find_values(keys: Iterable[K], *mappings: Mapping[K, V], default: D = _NotSet) -> dict[K, V | D]:
+    results = {}
+    for key in keys:
+        try:
+            results[key] = find_value(key, *mappings, default=default)
+        except KeyError:
+            pass
+    return results

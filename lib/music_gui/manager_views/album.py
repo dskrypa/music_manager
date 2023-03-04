@@ -37,6 +37,8 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         self._track_frames: list[TrackInfoFrame] = []
         self.editing = editable
         self.edited = edited
+        if not edited and self.state_data['modified']:
+            self.reset_state_data()
 
     # region Layout Generation
 

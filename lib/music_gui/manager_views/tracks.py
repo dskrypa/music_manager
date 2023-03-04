@@ -61,7 +61,7 @@ class SelectableSongFileView(SongFileView):
 
     @cached_property
     def options(self) -> GuiOptions:
-        return GuiOptions([[BoolOption('dry_run', 'Dry Run')]])
+        return self.init_gui_options([[BoolOption('dry_run', 'Dry Run')]])
 
     def get_pre_window_layout(self) -> Layout:
         yield from super().get_pre_window_layout()
@@ -99,6 +99,7 @@ class SelectableSongFileView(SongFileView):
 
     def delete_selected_tags(self, event: Event):
         dry_run = self.options.parse(self.window.results)['dry_run']
+        self.update_gui_options({'dry_run': dry_run})
         with LogAndPopupHelper('Results', dry_run, 'No tags were selected for deletion') as lph:
             for track, tag_ids in self.get_tags_to_delete().items():
                 lph.write('delete', f'{len(tag_ids)} tags from {track.path.name}: ' + ', '.join(sorted(tag_ids)))

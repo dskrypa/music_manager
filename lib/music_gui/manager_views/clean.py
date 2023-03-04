@@ -69,7 +69,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
             ],
             [InputOption('threads', 'BPM Threads', 12, type=int, size=(5, 1), input_cls=IntInput)],
         ]
-        return GuiOptions(option_layout)
+        return self.init_gui_options(option_layout)
 
     @cached_property
     def options_frame(self) -> InteractiveFrame:
@@ -109,6 +109,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
             popup_error(e)
             return
 
+        self.update_gui_options(options)
         self.options_frame.disable()
         self.progress_bar.update(0, max_value=len(self.files) * (3 if options['bpm'] else 2))
 

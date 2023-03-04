@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.enums import CallbackAction
     from tk_gui.typing import Layout
-    from tk_gui.views.view import ViewSpec
     from music.manager.update import AlbumInfo
 
 __all__ = ['WikiUpdateView']
@@ -137,13 +136,13 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         old_info = self.album.clean()
         if old_info != new_info:
             log.debug(f'Switching to diff view for {self.album}')
-            return self.set_next_view(
-                view_cls=AlbumDiffView,
+            spec = AlbumDiffView.as_view_spec(
                 old_info=old_info,
                 new_info=new_info,
                 manually_edited=False,
                 options={key: options[key] for key in ('title_case', 'no_album_move')},
             )
+            return self.go_to_next_view(spec)
         else:
             log.debug(f'No changes are necessary for {self.album}')
             popup_ok('No changes are necessary - there is nothing to save')
@@ -171,13 +170,10 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
 
     # endregion
 
-    def get_prev_view(self) -> ViewSpec | None:
-        if self.prev_view_name == 'AlbumDiffView':
-            from .album import AlbumView
-
-            return AlbumView, (), {'album': self.album}
-        else:
-            return super().get_prev_view()
+    def go_to_prev_view(self, **kwargs) -> CallbackAction | None:
+        if self.gui_state.prev_view_name == 'AlbumDiffView':
+            kwargs['album'] = self.album
+        return super().go_to_prev_view(**kwargs)
 
     def _get_update_config(self, parsed: dict[str, Any]) -> UpdateConfig:
         log.info(f'Parsed options:')
@@ -229,6 +225,7 @@ class GuiWikiUpdater:
             [self.src_album_info.path], self.config, artist_url=self.parsed['artist_url'] or None
         )
         album_dir, processor = updater.get_album_info(self.parsed['album_url'] or None)
+        # TODO: If track count doesn't match, an uncaught KeyError ends up occurring in the diff view
         return processor.to_album_info()
 
     @cached_property

@@ -53,7 +53,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     ):
         kwargs.setdefault('scroll_y', True)
         kwargs.setdefault('fill_y', True)
-        kwargs.setdefault('scroll_y_amount', 1)
+        kwargs.setdefault('scroll_y_amount', 1)  # TODO: Scrolling seems a bit too fast still sometimes
         kwargs.setdefault('expand', True)
         kwargs.setdefault('pad', (2, 2))  # Auto-fill of available space doesn't work with (0, 0) for some reason...
         super().__init__(**kwargs)
@@ -151,7 +151,12 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         genres = (old_genres, new_genres)
         new_tracks = self.new_info.tracks
         for path_str, old_track_info in self.old_info.tracks.items():
-            yield [TrackDiffFrame(old_track_info, new_tracks[path_str], self.options, genres)]
+            try:
+                yield [TrackDiffFrame(old_track_info, new_tracks[path_str], self.options, genres)]
+            except KeyError:
+                valid = '\n'.join(new_tracks.keys())
+                log.debug(f'Not found: {path_str=}, valid paths:\n{valid}')
+                raise
 
     # endregion
 

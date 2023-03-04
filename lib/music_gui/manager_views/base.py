@@ -18,7 +18,7 @@ from tk_gui.event_handling import button_handler, event_handler  # noqa
 from tk_gui.popups import popup_input_invalid, pick_folder_popup
 from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row
-from tk_gui.views.view import View, ViewSpec
+from tk_gui.views import View, ViewSpec
 from tk_gui.options import GuiOptions, BoolOption, PopupOption, ListboxOption, DirectoryOption, SubmitOption
 
 from music.files.album import AlbumDir
@@ -59,10 +59,6 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         if scroll_y is not None:
             cls._scroll_y = scroll_y
 
-    def __init__(self, *args, prev_view: ViewSpec = None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__prev_view = prev_view
-
     def __repr__(self) -> str:
         try:
             path_str = self.album.path.as_posix()
@@ -84,7 +80,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     @cached_property
     def back_button(self) -> Button | None:
-        if not self.__prev_view:
+        if not self.gui_state.can_go_back:
             return None
         return nav_button('left')
 
@@ -193,32 +189,32 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     @button_handler('open')
     @menu['File']['Open'].callback
-    def pick_next_album(self, event: Event, key=None):
+    def pick_next_album(self, event: Event, key=None) -> CallbackAction | None:
         if album_dir := self.get_album_selection():
-            return self.set_next_view(album_dir)
+            return self.go_to_next_view(self.as_view_spec(album_dir))
         return None
 
-    def _maybe_take_action(self, view_cls: Type[View]):
+    def _maybe_take_action(self, view_cls: Type[View]) -> CallbackAction | None:
         if (album := self.album) and not isinstance(self, view_cls):
-            return self.set_next_view(album, view_cls=view_cls)
+            return self.go_to_next_view(view_cls.as_view_spec(album))
         elif album_dir := self.get_album_selection():
-            return self.set_next_view(album_dir, view_cls=view_cls)
+            return self.go_to_next_view(view_cls.as_view_spec(album_dir))
         return None
 
     @menu['Actions']['Clean'].callback
-    def take_action_clean(self, event: Event):
+    def take_action_clean(self, event: Event) -> CallbackAction | None:
         from .clean import CleanView
 
         return self._maybe_take_action(CleanView)
 
     @menu['Actions']['View Album'].callback
-    def take_action_clean(self, event: Event):
+    def take_action_clean(self, event: Event) -> CallbackAction | None:
         from .album import AlbumView
 
         return self._maybe_take_action(AlbumView)
 
     @menu['Actions']['Wiki Update'].callback
-    def take_action_clean(self, event: Event):
+    def take_action_clean(self, event: Event) -> CallbackAction | None:
         from .wiki_update import WikiUpdateView
 
         return self._maybe_take_action(WikiUpdateView)
@@ -227,47 +223,27 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     # region Run & Previous / Next Views
 
-    @property
-    def has_prev_view(self) -> bool:
-        return bool(self.__prev_view)
-
-    @property
-    def prev_view_name(self) -> str | None:
-        try:
-            view_cls, args, kwargs = self.__prev_view
-        except TypeError:
-            return None
-        return view_cls.__name__
-
-    def get_prev_view(self) -> ViewSpec | None:
-        # TODO: Store list/deque of previous views?
-        return self.__prev_view
-
     @button_handler('prev_view')
     def return_to_prev_view(self, event: Event = None, key=None) -> CallbackAction | None:
-        try:
-            view_cls, args, kwargs = self.get_prev_view()
-        except TypeError:
-            return None
-        return self.set_next_view(*args, view_cls=view_cls, **kwargs)
+        return self.go_to_prev_view()
 
-    def set_next_view(
-        self, *args, view_cls: Type[View] = None, retain_prev_view: bool = False, **kwargs
-    ) -> CallbackAction:
-        if retain_prev_view:
-            kwargs['prev_view'] = self.__prev_view
-        elif view_cls is None:
-            kwargs.setdefault('prev_view', None)
-        return super().set_next_view(*args, view_cls=view_cls, **kwargs)
+    # def set_next_view(
+    #     self, *args, view_cls: Type[View] = None, retain_prev_view: bool = False, **kwargs
+    # ) -> CallbackAction:
+    #     if retain_prev_view:
+    #         kwargs['prev_view'] = self.__prev_view
+    #     elif view_cls is None:
+    #         kwargs.setdefault('prev_view', None)
+    #     return super().set_next_view(*args, view_cls=view_cls, **kwargs)
 
-    def get_next_view_spec(self) -> ViewSpec | None:
-        try:
-            view_cls, args, kwargs = super().get_next_view_spec()
-        except TypeError:
-            return None
-        if (album := self.album) and 'prev_view' not in kwargs:
-            kwargs['prev_view'] = (self.__class__, (), {'album': album})
-        return view_cls, args, kwargs
+    # def get_next_view_spec(self) -> ViewSpec | None:
+    #     try:
+    #         view_cls, args, kwargs = super().get_next_view_spec()
+    #     except TypeError:
+    #         return None
+    #     # if (album := self.album) and 'prev_view' not in kwargs:
+    #     #     kwargs['prev_view'] = (self.__class__, (), {'album': album})
+    #     return view_cls, args, kwargs
 
     # endregion
 
@@ -280,7 +256,8 @@ class InitialView(BaseView, title='Music Manager'):
         button = EventButton('Select Album', key='open', bind_enter=True, size=(30, 5), font=('Helvetica', 20))
         yield [Frame([[button]], anchor='TOP', expand=True)]
 
-    def set_next_view(self, *args, **kwargs):
+    def go_to_next_view(self, spec: ViewSpec, **kwargs) -> CallbackAction:
         from .album import AlbumView
 
-        return super().set_next_view(*args, view_cls=AlbumView, **kwargs)
+        spec.view_cls = AlbumView
+        return super().go_to_next_view(spec, forget_last=True)

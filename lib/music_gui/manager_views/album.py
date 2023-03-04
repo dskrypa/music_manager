@@ -89,18 +89,18 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
     def clean_and_add_bpm(self, event: Event, key=None):
         from .clean import CleanView
 
-        return self.set_next_view(self.album, view_cls=CleanView)
+        return self.go_to_next_view(CleanView.as_view_spec(self.album))
 
     @button_handler('view_all_tags')
     def view_all_tags(self, event: Event, key=None) -> CallbackAction:
         from .tracks import SelectableSongFileView
 
-        return self.set_next_view(self.album, view_cls=SelectableSongFileView)
+        return self.go_to_next_view(SelectableSongFileView.as_view_spec(self.album))
 
     @button_handler('edit_album', 'cancel')
     def toggle_edit_mode(self, event: Event, key=None) -> CallbackAction | None:
         if self.edited and key == 'cancel':
-            return self.set_next_view(album=self.album.clean(True))
+            return self.go_to_next_view(self.as_view_spec(album=self.album.clean(True)), forget_last=True)
 
         if disable := key != 'edit_album':
             if self._get_info_diff()[0]:
@@ -119,16 +119,16 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
         changed, old_info, new_info = self._get_info_diff()
         if changed:
-            return self.set_next_view(view_cls=AlbumDiffView, old_info=old_info, new_info=new_info)
+            return self.go_to_next_view(AlbumDiffView.as_view_spec(old_info=old_info, new_info=new_info))
         else:
             popup_ok('No changes were made - there is nothing to save')
             return
 
     @button_handler('wiki_update')
-    def wiki_update(self, event: Event, key=None):
+    def wiki_update(self, event: Event, key=None) -> CallbackAction | None:
         from .wiki_update import WikiUpdateView
 
-        return self.set_next_view(self.album, view_cls=WikiUpdateView)
+        return self.go_to_next_view(WikiUpdateView.as_view_spec(self.album))
 
     @button_handler('sync_album_ratings')
     def sync_album_ratings(self, event: Event, key=None):

@@ -122,7 +122,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
                 self.progress_text.update('Adding BPM...')
                 _init_logging = partial(init_logging, 2, log_path=None, names=None, entry_fmt=ENTRY_FMT_DETAILED_PID)
                 add_bpm_func = partial(SongFile.maybe_add_bpm, dry_run=dry_run)
-                with Pool(self.options['threads'], _init_logging) as pool:
+                with Pool(options['threads'], _init_logging) as pool:
                     for result in self.progress_bar(pool.imap_unordered(add_bpm_func, list(self.files))):
                         result_logger.info(result)
 

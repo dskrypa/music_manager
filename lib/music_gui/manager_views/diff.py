@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.elements import Button
     from tk_gui.typing import Layout
-    from tk_gui.views.view import ViewSpec
     from music.manager.update import AlbumInfo
 
 __all__ = ['AlbumDiffView']
@@ -64,6 +63,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             BoolOption('dry_run', 'Dry Run'),
             BoolOption('repl_genres', 'Replace Genres', tooltip='Specified genres should replace existing ones'),
             BoolOption('title_case', 'Title Case'),
+            # TODO: On returning to diff from edit of wiki results, no_album_move should not be True
             BoolOption('no_album_move', 'Do Not Move Album'),
             BoolOption('rename_in_place', 'Rename Album In-Place'),
         ]
@@ -79,12 +79,12 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             output_sorted_dir=self.output_sorted_dir,
             options=self.options,
             update_options_cb=self.update_options,
-            show_edit=self.prev_view_name == 'WikiUpdateView',
+            show_edit=self.gui_state.prev_view_name == 'WikiUpdateView',
         )
 
     @cached_property
     def back_button(self) -> Button | None:
-        if (prev_view_name := self.prev_view_name) == 'WikiUpdateView':
+        if (prev_view_name := self.gui_state.prev_view_name) == 'WikiUpdateView':
             tooltip = 'Return to wiki match options'
         elif prev_view_name == 'AlbumView':
             tooltip = 'Edit album'
@@ -94,6 +94,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
 
     @cached_property
     def next_button(self) -> Button | None:
+        # TODO: Sometimes clicking this button doesn't seem to register on the 1st (or even 2nd) time
         return nav_button('right', tooltip='Save Changes')
 
     def get_inner_layout(self) -> Layout:
@@ -106,28 +107,26 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         new_options = self.options.parse(self.window.results)
         changed = {k: v for k, v in new_options.items() if v != old_options[k]}
         if 'repl_genres' in changed or 'title_case' in changed:
-            return self.set_next_view(
-                old_info=self.old_info, new_info=self.new_info, options=self.options, retain_prev_view=True
-            )
+            spec = self.as_view_spec(old_info=self.old_info, new_info=self.new_info, options=self.options)
+            return self.go_to_next_view(spec, forget_last=True)
 
         self.album_diff_frame.update(self.window, changed.get('no_album_move'))  # noqa
 
-    def _edit_album_view_spec(self) -> ViewSpec:
-        from .album import AlbumView
-
-        return AlbumView, (), {'album': self.new_info, 'editable': True, 'edited': True, 'prev_view': None}
+    def _edit_album_view_kwargs(self) -> dict[str, Any]:
+        return {'album': self.new_info, 'editable': True, 'edited': True}
 
     @button_handler('edit')
     def edit_info(self, event: Event = None, key=None) -> CallbackAction:
-        view_cls, args, kwargs = self._edit_album_view_spec()
-        return self.set_next_view(*args, view_cls=view_cls, **kwargs)
+        from .album import AlbumView
 
-    def get_prev_view(self) -> ViewSpec | None:
-        if self.prev_view_name == 'AlbumView':
-            return self._edit_album_view_spec()
-        else:
-            # TODO: Remember selected wiki update options
-            return super().get_prev_view()
+        self.gui_state.clear_history()
+        return self.go_to_next_view(AlbumView.as_view_spec(**self._edit_album_view_kwargs()), forget_last=True)
+
+    def go_to_prev_view(self, **kwargs) -> CallbackAction | None:
+        if self.gui_state.prev_view_name == 'AlbumView':
+            kwargs.update(forget_last=True, **self._edit_album_view_kwargs())
+        # TODO: Remember selected wiki update options
+        return super().go_to_prev_view(**kwargs)
 
     # region Save Changes
 
@@ -143,7 +142,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             return None
 
         album_dir.refresh()
-        return self.set_next_view(view_cls=AlbumView, album=album_dir)
+        return self.go_to_next_view(AlbumView.as_view_spec(album_dir))
 
     def _save_changes(self, album_dir: AlbumDir, dry_run: bool, replace_genres: bool, title_case: bool):
         image, data, mime_type = self.new_info.get_new_cover(force=True)

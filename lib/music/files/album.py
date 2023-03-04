@@ -295,6 +295,18 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         else:
             log.info(f'No changes to make for {self}')
 
+    @cached_property
+    def has_any_cover(self) -> bool:
+        for song_file in self.songs:
+            try:
+                data, ext = song_file.get_cover_data()
+            except Exception:  # noqa
+                pass
+            else:
+                if data:
+                    return True
+        return False
+
     def set_cover_data(self, image: PILImage, dry_run: bool = False, max_width: int = 1200):
         image, data, mime_type = prepare_cover_image(image, {f.tag_type for f in self.songs}, max_width)
         for song_file in self.songs:

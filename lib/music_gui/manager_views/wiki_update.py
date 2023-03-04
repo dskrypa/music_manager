@@ -53,6 +53,9 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
 
     @cached_property
     def options(self) -> GuiOptions:
+        common, previous = self.get_shared_options()
+        if not self.album.album_dir.has_any_cover:
+            previous.setdefault('update_cover', True)
         return self.init_gui_options(self._prepare_option_layout(), self._options)
 
     def _prepare_option_layout(self):
@@ -76,7 +79,6 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
             BoolOption('artist_only', 'Artist Match Only', tooltip='Only match the artist / only use the artist URL if provided'),
             BoolOption('hide_edition', 'Hide Edition', tooltip='Exclude the edition from the album title, if present (default: include it)'),
         ]
-        # TODO: If cover was missing, make update_cover default to True
         yield [
             BoolOption('update_cover', 'Update Cover', tooltip='Update the cover art for the album if it does not match an image in the matched wiki page'),
             BoolOption('ignore_genre', 'Ignore Genre', tooltip='Ignore genre instead of combining/replacing genres'),

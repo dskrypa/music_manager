@@ -31,8 +31,49 @@ if TYPE_CHECKING:
     from .track.patterns import StrsOrPatterns
     from .typing import ProgressCB
 
-__all__ = ['AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
+__all__ = ['MultiAlbumDir', 'AlbumDir', 'iter_album_dirs', 'iter_albums_or_files']
 log = logging.getLogger(__name__)
+
+
+class MultiAlbumDir:
+    def __init__(self, path: Path):
+        if not path.is_dir():
+            raise TypeError(f'Invalid multi-album dir={path.as_posix()!r} - not a directory')
+        self.path = path
+
+    @cached_property
+    def _album_paths(self) -> list[Path]:
+        album_paths = [p for p in self.path.iterdir() if p.is_dir()]
+        album_paths.sort(key=lambda p: p.name.lower())
+        return album_paths
+
+    def __len__(self) -> int:
+        return len(self._album_paths)
+
+    def __getitem__(self, item: int) -> AlbumDir:
+        return AlbumDir(self._album_paths[item])
+
+    def __iter__(self) -> Iterator[AlbumDir]:
+        for path in self._album_paths:
+            yield AlbumDir(path)
+
+    def index(self, album: AlbumDir | PathLike) -> int:
+        path = album.path if isinstance(album, AlbumDir) else _normalize_init_path(album)
+        return self._album_paths.index(path)
+
+    def get_prev_index(self, album: AlbumDir | PathLike) -> int | None:
+        try:
+            index = self.index(album) - 1
+        except IndexError:
+            return None
+        return None if index < 0 else index
+
+    def get_next_index(self, album: AlbumDir | PathLike) -> int | None:
+        try:
+            index = self.index(album) + 1
+        except IndexError:
+            return None
+        return None if index >= len(self._album_paths) else index
 
 
 class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
@@ -62,6 +103,34 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.relative_path!r})>'
+
+    # region Parent / Sibling Album Directories
+
+    @cached_property
+    def parent(self) -> MultiAlbumDir:
+        return MultiAlbumDir(self.path.parent)
+
+    @cached_property
+    def prev_sibling(self) -> AlbumDir | None:
+        if (index := self.parent.get_prev_index(self.path)) is not None:
+            return self.parent[index]
+        return None
+
+    @cached_property
+    def next_sibling(self) -> AlbumDir | None:
+        if (index := self.parent.get_next_index(self.path)) is not None:
+            return self.parent[index]
+        return None
+
+    @cached_property
+    def has_prev_sibling(self) -> bool:
+        return self.prev_sibling is not None
+
+    @cached_property
+    def has_next_sibling(self) -> bool:
+        return self.next_sibling is not None
+
+    # endregion
 
     # region Tracks / Container Methods
 

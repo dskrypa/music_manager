@@ -115,6 +115,12 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
         return None
 
+    @button_handler('prev_dir', 'next_dir')
+    def change_album(self, event: Event, key) -> CallbackAction | None:
+        album_dir = self.album.album_dir
+        next_album = album_dir.prev_sibling if key == 'prev_dir' else album_dir.next_sibling
+        return self.go_to_next_view(self.as_view_spec(album=next_album))
+
     @button_handler('save', 'next_view')
     def save_changes(self, event: Event, key=None) -> CallbackAction | None:
         from .diff import AlbumDiffView

@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING, Iterator, Collection, Any
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output.formatting import ordinal_suffix
 
-from tk_gui.elements import Element, ListBox, CheckBox, Combo, HorizontalSeparator, Multiline, Text, Input, Image
+from tk_gui.elements import Element, HorizontalSeparator, Multiline, Text, Input, Image, Spacer
 from tk_gui.elements.buttons import Button, EventButton as EButton
+from tk_gui.elements.choices import ListBox, CheckBox, Combo
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.menu import Menu, MenuItem
 from tk_gui.elements.rating import Rating
@@ -147,7 +148,6 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
     @cached_property
     def view_buttons_frame(self) -> Frame:
         rows = [[BasicRowFrame(row, side='t')] for row in self._build_view_buttons()]
-        # TODO: forward / back buttons for browsing the current directory around the Open button?
         return Frame(rows, visible=self.disabled, side='t')
 
     def _build_view_buttons(self) -> Iterator[list[Button]]:  # noqa
@@ -163,7 +163,18 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             EButton('Sync Ratings Between Albums', key='sync_album_ratings', disabled=True, **kwargs),
             EButton('Copy Tags Between Albums', key='copy_album_tags', disabled=True, **kwargs),
         ]
-        yield [EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)]
+
+        open_btn = EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)
+        album_dir = self.album_dir
+        if len(album_dir.parent) > 1:
+            kwargs = dict(font=LRG_FONT, size=(5, 1), borderwidth=3)
+            yield [
+                EButton('\u2190', key='prev_dir', **kwargs) if album_dir.has_prev_sibling else Spacer(size=(90, 56)),
+                open_btn,
+                EButton('\u2192', key='next_dir', **kwargs) if album_dir.has_next_sibling else Spacer(size=(90, 56)),
+            ]
+        else:
+            yield [open_btn]
 
     @cached_property
     def edit_buttons_frame(self) -> BasicRowFrame:

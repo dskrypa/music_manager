@@ -81,7 +81,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
         except AttributeError:
             album_path = None
         state_data = self.gui_state.data
-        if state_data.get('album_path') != album_path:
+        if not state_data or state_data.get('album_path') != album_path:
             return self._reset_state_data(state_data, album_path)
         return state_data
 

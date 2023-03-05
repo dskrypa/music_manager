@@ -132,7 +132,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
 
     @cached_property
     def back_button(self) -> Button | None:
-        if not self.gui_state.can_go_back:
+        if not self.gui_state.can_go_reverse:
             return None
         return nav_button('left')
 

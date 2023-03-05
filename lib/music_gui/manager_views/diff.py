@@ -107,10 +107,11 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         changed = {k: v for k, v in new_options.items() if v != old_options[k]}
         self.update_gui_options(new_options)
         if 'repl_genres' in changed or 'title_case' in changed:
+            # TODO: Only refresh on these if it will actually change something
             spec = self.as_view_spec(old_info=self.old_info, new_info=self.new_info, options=self.options)
             return self.go_to_next_view(spec, forget_last=True)
 
-        self.album_diff_frame.update(self.window, changed.get('no_album_move'))  # noqa
+        self.album_diff_frame.update(self.window)  # noqa
 
     def _edit_album_view_kwargs(self) -> dict[str, Any]:
         return {'album': self.new_info, 'editable': True, 'edited': True}

@@ -591,17 +591,26 @@ class AlbumInfo(Serializable, GenreMixin):
         else:
             return Path(dest_base_dir)
 
-    def get_new_path(self, new_base_dir: PathLike | None = None) -> Path | None:
+    def get_new_path(self, new_base_dir: PathLike | None = None, in_place: bool = False) -> Path | None:
+        if in_place and new_base_dir:
+            raise ValueError(f'Bad argument combo: in_place cannot be used with {new_base_dir=}')
         try:
             expected_rel_dir = self.expected_rel_dir
         except AttributeError:
             return None
+
         old_album_path = self.album_dir.path
-        new_base_dir = old_album_path.parents[2] if new_base_dir is None else Path(new_base_dir).expanduser()
+        if in_place:
+            new_album_path = old_album_path.parent.joinpath(Path(expected_rel_dir).name)
+            return new_album_path if new_album_path != old_album_path else None
+
+        if new_base_dir is None:
+            new_base_dir = old_album_path.parents[2]
+        else:
+            new_base_dir = Path(new_base_dir).expanduser()
+
         new_album_path = self.dest_base_dir(self.album_dir, new_base_dir).joinpath(expected_rel_dir)
-        if old_album_path != new_album_path:
-            return new_album_path
-        return None
+        return new_album_path if new_album_path != old_album_path else None
 
     # endregion
 

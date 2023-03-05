@@ -1,5 +1,5 @@
 """
-
+Frames that present a diff between old and new values for tag/path/name changes for albums and tracks.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     ):
         kwargs.setdefault('scroll_y', True)
         kwargs.setdefault('fill_y', True)
-        kwargs.setdefault('scroll_y_amount', 1)  # TODO: Scrolling seems a bit too fast still sometimes
+        kwargs.setdefault('scroll_y_amount', 1)
         kwargs.setdefault('expand', True)
         kwargs.setdefault('pad', (2, 2))  # Auto-fill of available space doesn't work with (0, 0) for some reason...
         super().__init__(**kwargs)
@@ -66,12 +66,17 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         self._found_common_tag_change = False
         self._show_edit = show_edit
 
+    @cached_property
+    def _potential_paths(self) -> dict[str, Path]:
+        old_path = self.album_dir.path
+        get_new_path = self.new_info.get_new_path
+        return {'old': old_path, 'new': get_new_path(self.output_sorted_dir), 'in_place': get_new_path(None, True)}
+
     @property
     def new_album_path(self) -> Path | None:
         if self.options['no_album_move']:
             return None
-        # TODO: Rename in place dir may be wrong
-        return self.new_info.get_new_path(None if self.options['rename_in_place'] else self.output_sorted_dir)
+        return self._potential_paths['in_place' if self.options['rename_in_place'] else 'new']
 
     # region Layout
 
@@ -107,19 +112,14 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     @cached_property
     def path_diff_eles(self) -> tuple[Frame, BasicRowFrame]:
         # Used by AlbumDiffView to toggle visibility when options change.
-        show_rename = not self.options['no_album_move']
-        old_path = self.album_dir.path
-        paths = (old_path, self.new_info.get_new_path(None), self.new_info.get_new_path(self.output_sorted_dir))
-        split = max(len(p.as_posix() if p else '') for p in paths) >= 50
+        old_path, new_path = self.album_dir.path, self.new_album_path
+        show_change = new_path and new_path != old_path
+        split = max(len(p.as_posix() if p else '') for p in self._potential_paths.values()) >= 50
 
-        # TODO: The 2nd (->) line's alignment is a bit off on the right
-        # TODO: If the album doesn't need to move, show the no change row
-        rename_ele = Frame(
-            get_a_to_b('Album Rename:', old_path, self.new_album_path, split), visible=show_rename, pad=(0, 0)
-        )
+        dir_change_ele = Frame(get_a_to_b('Album Path:', old_path, new_path, split), visible=show_change, pad=(0, 0))
         no_change_row = [label_ele('Album Path:'), IText(old_path, size=(150, 1)), Text('(no change)')]
-        no_change_ele = BasicRowFrame(no_change_row, visible=not show_rename, pad=(0, 0))
-        return rename_ele, no_change_ele
+        no_change_ele = BasicRowFrame(no_change_row, visible=not show_change, pad=(0, 0))
+        return dir_change_ele, no_change_ele
 
     def build_common_tag_diff(self) -> Layout:
         yield from self._build_common_tag_diff()
@@ -184,28 +184,30 @@ class AlbumDiffFrame(InteractiveScrollFrame):
 
     # region Update Methods
 
-    def update(self, key_ele_map: Mapping[str, CheckBox | Element], no_album_move: bool = None):
+    def update(self, key_ele_map: Mapping[str, CheckBox | Element]):
         self.update_option_states(key_ele_map)
-        self.maybe_update_new_album_path()
-        if no_album_move is not None:
-            self.update_path_ele_visibility(no_album_move)
+        show_path_change = self.maybe_update_new_album_path()
+        self.maybe_update_path_ele_visibility(show_path_change)
 
-    def maybe_update_new_album_path(self):
+    def maybe_update_new_album_path(self) -> bool:
         if new_album_path := self.new_album_path:
+            show_path_change = new_album_path != self.album_dir.path
             new_album_path = new_album_path.as_posix()
         else:
-            new_album_path = ''
+            new_album_path, show_path_change = '', False
 
-        self.path_diff_eles[0].rows[-1].elements[-1].update(new_album_path)  # This updated the rename element value
+        self.path_diff_eles[0].rows[-1].elements[-1].update(new_album_path)  # This updates the rename element value
+        return show_path_change
 
-    def update_path_ele_visibility(self, no_album_move: bool):
-        rename_ele, no_change_ele = self.path_diff_eles
-        if no_album_move:
-            rename_ele.hide()
+    def maybe_update_path_ele_visibility(self, show_path_change: bool):
+        dir_change_ele, no_change_ele = self.path_diff_eles
+        if show_path_change:
+            if not dir_change_ele.is_visible:
+                dir_change_ele.show()
+                no_change_ele.hide()
+        elif not no_change_ele.is_visible:
+            dir_change_ele.hide()
             no_change_ele.show()
-        else:
-            rename_ele.show()
-            no_change_ele.hide()
 
     # endregion
 
@@ -246,9 +248,9 @@ class TrackDiffFrame(InteractiveFrame):
         old_name = self.song_file.path.name
         new_name = self.new_info.expected_name(self.song_file)
         if old_name != new_name:
-            yield from get_a_to_b('File Rename:', old_name, new_name)
+            yield from get_a_to_b('File Name:', old_name, new_name)
         else:
-            yield [Text('File:'), IText(old_name, size=(50, 1)), Text('(no change)')]
+            yield [label_ele('File Name:'), IText(old_name, size=(50, 1)), Text('(no name change)')]
 
     def build_tag_diff(self) -> Layout:
         title_case = self.options['title_case']
@@ -305,10 +307,13 @@ def _build_diff_value_ele(key: str, value, is_track: bool = True) -> CheckBox | 
 
 def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike, split: bool = None) -> Layout:
     old_ele, split_old = _diff_ele(old_val, split)
-    new_ele, split_new = _diff_ele(new_val, split, offset=3)
+    new_ele, split_new = _diff_ele(new_val, split)
     if split_old or split_new:
         yield [label_ele(label), old_ele]
-        yield [Spacer(size=((len(label) + 1) * 7, 1)), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
+        # \u2794 + space @ Helvetica 15 => (26, 23) px / geometry='26x27+82+3'
+        # label_ele @ Helvetica 10 (default) text_size=(15, 1) => geometry='109x20+5+3'
+        spacer_size = (83, 1)  # width=109 - 26, height doesn't matter
+        yield [Spacer(size=spacer_size), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
     else:
         yield [label_ele(label), old_ele, Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
 
@@ -331,4 +336,5 @@ def _str_set(values: StrOrStrs) -> set[str]:
 
 
 def label_ele(text: str, size: XY = (15, 1), **kwargs) -> Text:
+    # Note: size=(15, 1) @ Helvetica 10 (default) => geometry='109x20+5+3'
     return Text(text.replace('_', ' ').title(), size=size, **kwargs)

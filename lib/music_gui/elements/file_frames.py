@@ -14,7 +14,6 @@ from tk_gui.elements import Element, ListBox, CheckBox, Image
 from tk_gui.elements.frame import InteractiveFrame, Frame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import PathLink, Multiline, Text
-from tk_gui.images.icons import placeholder_icon_cache
 from tk_gui.popups import BasicPopup
 from tk_gui.styles import StyleState
 
@@ -22,7 +21,7 @@ from music.common.ratings import stars_from_256
 from music.files.track.track import SongFile
 from ..utils import TrackIdentifier, get_track_file
 from .helpers import IText
-from .images import get_raw_cover_image
+from .images import TrackCoverImageBuilder
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -70,14 +69,9 @@ class SongFileFrame(InteractiveFrame):
 
     # region Cover Image
 
-    @cached_property
-    def _cover_image_raw(self) -> Optional[bytes]:
-        return get_raw_cover_image(self.track)
-
     @property
     def cover_image_thumbnail(self) -> Image:
-        image = placeholder_icon_cache.image_or_placeholder(self._cover_image_raw, self.cover_size)
-        return Image(image=image, size=self.cover_size, popup=True, popup_title=f'Track Album Cover: {self.file_name}')
+        return TrackCoverImageBuilder(self.track, self.cover_size).make_thumbnail()
 
     # endregion
 

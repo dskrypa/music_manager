@@ -7,15 +7,15 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from itertools import count
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, Image
 from tk_gui.elements.frame import InteractiveFrame, Frame
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import PathLink, Multiline, Text
+from tk_gui.enums import StyleState
 from tk_gui.popups import BasicPopup
-from tk_gui.styles import StyleState
 
 from music.common.ratings import stars_from_256
 from music.files.track.track import SongFile

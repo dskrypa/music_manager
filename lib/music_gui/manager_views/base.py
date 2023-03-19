@@ -41,10 +41,10 @@ DEFAULT_CONFIG = {
     'output_base_dir': '~/Music/',
     'size': (1700, 750),
 }
+TITLE = 'Music Manager'
+CFG_PATH = '~/.config/music_manager/tk_gui_config.json'
+_CLS_KWARGS = {'title': TITLE, 'config_name': TITLE, 'config_path': CFG_PATH, 'config_defaults': DEFAULT_CONFIG}
 WINDOW_KWARGS = {
-    'config_name': 'Music Manager',
-    'config_path': '~/.config/music_manager/tk_gui_config.json',
-    'config': DEFAULT_CONFIG,
     'right_click_menu': FullRightClickMenu(),
     'anchor_elements': 'n',
     'margins': (5, 0),
@@ -54,7 +54,7 @@ _OptionLayout = Iterable[Iterable[OptionComponent]]
 _Options = Mapping[str, Any] | GuiOptions | None
 
 
-class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
+class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     menu = MenuProperty(MusicManagerMenuBar)
     default_window_kwargs = WINDOW_KWARGS
     album: AlbumInfo | AlbumDir
@@ -300,7 +300,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, title='Music Manager'):
     # endregion
 
 
-class InitialView(BaseView, title='Music Manager'):
+class InitialView(BaseView):
     default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True, 'anchor_elements': 'c'}
     album = None
 

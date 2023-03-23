@@ -163,7 +163,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
 
     @menu['File']['Settings'].callback
     def update_settings(self, event):
-        config = self.window.config
+        config = self.config
         log.debug(f'Preparing options view for {config.data=}')
         kwargs = {'label_size': (16, 1), 'size': (30, None)}
 
@@ -189,7 +189,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
 
     @cached_property
     def output_base_dir(self) -> Path:
-        return Path(self.window.config['output_base_dir']).expanduser()
+        return Path(self.config['output_base_dir']).expanduser()
 
     @cached_property
     def output_sorted_dir(self) -> Path:
@@ -201,7 +201,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     # region Album Selection
 
     def _get_last_dir(self, dir_type: str = None) -> Optional[Path]:
-        if last_dir := self.window.config.get(f'last_dir:{dir_type}' if dir_type else 'last_dir'):
+        if last_dir := self.config.get(f'last_dir:{dir_type}' if dir_type else 'last_dir'):
             last_dir = Path(last_dir)
             if not last_dir.exists():
                 if last_dir.parent.exists():
@@ -222,8 +222,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
                 popup_input_invalid(str(e), logger=log)
             else:
                 if path != last_dir:
-                    self.window.config['last_dir'] = path.as_posix()
-                    self.window.config.save()
+                    self.config['last_dir'] = path.as_posix()
+                    self.config.save()
                 return album_dir
         return None
 

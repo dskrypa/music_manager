@@ -92,7 +92,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         yield [BoolOption('ignore_language', 'Ignore Language', tooltip='Ignore detected language')]
 
     def _prepare_site_options(self):
-        config = self.window.config
+        config = self.config
         artist_sites = config.get('wiki_update:artist_sites', ALL_SITES[:-1])
         album_sites = config.get('wiki_update:album_sites', ALL_SITES[:-1])
         kwargs = {'choices': ALL_SITES, 'label_size': (9, 1), 'tooltip': 'The wiki sites to search'}
@@ -180,7 +180,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         log.info(f'Parsed options:')
         Printer('json-pretty').pprint(parsed)
 
-        config = self.window.config
+        config = self.config
         if set(parsed['artist_sites']) != set(config.get('wiki_update:artist_sites', ())):
             config['wiki_update:artist_sites'] = sorted(parsed['artist_sites'])
         if set(parsed['album_sites']) != set(config.get('wiki_update:album_sites', ())):

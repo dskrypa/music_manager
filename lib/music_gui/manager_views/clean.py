@@ -114,7 +114,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
         self.progress_bar.update(0, max_value=len(self.files) * (3 if options['bpm'] else 2))
 
         dry_run = options['dry_run']
-        rm_tags = self.window.config.get('rm_tags', None)
+        rm_tags = self.config.get('rm_tags', None)
 
         with gui_log_handler(self.log_box, result_logger, 'music', 'music_gui'):
             remove_bad_tags(self.files, dry_run=dry_run, cb=self._update_progress, extras=rm_tags)

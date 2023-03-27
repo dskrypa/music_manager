@@ -19,6 +19,7 @@ from paramiko import SSHClient, AutoAddPolicy
 from scp import SCPClient
 
 from ds_tools.fs.paths import get_user_temp_dir
+from ds_tools.output.formatting import readable_bytes, format_duration
 
 from music.common.utils import MissingMixin
 from .config import config
@@ -139,6 +140,30 @@ class PlexDB:
             query += ' AND meta.id = ?'
         return self.execute(query, params)
 
+    def find_item_data(self, stream_type: Stream_Type, metadata_type: Union[str, int]):
+        query = (
+            'SELECT library_sections.name AS lib_section,  items.*'
+            ' FROM media_items as items'
+            ' INNER JOIN library_sections ON library_sections.id = items.library_section_id'
+            ' INNER JOIN media_streams AS streams ON items.id = streams.media_item_id'
+            ' INNER JOIN metadata_items AS meta ON meta.id = items.metadata_item_id'
+            ' WHERE streams.stream_type_id = ?'  # Values can be found in StreamType
+            ' AND meta.metadata_type = ?'  # values match those in `from plexapi.utils import SEARCHTYPES`
+        )
+        return [dict(row) for row in self.execute(query, (StreamType(stream_type).value, metadata_type))]
+
+    def find_meta_data(self, stream_type: Stream_Type, metadata_type: Union[str, int]):
+        query = (
+            'SELECT library_sections.name AS lib_section,  meta.*'
+            ' FROM metadata_items as meta'
+            ' INNER JOIN media_items AS items ON meta.id = items.metadata_item_id'
+            ' INNER JOIN library_sections ON library_sections.id = items.library_section_id'
+            ' INNER JOIN media_streams AS streams ON items.id = streams.media_item_id'
+            ' WHERE streams.stream_type_id = ?'  # Values can be found in StreamType
+            ' AND meta.metadata_type = ?'  # values match those in `from plexapi.utils import SEARCHTYPES`
+        )
+        return [dict(row) for row in self.execute(query, (StreamType(stream_type).value, metadata_type))]
+
     # region Movie Methods
 
     def _find_movies(self, low_resolution: bool = False):
@@ -154,6 +179,27 @@ class PlexDB:
             query += ' AND video_height_lte_720(media_streams.extra_data)'
         return self.execute(query)
 
+    def find_movies_by_codec(self, codec: str = None):
+        query = (
+            'SELECT'
+            ' movies.id AS movie_id,  movies.title AS movie,  media_streams.codec AS codec,'
+            ' video_resolution(media_streams.extra_data) as resolution,'
+            ' media_items.size as size_b,  media_items.duration as duration_ms,'
+            ' library_sections.id AS lib_section_id,  library_sections.name AS lib_section'
+        )
+        query += _prepare_from_and_filters(StreamType.VIDEO, MetaType.MOVIE)
+        if codec:
+            query += ' AND codec=?'
+            rows = [dict(row) for row in self.execute(query, (codec,))]
+        else:
+            rows = [dict(row) for row in self.execute(query)]
+
+        for row in rows:
+            row['size'] = readable_bytes(row['size_b'])
+            row['duration'] = format_duration(row['duration_ms'] / 1000)
+
+        return rows
+
     def find_low_res_movies(self):
         movies = {}
         for row in self._find_movies(True):
@@ -163,7 +209,7 @@ class PlexDB:
 
     # endregion
 
-    # region Show Methods
+    # region TV Show Methods
 
     def _find_shows(self, low_resolution: bool = False):
         query = (

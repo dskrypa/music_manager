@@ -1,10 +1,19 @@
+from __future__ import annotations
+
 import logging
 from functools import cached_property
+from pathlib import Path
+from typing import TYPE_CHECKING, Iterator
 
 from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, PassThru, ParamGroup, main
+from cli_command_parser import Action, inputs
 
 from music.__version__ import __author_email__, __version__  # noqa
 from ds_tools.output.constants import PRINTER_FORMATS
+
+if TYPE_CHECKING:
+    from plexapi.video import Movie
+    from ds_tools.output.prefix import LoggingPrefix
 
 log = logging.getLogger(__name__)
 OBJ_TYPES = ('track', 'artist', 'album', 'tracks', 'artists', 'albums')
@@ -28,6 +37,8 @@ class PlexManager(Command, description=DESCRIPTION):
         username = Option('-n', help='Plex username (only needed when a token is not already cached)')
         config_path = Option('-c', metavar='PATH', default='~/.config/plexapi/config.ini', help='Config file in which your token and server_path_root / server_url are stored')
         music_library = Option('-m', default=None, help='Name of the Music library to use (default: Music)')
+        movie_library = Option(default=None, help='Name of the Movies library to use')
+        tv_library = Option(default=None, help='Name of the TV library to use')
 
     def _init_command_(self):
         from ds_tools.logging import init_logging
@@ -35,6 +46,12 @@ class PlexManager(Command, description=DESCRIPTION):
 
         from music.files.patches import apply_mutagen_patches
         apply_mutagen_patches()
+
+    @cached_property
+    def lp(self) -> LoggingPrefix:
+        from ds_tools.output.prefix import LoggingPrefix
+
+        return LoggingPrefix(self.dry_run)
 
     @cached_property
     def plex(self):
@@ -46,6 +63,8 @@ class PlexManager(Command, description=DESCRIPTION):
             server_path_root=self.server_path_root,
             config_path=self.config_path,
             music_library=self.music_library,
+            movie_library=self.movie_library,
+            tv_library=self.tv_library,
             dry_run=self.dry_run,
         )
 
@@ -256,9 +275,68 @@ class ShowMissingAnalysis(
 
 
 class FixBlankTitles(PlexManager, choice='fix blank titles', help='Fix albums containing tracks with blank titles'):
-    def main(self, *args, **kwargs):
+    def main(self):
         albums = {track.album() for track in self.plex.get_tracks() if track.title == ''}
         log.info(f'Found {len(albums)} albums containing tracks that have blank titles')
         for album in sorted(albums):
             log.info(f'  - Refreshing: {album}')
             album.refresh()
+
+
+class SyncPlayed(PlexManager, choice='sync played', help='Sync played status for movies'):
+    action = Action(help='Whether data should be loaded or dumped')
+    data_path: Path = Option(
+        '-p', type=inputs.Path(type='file'), help='Path in which data should be stored/loaded', required=True
+    )
+    only_played = Flag('-o', help='On load: only sync movies where played should become True.  On dump: ignored.')
+
+    @action
+    def load(self):
+        """Load and set played status for movies based on the given file"""
+        if not self.data_path.exists():
+            raise ValueError(f'Invalid path - it does not exist: {self.data_path}')
+        elif not self.data_path.is_file():
+            raise ValueError(f'Invalid path - it is not a file: {self.data_path}')
+
+        import json
+
+        with self.data_path.open('r') as f:
+            data = json.load(f)
+
+        if self.only_played:
+            data = {k: v for k, v in data.items() if v}
+
+        to_update = {}
+        for movie, path, is_played in self.iter_movies():
+            if (was_played := data.get(path.name)) is not None and was_played != is_played:
+                to_update[movie] = was_played
+
+        for movie, played in sorted(to_update.items(), key=lambda kv: kv[0].title):
+            log.info(f'{self.lp.update} key={movie._int_key} year={movie.year} title={movie.title!r} {played=}')
+            if not self.dry_run:
+                if played:
+                    movie.markPlayed()
+                else:
+                    movie.markUnplayed()
+
+    @action
+    def dump(self):
+        """Dump played status of all movies to the specified file"""
+        if self.data_path.exists():
+            raise ValueError(f'Invalid path - it must not exist: {self.data_path}')
+        self.data_path.parent.mkdir(parents=True, exist_ok=True)
+
+        import json
+
+        data = {path.name: is_played for movie, path, is_played in self.iter_movies()}
+        log.info(f'{self.lp.save} played data for {len(data)} movies to {self.data_path.as_posix()}')
+        if not self.dry_run:
+            with self.data_path.open('w') as f:
+                json.dump(data, f, indent=4, sort_keys=True)
+
+    def iter_movies(self) -> Iterator[tuple[Movie, Path, bool]]:
+        for movie in self.plex.find_objects('movie'):
+            is_played = movie.isPlayed
+            for media in movie.media:
+                for part in media.parts:
+                    yield movie, Path(part.file), is_played

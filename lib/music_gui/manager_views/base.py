@@ -231,14 +231,6 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
 
     # region Event Handlers
 
-    # @event_handler(BindEvent.LEFT_CLICK.event)
-    # def _handle_left_click(self, event: Event):
-    #     from tk_gui.widgets.utils import log_event_widget_data
-    #
-    #     log_event_widget_data(self.window, event)
-    #     # log_event_widget_data(self.window, event, parent=True)
-    #     # log_event_widget_data(self.window, event, show_config=True)
-
     @button_handler('open')
     @menu['File']['Open'].callback
     def pick_next_album(self, event: Event, key=None) -> CallbackAction | None:
@@ -278,24 +270,6 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     @button_handler('prev_view')
     def return_to_prev_view(self, event: Event = None, key=None) -> CallbackAction | None:
         return self.go_to_prev_view()
-
-    # def set_next_view(
-    #     self, *args, view_cls: Type[View] = None, retain_prev_view: bool = False, **kwargs
-    # ) -> CallbackAction:
-    #     if retain_prev_view:
-    #         kwargs['prev_view'] = self.__prev_view
-    #     elif view_cls is None:
-    #         kwargs.setdefault('prev_view', None)
-    #     return super().set_next_view(*args, view_cls=view_cls, **kwargs)
-
-    # def get_next_view_spec(self) -> ViewSpec | None:
-    #     try:
-    #         view_cls, args, kwargs = super().get_next_view_spec()
-    #     except TypeError:
-    #         return None
-    #     # if (album := self.album) and 'prev_view' not in kwargs:
-    #     #     kwargs['prev_view'] = (self.__class__, (), {'album': album})
-    #     return view_cls, args, kwargs
 
     # endregion
 

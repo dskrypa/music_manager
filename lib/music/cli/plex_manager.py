@@ -29,16 +29,20 @@ You will be securely prompted for your password for the first login, after which
 
 class PlexManager(Command, description=DESCRIPTION):
     sub_cmd = SubCommand()
-    with ParamGroup('Common') as group:
-        verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
-        dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
+    with ParamGroup('Server / Connection'):
         server_path_root = Option('-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
         server_url = Option('-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
         username = Option('-n', help='Plex username (only needed when a token is not already cached)')
         config_path = Option('-c', metavar='PATH', default='~/.config/plexapi/config.ini', help='Config file in which your token and server_path_root / server_url are stored')
+
+    with ParamGroup('Library'):
         music_library = Option('-m', default=None, help='Name of the Music library to use (default: Music)')
         movie_library = Option(default=None, help='Name of the Movies library to use')
         tv_library = Option(default=None, help='Name of the TV library to use')
+
+    with ParamGroup('Common'):
+        verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
+        dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
 
     def _init_command_(self):
         from ds_tools.logging import init_logging

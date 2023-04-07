@@ -106,6 +106,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
         config = UpdateConfig(
             collab_mode=parsed['collab_mode'],
             soloist=parsed['soloist'],
+            artist_url=parsed['artist_url'] or None,
             hide_edition=parsed['hide_edition'],
             title_case=parsed['title_case'],
             update_cover=False,
@@ -116,7 +117,7 @@ class WikiUpdateView(MainView, view_name='wiki_update'):
             ignore_genre=parsed['ignore_genre'],
             ignore_language=parsed['ignore_language'],
         )
-        updater = WikiUpdater([self.album.path], config, artist_url=parsed['artist_url'] or None)
+        updater = WikiUpdater([self.album.path], config)
 
         processor = None
         album_info: Optional[AlbumInfo] = None

@@ -40,6 +40,13 @@ log = logging.getLogger(__name__)
 
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
 
+# TODO: "Found multiple artists for ..." prompt...
+#  - appears behind the spinner
+#  - the list is too small / requires too much scrolling
+#  - it no longer has an option to combine all
+#  - the popup does not run in the right thread context
+#  - the popup for the thread context error does not allow copying the text
+
 
 class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
     default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}
@@ -189,6 +196,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         return UpdateConfig(
             collab_mode=parsed['collab_mode'],
             soloist=parsed['soloist'],
+            artist_url=parsed['artist_url'] or None,
             hide_edition=parsed['hide_edition'],
             title_case=parsed['title_case'],
             update_cover=False,
@@ -222,9 +230,7 @@ class GuiWikiUpdater:
             return None
 
     def _get_album_info(self) -> AlbumInfo:
-        updater = WikiUpdater(
-            [self.src_album_info.path], self.config, artist_url=self.parsed['artist_url'] or None
-        )
+        updater = WikiUpdater([self.src_album_info.path], self.config)
         album_dir, processor = updater.get_album_info(self.parsed['album_url'] or None)
         # TODO: If track count doesn't match, an uncaught KeyError ends up occurring in the diff view
         return processor.to_album_info()

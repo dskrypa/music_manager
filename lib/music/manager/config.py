@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Union, Callable, Type, TypeVar, Generic, 
 from .enums import CollabMode
 
 if TYPE_CHECKING:
-    from ..typing import Bool, StrOrStrs
+    from ..typing import Bool, StrOrStrs, OptStr
 
 __all__ = ['UpdateConfig']
 
@@ -80,6 +80,7 @@ class UpdateConfig:
 
     soloist: Bool = ConfigItem(False, bool)
     collab_mode: CollabMode = ConfigItem(CollabMode.ARTIST, CollabMode.get)
+    artist_url: OptStr = ConfigItem(None)
 
     # endregion
 
@@ -115,6 +116,7 @@ class UpdateConfig:
         self,
         soloist: Bool = False,
         collab_mode: CollabMode | str = CollabMode.ARTIST,
+        artist_url: OptStr = None,
         hide_edition: Bool = False,
         update_cover: Bool = False,
         add_genre: Bool = True,

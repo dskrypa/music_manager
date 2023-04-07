@@ -64,6 +64,7 @@ def update_tracks(
         soloist=soloist,
         hide_edition=hide_edition,
         collab_mode=collab_mode,
+        artist_url=artist_url,
         add_bpm=add_bpm,
         title_case=title_case,
         artist_sites=artist_sites,
@@ -73,7 +74,7 @@ def update_tracks(
         artist_only=artist_only,
         add_genre=add_genre,
     )
-    WikiUpdater(paths, config, artist_url=artist_url).update(dest_base_dir, load, url, dry_run, dump)
+    WikiUpdater(paths, config).update(dest_base_dir, load, url, dry_run, dump)
 
 
 class WikiUpdater:
@@ -84,15 +85,14 @@ class WikiUpdater:
     provided in update.
     """
 
-    def __init__(self, paths: Paths, config: UpdateConfig, artist_url: Optional[str] = None):
+    def __init__(self, paths: Paths, config: UpdateConfig):
         self.paths = paths
         self.config = config
-        self.artist_url = artist_url
 
     @cached_property
     def artist(self) -> Optional[Artist]:
-        if self.artist_url:
-            return Artist.from_url(self.artist_url)
+        if artist_url := self.config.artist_url:
+            return Artist.from_url(artist_url)
         return None
 
     def update(
@@ -460,6 +460,9 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         src = self._artists_source
         if src and isinstance(src, str):  # It is the artist's URL from a tag
             return Artist.from_url(src)
+        elif artist_url := self.config.artist_url:
+            log.debug(f'Using artist from {artist_url=}')
+            return Artist.from_url(artist_url)
 
         if self.config.artist_sites and src.page.site not in self.config.artist_sites:
             processor = ArtistInfoProcessor.for_album_dir(self.album_dir, self.config)

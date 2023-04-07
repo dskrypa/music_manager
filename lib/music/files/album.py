@@ -49,7 +49,7 @@ class MultiAlbumDir(ClearableCachedPropertyMixin):
 
     @cached_property
     def _album_paths(self) -> list[Path]:
-        album_paths = [p for p in self.path.iterdir() if p.is_dir()]
+        album_paths = [p for p in self.path.iterdir() if p.is_dir() and not any(sp.is_dir() for sp in p.iterdir())]
         album_paths.sort(key=lambda p: p.name.lower())
         return album_paths
 

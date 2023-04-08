@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import logging
-from argparse import REMAINDER
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
@@ -51,6 +50,7 @@ def parse_filters(
     title = escape_regex(' '.join(title)) if title else None
 
     if isinstance(filters, str):
+        from argparse import REMAINDER
         from ds_tools.argparsing.argparser import ArgParser
 
         parser = ArgParser()

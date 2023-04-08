@@ -9,9 +9,16 @@ from itertools import chain
 from abc import ABC, abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import Iterable, Union
+from platform import system
+from typing import TYPE_CHECKING, Iterable, Union
 
-__all__ = ['FileBasedObject', 'SafePath', 'sanitize_path']
+if TYPE_CHECKING:
+    from plexapi.audio import Track
+    from ..typing import PathLike
+
+__all__ = ['FileBasedObject', 'SafePath', 'sanitize_path', 'plex_track_path']
+
+ON_WINDOWS = system().lower() == 'windows'
 
 
 class SafePath:
@@ -27,7 +34,7 @@ class SafePath:
         # print('Generating safe path for: {}'.format(json.dumps(kwargs, sort_keys=True, indent=4)))
         return '/'.join(sanitize_path(part.format(**kwargs)) for part in self.parts)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({"/".join(self.parts)!r})>'
 
     def __add__(self, other: SafePath) -> SafePath:
@@ -82,3 +89,21 @@ def _trim_prefix(basename: str) -> str:
     if m := prefix_match(basename):
         basename = m.group(1)
     return basename
+
+
+def plex_track_path(track_or_rel_path: Union[Track, str], root: PathLike) -> Path:
+    if isinstance(track_or_rel_path, str):
+        rel_path = track_or_rel_path
+    else:
+        rel_path = track_or_rel_path.media[0].parts[0].file
+
+    if ON_WINDOWS and (root_str := root.as_posix() if isinstance(root, Path) else root).startswith('/'):
+        # Path requires 2 parts for a leading // to be preserved on Windows.  If the root is for a network location
+        # and has only 1 part, the additional leading / is always stripped.
+        if not root_str.startswith('//'):
+            root_str = '/' + root_str
+        if root_str.endswith('/'):
+            root_str = root_str[:-1]
+        return Path(root_str + ('' if rel_path.startswith('/') else '/') + rel_path)
+    else:
+        return Path(root).joinpath(rel_path[1:] if rel_path.startswith('/') else rel_path)

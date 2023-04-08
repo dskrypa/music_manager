@@ -45,7 +45,7 @@ from ..cover import prepare_cover_image, bytes_to_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..exceptions import InvalidAlbumDir
 from ..parsing import split_artists, AlbumName
-from ..paths import FileBasedObject
+from ..paths import FileBasedObject, plex_track_path
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import StrsOrPatterns, SAMPLE_RATE_PAT, cleanup_lyrics, glob_patterns, cleanup_album_name
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
@@ -152,23 +152,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @classmethod
     def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> SongFile:
-        if isinstance(track_or_rel_path, str):
-            rel_path = track_or_rel_path
-        else:
-            rel_path = track_or_rel_path.media[0].parts[0].file
-
-        if ON_WINDOWS and (root_str := root.as_posix() if isinstance(root, Path) else root).startswith('/'):
-            # Path requires 2 parts for a leading // to be preserved on Windows.  If the root is for a network location
-            # and has only 1 part, the additional leading / is always stripped.
-            if not root_str.startswith('//'):
-                root_str = '/' + root_str
-            if root_str.endswith('/'):
-                root_str = root_str[:-1]
-            path = Path(root_str + ('' if rel_path.startswith('/') else '/') + rel_path)
-        else:
-            path = Path(root).joinpath(rel_path[1:] if rel_path.startswith('/') else rel_path)
-
-        return cls(path)
+        return cls(plex_track_path(track_or_rel_path, root))
 
     # endregion
 

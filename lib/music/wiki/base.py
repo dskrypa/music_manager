@@ -19,7 +19,6 @@ from .disambiguation import disambiguation_links, handle_disambiguation_candidat
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError
 from .exceptions import NoLinkedPagesFoundError
-from .parsing import WikiParser
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, page_name, titles_and_title_name_map, multi_site_page_map
 
@@ -594,3 +593,7 @@ def _site_page_key(site_page):
     except ValueError:
         index = len(DEFAULT_WIKIS)
     return index, site, page
+
+
+# Down here due to (non-obvious) circular dependency
+from .parsing import WikiParser  # noqa

@@ -40,13 +40,6 @@ log = logging.getLogger(__name__)
 
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
 
-# TODO: "Found multiple artists for ..." prompt...
-#  - appears behind the spinner
-#  - the list is too small / requires too much scrolling
-#  - it no longer has an option to combine all
-#  - the popup does not run in the right thread context
-#  - the popup for the thread context error does not allow copying the text
-
 
 class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
     default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}

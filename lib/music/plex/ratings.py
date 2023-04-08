@@ -9,11 +9,13 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, date, timedelta
 from threading import Event
 from typing import TYPE_CHECKING, Union, Iterable
 
 from ..common.ratings import stars
 from ..files.track.track import SongFile
+from ..files.paths import plex_track_path
 from .config import config
 from .server import LocalPlexServer
 from .utils import parse_filters
@@ -21,7 +23,7 @@ from .utils import parse_filters
 if TYPE_CHECKING:
     from plexapi.audio import Track
 
-__all__ = ['find_and_rate', 'sync_ratings', 'adjust_track_ratings']
+__all__ = ['find_and_rate', 'RatingSynchronizer', 'adjust_track_ratings']
 log = logging.getLogger(__name__)
 
 
@@ -60,22 +62,30 @@ def find_and_rate(
                 obj.edit(**{'userRating.value': rating})
 
 
-def sync_ratings(plex: LocalPlexServer, direction: str, path_filter: str = None, parallel: int = 4):
-    """
-    Sync the song ratings from this Plex server to the files
-
-    :param plex: A :class:`LocalPlexServer`
-    :param direction: ``from_files`` to sync from files to Plex, ``to_files`` to sync from Plex to files
-    :param path_filter: String that file paths must contain to be sync'd
-    :param parallel: Number of workers to use in parallel
-    """
-    RatingSynchronizer(plex, path_filter, parallel).sync(direction == 'from_files')
+# region Sync Ratings
 
 
 class RatingSynchronizer:
-    __slots__ = ('plex', 'dry_run', 'path_filter', 'prefix', 'parallel', 'interrupted')
+    """
+    :param plex: A :class:`LocalPlexServer`
+    :param path_filter: String that file paths must contain to be synced
+    :param parallel: Number of workers to use in parallel
+    :param mod_before: Only sync tracks with files modified before this time
+    :param mod_after: Only sync tracks with files modified after this time
+    """
+    __slots__ = ('plex', 'dry_run', 'path_filter', 'prefix', 'parallel', 'interrupted', 'mod_before', 'mod_after')
+    mod_before: datetime | date | None
+    mod_after: datetime | date | None
 
-    def __init__(self, plex: LocalPlexServer, path_filter: str = None, parallel: int = 4):
+    def __init__(
+        self,
+        plex: LocalPlexServer,
+        path_filter: str = None,
+        parallel: int = 4,
+        *,
+        mod_before: timedelta | datetime | date = None,
+        mod_after: timedelta | datetime | date = None,
+    ):
         if config.server_root is None:
             raise ValueError(f"The custom.server_path_root is missing from {config.path} and wasn't provided")
         self.plex = plex
@@ -84,6 +94,8 @@ class RatingSynchronizer:
         self.prefix = '[DRY RUN] Would update' if plex.dry_run else 'Updating'
         self.parallel = parallel
         self.interrupted = Event()
+        self.mod_before = _normalize_mod_time(mod_before)
+        self.mod_after = _normalize_mod_time(mod_after)
 
     def sync(self, to_plex: bool):
         kwargs = {'mood__ne': 'Duplicate Rating'}
@@ -107,10 +119,23 @@ class RatingSynchronizer:
                 executor.shutdown(cancel_futures=True)
                 raise
 
+    def _get_song_file(self, track: Track) -> SongFile | None:
+        path = plex_track_path(track, config.server_root)
+        mod_before, mod_after = self.mod_before, self.mod_after
+        if mod_before or mod_after:
+            modified = datetime.fromtimestamp(path.stat().st_mtime)
+            if mod_before and modified > mod_before:
+                log.log(9, f'Skipping {path.as_posix()} because modified={_dt_repr(modified)} > {_dt_repr(mod_before)}')
+                return None
+            elif mod_after and modified < mod_after:
+                log.log(9, f'Skipping {path.as_posix()} because modified={_dt_repr(modified)} < {_dt_repr(mod_after)}')
+                return None
+        return SongFile(path)
+
     def _sync_to_file(self, track: Track):
-        if self.interrupted.is_set():
+        if self.interrupted.is_set() or not (file := self._get_song_file(track)):
             return
-        file = SongFile.for_plex_track(track, config.server_root)
+
         file_stars = file.star_rating_10
         plex_stars = track.userRating
         if file_stars == plex_stars:
@@ -121,10 +146,9 @@ class RatingSynchronizer:
                 file.star_rating_10 = plex_stars
 
     def _sync_to_plex(self, track: Track):
-        if self.interrupted.is_set():
+        if self.interrupted.is_set() or not (file := self._get_song_file(track)):
             return
-        file = SongFile.for_plex_track(track, config.server_root)
-        if (file_stars := file.star_rating_10) is None:
+        elif (file_stars := file.star_rating_10) is None:
             log.log(9, f'No rating is stored for {file}')
             return
 
@@ -135,6 +159,22 @@ class RatingSynchronizer:
             log.info(f'{self.prefix} rating from {plex_stars} to {file_stars} for {file}')
             if not self.dry_run:
                 track.edit(**{'userRating.value': file_stars})
+
+
+def _dt_repr(dt: datetime) -> str:
+    return dt.isoformat(' ', 'seconds')
+
+
+def _normalize_mod_time(dt_or_delta: datetime | date | timedelta | None) -> datetime | date | None:
+    if not dt_or_delta:
+        return None
+    elif isinstance(dt_or_delta, timedelta):
+        return datetime.now() - dt_or_delta
+    else:
+        return dt_or_delta
+
+
+# endregion
 
 
 def adjust_track_ratings(plex: LocalPlexServer, min_rating: int = 2, max_rating: int = 10, offset: int = -1):

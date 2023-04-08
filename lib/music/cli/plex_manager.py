@@ -5,8 +5,9 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
 
-from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, PassThru, ParamGroup, main
-from cli_command_parser import Action, inputs
+from cli_command_parser import Command, Counter, Positional, Option, Flag, PassThru, ParamGroup, main  # noqa
+from cli_command_parser import SubCommand, Action
+from cli_command_parser.inputs import Path as IPath, Date, TimeDelta
 
 from music.__version__ import __author_email__, __version__  # noqa
 from ds_tools.output.constants import PRINTER_FORMATS
@@ -25,15 +26,29 @@ DESCRIPTION = """Plex Manager
 
 You will be securely prompted for your password for the first login, after which a session token will be cached
 """
+_PATH_ROOT_HELP = """
+The root of the path to use from this computer to generate paths to files from the path used by Plex.
+When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box -
+for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that
+same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not
+already cached)
+"""
+_URL_HELP = (
+    'The proto://host:port to use to connect to your local Plex server -'
+    ' for example: "https://10.0.0.100:12000" (only needed when not already cached)'
+)
 
 
 class PlexManager(Command, description=DESCRIPTION):
     sub_cmd = SubCommand()
     with ParamGroup('Server / Connection'):
-        server_path_root = Option('-r', metavar='PATH', help='The root of the path to use from this computer to generate paths to files from the path used by Plex.  When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box - for example, "/media/Music/a_song.mp3".  If you were to access that file from this computer, and the path to that same file is "//my_nas/media/Music/a_song.mp3", then the server_path_root would be "//my_nas/" (only needed when not already cached)')
-        server_url = Option('-u', metavar='URL', help='The proto://host:port to use to connect to your local Plex server - for example: "https://10.0.0.100:12000" (only needed when not already cached)')
+        server_path_root = Option('-r', metavar='PATH', help=_PATH_ROOT_HELP)
+        server_url = Option('-u', metavar='URL', help=_URL_HELP)
         username = Option('-n', help='Plex username (only needed when a token is not already cached)')
-        config_path = Option('-c', metavar='PATH', default='~/.config/plexapi/config.ini', help='Config file in which your token and server_path_root / server_url are stored')
+        config_path = Option(
+            '-c', metavar='PATH', default='~/.config/plexapi/config.ini',
+            help='Config file in which your token and server_path_root / server_url are stored'
+        )
 
     with ParamGroup('Library'):
         music_library = Option('-m', default=None, help='Name of the Music library to use (default: Music)')
@@ -75,13 +90,23 @@ class PlexManager(Command, description=DESCRIPTION):
 
 class SyncRatings(PlexManager, choice='sync ratings', help='Sync song rating information between Plex and files'):
     direction = Positional(choices=('to_files', 'from_files'), help='Direction to sync information')
-    path_filter = Option('-f', help='If specified, paths that will be synced must contain the given text (not case sensitive)')
+    path_filter = Option('-f', help='Only sync tracks with paths that contain the given text (not case sensitive)')
     parallel: int = Option('-P', default=4, help='Number of workers to use in parallel')
 
-    def main(self, *args, **kwargs):
-        from music.plex.ratings import sync_ratings
+    with ParamGroup(mutually_exclusive=True):
+        before = Option('-b', type=Date(), help='Only sync files last modified before this date')
+        before_days = Option('-B', type=TimeDelta('days'), help='Only sync files last modified before this many days ago')
+    with ParamGroup(mutually_exclusive=True):
+        after = Option('-a', type=Date(), help='Only sync files last modified after this date')
+        after_days = Option('-A', type=TimeDelta('days'), help='Only sync files last modified after this many days ago')
 
-        sync_ratings(self.plex, self.direction, self.path_filter, self.parallel)
+    def main(self, *args, **kwargs):
+        from music.plex.ratings import RatingSynchronizer
+
+        before = self.before_days or self.before
+        after = self.after_days or self.after
+        rs = RatingSynchronizer(self.plex, self.path_filter, self.parallel, mod_before=before, mod_after=after)
+        rs.sync(self.direction == 'from_files')
 
 
 class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists with custom filters'):
@@ -290,7 +315,7 @@ class FixBlankTitles(PlexManager, choice='fix blank titles', help='Fix albums co
 class SyncPlayed(PlexManager, choice='sync played', help='Sync played status for movies'):
     action = Action(help='Whether data should be loaded or dumped')
     data_path: Path = Option(
-        '-p', type=inputs.Path(type='file'), help='Path in which data should be stored/loaded', required=True
+        '-p', type=IPath(type='file'), help='Path in which data should be stored/loaded', required=True
     )
     only_played = Flag('-o', help='On load: only sync movies where played should become True.  On dump: ignored.')
 

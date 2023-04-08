@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict, Counter
 from itertools import chain
-from typing import TYPE_CHECKING, Iterable, Optional, Union, Iterator, Type, Collection, Mapping, MutableMapping
+from typing import Iterable, Optional, Union, Iterator, Type, Collection, Mapping, MutableMapping
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
@@ -19,11 +19,9 @@ from .disambiguation import disambiguation_links, handle_disambiguation_candidat
 from .disco_entry import DiscoEntry
 from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError
 from .exceptions import NoLinkedPagesFoundError
+from .parsing import WikiParser
 from .typing import WE, Pages, PageEntry, StrOrStrs
 from .utils import site_titles_map, page_name, titles_and_title_name_map, multi_site_page_map
-
-if TYPE_CHECKING:
-    from music.typing import OptStr
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
@@ -109,26 +107,6 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 yield page, parser
             else:
                 log.log(9, f'No parser is configured for {page}')
-
-    @classmethod
-    def _old_classify(cls, obj: PageEntry) -> tuple[OptStr, Optional[Type[WE]]]:
-        # TODO: Delete this method once EntityClassifier has been tested further
-        page_cats = obj.categories
-        err_fmt = f'{obj} is incompatible with {cls.__name__} due to category={{!r}} [{{!r}}]'
-        error = None
-        for cls_cat, cat_cls in cls._category_classes.items():
-            bad_cats = cat_cls._not_categories
-            cat_match = next((pc for pc in page_cats if cls_cat in pc and not any(bci in pc for bci in bad_cats)), None)
-            bad_match = next((pc for pc in page_cats if any(bci in pc for bci in bad_cats)), None)
-            if cat_match and not bad_match:
-                if issubclass(cat_cls, cls):  # True for this class and its subclasses
-                    # log.debug(f'{obj} is a {cat_cls.__name__} because of {cat_match=!r}; {page_cats=}')
-                    return cls_cat, cat_cls
-                error = EntityTypeError(err_fmt.format(cls_cat, cat_match))
-
-        if error:  # A match was found, but for a class that is not a subclass of this one
-            raise error
-        return None, None
 
     @classmethod
     def _validate(
@@ -472,6 +450,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
 class EntityClassifier:
     __slots__ = ('obj', 'entity_cls', 'cls_score_map', 'good_matches', 'bad_matches', '_scores')
+    _scores: list[tuple[int, Type[WE]]]
 
     def __init__(self, obj: PageEntry, entity_cls: Type[WE]):
         self.obj = obj
@@ -499,7 +478,7 @@ class EntityClassifier:
             # Can't sort using the classes themselves
             scores = sorted(((v, k.__name__, k) for k, v in self.cls_score_map.items()), reverse=True)
             self._scores = scores = [(v, k) for v, _, k in scores]  # noqa
-            return scores
+            return scores  # noqa
 
     def get_details(self) -> str:
         lines = []
@@ -513,7 +492,6 @@ class EntityClassifier:
                 lines.append(f'    - counter-indicator categories: {categories}')
 
         return '\n'.join(lines)
-
 
     def get_class(self) -> Optional[Type[WE]]:
         if not (scores := self.get_scores()):
@@ -616,7 +594,3 @@ def _site_page_key(site_page):
     except ValueError:
         index = len(DEFAULT_WIKIS)
     return index, site, page
-
-
-# Down here due to circular dependency
-from .parsing import WikiParser

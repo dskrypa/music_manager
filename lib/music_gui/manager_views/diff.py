@@ -74,7 +74,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         return AlbumDiffFrame(
             self.old_info,
             self.new_info,
-            output_sorted_dir=self.output_sorted_dir,
+            output_sorted_dir=self.dir_manager.output_sorted_dir,
             options=self.options,
             update_options_cb=self.update_options,
             show_edit=self.gui_state.prev_view_name == 'WikiUpdateView',

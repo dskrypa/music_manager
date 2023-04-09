@@ -1,5 +1,5 @@
 """
-
+Base view and commonly used config-related utilities for other Music Manager views.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from abc import ABC
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Type, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Type, Any, Iterable, Mapping
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer
@@ -31,7 +31,9 @@ from music_gui.utils import find_values
 
 if TYPE_CHECKING:
     from tkinter import Event
+    from tk_gui.config import GuiConfig
     from tk_gui.typing import Layout
+    from tk_gui.window import Window
     from music.manager.update import AlbumInfo
 
 __all__ = ['BaseView', 'InitialView']
@@ -188,44 +190,8 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
         return results
 
     @cached_property
-    def output_base_dir(self) -> Path:
-        return Path(self.config['output_base_dir']).expanduser()
-
-    @cached_property
-    def output_sorted_dir(self) -> Path:
-        date_str = date.today().strftime('%Y-%m-%d')
-        return self.output_base_dir.joinpath(f'sorted_{date_str}')
-
-    # endregion
-
-    # region Album Selection
-
-    def _get_last_dir(self, dir_type: str = None) -> Optional[Path]:
-        if last_dir := self.config.get(f'last_dir:{dir_type}' if dir_type else 'last_dir'):
-            last_dir = Path(last_dir)
-            if not last_dir.exists():
-                if last_dir.parent.exists():
-                    return last_dir.parent
-                else:
-                    return self.output_base_dir
-            else:
-                return last_dir
-        return None
-
-    def get_album_selection(self) -> Optional[AlbumDir]:
-        last_dir = self._get_last_dir()
-        if path := pick_folder_popup(last_dir, 'Pick Album Directory', parent=self.window):
-            log.debug(f'Selected album {path=}')
-            try:
-                album_dir = AlbumDir(path)
-            except InvalidAlbumDir as e:
-                popup_input_invalid(str(e), logger=log)
-            else:
-                if path != last_dir:
-                    self.config['last_dir'] = path.as_posix()
-                    self.config.save()
-                return album_dir
-        return None
+    def dir_manager(self) -> DirManager:
+        return DirManager(self.config)
 
     # endregion
 
@@ -234,14 +200,14 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     @button_handler('open')
     @menu['File']['Open'].callback
     def pick_next_album(self, event: Event, key=None) -> CallbackAction | None:
-        if album_dir := self.get_album_selection():
+        if album_dir := self.dir_manager.get_album_selection():
             return self.go_to_next_view(self.as_view_spec(album_dir))
         return None
 
     def _maybe_take_action(self, view_cls: Type[View]) -> CallbackAction | None:
         if (album := self.album) and not isinstance(self, view_cls):
             return self.go_to_next_view(view_cls.as_view_spec(album))
-        elif album_dir := self.get_album_selection():
+        elif album_dir := self.dir_manager.get_album_selection():
             return self.go_to_next_view(view_cls.as_view_spec(album_dir))
         return None
 
@@ -272,6 +238,51 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
         return self.go_to_prev_view()
 
     # endregion
+
+
+class DirManager:
+    def __init__(self, config: GuiConfig):
+        self.config = config
+
+    @cached_property
+    def output_base_dir(self) -> Path:
+        return Path(self.config['output_base_dir']).expanduser()
+
+    @cached_property
+    def output_sorted_dir(self) -> Path:
+        date_str = date.today().strftime('%Y-%m-%d')
+        return self.output_base_dir.joinpath(f'sorted_{date_str}')
+
+    def get_album_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> AlbumDir | None:
+        last_dir = self._get_last_dir(dir_type)
+        if path := pick_folder_popup(last_dir, prompt or 'Pick Album Directory', parent=parent):
+            log.debug(f'Selected album {path=}')
+            try:
+                album_dir = AlbumDir(path)
+            except InvalidAlbumDir as e:
+                popup_input_invalid(str(e), logger=log)
+            else:
+                if path != last_dir:
+                    self._set_last_dir(path, dir_type)
+                return album_dir
+        return None
+
+    def _get_last_dir(self, dir_type: str = None) -> Path | None:
+        key = f'last_dir:{dir_type}' if dir_type else 'last_dir'
+        if last_dir := self.config.get(key):
+            last_dir = Path(last_dir)
+            if last_dir.exists():
+                return last_dir
+            elif last_dir.parent.exists():
+                return last_dir.parent
+            else:
+                return self.output_base_dir
+        return None
+
+    def _set_last_dir(self, path: Path, dir_type: str = None):
+        key = f'last_dir:{dir_type}' if dir_type else 'last_dir'
+        self.config[key] = path.as_posix()
+        self.config.save()
 
 
 class InitialView(BaseView):

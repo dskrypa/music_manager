@@ -128,6 +128,7 @@ class MultiAlbumDir(ClearableCachedPropertyMixin):
 
 class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     __instances = {}
+
     path: Path
 
     def __new__(cls, path: PathLike):
@@ -136,20 +137,24 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             return cls.__instances[path]
         except KeyError:
             pass
-        if any(p.is_dir() for p in path.iterdir()):
+
+        try:
+            contains_dirs = any(p.is_dir() for p in path.iterdir())
+        except FileNotFoundError as e:
+            raise InvalidAlbumDir(f"Invalid album dir - doesn't exist: {path.as_posix()}") from e
+        if contains_dirs:
             raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
 
         cls.__instances[path] = obj = super().__new__(cls)
+        obj.path = path
         return obj
 
     def __init__(self, path: PathLike):
         """
         :param path: The path to a directory that contains one album's music files
         """
-        path = _normalize_init_path(path)
-        if any(p.is_dir() for p in path.iterdir()):
-            raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
-        self.path = path
+        if not hasattr(self, 'path'):
+            self.path = path  # This would never really happen
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.relative_path!r})>'

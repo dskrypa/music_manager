@@ -12,14 +12,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Type, Any, Iterable, Mapping
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
-from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer
-from tk_gui.elements.menu import MenuProperty
-from tk_gui.enums import CallbackAction, BindEvent  # noqa
-from tk_gui.event_handling import button_handler, event_handler  # noqa
-from tk_gui.popups import popup_input_invalid, pick_folder_popup
+from tk_gui import CallbackAction, BindEvent, button_handler, event_handler  # noqa
+from tk_gui import View, popup_input_invalid, pick_folder_popup
+from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer, MenuProperty
 from tk_gui.popups.style import StylePopup
 from tk_gui.pseudo_elements import Row
-from tk_gui.views import View, ViewSpec
 from tk_gui.options import GuiOptions, BoolOption, PopupOption, ListboxOption, DirectoryOption, SubmitOption
 from tk_gui.options.layout import OptionComponent
 
@@ -31,10 +28,8 @@ from music_gui.utils import find_values
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from tk_gui.config import GuiConfig
-    from tk_gui.typing import Layout
-    from tk_gui.window import Window
-    from music.manager.update import AlbumInfo
+    from tk_gui import GuiConfig, Window, ViewSpec, Layout
+    from music.typing import AnyAlbum
 
 __all__ = ['BaseView', 'InitialView']
 log = logging.getLogger(__name__)
@@ -59,7 +54,7 @@ _Options = Mapping[str, Any] | GuiOptions | None
 class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     menu = MenuProperty(MusicManagerMenuBar)
     default_window_kwargs = WINDOW_KWARGS
-    album: AlbumInfo | AlbumDir
+    album: AnyAlbum
     _scroll_y: bool = False
 
     def __init_subclass__(cls, scroll_y: bool = None, **kwargs):
@@ -195,20 +190,30 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
 
     # endregion
 
+    @classmethod
+    def prepare_transition(
+        cls, dir_manager: DirManager, *, album: AnyAlbum = None, parent: Window = None, **kwargs
+    ) -> ViewSpec | None:
+        if album:
+            return cls.as_view_spec(album)
+        elif album_dir := dir_manager.get_album_selection(parent=parent):
+            return cls.as_view_spec(album_dir)
+        return None
+
     # region Event Handlers
 
     @button_handler('open')
     @menu['File']['Open'].callback
     def pick_next_album(self, event: Event, key=None) -> CallbackAction | None:
-        if album_dir := self.dir_manager.get_album_selection():
+        if album_dir := self.dir_manager.get_album_selection(parent=self.window):
             return self.go_to_next_view(self.as_view_spec(album_dir))
         return None
 
-    def _maybe_take_action(self, view_cls: Type[View]) -> CallbackAction | None:
-        if (album := self.album) and not isinstance(self, view_cls):
-            return self.go_to_next_view(view_cls.as_view_spec(album))
-        elif album_dir := self.dir_manager.get_album_selection():
-            return self.go_to_next_view(view_cls.as_view_spec(album_dir))
+    def _maybe_take_action(self, view_cls: Type[BaseView]) -> CallbackAction | None:
+        if (album := self.album) and isinstance(self, view_cls):
+            album = None
+        if spec := view_cls.prepare_transition(self.dir_manager, album=album, parent=self.window):
+            return self.go_to_next_view(spec)
         return None
 
     @menu['Actions']['Clean'].callback
@@ -283,6 +288,21 @@ class DirManager:
         key = f'last_dir:{dir_type}' if dir_type else 'last_dir'
         self.config[key] = path.as_posix()
         self.config.save()
+
+    # region Select Sync Album
+
+    def select_sync_src_album(self, dst_album: AnyAlbum | None, parent: Window = None) -> AlbumDir | None:
+        return self.select_sync_album(dst_album, 'sync_src', parent)
+
+    def select_sync_dst_album(self, src_album: AnyAlbum | None, parent: Window = None) -> AlbumDir | None:
+        return self.select_sync_album(src_album, 'sync_dst', parent)
+
+    def select_sync_album(self, other: AnyAlbum | None, dir_type: str, parent: Window | None) -> AlbumDir | None:
+        ver = 'original' if dir_type == 'sync_src' else 'new'
+        prompt = f'Select {ver} version of {other.name}' if other else None
+        return self.get_album_selection(prompt, dir_type, parent)
+
+    # endregion
 
 
 class InitialView(BaseView):

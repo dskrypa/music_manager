@@ -130,7 +130,7 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
             return self.go_to_next_view(AlbumDiffView.as_view_spec(old_info=old_info, new_info=new_info))
         else:
             popup_ok('No changes were made - there is nothing to save')
-            return
+            return None
 
     @button_handler('wiki_update')
     def wiki_update(self, event: Event, key=None) -> CallbackAction | None:
@@ -144,8 +144,15 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         #  to/from albums, with a <-> button to swap which is in the to/from position
         popup_ok(f'Not implemented yet: {key}')  # TODO
 
-    @button_handler('copy_album_tags')
-    def copy_album_tags(self, event: Event, key=None):
-        popup_ok(f'Not implemented yet: {key}')  # TODO
+    # @button_handler('copy_album_tags')
+    @button_handler('copy_src_album_tags', 'copy_dst_album_tags')
+    def copy_album_tags(self, event: Event, key=None) -> CallbackAction | None:
+        from .diff import FullSyncDiffView
+
+        kwargs = {'src_album' if key == 'copy_src_album_tags' else 'dst_album': self.album}
+        if spec := FullSyncDiffView.prepare_transition(self.dir_manager, parent=self.window, **kwargs):
+            return self.go_to_next_view(spec)
+        else:
+            return None
 
     # endregion

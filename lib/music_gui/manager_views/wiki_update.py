@@ -16,11 +16,10 @@ from ds_tools.caching.decorators import cached_property
 from db_cache.utils import get_user_cache_dir
 from ds_tools.output.printer import Printer
 
+from tk_gui import button_handler, ChooseImagePopup, SpinnerPopup, popup_ok, popup_error
 from tk_gui.elements import Text, Button, Spacer, EventButton
-from tk_gui.event_handling import button_handler
 from tk_gui.options import GuiOptions, OptionColumn, OptionGrid
 from tk_gui.options.options import InputOption, BoolOption, DropdownOption, ListboxOption, SubmitOption
-from tk_gui.popups import ChooseImagePopup, SpinnerPopup, popup_ok, popup_error
 from wiki_nodes.http import MediaWikiClient
 
 from music.manager.config import UpdateConfig
@@ -31,8 +30,7 @@ from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from tk_gui.enums import CallbackAction
-    from tk_gui.typing import Layout
+    from tk_gui import CallbackAction, Layout
     from music.manager.update import AlbumInfo
 
 __all__ = ['WikiUpdateView']

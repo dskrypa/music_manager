@@ -159,13 +159,19 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             EButton('Wiki Update', key='wiki_update', **kwargs),
         ]
         kwargs['size'] = (25, 1)
+        # TODO: Handle replacing inferior versions in real destination directory
         yield [
             EButton('Sync Ratings Between Albums', key='sync_album_ratings', disabled=True, **kwargs),
-            EButton('Copy Tags Between Albums', key='copy_album_tags', disabled=True, **kwargs),
+            # EButton('Copy Tags Between Albums', key='copy_album_tags', disabled=True, **kwargs),
+        ]
+        yield [
+            EButton('Copy Tags To Album...', key='copy_src_album_tags', **kwargs),
+            EButton('Copy Tags From Album...', key='copy_dst_album_tags', **kwargs),
         ]
 
         open_btn = EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)
         album_dir = self.album_dir
+        # TODO: handle: music.files.exceptions.InvalidAlbumDir: Invalid album dir - contains directories
         if len(album_dir.parent) > 1:
             kwargs = dict(font=LRG_FONT, size=(5, 1), borderwidth=3)
             yield [

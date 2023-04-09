@@ -136,20 +136,36 @@ class Serializable(ABC):
     def was_modified(self) -> bool:
         return self.__modified
 
+    def update_from(self, other: Serializable, skip: Collection[str] = ()):
+        if not isinstance(other, self.__class__):
+            raise TypeError(f'Unable to update {self} from an object of type={other.__class__.__name__}')
+        for key, field in self._fields.items():
+            if not (field.read_only or key in skip):
+                self[key] = other[key]
+
+    def __ior__(self, other: Serializable):
+        self.update_from(other)
+        return self
+
 
 class Field(Generic[T, D]):
-    __slots__ = ('name', 'type', 'default', 'default_factory')
+    __slots__ = ('name', 'type', 'default', 'default_factory', 'read_only')
     name: str
     type: Callable[[Any], T]
     default: D
     default_factory: Callable[[], D]
 
     def __init__(
-        self, type: Callable[[Any], T] = None, default: D = None, default_factory: Callable[[], D] = None  # noqa
+        self,
+        type: Callable[[Any], T] = None,  # noqa
+        default: D = None,
+        default_factory: Callable[[], D] = None,
+        read_only: bool = False,
     ):
         self.type = type
         self.default = default
         self.default_factory = default_factory
+        self.read_only = read_only
 
     def __set_name__(self, owner: Type[Serializable], name: str):
         self.name = name
@@ -353,7 +369,7 @@ class AlbumInfo(Serializable, GenreMixin):
     number: int = Field(int)                        # This album is the Xth of its type from this artist
     numbered_type: str = Field(str)                 # The type + number within that type for this artist
 
-    mp4: bool = Field(bool, False)                  # Whether the files in this album are mp4s
+    mp4: bool = Field(bool, False, read_only=True)  # Whether the files in this album are mp4s
     cover_path: str = Field(str)                    # Path to a cover image
     cover_max_width: int = Field(int, 1200)         # Maximum width for new cover images
     wiki_album: str = Field(str)                    # URL of the Wiki page that this album matches
@@ -381,6 +397,17 @@ class AlbumInfo(Serializable, GenreMixin):
 
     def copy(self) -> AlbumInfo:
         return self.from_dict(self.to_dict())
+
+    def update_from(self, other: AlbumInfo, skip: Collection[str] = ()):
+        super().update_from(other, {'tracks', *skip})
+        if 'tracks' not in skip:
+            for s_track, o_track in zip(self.tracks.values(), other.tracks.values()):
+                s_track.update_from(o_track)
+
+    def __or__(self, other: AlbumInfo) -> AlbumInfo:
+        clone = self.copy()
+        clone.update_from(other)
+        return clone
 
     # region Calculated / Custom Properties
 

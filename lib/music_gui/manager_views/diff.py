@@ -10,23 +10,22 @@ from typing import TYPE_CHECKING, Mapping, Any
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output.prefix import LoggingPrefix
-from tk_gui.enums import CallbackAction
-from tk_gui.event_handling import button_handler
+from tk_gui import CallbackAction, button_handler, popup_error
 from tk_gui.options import GuiOptions, BoolOption
-from tk_gui.popups import popup_error
 
 from music.files.album import AlbumDir
+from music.manager.update import AlbumInfo
 from music_gui.elements.diff_frames import AlbumDiffFrame
 from music_gui.elements.helpers import nav_button
-from .base import BaseView
+from music_gui.utils import get_album_info
+from .base import BaseView, DirManager
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from tk_gui.elements import Button
-    from tk_gui.typing import Layout
-    from music.manager.update import AlbumInfo
+    from tk_gui import Button, Window, ViewSpec, Layout
+    from music.typing import AnyAlbum
 
-__all__ = ['AlbumDiffView']
+__all__ = ['AlbumDiffView', 'FullSyncDiffView']
 log = logging.getLogger(__name__)
 
 
@@ -55,6 +54,10 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
             }
         self._options = options
         self.state_data['modified'] = True
+
+    @classmethod
+    def prepare_transition(cls, dir_manager: DirManager, **kwargs) -> ViewSpec | None:
+        return None
 
     # region Layout Generation
 
@@ -187,3 +190,23 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
                     break
 
     # endregion
+
+
+class FullSyncDiffView(AlbumDiffView):
+    @classmethod
+    def prepare_transition(
+        cls,
+        dir_manager: DirManager,
+        src_album: AnyAlbum = None,
+        dst_album: AnyAlbum = None,
+        *,
+        parent: Window = None, **kwargs
+    ) -> ViewSpec | None:
+        if not src_album and not (src_album := dir_manager.select_sync_src_album(dst_album, parent)):
+            return None
+        if not dst_album and not (dst_album := dir_manager.select_sync_dst_album(src_album, parent)):
+            return None
+
+        old_info = get_album_info(dst_album)
+        new_info = old_info | get_album_info(src_album)
+        return cls.as_view_spec(old_info, new_info)

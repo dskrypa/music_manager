@@ -27,13 +27,14 @@ from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
 
-from ..common.disco_entry import DiscoEntryType
-from ..common.ratings import stars_to_256
-from ..files.album import iter_album_dirs, AlbumDir
-from ..files.changes import get_common_changes
-from ..files.cover import prepare_cover_image
-from ..files.paths import SafePath
-from ..files.track.track import SongFile
+from music.common.disco_entry import DiscoEntryType
+from music.common.ratings import stars_to_256
+from music.files.album import iter_album_dirs, AlbumDir
+from music.files.changes import get_common_changes
+from music.files.cover import prepare_cover_image
+from music.files.paths import SafePath
+from music.files.track.track import SongFile
+from music.text.name import Name
 
 if TYPE_CHECKING:
     from music.typing import PathLike
@@ -600,52 +601,27 @@ class AlbumInfo(Serializable, GenreMixin):
 
     # region Target Path Methods
 
+    @cached_property
+    def sorter(self) -> AlbumSorter:
+        return AlbumSorter(self)
+
     @property
     def expected_rel_dir(self) -> str:
-        rel_fmt = _album_format(self.date, self.type.numbered and self.number, self.solo_of_group and self.ost)
-        rel_fmt = SOLO_DIR_FORMAT + rel_fmt if self.solo_of_group and not self.ost else ARTIST_TYPE_DIRS + rel_fmt
-        expected_rel_dir = rel_fmt(
-            artist=self.parent,
-            type_dir=self.type.directory,
-            album_num=self.numbered_type,
-            album=self.name,
-            date=self.date.strftime('%Y.%m.%d'),  # noqa
-            singer=self.singer,
-            disk=self.disk,
-        )
-        return expected_rel_dir
+        return self.sorter.get_expected_rel_dir()
 
     def dest_base_dir(self, album_dir: AlbumDir, dest_base_dir: PathLike | None = None) -> Path:
         if dest_base_dir is None:
-            expected_parent = Path(self.expected_rel_dir).parent
-            log.debug(f'Comparing {expected_parent=} to {album_dir.path.parent.as_posix()}')
-            if album_dir.path.parent.as_posix().endswith(expected_parent.as_posix()):
-                return album_dir.path.parents[len(expected_parent.parts)]
-            else:
-                return Path('./sorted_{}'.format(date.today().strftime('%Y-%m-%d')))
+            return self.sorter.get_default_base_dir(album_dir=album_dir)
         else:
             return Path(dest_base_dir)
 
     def get_new_path(self, new_base_dir: PathLike | None = None, in_place: bool = False) -> Path | None:
         if in_place and new_base_dir:
             raise ValueError(f'Bad argument combo: in_place cannot be used with {new_base_dir=}')
-        try:
-            expected_rel_dir = self.expected_rel_dir
-        except AttributeError:
-            return None
-
-        old_album_path = self.album_dir.path
-        if in_place:
-            new_album_path = old_album_path.parent.joinpath(Path(expected_rel_dir).name)
-            return new_album_path if new_album_path != old_album_path else None
-
-        if new_base_dir is None:
-            new_base_dir = old_album_path.parents[2]
+        elif in_place:
+            return self.sorter.get_sort_in_place_path()
         else:
-            new_base_dir = Path(new_base_dir).expanduser()
-
-        new_album_path = self.dest_base_dir(self.album_dir, new_base_dir).joinpath(expected_rel_dir)
-        return new_album_path if new_album_path != old_album_path else None
+            return self.sorter.get_new_path(new_base_dir)
 
     # endregion
 
@@ -659,11 +635,10 @@ class AlbumInfo(Serializable, GenreMixin):
         no_album_move: bool = False,
         add_genre: bool = True,
     ):
-        album_dir = album_dir or self.album_dir
         if self.tracks:
-            self.update_tracks(album_dir, dry_run, add_genre)
+            self.update_tracks(album_dir or self.album_dir, dry_run, add_genre)
         if not no_album_move:
-            self.move_album(album_dir, dest_base_dir, dry_run)
+            self.move_album(album_dir or self.album_dir, dest_base_dir, dry_run)
 
     def update_tracks(self, album_dir: AlbumDir = None, dry_run: bool = False, add_genre: bool = True):
         if album_dir is None:
@@ -705,17 +680,84 @@ class AlbumInfo(Serializable, GenreMixin):
     # endregion
 
 
-def _album_format(date, num, solo_ost):
-    if date and num:
-        path = SafePath('[{date}] {album} [{album_num}]')
-    elif date:
-        path = SafePath('[{date}] {album} [{singer} solo]' if solo_ost else '[{date}] {album}')
-    elif num:
-        path = SafePath('{album} [{album_num}]')
-    else:
-        path = SafePath('{album} [{singer} solo]' if solo_ost else '{album}')
+class AlbumSorter:
+    __slots__ = ('album_info',)
 
-    return path
+    def __init__(self, album_info: AlbumInfo):
+        self.album_info = album_info
+
+    def get_artist_dir(self, base_dir: Path, en_only: bool = False) -> Path:
+        artist = self.album_info.parent
+        if en_only:
+            artist = Name.from_enclosed(artist).english
+        return base_dir.joinpath(SafePath('{artist}')(artist=artist))
+
+    def get_expected_name(self) -> str:
+        album = self.album_info
+        date_value = album.date.strftime('%Y.%m.%d') if album.date else None
+        return self._name_format(album_num=album.numbered_type, album=album.name, date=date_value, singer=album.singer)
+
+    def get_expected_rel_dir(self, en_artist_only: bool = False) -> str:
+        rel_path_fmt = self._parent_dir_format + self._name_format
+        album = self.album_info
+        artist = album.parent
+        if en_artist_only:
+            artist = Name.from_enclosed(artist).english
+
+        date_value = album.date.strftime('%Y.%m.%d') if album.date else None
+        return rel_path_fmt(
+            artist=artist,
+            type_dir=album.type.directory,
+            album_num=album.numbered_type,
+            album=album.name,
+            date=date_value,
+            singer=album.singer,
+            disk=album.disk,
+        )
+
+    @property
+    def _parent_dir_format(self) -> SafePath:
+        album = self.album_info
+        if album.solo_of_group and not album.ost:
+            return SOLO_DIR_FORMAT  # SafePath('{artist}/Solo/{singer}')
+        else:
+            return ARTIST_TYPE_DIRS  # SafePath('{artist}/{type_dir}')
+
+    @property
+    def _name_format(self) -> SafePath:
+        album = self.album_info
+        base = '[{date}] {album}' if album.date else '{album}'
+        if album.type.numbered and album.number:
+            return SafePath(base + ' [{album_num}]')
+        elif album.solo_of_group and album.ost:
+            return SafePath(base + ' [{singer} solo]')
+        else:
+            return SafePath(base)
+
+    def get_sort_in_place_path(self) -> Path | None:
+        old_album_path = self.album_info.album_dir.path
+        new_album_path = old_album_path.parent.joinpath(self.get_expected_name())
+        return new_album_path if new_album_path != old_album_path else None
+
+    def get_new_path(self, new_base_dir: PathLike | None = None, en_artist_only: bool = False) -> Path | None:
+        old_album_path = self.album_info.album_dir.path
+        if new_base_dir is None:
+            new_base_dir = old_album_path.parents[2]
+        else:
+            new_base_dir = Path(new_base_dir).expanduser()
+
+        new_album_path = new_base_dir.joinpath(self.get_expected_rel_dir(en_artist_only))
+        return new_album_path if new_album_path != old_album_path else None
+
+    def get_default_base_dir(self, en_artist_only: bool = False, album_dir: AlbumDir = None) -> Path:
+        if album_dir is None:
+            album_dir = self.album_info.album_dir
+        expected_parent = Path(self.get_expected_rel_dir(en_artist_only)).parent
+        log.debug(f'Comparing {expected_parent=} to {album_dir.path.parent.as_posix()}')
+        if album_dir.path.parent.as_posix().endswith(expected_parent.as_posix()):
+            return album_dir.path.parents[len(expected_parent.parts)]
+        else:
+            return Path(f'./sorted_{date.today().isoformat()}')
 
 
 def normalize_case(text: str) -> str:

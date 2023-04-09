@@ -155,4 +155,10 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         else:
             return None
 
+    @button_handler('sort_into_library')
+    def sort_into_library(self, event: Event, key=None):
+        from .sort import AlbumSortView
+
+        return self.go_to_next_view(AlbumSortView.prepare_transition(self.dir_manager, self.album, parent=self.window))
+
     # endregion

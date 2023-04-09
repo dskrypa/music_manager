@@ -105,8 +105,11 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             key_ele = label_ele(key, **kwargs)
             if key == 'type':
                 types = [de.real_name for de in DiscoEntryType]
-                if value and value not in types:
-                    types.append(value)
+                if value:
+                    if isinstance(value, DiscoEntryType):
+                        value = value.real_name
+                    elif value not in types:
+                        types.append(value)
                 val_ele = Combo(
                     types, value, size=(48, None), disabled=disabled, key=key, change_cb=self._update_numbered_type
                 )
@@ -159,7 +162,8 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         kwargs['size'] = (25, 1)
         # TODO: Handle replacing inferior versions in real destination directory
         yield [
-            EButton('Sync Ratings Between Albums', key='sync_album_ratings', disabled=True, **kwargs),
+            # EButton('Sync Ratings Between Albums', key='sync_album_ratings', disabled=True, **kwargs),
+            EButton('Sort Into Library', key='sort_into_library', **kwargs),
             # EButton('Copy Tags Between Albums', key='copy_album_tags', disabled=True, **kwargs),
         ]
         yield [

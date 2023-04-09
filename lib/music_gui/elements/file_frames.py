@@ -10,16 +10,15 @@ from itertools import count
 from typing import TYPE_CHECKING, Any
 
 from ds_tools.caching.decorators import cached_property
-from tk_gui.elements import Element, ListBox, CheckBox, Image
-from tk_gui.elements.frame import InteractiveFrame, Frame
+from tk_gui import StyleState, BasicPopup
+from tk_gui.elements import InteractiveFrame, Frame, ScrollFrame, Element, ListBox, CheckBox, Image, HorizontalSeparator
 from tk_gui.elements.rating import Rating
 from tk_gui.elements.text import PathLink, Multiline, Text
-from tk_gui.enums import StyleState
-from tk_gui.popups import BasicPopup
 
 from music.common.ratings import stars_from_256
+from music.files.album import AlbumDir
 from music.files.track.track import SongFile
-from ..utils import TrackIdentifier, get_track_file
+from ..utils import TrackIdentifier, get_track_file, with_separators
 from .helpers import IText
 from .images import TrackCoverImageBuilder
 
@@ -27,7 +26,7 @@ if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui.typing import Layout, Bool, BindCallback, XY
 
-__all__ = ['SongFileFrame', 'SelectableSongFileFrame']
+__all__ = ['SongFileFrame', 'SelectableSongFileFrame', 'SongFilesFrame']
 log = logging.getLogger(__name__)
 
 ValueEle = Text | Multiline | Rating | ListBox
@@ -152,9 +151,10 @@ class SongFileFrame(InteractiveFrame):
             kwargs = {'size': (50, len(value)), 'pad': (5, 0), 'border': 2}
             val_ele = ListBox(value, default=value, disabled=self.disabled, scroll_y=False, **kwargs)
         else:
+            kwargs = {'link': True} if 'Wiki URL' in disp_name else {}
             if value is None:
                 value = ''
-            val_ele = IText(value, size=(50, 1))
+            val_ele = IText(value, size=(50, 1), **kwargs)
 
         return (key_ele, val_ele)
 
@@ -228,3 +228,19 @@ class SelectableSongFileFrame(SongFileFrame):
             val_ele.update_style(**kwargs)
 
         return box_toggled_callback
+
+
+class SongFilesFrame(ScrollFrame):
+    def __init__(self, album: AlbumDir, **kwargs):
+        kwargs.setdefault('scroll_y', True)
+        kwargs.setdefault('fill_y', True)
+        kwargs.setdefault('scroll_y_amount', 1)
+        kwargs.setdefault('expand', True)
+        kwargs.setdefault('pad', (2, 2))  # Auto-fill of available space doesn't work with (0, 0) for some reason...
+        super().__init__(**kwargs)
+        self.album = album
+
+    def get_custom_layout(self) -> Layout:
+        yield [Text('Album:', anchor='s'), IText(self.album.path, anchor='s')]
+        yield [HorizontalSeparator()]
+        yield from with_separators(map(SongFileFrame, self.album), True)

@@ -5,11 +5,16 @@
 from __future__ import annotations
 
 import logging
+import re
 from enum import Enum
 from functools import cached_property
-from typing import Iterable, Optional, Union
+from typing import TYPE_CHECKING, Iterable, Optional, Union
 
 from ds_tools.core.decorate import cached_classproperty
+from ds_tools.output.formatting import ordinal_suffix
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = ['DiscoEntryType']
 log = logging.getLogger(__name__)
@@ -108,6 +113,13 @@ class DiscoEntryType(Enum):
         return cls.UNKNOWN
 
     @classmethod
+    def for_directory(cls, dir_name: str) -> DiscoEntryType | None:
+        for album_type in cls:
+            if album_type.directory == dir_name:
+                return album_type
+        return None
+
+    @classmethod
     def _missing_(cls, value):
         return cls.for_name(value)  # noqa
 
@@ -126,3 +138,21 @@ class DiscoEntryType(Enum):
     @cached_property
     def numbered(self) -> bool:
         return self.value[3]
+
+    def format(self, num: int) -> str:
+        return f'{num}{ordinal_suffix(num)} {self.real_name}'
+
+    @classmethod
+    def with_num_from_album_dir(cls, path: Path, default_num: int = 1) -> tuple[DiscoEntryType, int] | None:
+        if not (album_type := cls.for_directory(path.parent.name)):
+            return None
+
+        if m := re.search(r'\[(\d+)(?:st|nd|rd|th) ([^]]+)]$', path.name):
+            num_str, type_name = m.groups()
+            if type_name == album_type.real_name:
+                return album_type, int(num_str)
+
+        if not album_type.numbered:
+            return album_type, default_num
+
+        return None

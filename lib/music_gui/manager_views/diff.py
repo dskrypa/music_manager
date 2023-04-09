@@ -209,4 +209,4 @@ class FullSyncDiffView(AlbumDiffView):
 
         old_info = get_album_info(dst_album)
         new_info = old_info | get_album_info(src_album)
-        return cls.as_view_spec(old_info, new_info)
+        return cls.as_view_spec(old_info, new_info, manually_edited=new_info.type is None)

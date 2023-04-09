@@ -460,6 +460,13 @@ class AlbumInfo(Serializable, GenreMixin):
     @classmethod
     def from_album_dir(cls, album_dir: AlbumDir) -> AlbumInfo:
         file: SongFile = next(iter(album_dir))
+        try:
+            disco_type, num = DiscoEntryType.with_num_from_album_dir(album_dir.path)
+        except TypeError:
+            kwargs = {}
+        else:
+            kwargs = {'type': disco_type, 'number': num, 'numbered_type': disco_type.format(num)}
+
         self = cls(
             title=file.tag_album,
             artist=file.tag_album_artist,
@@ -471,6 +478,7 @@ class AlbumInfo(Serializable, GenreMixin):
             mp4=all(f.tag_type == 'mp4' for f in album_dir),
             wiki_album=file.album_url,
             wiki_artist=file.artist_url,
+            **kwargs,
         )
         self._album_dir = album_dir
         self.tracks = {f.path.as_posix(): TrackInfo._from_file(f, self) for f in album_dir}

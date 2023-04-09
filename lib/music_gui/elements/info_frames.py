@@ -1,5 +1,5 @@
 """
-
+AlbumInfo-related frames for the Album view.
 """
 
 from __future__ import annotations
@@ -8,8 +8,6 @@ import logging
 from typing import TYPE_CHECKING, Iterator, Collection, Any
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.output.formatting import ordinal_suffix
-
 from tk_gui.elements import Element, HorizontalSeparator, Multiline, Text, Input, Image, Spacer
 from tk_gui.elements.buttons import Button, EventButton as EButton
 from tk_gui.elements.choices import ListBox, CheckBox, Combo
@@ -224,7 +222,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             return
 
         num_type_ele: Input = self._tag_vals_and_eles['numbered_type'][1]
-        num_type_ele.update(f'{num_val}{ordinal_suffix(num_val)} {type_val.real_name}')
+        num_type_ele.update(type_val.format(num_val))
 
     def _replace_cover_image(self, event=None):
         if self.disabled:

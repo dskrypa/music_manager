@@ -333,31 +333,20 @@ class AlbumView(MainView, view_name='album'):
 
         prompt = f'Select data source for {self.album.name}'
         last_dir = self._get_last_dir('sync_src')
-        if path := get_directory(prompt, no_window=True, initial_folder=last_dir):
-            try:
-                album_dir = AlbumDir(path)
-            except InvalidAlbumDir as e:
-                popup_input_invalid(str(e), logger=cls.log)  # noqa
-                return
-            else:
-                if path != last_dir:
-                    self.config['last_dir:sync_src'] = path.as_posix()
-        else:
+        if not (path := get_directory(prompt, no_window=True, initial_folder=last_dir)):
             return
 
+        try:
+            album_dir = AlbumDir(path)
+        except InvalidAlbumDir as e:
+            popup_input_invalid(str(e), logger=cls.log)  # noqa
+            return
+        else:
+            if path != last_dir:
+                self.config['last_dir:sync_src'] = path.as_posix()
+
         src_info = AlbumInfo.from_album_dir(album_dir)
-        dst_info = AlbumInfo.from_album_dir(self.album)
-        dst_info.update_from(src_info)
-
-        # album_fields = tuple(f.name for f in fields(AlbumInfo) if f.name not in ('tracks', '_date', '_type', 'mp4'))
-        # for field in album_fields:
-        #     setattr(dst_info, field, getattr(src_info, field))
-        #
-        # track_fields = tuple(f.name for f in fields(TrackInfo))
-        # for src_track, dst_track in zip(src_info.tracks.values(), dst_info.tracks.values()):
-        #     for field in track_fields:
-        #         setattr(dst_track, field, getattr(src_track, field))
-
+        dst_info = src_info | AlbumInfo.from_album_dir(self.album)
         options = {'no_album_move': True, 'add_genre': False}
         return AlbumDiffView(self.album, dst_info, self.album_formatter, last_view=self, options=options)
 

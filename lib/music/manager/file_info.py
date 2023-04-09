@@ -154,7 +154,7 @@ def table_song_tags(paths: Paths, include_tags=None):
         tags.add('TPE1/2')
         rows[0]['TPE1/2'] = '(Album) Artist'
         for key in ('TPE1', 'TPE2'):
-            tags.remove(key)
+            tags.discard(key)
             try:
                 del rows[0][key]
             except KeyError:

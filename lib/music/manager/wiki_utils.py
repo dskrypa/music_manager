@@ -9,6 +9,7 @@ __all__ = ['get_disco_part']
 
 
 def get_disco_part(entry: DiscoObj) -> DiscographyEntryPart:
+    # TODO: Include link to URL in the prompt
     if isinstance(entry, DiscographyEntry):
         entry = choose_item(entry.editions, 'edition', entry)
     if isinstance(entry, DiscographyEntryEdition):

@@ -67,7 +67,7 @@ def choose_item(
             repr_func=repr_func,
         )
     elif UI_MODE == UIMode.TK_GUI:
-        return tkg_choose_item(items, item_name=name, source=source, text=before, repr_func=repr_func)
+        return tkg_choose_item(items, item_name=name, source=source, text=before, repr_func=repr_func, keep_on_top=True)
     else:
         return gui_choose_item(items, name, source, before=before, repr_func=repr_func)
 
@@ -88,11 +88,11 @@ def get_input(
         raise ValueError(f'Unable to skip user prompt without a default value: {prompt!r}')
     elif parser is parse_yes_no:
         if UI_MODE == UIMode.TK_GUI:
-            return tkg_yes_no(prompt, **kwargs)
+            return tkg_yes_no(prompt, keep_on_top=True, **kwargs)
         return popup_yes_no(prompt, **kwargs)
     else:
         if UI_MODE == UIMode.TK_GUI:
-            result = tkg_get_text(prompt, **kwargs)
+            result = tkg_get_text(prompt, keep_on_top=True, **kwargs)
         else:
             result = popup_get_text(prompt, **kwargs)
         return parser(result)
@@ -102,6 +102,6 @@ def getpass(prompt: str, **kwargs):
     if UI_MODE == UIMode.CLI:
         return cli_getpass(prompt)
     elif UI_MODE == UIMode.TK_GUI:
-        return tkg_get_pw(prompt, **kwargs)
+        return tkg_get_pw(prompt, keep_on_top=True, **kwargs)
     else:
         return popup_get_text(prompt, password_char='*', **kwargs)

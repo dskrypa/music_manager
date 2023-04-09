@@ -504,7 +504,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
         elif artist == 'Various Artists':
             artist = ArtistSet(artists, 'Various Artists', 'Various Artists')
         else:
-            others.remove(artist)
+            others.discard(artist)
             for track in self.file_track_map.values():
                 track.add_collabs(others)
 

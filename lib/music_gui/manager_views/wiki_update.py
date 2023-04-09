@@ -236,6 +236,8 @@ class GuiWikiUpdater:
             return MediaWikiClient(wiki_album_url, nopath=True)
         return None
 
+    # region Cover Images
+
     @cached_property
     def wiki_image_urls(self) -> Optional[dict[str, str]]:
         if not (client := self.wiki_client):
@@ -312,6 +314,8 @@ class GuiWikiUpdater:
             log.debug(f'Saving wiki cover choice in cache: {path.as_posix()}')
             path.write_bytes(data)
         return path
+
+    # endregion
 
 
 def _log_and_popup_error(message: str, exc_info: bool = True):

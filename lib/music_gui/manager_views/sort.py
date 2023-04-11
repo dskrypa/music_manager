@@ -8,7 +8,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from tk_gui import CallbackAction, button_handler, EventButton, Text
+from PIL.Image import new as new_image
+from tk_gui import CallbackAction, button_handler, EventButton, Text, ScrollFrame, BasicRowFrame
+from tk_gui.images import Icons
 
 from music.files.album import AlbumDir, InvalidAlbumDir
 from music.manager.update import AlbumInfo
@@ -39,26 +41,6 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
         self.src_album = get_album_dir(src_album)
         self.dst_album = get_album_dir(dst_album) if dst_album else None
 
-    def get_pre_window_layout(self) -> Layout:
-        yield from super().get_pre_window_layout()
-
-    def get_inner_layout(self) -> Layout:
-        src_frame = SongFilesFrame(self.src_album)
-        if self.dst_album:
-            yield [src_frame, Text('\u2794', font=('Helvetica', 20), size=(2, 1)), SongFilesFrame(self.dst_album)]
-        else:
-            yield [src_frame, EventButton('Match...', key='fix_dst_match')]
-
-    @button_handler('fix_dst_match')
-    def fix_dst_match(self, event: Event, key=None) -> CallbackAction | None:
-        if dst_album := self._fix_dst_match():
-            return self.go_to_next_view(self.as_view_spec(self.src_album, dst_album, self.src_info))
-        return None
-
-    def _fix_dst_match(self) -> AlbumDir | None:
-        init_dir = find_dst_album_init_dir(self.src_info, self.dir_manager.library_base_dir)
-        return self.dir_manager.select_album(init_dir, f'Select original version of {self.src_album.name}', self.window)
-
     @classmethod
     def prepare_transition(
         cls,
@@ -74,6 +56,72 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
         if not dst_album and src_album.type:
             dst_album = find_dst_album_dir(src_album, dir_manager.library_base_dir)
         return cls.as_view_spec(src_album, dst_album, src_info)
+
+    # region Layout Generation
+
+    # def get_pre_window_layout(self) -> Layout:
+    #     yield from super().get_pre_window_layout()
+
+    def get_inner_layout(self) -> Layout:
+        yield [self._prep_src_header(), self._prep_dst_header()]
+        arrow = Text('\u2794', font=('Helvetica', 20), size=(2, 1))
+        yield [self._prep_src_frame(), arrow, self._prep_dst_frame()]
+
+    def _prep_src_header(self):
+        ele_style = self.window.style.button
+        bg = f'{ele_style.bg.default}00'
+        trash_icon = new_image('RGBA', (130, 20), bg)
+        trash_icon.paste(Icons(15).draw('trash', color=ele_style.fg.default, bg=bg), (7, 3))
+        # Note: Spaces in text are intentional to align with the icon
+        trash_btn = EventButton('   Send to Trash', trash_icon, key='send_to_trash', size=(140, 20))
+        skip_btn = EventButton('Move to Skipped', key='move_to_skipped_dir')
+        return BasicRowFrame([trash_btn, skip_btn], expand=True)
+
+    def _prep_dst_header(self):
+        match_btn = EventButton('Fix Match...', key='fix_dst_match')
+        replace_btn = EventButton('Replace...', key='replace_album')
+        return BasicRowFrame([match_btn, replace_btn], expand=True)
+
+    def _prep_src_frame(self) -> ScrollFrame:
+        return SongFilesFrame(self.src_album, border=True)
+
+    def _prep_dst_frame(self) -> ScrollFrame:
+        if self.dst_album:
+            return SongFilesFrame(self.dst_album, border=True)
+        else:
+            return ScrollFrame(border=True)
+
+    # endregion
+
+    # region Source Album Event Handlers
+
+    @button_handler('send_to_trash')
+    def send_to_trash(self, event: Event, key=None):
+        pass
+
+    @button_handler('move_to_skipped_dir')
+    def move_to_skipped_dir(self, event: Event, key=None):
+        pass
+
+    # endregion
+
+    # region Destination Album Event Handlers
+
+    @button_handler('fix_dst_match')
+    def fix_dst_match(self, event: Event, key=None) -> CallbackAction | None:
+        if dst_album := self._fix_dst_match():
+            return self.go_to_next_view(self.as_view_spec(self.src_album, dst_album, self.src_info))
+        return None
+
+    def _fix_dst_match(self) -> AlbumDir | None:
+        init_dir = find_dst_album_init_dir(self.src_info, self.dir_manager.library_base_dir)
+        return self.dir_manager.select_album(init_dir, f'Select original version of {self.src_album.name}', self.window)
+
+    @button_handler('replace_album')
+    def replace_album(self, event: Event, key=None):
+        pass
+
+    # endregion
 
 
 def find_dst_album_dir(src_album: AlbumInfo, lib_base_dir: Path) -> AlbumDir | None:

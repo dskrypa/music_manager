@@ -11,7 +11,7 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Type, Any, Iterable, Mapping
 
-from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
+from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin, ClearableCachedProperty
 from tk_gui import CallbackAction, BindEvent, button_handler, event_handler  # noqa
 from tk_gui import View, popup_input_invalid, pick_folder_popup
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer, MenuProperty
@@ -160,30 +160,10 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
 
     @menu['File']['Settings'].callback
     def update_settings(self, event):
-        config, get_cfg = self.config, self.config.get
-        log.debug(f'Preparing options view for {config.data=}')
-        kwargs = {'label_size': (16, 1), 'size': (30, None)}
-
-        rm_kwargs = {'extendable': True, 'prompt_name': 'tag to remove'} | kwargs
-        style_kwargs = {'popup_kwargs': {'show_buttons': True}} | kwargs
-        layout = [
-            [
-                BoolOption('remember_pos', 'Remember Last Window Position', config.remember_position),
-                BoolOption('remember_size', 'Remember Last Window Size', config.remember_size),
-            ],
-            [PopupOption('style', 'Style', StylePopup, default=config.style, **style_kwargs)],
-            [DirectoryOption('output_base_dir', 'Output Directory', default=config['output_base_dir'], **kwargs)],
-            [DirectoryOption('library_base_dir', 'Library Directory', default=get_cfg('library_base_dir'), **kwargs)],
-            [DirectoryOption('archive_base_dir', 'Archive Directory', default=get_cfg('archive_base_dir'), **kwargs)],
-            [ListboxOption('rm_tags', 'Tags to Remove', get_cfg('rm_tags', []), **rm_kwargs)],
-            [SubmitOption('save', 'Save')],
-        ]
-
-        results = GuiOptions(layout).run_popup()
-        log.debug(f'Options view {results=}')
-        if results.pop('save', False):
-            config.update(results, ignore_none=True, ignore_empty=True)
+        save, results = ConfigUpdater(self.config).update()
+        if save:
             self.clear_cached_properties()
+            self.dir_manager.clear_cached_properties()
         return results
 
     @cached_property
@@ -247,28 +227,74 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     # endregion
 
 
-class DirManager:
+class ConfigUpdater:
+    __slots__ = ('config',)
+
+    def __init__(self, config: GuiConfig):
+        self.config = config
+
+    def update(self):
+        config = self.config
+        log.debug(f'Preparing options view for {config.data=}')
+        results = GuiOptions(self.build_layout()).run_popup()
+        log.debug(f'Options view {results=}')
+        if save := results.pop('save', False):
+            config.update(results, ignore_none=True, ignore_empty=True)
+        return save, results
+
+    def build_layout(self) -> Layout:
+        kwargs = {'label_size': (16, 1), 'size': (30, None)}
+        yield from self._window_rows(kwargs)
+        yield from self._directory_rows(kwargs)
+        rm_kwargs = kwargs | {'extendable': True, 'prompt_name': 'tag to remove'}
+        yield [ListboxOption('rm_tags', 'Tags to Remove', self.config.get('rm_tags', []), **rm_kwargs)]
+        yield [SubmitOption('save', 'Save')]
+
+    def _window_rows(self, kwargs):
+        yield [
+            BoolOption('remember_pos', 'Remember Last Window Position', self.config.remember_position),
+            BoolOption('remember_size', 'Remember Last Window Size', self.config.remember_size),
+        ]
+        style_kwargs = kwargs | {'popup_kwargs': {'show_buttons': True}}
+        yield [PopupOption('style', 'Style', StylePopup, default=self.config.style, **style_kwargs)]
+
+    def _directory_rows(self, kwargs):
+        for kw in ('Output', 'Library', 'Archive', 'Skipped'):
+            key = f'{kw.lower()}_base_dir'
+            yield [DirectoryOption(key, f'{kw} Directory', default=self.config.get(key), **kwargs)]
+
+
+class ConfigDir(ClearableCachedProperty):
+    __slots__ = ('name',)
+
+    def __set_name__(self, owner, name: str):
+        self.name = name
+
+    def __get__(self, instance: DirManager, owner):
+        if instance is None:
+            return self
+        elif path_str := instance.config.get(self.name):
+            instance.__dict__[self.name] = path = Path(path_str).expanduser()
+            return path
+        else:
+            return None
+
+
+class DirManager(ClearableCachedPropertyMixin):
     def __init__(self, config: GuiConfig):
         self.config = config
 
     # region Configured Directories
 
-    @cached_property
-    def output_base_dir(self) -> Path:
-        return Path(self.config['output_base_dir']).expanduser()
+    output_base_dir = ConfigDir()
+    library_base_dir = ConfigDir()
+    archive_base_dir = ConfigDir()
+    skipped_base_dir = ConfigDir()
 
     @cached_property
     def output_sorted_dir(self) -> Path:
         date_str = date.today().strftime('%Y-%m-%d')
         return self.output_base_dir.joinpath(f'sorted_{date_str}')
-
-    @cached_property
-    def library_base_dir(self) -> Path:
-        return Path(self.config['library_base_dir']).expanduser()
-
-    @cached_property
-    def archive_base_dir(self) -> Path:
-        return Path(self.config['archive_base_dir']).expanduser()
 
     # endregion
 

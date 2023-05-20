@@ -111,8 +111,14 @@ class QueryTransformer(Transformer):
         return ''.join(parts)
 
     @v_args()
-    def value(self, parts: Iterable[str]) -> str:
-        return ' '.join(parts)
+    def value(self, parts: Iterable[str]) -> str | float | int:
+        value = ' '.join(parts)
+        for cls in (int, float):
+            try:
+                return cls(value)
+            except (TypeError, ValueError):
+                pass
+        return value
 
     @v_args(inline=True)
     def key_val_expr(self, key: str, op: str, value: str) -> tuple[tuple[str, str], str]:

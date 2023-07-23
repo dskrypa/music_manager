@@ -406,9 +406,12 @@ class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):  # noqa
 
 
 def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs) -> bool:
-    if not isinstance(obj, cls):
-        return False
-    if not isinstance(obj.value, val_cls):
+    """
+    Returns True if ``obj`` is a ``cls`` and it's value is a ``val_cls``.
+    If keyword args are specified, the keys are treated as attribute names of ``obj``, and the values of all
+    specified attributes must also match the provided values.
+    """
+    if not isinstance(obj, cls) or not isinstance(obj.value, val_cls):
         return False
     if kwargs:
         return all(getattr(obj, k).lower() == v for k, v in kwargs.items())
@@ -532,7 +535,12 @@ class EditionFinder:
     @cached_property
     def is_repackage_page(self) -> bool:
         if infobox := self.entry_page.infobox:
-            repackage_page = (alb_type := infobox.value.get('type')) and alb_type.value.lower() == 'repackage'
+            if alb_type := infobox.value.get('type'):
+                if isinstance(alb_type, CompoundNode):  # Example: https://kpop.fandom.com/wiki/Max_%26_Match
+                    alb_type = alb_type[0]
+                repackage_page = alb_type.value.lower() == 'repackage'
+            else:
+                repackage_page = False
         else:
             repackage_page = False
         if extra := self.name.extra:
@@ -965,9 +973,15 @@ def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[Wi
                 # log.debug(f'Assuming {node=!r} is part of artists')
                 artists.append(node)
         elif is_node_with(node, Template, CompoundNode) and node.value.__class__ is CompoundNode:
-            _nodes = node.value.children.copy()
-            _nodes.extend(nodes)
-            nodes = _nodes
+            # Specifically a Template containing a Compound node, not a subclass thereof
+            nodes = [*node.value.children, *nodes]  # noqa
+            # _nodes = node.value.children.copy()
+            # _nodes.extend(nodes)
+            # nodes = _nodes
+        elif node.__class__ is CompoundNode:  # Example containing a Template: https://kpop.fandom.com/wiki/Unforgiven
+            nodes = [*node.children, *nodes]  # noqa
+        elif isinstance(node, Template):
+            nodes.insert(0, node.value)
         else:
             raise TypeError(f'Unexpected artist node type for track={source!r} {node=!r}')
 

@@ -48,6 +48,7 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
     log_box: Multiline
 
     def __init__(self, album: AlbumIdentifier = None, path_or_paths: Paths = None, **kwargs):
+        # TODO: Make it possible to select a non-album dir from gui
         if (not album and not path_or_paths) or (album and path_or_paths):
             raise TypeError(f'{self.__class__.__name__} requires an album XOR path_or_paths')
         super().__init__(**kwargs)

@@ -41,7 +41,7 @@ def tag_repr(tag_val, max_len=None, sub_len=None):
 
     tag_val = normalize('NFC', str(tag_val)).translate(table)
     if len(tag_val) > max_len:
-        return '{}...{}'.format(tag_val[:sub_len], tag_val[-sub_len:])
+        return f'{tag_val[:sub_len]}...{tag_val[-sub_len:]}'
     return tag_val
 
 
@@ -59,7 +59,7 @@ def tag_id_to_name_map_for_type(file_type: str) -> dict[str, str]:
 
 
 def parse_file_date(dt_str) -> Optional[date]:
-    for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y'):
+    for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y.%m.%d', '%Y'):
         try:
             return datetime.strptime(dt_str, fmt).date()
         except ValueError:

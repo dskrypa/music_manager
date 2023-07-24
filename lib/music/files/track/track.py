@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import struct
 from base64 import b64decode, b64encode
+from collections import Counter
 from datetime import date
 from hashlib import sha256
 from pathlib import Path
@@ -225,20 +226,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             dest_path = Path(dest_path)
 
         dest_name = dest_path.name                      # on Windows, if the new path is only different by case,
-        dest_path = dest_path.expanduser().resolve()    # .resolve() discards the new case
-        dest_path = dest_path.with_name(dest_name)
+        dest_path = dest_path.expanduser().resolve()    # .resolve() discards the new case, so storing the name first
+        dest_path = dest_path.with_name(dest_name)      # and replacing it afterwards preserves the new file name.
 
         if not dest_path.parent.exists():
-            dest_path.parent.mkdir(parents=True)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-        use_temp = False
-        if dest_path.exists():
-            if dest_path.samefile(self.path) and ON_WINDOWS and dest_name != self.path.name:
-                use_temp = True
-            else:
-                raise ValueError(f'Destination for {self} already exists: {dest_path.as_posix()!r}')
-
-        if use_temp:
+        if self._should_use_temp_file_to_rename(dest_path, dest_name):
             with TemporaryDirectory(dir=dest_path.parent.as_posix()) as tmp_dir:
                 tmp_path = Path(tmp_dir).joinpath(dest_path.name)
                 log.debug(f'Moving {self.path} to temp path={tmp_path} to work around case-insensitive fs')
@@ -253,6 +247,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         cls = type(self)
         del cls.__instances[old_path]
         cls.__instances[dest_path] = self
+
+    def _should_use_temp_file_to_rename(self, dest_path: Path, dest_name: str) -> bool:
+        if not dest_path.exists():
+            return False
+        elif dest_path.samefile(self.path) and ON_WINDOWS and dest_name != self.path.name:
+            return True
+        raise ValueError(f'Destination for {self} already exists: {dest_path.as_posix()!r}')
 
     def save(self):
         self._f.tags.save(self._f.filename)
@@ -462,9 +463,15 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
             return False
 
-        rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
         info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())
         log.info(f'{LoggingPrefix(dry_run).remove} tags from {self}: {info_str}')
+
+        rm_reprs = {tag_id: Counter(tag_repr(val) for val in vals) for tag_id, vals in to_remove.items()}
+        rm_str = '; '.join(
+            f'{tag_id}: ' + ', '.join(f'{v} x{c}' if c > 1 else v for v, c in val_reprs.items())
+            for tag_id, val_reprs in rm_reprs.items()
+        )
+        # rm_str = ', '.join(f'{tag_id}: {tag_repr(val)}' for tag_id, vals in to_remove.items() for val in vals)
         log.debug(f'\t{self}: {rm_str}')
         if not dry_run:
             for tag_id in to_remove:
@@ -855,6 +862,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return {tag for tag in track_tags if rm_tag_match(tag) and tag not in keep_tags}
 
     def remove_bad_tags(self, dry_run: Bool = False, extras: Collection[str] = None) -> bool:
+        # TODO: Also dedupe tags with multiple instances of the same value
         if to_remove := self.get_bad_tags(extras):
             return self.remove_tags(to_remove, dry_run)
         return False

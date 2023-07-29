@@ -23,7 +23,6 @@ from ordered_set import OrderedSet
 from PIL.Image import Image as PILImage, open as open_image
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.fs.paths import Paths
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
 
@@ -37,6 +36,7 @@ from music.files.track.track import SongFile
 from music.text.name import Name
 
 if TYPE_CHECKING:
+    from ds_tools.fs.typing import Paths
     from music.typing import PathLike
 
 __all__ = ['TrackInfo', 'AlbumInfo']

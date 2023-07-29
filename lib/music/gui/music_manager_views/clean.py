@@ -27,7 +27,7 @@ from ..utils import output_log_handler
 from .main import MainView
 
 if TYPE_CHECKING:
-    from ds_tools.fs.paths import Paths
+    from ds_tools.fs.typing import Paths
 
 __all__ = ['CleanView']
 

@@ -2,13 +2,16 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict, Counter
+from typing import TYPE_CHECKING
 
 from mutagen.id3 import ID3
 
 from ds_tools.core.patterns import FnMatcher
-from ds_tools.fs.paths import Paths, relative_path
+from ds_tools.fs.paths import relative_path
 from ds_tools.output.table import Table, SimpleColumn, TableBar
 from ds_tools.output.terminal import uprint
 
@@ -16,6 +19,9 @@ from ..constants import TYPED_TAG_DISPLAY_NAME_MAP
 from ..files.track.track import iter_music_files
 from ..files.track.utils import tag_repr
 from ..files.album import iter_album_dirs, AlbumDir
+
+if TYPE_CHECKING:
+    from ds_tools.fs.typing import Paths
 
 __all__ = [
     'print_track_info', 'table_song_tags', 'table_unique_tag_values', 'table_tag_type_counts', 'print_processed_info'

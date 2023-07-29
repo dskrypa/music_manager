@@ -10,10 +10,10 @@ import webbrowser
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Union, Optional, Iterator
+from typing import TYPE_CHECKING, Union, Optional, Iterator
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.fs.paths import Paths, get_user_cache_dir
+from ds_tools.fs.paths import get_user_cache_dir
 from wiki_nodes.http import MediaWikiClient
 
 from ..common.disco_entry import DiscoEntryType
@@ -31,6 +31,9 @@ from .exceptions import MatchException, NoArtistFoundError
 from .update import AlbumInfo, TrackInfo, normalize_case
 from .wiki_match import AlbumFinder, find_artists
 from .wiki_utils import get_disco_part
+
+if TYPE_CHECKING:
+    from ds_tools.fs.typing import Paths
 
 __all__ = ['update_tracks']
 log = logging.getLogger(__name__)

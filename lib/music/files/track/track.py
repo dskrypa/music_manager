@@ -34,7 +34,7 @@ from mutagen.wave import WAVE, _WaveID3
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin
 from ds_tools.core.decorate import cached_classproperty
 from ds_tools.core.patterns import PatternMatcher, FnMatcher, ReMatcher
-from ds_tools.fs.paths import iter_files, Paths
+from ds_tools.fs.paths import iter_files
 from ds_tools.output.formatting import readable_bytes
 from ds_tools.output.prefix import LoggingPrefix
 
@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
     from plexapi.audio import Track
     from music.typing import PathLike, OptStr, OptInt, Bool, StrIter
+    from ds_tools.fs.typing import Paths
     from ..album import AlbumDir
     from ..typing import MutagenFile, ImageTag, TagsType, ID3Tag, TagChanges
 

@@ -21,7 +21,7 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
     def _init_command_(self):
         from ds_tools.logging import init_logging
 
-        init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30})
+        init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30}, set_tz=False)
 
     def main(self):
         self.run_gui()

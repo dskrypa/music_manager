@@ -51,6 +51,7 @@ class SyncRatingsView(MainView, view_name='sync_ratings'):
         ver = 'new' if self.src_album else 'original'
         old_album = self.src_album or self.dst_album
         prompt = f'Select {ver} version of {old_album.name}' if old_album else 'Select an album'
+
         dir_type = 'sync_dst' if self.src_album else 'sync_src'
         last_dir = self._get_last_dir(dir_type)
         if path := get_directory(prompt, no_window=True, initial_folder=last_dir):

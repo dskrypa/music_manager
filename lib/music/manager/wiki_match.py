@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Union, Iterable, Iterator, Collection
 
-from ds_tools.fs.paths import Paths
 from ds_tools.output.terminal import uprint
 from ds_tools.unicode import LangCat
 from wiki_nodes.http.utils import URL_MATCH
@@ -23,6 +22,7 @@ from .exceptions import NoArtistMatchFoundException
 from .wiki_info import print_de_part
 
 if TYPE_CHECKING:
+    from ds_tools.fs.typing import Paths
     from ..files.parsing import AlbumName
 
 __all__ = ['show_matches', 'find_artists', 'AlbumFinder', 'test_match']

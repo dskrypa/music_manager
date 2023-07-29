@@ -28,7 +28,7 @@ from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from ds_tools.fs.paths import Paths
+    from ds_tools.fs.typing import Paths
     from tk_gui.typing import Layout
     from music.files.album import AlbumDir
 

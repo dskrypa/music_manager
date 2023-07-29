@@ -6,16 +6,17 @@ Utilities for extracting and adding cover art.
 
 import logging
 from pathlib import Path
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from PIL import Image
-
-from ds_tools.fs.paths import Paths
 
 from ..files.album import iter_album_dirs, AlbumDir
 from ..files.exceptions import TagException
 from ..files.paths import sanitize_path
 from ..files.track.track import SongFile
+
+if TYPE_CHECKING:
+    from ds_tools.fs.typing import Paths
 
 __all__ = ['extract_album_art', 'set_album_art', 'del_album_art']
 log = logging.getLogger(__name__)

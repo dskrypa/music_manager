@@ -2,20 +2,24 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from fnmatch import translate as fnmatch_to_regex_str
 from functools import partial
 from multiprocessing import Pool
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
-from ds_tools.fs.paths import Paths
 from ds_tools.input import get_input
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 
 from ..files.album import iter_album_dirs, iter_albums_or_files
 from ..files.exceptions import TagException
 from ..files.track.track import iter_music_files, SongFile
+
+if TYPE_CHECKING:
+    from ds_tools.fs.typing import Paths
 
 __all__ = ['path_to_tag', 'update_tags_with_value', 'clean_tags', 'remove_tags', 'add_track_bpm']
 log = logging.getLogger(__name__)

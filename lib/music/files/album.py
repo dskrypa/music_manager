@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Union, Optional, Collection
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
-from ds_tools.fs.paths import iter_paths, Paths
+from ds_tools.fs.paths import iter_paths
 
 from music.common.disco_entry import DiscoEntryType
 from music.common.utils import format_duration
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from watchdog.observers import Observer
     from music.text.name import Name
     from music.typing import PathLike, Strings, StrIter
+    from ds_tools.fs.typing import Paths
     from .parsing import AlbumName
     from .track.patterns import StrsOrPatterns
     from .typing import ProgressCB

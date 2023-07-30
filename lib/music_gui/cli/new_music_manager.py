@@ -1,5 +1,5 @@
 """
-
+Music Manager GUI that uses `tk_gui <https://github.com/dskrypa/tk_gui>`__ instead of PySimpleGUI.
 """
 
 import logging
@@ -78,6 +78,8 @@ class Clean(MusicManagerGui, help='Open directly to the Clean view for the given
         else:
             from music.manager.init_ipc import get_clean_paths
 
+            # While extremely rare, if this fails / ends up in a bad state, it may be necessary to manually delete
+            # ~/AppData/Local/Temp/ds_tools_cache/music_manager/active_pid_port.txt and/or init.lock in the same dir
             if (clean_paths := get_clean_paths(self.multi_instance_wait, self.path)) is None:
                 log.debug('Exiting non-primary clean process')
                 return

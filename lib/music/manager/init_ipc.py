@@ -40,16 +40,26 @@ class PathIPC:
     def __init__(self, max_wait: float):
         self.max_wait = max_wait
 
-    def _get_active_port(self, active_path: Path) -> tuple[bool, int | None]:  # noqa
+    def _get_active_port(self, active_path: Path) -> tuple[bool, int | None]:
+        """
+        Returns a tuple that indicates whether this process is the primary process, and the port to send to if it
+        is not.
+        """
         try:
             with active_path.open('r') as f:
                 active_pid, port = map(int, f.read().split(','))
-        except OSError:
+        except FileNotFoundError:
+            log.debug(f"No active instance info was available - {active_path.as_posix()} doesn't exist")
+            return True, None
+        except OSError as e:
+            log.debug(f'Assuming no other instance is active - unable to read {active_path.as_posix()}: {e}')
             return True, None
         try:
             active = not Process(active_pid).is_running()
         except NoSuchProcess:
+            log.debug(f"Found pid={active_pid} and {port=} in {active_path.as_posix()} but that process doesn't exist")
             active = True
+            port = None  # Don't re-use the old port (it may not be available anymore)
 
         return active, port
 
@@ -61,8 +71,7 @@ class PathIPC:
         port = sock.getsockname()[1]
         pid = getpid()
         log.info(f'Primary instance with {pid=} {port=}')
-        with active_path.open('w') as f:
-            f.write(f'{pid},{port}')
+        active_path.write_text(f'{pid},{port}')
 
     def __enter__(self) -> PathIPC:
         self.sock = socket()

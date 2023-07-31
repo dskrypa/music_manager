@@ -9,12 +9,12 @@ import re
 from abc import ABC, abstractmethod
 from datetime import datetime, date
 from itertools import chain
-from typing import TYPE_CHECKING, Optional, Iterator, MutableSet, Union, Iterable, Any, Type, TypeVar
+from typing import TYPE_CHECKING, Optional, Iterator, MutableSet, Union, Iterable, Any, TypeVar
 
 from ordered_set import OrderedSet
 
 from ds_tools.caching.decorators import cached_property
-from ds_tools.utils.misc import num_suffix
+from ds_tools.output.formatting import ordinal_suffix
 from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
 from wiki_nodes.exceptions import BadLinkError
 from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table, Template
@@ -661,7 +661,7 @@ class DiscographyEntryEdition(_ArtistMixin):
 
             log.debug(f'{self._basic_repr} {album_lang=!r} {artist_lang=!r}')
             parts = (
-                f'{num}{num_suffix(num)}',
+                f'{num}{ordinal_suffix(num)}',
                 None if artist_lang and album_lang and artist_lang == album_lang else album_lang,
                 self.type.real_name,
                 'Repackage' if self.repackage else None,

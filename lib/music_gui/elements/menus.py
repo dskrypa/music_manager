@@ -1,5 +1,5 @@
 """
-
+Right-click menus, menu bars, and menu items for the Music Manager GUI.
 """
 
 from __future__ import annotations
@@ -7,10 +7,11 @@ from __future__ import annotations
 from tk_gui.elements.menu import Menu, MenuGroup, MenuItem, CloseWindow
 from tk_gui.elements.menu.items import CopySelection, PasteClipboard, OpenFileLocation, OpenFile, GoogleSelection
 from tk_gui.elements.menu.items import SearchKpopFandom, SearchGenerasia, SearchDramaWiki, SearchWikipedia
-from tk_gui.elements.menu.items import UpdateTextMenuItem, ToUpperCase, ToTitleCase, ToLowerCase
+from tk_gui.elements.menu.items import UpdateTextMenuItem, ToUpperCase, ToLowerCase
 from tk_gui.popups.about import AboutPopup
 
 from music.text.extraction import split_enclosed
+from music.text.utils import title_case
 
 __all__ = ['PathRightClickMenu', 'TextRightClickMenu', 'EditableTextRightClickMenu', 'MusicManagerMenuBar']
 
@@ -25,6 +26,10 @@ def flip_name_parts(text: str) -> str:
 
 
 class FlipNameParts(UpdateTextMenuItem, update_func=flip_name_parts, label='Flip name parts'):
+    __slots__ = ()
+
+
+class ToTitleCase(UpdateTextMenuItem, update_func=title_case, label='Change case: Title'):
     __slots__ = ()
 
 

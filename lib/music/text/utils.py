@@ -21,7 +21,7 @@ def combine_with_parens(parts: Iterable[str]) -> str:
         return parts[0]
 
     if (_suffix := common_suffix(parts)) and ends_with_enclosed(_suffix):
-        suffix = '({})'.format(split_enclosed(_suffix, reverse=True, maxsplit=1)[-1])
+        suffix = f'({split_enclosed(_suffix, reverse=True, maxsplit=1)[-1]})'
         slen = len(suffix)
         parts = [part[:-slen].strip() for part in parts]
     else:
@@ -37,12 +37,12 @@ def find_ordinal(text: str) -> Optional[int]:
         ordinal_to_int = find_ordinal._ordinal_to_int
     except AttributeError:
         import re
-        from ds_tools.utils.misc import num_suffix
+        from ds_tools.output.formatting import ordinal_suffix
         ordinal_to_int = find_ordinal._ordinal_to_int = {
             'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7, 'eighth': 8,
             'ninth': 9, 'tenth': 10, 'debut': 1
         }
-        ordinal_to_int.update((f'{i}{num_suffix(i)}', i) for i in range(1, 21))
+        ordinal_to_int.update((f'{i}{ordinal_suffix(i)}', i) for i in range(1, 21))
         ord_search = find_ordinal._ord_search = re.compile(f'({"|".join(ordinal_to_int)})', re.IGNORECASE).search
 
     if m := ord_search(text.lower()):

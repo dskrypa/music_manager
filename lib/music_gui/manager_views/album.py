@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 __all__ = ['AlbumView']
 log = logging.getLogger(__name__)
 
+# TODO: Add button or right-click menu item to convert all track titles/names to title case in a single click
+
 
 class AlbumView(BaseView, title='Music Manager - Album Info'):
     default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}

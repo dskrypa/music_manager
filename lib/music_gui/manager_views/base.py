@@ -176,6 +176,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
     def prepare_transition(
         cls, dir_manager: DirManager, *, album: AnyAlbum = None, parent: Window = None, **kwargs
     ) -> ViewSpec | None:
+        """Returns a ViewSpec if a transition should be made, or None to stay on the current view."""
         if album:
             return cls.as_view_spec(album)
         elif album_dir := dir_manager.get_album_selection(parent=parent):
@@ -298,6 +299,14 @@ class DirManager(ClearableCachedPropertyMixin):
 
     # endregion
 
+    def get_any_dir_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> Path | None:
+        last_dir = self._get_last_dir(dir_type)
+        if path := pick_folder_popup(last_dir, prompt or 'Pick Directory', parent=parent):
+            log.debug(f'Selected directory {path=}')
+            if path != last_dir:
+                self._set_last_dir(path, dir_type)
+        return path
+
     def get_album_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> AlbumDir | None:
         last_dir = self._get_last_dir(dir_type)
         if (album_dir := self.select_album(last_dir, prompt, parent)) and album_dir.path != last_dir:
@@ -355,7 +364,9 @@ class InitialView(BaseView):
         yield [Frame([[button]], anchor='TOP', expand=True)]
 
     def go_to_next_view(self, spec: ViewSpec, **kwargs) -> CallbackAction:
-        from .album import AlbumView
+        if spec.view_cls is self.__class__:
+            from .album import AlbumView
 
-        spec.view_cls = AlbumView
+            spec.view_cls = AlbumView
+
         return super().go_to_next_view(spec, forget_last=True)

@@ -24,13 +24,15 @@ from music.files.bulk_actions import remove_bad_tags, fix_song_tags
 from music.files.track.track import SongFile, iter_music_files
 
 from music_gui.utils import AlbumIdentifier, get_album_dir
-from .base import BaseView
+from .base import BaseView, DirManager
 
 if TYPE_CHECKING:
     from tkinter import Event
     from ds_tools.fs.typing import Paths
+    from tk_gui import Window, ViewSpec
     from tk_gui.typing import Layout
     from music.files.album import AlbumDir
+    from music.typing import AnyAlbum
 
 __all__ = ['CleanView']
 log = logging.getLogger(__name__)
@@ -48,7 +50,6 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
     log_box: Multiline
 
     def __init__(self, album: AlbumIdentifier = None, path_or_paths: Paths = None, **kwargs):
-        # TODO: Make it possible to select a non-album dir from gui
         if (not album and not path_or_paths) or (album and path_or_paths):
             raise TypeError(f'{self.__class__.__name__} requires an album XOR path_or_paths')
         super().__init__(**kwargs)
@@ -57,6 +58,17 @@ class CleanView(BaseView, title='Music Manager - Clean & Add BPM'):
             self.files = sorted(self.album)
         else:
             self.files = sorted(iter_music_files(path_or_paths))
+
+    @classmethod
+    def prepare_transition(
+        cls, dir_manager: DirManager, *, album: AnyAlbum = None, parent: Window = None, **kwargs
+    ) -> ViewSpec | None:
+        """Returns a ViewSpec if a transition should be made, or None to stay on the current view."""
+        if album:
+            return cls.as_view_spec(album)
+        elif dir_path := dir_manager.get_any_dir_selection(parent=parent):
+            return cls.as_view_spec(path_or_paths=dir_path)
+        return None
 
     # region Layout Generation
 

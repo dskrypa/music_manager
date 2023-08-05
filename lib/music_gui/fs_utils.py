@@ -6,7 +6,7 @@ directory, if present.
 from __future__ import annotations
 
 import logging
-from shutil import copyfile, copystat, rmtree
+from shutil import rmtree
 from typing import TYPE_CHECKING, Iterator
 
 from send2trash import send2trash, TrashPermissionError
@@ -14,6 +14,7 @@ from send2trash import send2trash, TrashPermissionError
 from ds_tools.fs.mount_info import on_same_fs
 from ds_tools.fs.paths import path_repr
 from ds_tools.output.prefix import LoggingPrefix
+from tk_gui.popups.files import CopyFilesPopup
 
 from music_gui.utils import log_and_popup_error
 
@@ -29,18 +30,15 @@ def move_dir(src_dir: Path, dst_dir: Path, *, use_trash: bool = True, dry_run: b
 
 
 class DirMover:
-    __slots__ = ('src_dir', 'dst_dir', 'lp', 'dry_run', 'use_trash', 'dst_exists', '_nested')
+    __slots__ = ('src_dir', 'dst_dir', 'lp', 'dry_run', 'use_trash', 'dst_exists')
 
-    def __init__(
-        self, src_dir: Path, dst_dir: Path, *, use_trash: bool = True, dry_run: bool = False, nested: bool = False
-    ):
+    def __init__(self, src_dir: Path, dst_dir: Path, *, use_trash: bool = True, dry_run: bool = False):
         if (dst_exists := dst_dir.exists()) and not dst_dir.is_dir():
             raise FileExistsError(f'dst_dir={path_repr(dst_dir)} already exists, but it is not a directory')
         self.src_dir = src_dir
         self.dst_dir = dst_dir
         self.dry_run = dry_run
         self.use_trash = use_trash
-        self._nested = nested
         self.dst_exists = dst_exists
         self.lp = LoggingPrefix(dry_run)
 
@@ -75,19 +73,10 @@ class DirMover:
             if not self.dry_run:
                 self.dst_dir.mkdir(parents=True, exist_ok=True)
 
-        # TODO: Progress popup for copying files, similar to ds_tools.fs.copy
-        # TODO: Refactor to be able to handle nested content within the same instance?
-        # TODO: Make a generic copy_files helper that handles copying anything with a progress indicator popup?
-        for src_file, dst_file in self._iter_src_dst_files('copy', logging.DEBUG):
-            if src_file.is_dir():
-                DirMover(src_file, dst_file, use_trash=self.use_trash, dry_run=self.dry_run, nested=True).move()
-            elif not self.dry_run:
-                copyfile(src_file, dst_file)
-                copystat(src_file, dst_file)
+        if not self.dry_run:
+            CopyFilesPopup.copy_dir(self.src_dir, self.dst_dir).run()
 
-        if self._nested:
-            return  # Only delete src content at the end from the top-level dir
-        elif self.use_trash:
+        if self.use_trash:
             self._trash_src_dir()
         else:
             self._rm_src_dir(True)

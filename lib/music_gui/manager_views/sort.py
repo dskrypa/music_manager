@@ -9,12 +9,15 @@ import logging
 from typing import TYPE_CHECKING
 
 from PIL.Image import new as new_image
+from send2trash import TrashPermissionError
+
 from tk_gui import CallbackAction, button_handler, EventButton, Text, ScrollFrame, BasicRowFrame
 from tk_gui.images import Icons
 
 from music.files.album import AlbumDir, InvalidAlbumDir
 from music.manager.update import AlbumInfo
 from music_gui.elements.file_frames import SongFilesFrame
+from music_gui.fs_utils import move_dir, send_to_trash
 from music_gui.utils import get_album_info, get_album_dir
 from .base import BaseView, DirManager
 
@@ -96,12 +99,25 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
     # region Source Album Event Handlers
 
     @button_handler('send_to_trash')
-    def send_to_trash(self, event: Event, key=None):
-        pass
+    def send_to_trash(self, event: Event, key=None) -> CallbackAction | None:
+        try:
+            send_to_trash(self.src_album.path)
+        except TrashPermissionError:  # Note: already logged / popped up by send_to_trash
+            pass  # TODO: Maybe open explorer to the containing directory?  Maybe transition anyways?
+        else:  # The path was successfully sent to the trash / recycle bin
+            pass  # TODO: change view to the next album in the directory?
+        return None
 
     @button_handler('move_to_skipped_dir')
     def move_to_skipped_dir(self, event: Event, key=None):
-        pass
+        src_path: Path = self.src_album.path
+        # TODO: dst_path subdir following artist/type/album convention
+        dst_path: Path = self.dir_manager.skipped_base_dir
+        try:
+            move_dir(src_path, dst_path)
+        except TrashPermissionError:  # TODO: Handle?  (Note: already logged / popped up by send_to_trash)
+            pass
+        # TODO: change view to the next album in the directory?
 
     # endregion
 
@@ -119,7 +135,16 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
 
     @button_handler('replace_album')
     def replace_album(self, event: Event, key=None):
-        pass
+        src_path: Path = self.src_album.path
+        dst_path: Path = self.dst_album.path
+        # TODO: arc_path subdir following artist/type/album convention
+        arc_path: Path = self.dir_manager.archive_base_dir
+        try:
+            move_dir(dst_path, arc_path)
+            move_dir(src_path, dst_path)
+        except TrashPermissionError:  # TODO: Handle?  (Note: already logged / popped up by send_to_trash)
+            pass
+        # TODO: change view to the next album in the directory?
 
     # endregion
 

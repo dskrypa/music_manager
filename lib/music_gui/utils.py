@@ -9,13 +9,14 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 from time import monotonic
+from traceback import format_exc
 from typing import TYPE_CHECKING, Union, Iterable, TypeVar, Iterator, Mapping
 
 from ordered_set import OrderedSet
 
 from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import Element, HorizontalSeparator
-from tk_gui.popups import popup_ok
+from tk_gui.popups import popup_ok, popup_error
 
 from music.files.album import AlbumDir
 from music.files.track.track import SongFile
@@ -27,7 +28,8 @@ if TYPE_CHECKING:
 __all__ = [
     'AlbumIdentifier', 'get_album_info', 'get_album_dir',
     'TrackIdentifier', 'get_track_info', 'get_track_file',
-    'LogAndPopupHelper', 'with_separators', 'fix_windows_path', 'call_timer', 'zip_maps', 'find_value', 'find_values',
+    'LogAndPopupHelper', 'log_and_popup_error',
+    'with_separators', 'fix_windows_path', 'call_timer', 'zip_maps', 'find_value', 'find_values',
 ]
 log = logging.getLogger(__name__)
 
@@ -37,6 +39,9 @@ TrackIdentifier = Union[TrackInfo, SongFile, Path, str]
 K = TypeVar('K')
 V = TypeVar('V')
 D = TypeVar('D')
+
+
+# region Log + Popup Helpers
 
 
 class LogAndPopupHelper:
@@ -69,6 +74,16 @@ class LogAndPopupHelper:
         if self.dry_run and not ignore_dry_run:
             return False
         return bool(self.messages)
+
+
+def log_and_popup_error(message: str, exc_info: bool = False):
+    if exc_info:
+        message += '\n' + format_exc()
+    log.error(message)
+    popup_error(message, multiline=True)
+
+
+# endregion
 
 
 # region Album / Track Type Normalization

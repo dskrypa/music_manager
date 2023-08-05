@@ -25,7 +25,7 @@ from wiki_nodes.http import MediaWikiClient
 from music.manager.config import UpdateConfig
 from music.manager.wiki_update import WikiUpdater
 from music_gui.elements.helpers import IText, nav_button, section_header
-from music_gui.utils import AlbumIdentifier, get_album_info, LogAndPopupHelper
+from music_gui.utils import AlbumIdentifier, get_album_info, LogAndPopupHelper, log_and_popup_error
 from .base import BaseView
 
 if TYPE_CHECKING:
@@ -217,7 +217,7 @@ class GuiWikiUpdater:
         try:
             return SpinnerPopup(size=(200, 200)).run_task_in_thread(self._get_album_info)
         except Exception:  # noqa
-            _log_and_popup_error(f'Error finding a wiki match for {self.src_album_info}:')
+            log_and_popup_error(f'Error finding a wiki match for {self.src_album_info}:', exc_info=True)
             return None
 
     def _get_album_info(self) -> AlbumInfo:
@@ -258,7 +258,7 @@ class GuiWikiUpdater:
         try:
             return spinner.run_task_in_thread(self._get_wiki_cover_images)
         except Exception:  # noqa
-            _log_and_popup_error(f'Error finding a wiki cover images for {self.dst_album_info}:')
+            log_and_popup_error(f'Error finding a wiki cover images for {self.dst_album_info}:', exc_info=True)
             return {}
 
     def _get_wiki_cover_images(self) -> dict[str, bytes]:
@@ -314,10 +314,3 @@ class GuiWikiUpdater:
         return path
 
     # endregion
-
-
-def _log_and_popup_error(message: str, exc_info: bool = True):
-    if exc_info:
-        message += '\n' + format_exc()
-    log.error(message)
-    popup_error(message, multiline=True)

@@ -13,7 +13,6 @@ from collections import Counter
 from datetime import date
 from hashlib import sha256
 from pathlib import Path
-from platform import system
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Collection, Type, Mapping, TypeVar, Callable
 from urllib.parse import quote
@@ -46,7 +45,7 @@ from ..cover import prepare_cover_image, bytes_to_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
 from ..exceptions import InvalidAlbumDir
 from ..parsing import split_artists, AlbumName
-from ..paths import FileBasedObject, plex_track_path
+from ..paths import ON_WINDOWS, FileBasedObject, plex_track_path
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
 from .patterns import StrsOrPatterns, SAMPLE_RATE_PAT, cleanup_lyrics, glob_patterns, cleanup_album_name
 from .utils import tag_repr, parse_file_date, tag_id_to_name_map_for_type
@@ -62,7 +61,6 @@ if TYPE_CHECKING:
 __all__ = ['SongFile', 'iter_music_files']
 log = logging.getLogger(__name__)
 
-ON_WINDOWS = system().lower() == 'windows'
 MP4_STR_ENCODINGS = {AtomDataType.UTF8: 'utf-8', AtomDataType.UTF16: 'utf-16be'}  # noqa
 MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover.FORMAT_PNG}
 

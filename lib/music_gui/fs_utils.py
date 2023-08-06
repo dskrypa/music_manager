@@ -61,6 +61,11 @@ class DirMover:
 
     def _same_fs_dst_missing(self):
         # Simply rename src_dir to dst_dir since they're on the same fs and dst_dir doesn't exist
+        if not self.dst_dir.parent.exists():
+            log.debug(f'{self.lp.create} {path_repr(self.dst_dir.parent)}')
+            if not self.dry_run:
+                self.dst_dir.parent.mkdir(parents=True, exist_ok=True)
+
         log.info(f'{self.lp.move} {path_repr(self.src_dir)} -> {path_repr(self.dst_dir)}')
         if not self.dry_run:
             self.src_dir.rename(self.dst_dir)

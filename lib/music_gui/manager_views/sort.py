@@ -93,6 +93,8 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
         return BasicRowFrame([match_btn, replace_btn], expand=True)
 
     def _prep_src_frame(self) -> ScrollFrame:
+        # TODO: Source frame takes more width than necessary, and destination frame doesn't get enough initially
+        #  ...maybe due to path length?
         return SongFilesFrame(self.src_album, border=True)
 
     def _prep_dst_frame(self) -> ScrollFrame:

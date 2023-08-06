@@ -41,11 +41,13 @@ class SongFileFrame(InteractiveFrame):
         track: TrackIdentifier,
         show_cover: Bool = True,
         cover_size: XY = (250, 250),
+        show_size: Bool = True,
         **kwargs,
     ):
         self.track = get_track_file(track)
         self.show_cover = show_cover
         self.cover_size = cover_size
+        self.show_size = show_size
         self._tag_id_rows_map = defaultdict(list)
         super().__init__(**kwargs)
 
@@ -99,8 +101,10 @@ class SongFileFrame(InteractiveFrame):
         row = [
             Text('Bitrate:', size=(8, 1)), IText(info['bitrate_str'], size=(14, 1)),
             Text('Sample Rate:'), IText(info['sample_rate_str'], size=(10, 1)),
-            Text('Bit Depth:'), IText(info['bits_per_sample'], size=(10, 1)),
+            Text('Bit Depth:'), IText(info['bits_per_sample'], size=(5, 1)),
         ]
+        if self.show_size:
+            row += [Text('Size:'), IText(info['size_str'], size=(10, 1))]
         for key in ('encoder', 'codec'):
             if value := info.get(key):
                 row += [Text(f'{key.title()}:'), IText(value, size=(15, 1))]

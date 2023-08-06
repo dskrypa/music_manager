@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from shutil import rmtree
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 from send2trash import send2trash, TrashPermissionError
 
@@ -53,19 +53,36 @@ class DirMover:
 
     def _same_fs_dst_exists(self):
         # Rename files individually since dst_dir already exists, then delete src_dir
-        for src_file, dst_file in self._iter_src_dst_files('move', logging.INFO):
+        dst_join = self.dst_dir.joinpath
+        src_dst_paths = [(src_path, dst_join(src_path.name)) for src_path in self.src_dir.iterdir()]
+        if dst_exists := [dst_path.as_posix() for _, dst_path in src_dst_paths if dst_path.exists()]:
+            if len(dst_exists) == len(src_dst_paths):
+                msg = 'all destination paths already exist'
+            else:
+                msg = f'{len(dst_exists)} path(s) already exist: ' + ', '.join(map(repr, sorted(dst_exists)))
+
+            raise FileExistsError(
+                f'Unable to copy src={self.src_dir.as_posix()} to dst={self.dst_dir.as_posix()} - {msg}'
+            )
+
+        for src_path, dst_path in src_dst_paths:
+            log.info(f'{self.lp.move} {path_repr(src_path)} -> {path_repr(dst_path)}')
             if not self.dry_run:
-                src_file.rename(dst_file)
+                src_path.rename(dst_path)  # Will raise FileExistsError if dst_file already exists
 
         self._rm_src_dir()
 
+    def _maybe_mkdir(self, path: Path, exists: bool = None):
+        if exists is None:
+            exists = path.exists()
+        if not exists:
+            log.debug(f'{self.lp.create} {path_repr(path)}')
+            if not self.dry_run:
+                path.mkdir(parents=True, exist_ok=True)
+
     def _same_fs_dst_missing(self):
         # Simply rename src_dir to dst_dir since they're on the same fs and dst_dir doesn't exist
-        if not self.dst_dir.parent.exists():
-            log.debug(f'{self.lp.create} {path_repr(self.dst_dir.parent)}')
-            if not self.dry_run:
-                self.dst_dir.parent.mkdir(parents=True, exist_ok=True)
-
+        self._maybe_mkdir(self.dst_dir.parent)
         log.info(f'{self.lp.move} {path_repr(self.src_dir)} -> {path_repr(self.dst_dir)}')
         if not self.dry_run:
             self.src_dir.rename(self.dst_dir)
@@ -73,11 +90,7 @@ class DirMover:
     def _diff_fs(self):
         # Create dst_dir if necessary, copy contents from src_dir to dst_dir, then trash/delete src_dir
         log.info(f'{self.lp.copy} {path_repr(self.src_dir)} -> {path_repr(self.dst_dir)}')
-        if not self.dst_exists:
-            log.debug(f'{self.lp.create} {path_repr(self.dst_dir)}')
-            if not self.dry_run:
-                self.dst_dir.mkdir(parents=True, exist_ok=True)
-
+        self._maybe_mkdir(self.dst_dir, self.dst_exists)
         if not self.dry_run:
             CopyFilesPopup.copy_dir(self.src_dir, self.dst_dir).run()
 
@@ -86,14 +99,8 @@ class DirMover:
         else:
             self._rm_src_dir(True)
 
-    def _iter_src_dst_files(self, verb: str, log_level: int) -> Iterator[tuple[Path, Path]]:
-        for src_file in self.src_dir.iterdir():
-            dst_file = self.dst_dir.joinpath(src_file.name)
-            log.log(log_level, f'{self.lp[verb]} {path_repr(src_file)} -> {path_repr(dst_file)}')
-            yield src_file, dst_file
-
     def _rm_src_dir(self, tree: bool = False):
-        log.info(f'{self.lp.delete} {path_repr(self.src_dir)}')
+        log.info(f'{self.lp.delete} {path_repr(self.src_dir)}', extra={'color': 'red'})
         if not self.dry_run:
             if tree:
                 rmtree(self.src_dir)
@@ -101,7 +108,7 @@ class DirMover:
                 self.src_dir.rmdir()
 
     def _trash_src_dir(self):
-        log.info(f'{self.lp.send} to trash: {path_repr(self.src_dir)}')
+        log.info(f'{self.lp.send} to trash: {path_repr(self.src_dir)}', extra={'color': 'red'})
         if not self.dry_run:
             send_to_trash(self.src_dir)
 

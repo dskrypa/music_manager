@@ -170,6 +170,11 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             EButton('Copy Tags To Album...', key='copy_src_album_tags', **kwargs),
             EButton('Copy Tags From Album...', key='copy_dst_album_tags', **kwargs),
         ]
+        # TODO: Unify the above/below rows / shorten text / merge functionality with the sort view
+        yield [
+            EButton('Copy Tags To Lib Album...', key='copy_src_lib_album_tags', **kwargs),
+            EButton('Copy Tags From Lib Album...', key='copy_dst_lib_album_tags', **kwargs),
+        ]
 
         open_btn = EButton('\U0001f5c1', key='open', font=LRG_FONT, size=(10, 1), tooltip='Open Album', borderwidth=3)
         album_dir = self.album_dir

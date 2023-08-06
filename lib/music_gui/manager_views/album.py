@@ -146,12 +146,25 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         #  to/from albums, with a <-> button to swap which is in the to/from position
         popup_ok(f'Not implemented yet: {key}')  # TODO
 
-    # @button_handler('copy_album_tags')
-    @button_handler('copy_src_album_tags', 'copy_dst_album_tags')
+    @button_handler('copy_src_album_tags', 'copy_dst_album_tags', 'copy_src_lib_album_tags', 'copy_dst_lib_album_tags')
     def copy_album_tags(self, event: Event, key=None) -> CallbackAction | None:
         from .diff import FullSyncDiffView
 
-        kwargs = {'src_album' if key == 'copy_src_album_tags' else 'dst_album': self.album}
+        if key == 'copy_src_album_tags':
+            kwargs = {'src_album': self.album}
+        elif key == 'copy_src_lib_album_tags':
+            kwargs = {
+                'src_album': self.album,
+                'dst_album': self.dir_manager.find_matching_album_dir_in_category(self.album, 'library'),
+            }
+        elif key == 'copy_dst_lib_album_tags':
+            kwargs = {
+                'dst_album': self.album,
+                'src_album': self.dir_manager.find_matching_album_dir_in_category(self.album, 'library'),
+            }
+        else:
+            kwargs = {'dst_album': self.album}
+
         if spec := FullSyncDiffView.prepare_transition(self.dir_manager, parent=self.window, **kwargs):
             return self.go_to_next_view(spec)
         else:

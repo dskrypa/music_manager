@@ -64,7 +64,7 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
             return None
 
         if not dst_album and src_info.type:
-            dst_album = find_dst_album_dir(src_info, dir_manager.library_base_dir)
+            dst_album = dir_manager.find_matching_album_dir_in_category(src_info, 'library')
         return cls.as_view_spec(src_album, dst_album, src_info)
 
     # region Layout Generation
@@ -135,6 +135,7 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
 
     @button_handler('replace_album')
     def replace_album(self, event: Event, key=None):
+        # TODO: Copy ratings from dst to src
         src_path: Path = self.src_album.path
         dst_path: Path = self.dst_album.path
         arc_path = unique_path.for_path(self.src_info.sorter.get_new_path(self.dir_manager.archive_base_dir))
@@ -171,17 +172,6 @@ class SortActionWrapper:
             return True
         else:
             return False  # Let the exception propagate
-
-
-def find_dst_album_dir(src_info: AlbumInfo, lib_base_dir: Path) -> AlbumDir | None:
-    for en_artist_only in (False, True):
-        if dst_dir := src_info.sorter.get_new_path(lib_base_dir, en_artist_only):
-            try:
-                return AlbumDir(dst_dir)
-            except InvalidAlbumDir as e:
-                log.debug(f'Unable to use {dst_dir=}: {e}')
-
-    return None
 
 
 def find_dst_album_init_dir(src_info: AlbumInfo, lib_base_dir: Path) -> Path:

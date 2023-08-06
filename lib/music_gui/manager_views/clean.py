@@ -22,9 +22,8 @@ from tk_gui.popups import popup_ok, popup_error
 from music.common.utils import can_add_bpm
 from music.files.bulk_actions import remove_bad_tags, fix_song_tags
 from music.files.track.track import SongFile, iter_music_files
-
 from music_gui.utils import AlbumIdentifier, get_album_dir
-from .base import BaseView, DirManager
+from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
@@ -33,6 +32,7 @@ if TYPE_CHECKING:
     from tk_gui.typing import Layout
     from music.files.album import AlbumDir
     from music.typing import AnyAlbum
+    from music_gui.config import DirManager
 
 __all__ = ['CleanView']
 log = logging.getLogger(__name__)

@@ -18,4 +18,6 @@ OptInt = Optional[int]
 Bool = Union[bool, Any]
 PathLike = Union[Path, str]
 
+OptAlbDir = Optional['AlbumDir']
 AnyAlbum = Union['AlbumDir', 'AlbumInfo']
+OptAnyAlbum = Optional[AnyAlbum]

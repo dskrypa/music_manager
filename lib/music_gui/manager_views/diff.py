@@ -18,12 +18,13 @@ from music.manager.update import AlbumInfo
 from music_gui.elements.diff_frames import AlbumDiffFrame
 from music_gui.elements.helpers import nav_button
 from music_gui.utils import get_album_info
-from .base import BaseView, DirManager
+from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
     from tk_gui import Button, Window, ViewSpec, Layout
     from music.typing import AnyAlbum
+    from music_gui.config import DirManager
 
 __all__ = ['AlbumDiffView', 'FullSyncDiffView']
 log = logging.getLogger(__name__)

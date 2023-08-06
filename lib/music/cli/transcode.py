@@ -124,7 +124,7 @@ class Transcode(Command, description='Transcode FLACs between bit depths and bit
             dst_dir = src_path.parent
 
         dst_name = f'{src_path.name} [{self.name_suffix}]'
-        return unique_path(dst_dir, dst_name, '', add_date=False)
+        return unique_path(dst_dir, dst_name)
 
     @cached_property
     def name_suffix(self) -> str:

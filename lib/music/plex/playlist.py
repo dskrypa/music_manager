@@ -187,7 +187,7 @@ class PlexPlaylist:
         return {'playlist': playlist, 'tracks': tracks}
 
     def dump(self, path: PathLike, compress: bool = True):
-        path = prepare_path(path, (self.name, '.json.gz' if compress else '.json'), sanitize=True)
+        path = prepare_path(path, (self.name, '.json.gz' if compress else '.json'), sanitize=True, add_date=True)
         log.info(f'Saving {self} to {path.as_posix()}')
         open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
         with open_func(path, mode, encoding='utf-8') as f:
@@ -196,7 +196,7 @@ class PlexPlaylist:
     @classmethod
     def dump_all(cls, path: PathLike, plex: LocalPlexServer = None, compress: bool = True):
         playlists = {name: playlist.dumps() for name, playlist in _get_plex(plex).playlists.items()}
-        path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'))
+        path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'), add_date=True)
         log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
         open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
         with open_func(path, mode, encoding='utf-8') as f:

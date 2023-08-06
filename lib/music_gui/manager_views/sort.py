@@ -11,15 +11,17 @@ from typing import TYPE_CHECKING
 from PIL.Image import new as new_image
 from send2trash import TrashPermissionError
 
+from ds_tools.fs.paths import unique_path
 from tk_gui import CallbackAction, button_handler, EventButton, Text, ScrollFrame, BasicRowFrame
 from tk_gui.images import Icons
 
 from music.files.album import AlbumDir, InvalidAlbumDir
 from music.manager.update import AlbumInfo
+from music_gui.config import DirManager
 from music_gui.elements.file_frames import SongFilesFrame
 from music_gui.fs_utils import move_dir, send_to_trash
-from music_gui.utils import get_album_info, get_album_dir
-from .base import BaseView, DirManager
+from music_gui.utils import get_album_dir, get_album_dir_and_info
+from .base import BaseView
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -40,8 +42,8 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
 
     def __init__(self, src_album: AnyAlbum, dst_album: AnyAlbum = None, src_info: AlbumInfo = None, **kwargs):
         super().__init__(**kwargs)
-        self.album = self.src_info = src_info if src_info else get_album_info(src_album)
-        self.src_album = get_album_dir(src_album)
+        self.src_album, self.src_info = get_album_dir_and_info(src_album, src_info)
+        self.album = self.src_info
         self.dst_album = get_album_dir(dst_album) if dst_album else None
 
     @classmethod
@@ -54,10 +56,15 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
         *,
         parent: Window = None, **kwargs
     ) -> ViewSpec | None:
-        if not src_album and not (src_album := dir_manager.select_sync_src_album(dst_album, parent)):
+        if src_album or src_info:
+            src_album, src_info = get_album_dir_and_info(src_album, src_info)
+        elif src_album := dir_manager.select_sync_src_album(dst_album, parent, prompt='Select an album to sort'):
+            src_info = AlbumInfo.from_album_dir(src_album)
+        else:
             return None
-        if not dst_album and src_album.type:
-            dst_album = find_dst_album_dir(src_album, dir_manager.library_base_dir)
+
+        if not dst_album and src_info.type:
+            dst_album = find_dst_album_dir(src_info, dir_manager.library_base_dir)
         return cls.as_view_spec(src_album, dst_album, src_info)
 
     # region Layout Generation
@@ -100,24 +107,17 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
 
     @button_handler('send_to_trash')
     def send_to_trash(self, event: Event, key=None) -> CallbackAction | None:
-        try:
+        with SortActionWrapper(self.src_album) as wrapper:
             send_to_trash(self.src_album.path)
-        except TrashPermissionError:  # Note: already logged / popped up by send_to_trash
-            pass  # TODO: Maybe open explorer to the containing directory?  Maybe transition anyways?
-        else:  # The path was successfully sent to the trash / recycle bin
-            pass  # TODO: change view to the next album in the directory?
-        return None
+        return wrapper.next_view(self)
 
     @button_handler('move_to_skipped_dir')
     def move_to_skipped_dir(self, event: Event, key=None):
         src_path: Path = self.src_album.path
-        # TODO: dst_path subdir following artist/type/album convention
-        dst_path: Path = self.dir_manager.skipped_base_dir
-        try:
+        dst_path = unique_path.for_path(self.src_info.sorter.get_new_path(self.dir_manager.skipped_base_dir))
+        with SortActionWrapper(self.src_album) as wrapper:
             move_dir(src_path, dst_path)
-        except TrashPermissionError:  # TODO: Handle?  (Note: already logged / popped up by send_to_trash)
-            pass
-        # TODO: change view to the next album in the directory?
+        return wrapper.next_view(self)
 
     # endregion
 
@@ -137,21 +137,45 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
     def replace_album(self, event: Event, key=None):
         src_path: Path = self.src_album.path
         dst_path: Path = self.dst_album.path
-        # TODO: arc_path subdir following artist/type/album convention
-        arc_path: Path = self.dir_manager.archive_base_dir
-        try:
+        arc_path = unique_path.for_path(self.src_info.sorter.get_new_path(self.dir_manager.archive_base_dir))
+        with SortActionWrapper(self.src_album) as wrapper:
             move_dir(dst_path, arc_path)
             move_dir(src_path, dst_path)
-        except TrashPermissionError:  # TODO: Handle?  (Note: already logged / popped up by send_to_trash)
-            pass
-        # TODO: change view to the next album in the directory?
+        return wrapper.next_view(self)
 
     # endregion
 
 
-def find_dst_album_dir(src_album: AlbumInfo, lib_base_dir: Path) -> AlbumDir | None:
+class SortActionWrapper:
+    __slots__ = ('next_album', '_trash_exc')
+
+    def __init__(self, src_album: AlbumDir):
+        # self.next_album = src_album.next_sibling or src_album.prev_sibling
+        self.next_album = src_album.next_sibling
+        self._trash_exc = None
+
+    def next_view(self, view: AlbumSortView) -> CallbackAction | None:
+        if self._trash_exc is not None:
+            return None
+        return view.go_to_next_view(view.prepare_transition(view.dir_manager, self.next_album), forget_last=True)
+
+    def __enter__(self) -> SortActionWrapper:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            return True
+        elif isinstance(exc_val, TrashPermissionError):  # Note: already logged / popped up by send_to_trash
+            # TODO: Maybe open explorer to the containing directory?  Maybe transition anyways?
+            self._trash_exc = exc_val
+            return True
+        else:
+            return False  # Let the exception propagate
+
+
+def find_dst_album_dir(src_info: AlbumInfo, lib_base_dir: Path) -> AlbumDir | None:
     for en_artist_only in (False, True):
-        if dst_dir := src_album.sorter.get_new_path(lib_base_dir, en_artist_only):
+        if dst_dir := src_info.sorter.get_new_path(lib_base_dir, en_artist_only):
             try:
                 return AlbumDir(dst_dir)
             except InvalidAlbumDir as e:
@@ -160,8 +184,8 @@ def find_dst_album_dir(src_album: AlbumInfo, lib_base_dir: Path) -> AlbumDir | N
     return None
 
 
-def find_dst_album_init_dir(src_album: AlbumInfo, lib_base_dir: Path) -> Path:
-    album_dirs = [dst for en_only in (False, True) if (dst := src_album.sorter.get_new_path(lib_base_dir, en_only))]
+def find_dst_album_init_dir(src_info: AlbumInfo, lib_base_dir: Path) -> Path:
+    album_dirs = [dst for en_only in (False, True) if (dst := src_info.sorter.get_new_path(lib_base_dir, en_only))]
     for dst_dir in album_dirs:
         if dst_dir.is_dir():
             return dst_dir

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from tk_gui.typing import Layout
 
 __all__ = [
-    'AlbumIdentifier', 'get_album_info', 'get_album_dir',
+    'AlbumIdentifier', 'get_album_info', 'get_album_dir', 'get_album_dir_and_info',
     'TrackIdentifier', 'get_track_info', 'get_track_file',
     'LogAndPopupHelper', 'log_and_popup_error',
     'with_separators', 'fix_windows_path', 'call_timer', 'zip_maps', 'find_value', 'find_values',
@@ -103,6 +103,29 @@ def get_album_dir(album: AlbumIdentifier) -> AlbumDir:
     elif isinstance(album, (Path, str)):
         album = AlbumDir(_album_directory(album))
     return album
+
+
+def get_album_dir_and_info(*album_identifiers: AlbumIdentifier) -> tuple[AlbumDir, AlbumInfo]:
+    if not album_identifiers:
+        raise ValueError('At least one album identifier is required')
+
+    album_dir = album_info = None
+    for ai in album_identifiers:
+        if isinstance(ai, AlbumInfo):
+            album_info = ai
+        elif isinstance(ai, AlbumDir):
+            album_dir = ai
+        elif isinstance(ai, (Path, str)):
+            album_dir = AlbumDir(_album_directory(ai))
+
+    if album_info is None:
+        if album_dir is None:
+            raise ValueError(f'None of the provided {album_identifiers=} were valid')
+        album_info = AlbumInfo.from_album_dir(album_dir)
+    elif album_dir is None:
+        album_dir = album_info.album_dir
+
+    return album_dir, album_info
 
 
 def get_track_info(track: TrackIdentifier) -> TrackInfo:

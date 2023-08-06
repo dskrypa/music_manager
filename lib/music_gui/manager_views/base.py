@@ -143,7 +143,7 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
             yield from self.get_inner_layout()
         else:
             frame_cls = YScrollFrame if scroll_y else Frame
-            kwargs = {'fill_y': True, 'scroll_y_amount': 1} if scroll_y else {}
+            kwargs = {'fill_y': True} if scroll_y else {}
             content = frame_cls(self.get_inner_layout(), side='top', pad=(0, 0), **kwargs)
             if back_button is None:
                 back_button = Spacer(size=(53, 241), anchor='w', side='left')

@@ -9,7 +9,7 @@ import re
 from typing import TYPE_CHECKING, Optional, Iterator, Type
 
 from ds_tools.unicode import LangCat
-from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, Template, MappingNode, ContainerNode, Table, Tag, N
+from wiki_nodes import WikiPage, CompoundNode, Link, Node, String, ContainerNode, Table, Tag, N
 
 from music.common.disco_entry import DiscoEntryType
 from music.text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, strip_enclosed
@@ -33,8 +33,6 @@ __all__ = [
 ]
 log = logging.getLogger(__name__)
 
-AKA_SYNONYMS = ('also known as', 'also known simply as')
-TO_RM_PARENTHESIZED_PREFIXES = ('(stylized', '(short for', '(also known')
 FEAT_ARTIST_INDICATORS = ('with', 'feat.', 'feat ', 'featuring')
 IS_SPLIT = re.compile(r' is (?:a|the|part \S+ of)', re.IGNORECASE).split
 LANG_ABBREV_MAP = {
@@ -63,25 +61,15 @@ def _strify_node(node: ContainerNode):
         if not (isinstance(n, Tag) and n.name == 'ref'):
             parts.extend(n.strings())
 
-        # if isinstance(n, Link):
-        #     parts.append(n.show)
-        # elif isinstance(n, String):
-        #     parts.append(n.value)
-        # elif isinstance(n, Template):
-        #     if isinstance(n.value, String):
-        #         parts.append(n.value.value)
-        #     elif n.name.lower() == 'korean' and isinstance(n.value, MappingNode):
-        #         if value := n.value.get('hangul'):
-        #             parts.append(value.value)
-        # else:
-        #     break
-
     return ' '.join(parts)
 
 
 class PageIntro:
     __slots__ = ('page', 'raw_intro', 'intro')
     _born_date_match = re.compile(r'^(.*?)\s*\(born \w+ \d+, \d{4}\)$', re.IGNORECASE).match
+    AKA_SYNONYMS = ('also known as', 'also known simply as')
+    TO_RM_PARENTHESIZED_PREFIXES = ('(stylized', '(short for', '(also known')
+    FIRST_SENTENCE_SECTION_PARTITIONERS = (', born', ', known professionally as', ', formerly known as')
 
     def __init__(self, page: WikiPage):
         self.page = page
@@ -97,11 +85,12 @@ class PageIntro:
                 raise ValueError(f'Unexpected intro on {page}: {self.raw_intro!r}') from None
 
     def _to_process(self) -> list[str]:
+        # Partition the first sentence of the intro into sections that should be processed individually
         first_string = IS_SPLIT(self.intro, 1)[0].strip()
         log.debug(f'{first_string=!r}')
 
         parts = [first_string]
-        for partitioner in (', born', ', known professionally as'):
+        for partitioner in self.FIRST_SENTENCE_SECTION_PARTITIONERS:
             parts = [
                 p
                 for part in parts
@@ -124,7 +113,7 @@ class PageIntro:
 
     def _names_from_multi_lang_str(self, m_str: str) -> Iterator[Name]:
         cleaned = rm_lang_prefix(m_str)
-        if split_prefix := next((p for p in TO_RM_PARENTHESIZED_PREFIXES if p in cleaned), None):
+        if split_prefix := next((p for p in self.TO_RM_PARENTHESIZED_PREFIXES if p in cleaned), None):
             cleaned = cleaned.partition(split_prefix)[0].strip()
 
         # log.debug(f'Cleaned name: {cleaned!r}')
@@ -199,7 +188,7 @@ class PageIntro:
             yield from self._process_name_list(first_part, paren_part)
         else:
             # log.debug('No ;/and')
-            if aka := next((val for val in AKA_SYNONYMS if paren_part.startswith(val)), None):
+            if aka := next((val for val in self.AKA_SYNONYMS if paren_part.startswith(val)), None):
                 paren_part = paren_part[len(aka):].strip()
                 if ends_with_enclosed(paren_part):
                     eng_2, non_eng = split_enclosed(paren_part, reverse=True, maxsplit=1)

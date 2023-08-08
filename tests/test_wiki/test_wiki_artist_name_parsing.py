@@ -99,6 +99,11 @@ class KpopFandomArtistNameParsingTest(NameTestCaseBase):
         names = PageIntro(fake_page(intro)).names()
         self.assertNamesEqual(names, {Name("Be'O", '비오'), Name('Yoo Chan-wook', '유찬욱')})
 
+    def test_kwon_eun_bi(self):
+        intro = as_node("""'''Kwon Eun Bi''' (권은비; or simply '''Eunbi'''), formerly known as '''Kazoo''' (카쥬), is a South Korean singer-songwriter and musical actress under [[Woollim Entertainment]]. She is a member of the virtual project group [[Feverse]] under the name '''Muneo''' (무너). She is also a former member of the girl groups [[Ye-A]] and [[IZ*ONE]].""")
+        names = PageIntro(fake_page(intro)).names()
+        self.assertNamesEqual(names, {Name("Kwon Eun Bi", '권은비'), Name('Kazoo', '카쥬')})
+
 
 if __name__ == '__main__':
     main()

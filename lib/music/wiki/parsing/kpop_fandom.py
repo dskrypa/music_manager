@@ -55,37 +55,37 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     def parse_artist_name(self, artist_page: WikiPage) -> Iterator[Name]:
         yield from PageIntro(artist_page).names()
-        if _infobox := artist_page.infobox:
-            # log.debug(f'Found infobox for {artist_page}')
-            infobox = _infobox.value
-            if birth_name := infobox.get('birth_name'):
-                if isinstance(birth_name, String):
-                    yield Name.from_enclosed(birth_name.value)
-                elif isinstance(birth_name, ContainerNode):
-                    for line in birth_name:
-                        if isinstance(line, String):
-                            yield Name.from_enclosed(line.value)
-                else:
-                    raise ValueError(f'Unexpected format for birth_name={birth_name.pformat()}')
-            else:
-                eng = eng.value if (eng := infobox.get('name')) else None
-                non_eng_vals = []
-                for script in ('hangul', 'hanja', 'hiragana', 'kanji'):
-                    if node := infobox.get(script):
-                        if isinstance(node, String):
-                            non_eng_vals.append((script, node.value))
-                        elif isinstance(node, ContainerNode):    # Example: GWSN - Kanji with Japanese + Chinese
-                            for sub_node in node:
-                                if isinstance(sub_node, String):
-                                    non_eng_vals.append((script, sub_node.value))
-                        else:
-                            log.debug(f'Unexpected alt lang name node type on {artist_page}: {script}={node!r}')
-
-                if eng or non_eng_vals:
-                    non_eng = non_eng_vals.pop(0)[1] if non_eng_vals else None
-                    yield Name(eng, non_eng, versions={Name(eng, val[1]) for val in non_eng_vals})
-        else:
+        if not (infobox_tmpl := artist_page.infobox):
             log.debug(f'No infobox found for {artist_page}')
+            return
+
+        # log.debug(f'Found infobox for {artist_page}')
+        infobox = infobox_tmpl.value
+        if birth_name := infobox.get('birth_name'):
+            if isinstance(birth_name, String):
+                yield Name.from_enclosed(birth_name.value)
+            elif isinstance(birth_name, ContainerNode):
+                for line in birth_name:
+                    if isinstance(line, String):
+                        yield Name.from_enclosed(line.value)
+            else:
+                raise ValueError(f'Unexpected format for birth_name={birth_name.pformat()}')
+        else:
+            eng = eng.value if (eng := infobox.get('name')) else None
+            non_eng_vals = []
+            for script in ('hangul', 'hanja', 'hiragana', 'kanji'):
+                if not (node := infobox.get(script)):
+                    continue
+                elif isinstance(node, String):
+                    non_eng_vals.append((script, node.value))
+                elif isinstance(node, ContainerNode):    # Example: GWSN - Kanji with Japanese + Chinese
+                    non_eng_vals.extend((script, sub_node.value) for sub_node in node if isinstance(sub_node, String))
+                else:
+                    log.debug(f'Unexpected alt lang name node type on {artist_page}: {script}={node!r}')
+
+            if eng or non_eng_vals:
+                non_eng = non_eng_vals.pop(0)[1] if non_eng_vals else None
+                yield Name(eng, non_eng, versions={Name(eng, val[1]) for val in non_eng_vals})
 
     def parse_group_members(self, artist_page: WikiPage) -> dict[str, list[str]]:
         try:

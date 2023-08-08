@@ -79,34 +79,32 @@ def init_sym_spell():
     from ds_tools.fs.paths import get_user_cache_dir
 
     sym_spell = SymSpell(max_dictionary_edit_distance=0, prefix_length=1)
+    if (cached_path := Path(get_user_cache_dir('music_manager')).joinpath('words.pkl.gz')).exists():
+        log.debug(f'Loading pickled spellcheck dictionary: {cached_path.as_posix()}')
+        sym_spell.load_pickle(cached_path)
+        return sym_spell
 
-    dict_path_pkl = Path(get_user_cache_dir('music_manager')).joinpath('words.pkl.gz')
-    if dict_path_pkl.exists():
-        log.debug(f'Loading pickled spellcheck dictionary: {dict_path_pkl}')
-        sym_spell.load_pickle(dict_path_pkl)
-    else:
-        import lzma
-        from importlib.resources import path as resource_path
+    import lzma
+    from importlib.resources import files
 
-        with resource_path('symspellpy', 'frequency_dictionary_en_82_765.txt') as dict_path:
-            sym_spell.load_dictionary(dict_path, 0, 1)
+    sym_spell.load_dictionary(files('symspellpy').joinpath('frequency_dictionary_en_82_765.txt'), 0, 1)  # noqa
 
-        with resource_path('music.text._data.scowl', 'words.xz') as word_list_path_xz:
-            log.debug(f'Loading default dictionary + word list from {word_list_path_xz}')
-            with lzma.open(word_list_path_xz, 'rt', encoding='utf-8') as f:
-                word_list: list[str] = f.read().splitlines()  # noqa
+    word_list_path_xz = files('music.text._data.scowl').joinpath('words.xz')
+    log.debug(f'Loading default dictionary + word list from {word_list_path_xz.as_posix()}')  # noqa
+    with lzma.open(word_list_path_xz, 'rt', encoding='utf-8') as f:  # noqa
+        word_list: list[str] = f.read().splitlines()  # noqa
 
-        loaded = sym_spell.words
-        min_count = min(loaded.values())
-        add_word = sym_spell.create_dictionary_entry
-        for word in word_list:
-            try:
-                loaded[word]
-            except KeyError:
-                add_word(word, min_count)
+    loaded = sym_spell.words
+    min_count = min(loaded.values())
+    add_word = sym_spell.create_dictionary_entry
+    for word in word_list:
+        try:
+            loaded[word]
+        except KeyError:
+            add_word(word, min_count)
 
-        fmt = 'Saving pickled spellcheck dictionary (this is a one-time action that may take about 15 seconds): {}'
-        log.info(fmt.format(dict_path_pkl))
-        sym_spell.save_pickle(dict_path_pkl)
-
+    log.info(
+        f'Saving cached spellcheck dictionary (this is a one-time action that may take ~15s): {cached_path.as_posix()}'
+    )
+    sym_spell.save_pickle(cached_path)
     return sym_spell

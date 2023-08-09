@@ -11,11 +11,12 @@ from typing import TYPE_CHECKING
 from PIL.Image import new as new_image
 from send2trash import TrashPermissionError
 
+from ds_tools.caching.decorators import cached_property
 from ds_tools.fs.paths import unique_path
 from tk_gui import CallbackAction, button_handler, EventButton, Text, ScrollFrame, BasicRowFrame
 from tk_gui.images import Icons
 
-from music.files.album import AlbumDir, InvalidAlbumDir
+from music.files.album import AlbumDir
 from music.manager.update import AlbumInfo
 from music_gui.config import DirManager
 from music_gui.elements.file_frames import SongFilesFrame
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from tkinter import Event
     from tk_gui import Window, ViewSpec, Layout
+    from tk_gui.typing import XY
     from music.typing import AnyAlbum
 
 __all__ = ['AlbumSortView']
@@ -72,35 +74,54 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
     # def get_pre_window_layout(self) -> Layout:
     #     yield from super().get_pre_window_layout()
 
+    @cached_property(block=False)
+    def _button_icons(self) -> Icons:
+        return Icons(15)
+
+    def _make_button_icon(self, name: str, size: XY, pos: XY):
+        # TODO: The process for determining the correct size/pos values to use and number of spaces to include before
+        #  button text is too hit-or-miss... There must be a better (automatic) way...
+        ele_style = self.window.style.button
+        bg = f'{ele_style.bg.default}00'
+        icon = new_image('RGBA', size, bg)
+        icon.paste(self._button_icons.draw(name, color=ele_style.fg.default, bg=bg), pos)
+        return icon
+
     def get_inner_layout(self) -> Layout:
         yield [self._prep_src_header(), self._prep_dst_header()]
         arrow = Text('\u2794', font=('Helvetica', 20), size=(2, 1))
+        # TODO: Swap src <-> dst button
+        # TODO: Copy ratings button =>> diff view
+        # TODO: Copy all button =>> diff view
         yield [self._prep_src_frame(), arrow, self._prep_dst_frame()]
 
     def _prep_src_header(self):
-        ele_style = self.window.style.button
-        bg = f'{ele_style.bg.default}00'
-        trash_icon = new_image('RGBA', (130, 20), bg)
-        trash_icon.paste(Icons(15).draw('trash', color=ele_style.fg.default, bg=bg), (7, 3))
-        # Note: Spaces in text are intentional to align with the icon
+        trash_icon = self._make_button_icon('trash', (130, 20), (7, 3))
+        album_icon = self._make_button_icon('disc', (50, 20), (0, 2))
+        # Note: Spaces in text are intentional to align with icons
+        view_btn = EventButton('     View', album_icon, key='view_src_album', size=(70, 20))
         trash_btn = EventButton('   Send to Trash', trash_icon, key='send_to_trash', size=(140, 20))
         skip_btn = EventButton('Move to Skipped', key='move_to_skipped_dir')
-        return BasicRowFrame([trash_btn, skip_btn], expand=True)
+        return BasicRowFrame([view_btn, trash_btn, skip_btn], expand=True)
 
     def _prep_dst_header(self):
+        album_icon = self._make_button_icon('disc', (50, 20), (0, 2))
+        # Note: Spaces in text are intentional to align with icons
+        view_btn = EventButton('     View', album_icon, key='view_dst_album', size=(70, 20))
         match_btn = EventButton('Fix Match...', key='fix_dst_match')
         replace_btn = EventButton('Replace...', key='replace_album')
-        return BasicRowFrame([match_btn, replace_btn], expand=True)
+        return BasicRowFrame([view_btn, match_btn, replace_btn], expand=True)
 
     def _prep_src_frame(self) -> ScrollFrame:
-        # TODO: Source frame takes more width than necessary, and destination frame doesn't get enough initially
-        #  ...maybe due to path length?
+        # TODO: Source frame sometimes takes more width than necessary, and leaving not enough for the dst frame,
+        #  maybe due to path length?
         return SongFilesFrame(self.src_album, border=True)
 
     def _prep_dst_frame(self) -> ScrollFrame:
         if self.dst_album:
             return SongFilesFrame(self.dst_album, border=True)
         else:
+            # TODO: Force width to match the src side so the dst header buttons are not above the src album
             return ScrollFrame(border=True)
 
     # endregion
@@ -124,6 +145,14 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
     # endregion
 
     # region Destination Album Event Handlers
+
+    @button_handler('view_src_album', 'view_dst_album')
+    def view_album(self, event: Event, key=None) -> CallbackAction | None:
+        from .album import AlbumView
+
+        if album := self.src_album if key == 'view_src_album' else self.dst_album:
+            return self.go_to_next_view(AlbumView.prepare_transition(self.dir_manager, album=album))
+        return None
 
     @button_handler('fix_dst_match')
     def fix_dst_match(self, event: Event, key=None) -> CallbackAction | None:

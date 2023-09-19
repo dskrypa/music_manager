@@ -238,6 +238,14 @@ class Dump(Playlist, help='Save playlists'):
     path = Positional(help='Playlist dump location')
     playlist = Option('-p', help='Dump the specified playlist (default: all)')
 
+    def _init_command_(self):
+        # Overrides logging init so a log file is used for scheduled playlist dumps
+        from ds_tools.logging import init_logging
+        init_logging(self.verbose, names=None, millis=True, set_levels={'paramiko.transport': 50})
+
+        from music.files.patches import apply_mutagen_patches
+        apply_mutagen_patches()
+
     def main(self, *args, **kwargs):
         from music.plex.playlist import dump_playlists
 

@@ -137,6 +137,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 raise EntityTypeError(f'{obj} is a Template page, which is not compatible with {cls.__name__}')
 
         if cat_cls := EntityClassifier(obj, cls).get_class():
+            log.debug(f'Classified {obj} as {cat_cls=}')
             return cat_cls, obj
         elif cls is not WikiEntity:
             # No match was found; only WikiEntity is allowed to be instantiated directly with no matching categories

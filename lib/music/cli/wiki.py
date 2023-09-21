@@ -29,7 +29,7 @@ class Wiki(Command, description='Wiki matching / informational functions'):
             logging.getLogger('music.manager.wiki_match.matching').setLevel(logging.DEBUG)
 
 
-class Pprint(Wiki, help=''):
+class Pprint(Wiki, help='Pretty-print the parsed Wiki content for a given URL'):
     url = Positional(help='A wiki entity URL')
     mode = Option('-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode')
 
@@ -39,7 +39,7 @@ class Pprint(Wiki, help=''):
         pprint_wiki_page(self.url, self.mode)
 
 
-class Raw(Wiki, help=''):
+class Raw(Wiki, help='Show the raw Wiki text content for a given URL'):
     url = Positional(help='A wiki entity URL')
 
     def main(self):
@@ -62,7 +62,7 @@ class Show(Wiki, help='Show a parsed wiki entity'):
         show_wiki_entity(self.identifier, self.expand, self.limit, self.types, self.type, self.site)
 
 
-class Update(Wiki, help=''):
+class Update(Wiki, help='Update one or more albums based on info from a Wiki'):
     path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
     destination = Option('-d', metavar='PATH', help=f"Destination base directory for sorted files (default: based on today's date)")
     url = Option('-u', help='A wiki URL (can only specify one file/directory when providing a URL)')
@@ -89,21 +89,35 @@ class Update(Wiki, help=''):
 
     def main(self):
         from datetime import date
-        from music.manager.wiki_update import update_tracks
+        from music.manager.config import UpdateConfig
+        from music.manager.wiki_update import WikiUpdater
         from music.common.utils import can_add_bpm
 
         sites = self.sites or (['wiki.d-addicts.com'] if self.ost else ALL_SITES)
-        destination = self.destination or './sorted_{}'.format(date.today().strftime('%Y-%m-%d'))
-
-        bpm = can_add_bpm() if not self.bpm and self.no_bpm else self.bpm
-        update_tracks(
-            self.path, self.dry_run, self.soloist, self.hide_edition, self.collab_mode, self.url, bpm,
-            destination, self.title_case, sites, self.dump, self.load, self.artist, self.update_cover,
-            self.no_album_move, self.artist_only, not self.replace_genre
+        config = UpdateConfig(
+            soloist=self.soloist,
+            hide_edition=self.hide_edition,
+            collab_mode=self.collab_mode,
+            artist_url=self.artist,
+            add_bpm=can_add_bpm() if not self.bpm and self.no_bpm else self.bpm,
+            title_case=self.title_case,
+            artist_sites=sites,
+            album_sites=sites,
+            update_cover=self.update_cover,
+            no_album_move=self.no_album_move,
+            artist_only=self.artist_only,
+            add_genre=not self.replace_genre,
+        )
+        WikiUpdater(self.path, config).update(
+            self.destination or f'./sorted_{date.today().isoformat()}',
+            load_path=self.load,
+            album_url=self.url,
+            dry_run=self.dry_run,
+            dump=self.dump,
         )
 
 
-class Match(Wiki, help=''):
+class Match(Wiki, help='Attempt to find a Wiki page that matches a given album directory'):
     path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
 
     def main(self):
@@ -112,7 +126,7 @@ class Match(Wiki, help=''):
         show_matches(self.path)
 
 
-class Test(Wiki, help=''):
+class Test(Wiki, help='Test the compatibility of a given album directory with a given Wiki page'):
     path = Positional(help='One path of music files or directories containing music files')
     url = Positional(help='A wiki URL for a page to test whether it matches the given files')
 

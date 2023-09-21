@@ -24,8 +24,6 @@ from ..text.name import Name
 from ..wiki import Track, Artist, Singer, Group
 from ..wiki.album import DiscographyEntry, DEEdition, DEPart, DiscoObj, Soundtrack, SoundtrackEdition
 from ..wiki.parsing.utils import LANG_ABBREV_MAP
-from ..wiki.typing import StrOrStrs
-from .config import UpdateConfig
 from .enums import CollabMode
 from .exceptions import MatchException, NoArtistFoundError
 from .update import AlbumInfo, TrackInfo, normalize_case
@@ -34,50 +32,14 @@ from .wiki_utils import get_disco_part
 
 if TYPE_CHECKING:
     from ds_tools.fs.typing import Paths
+    from .config import UpdateConfig
 
-__all__ = ['update_tracks']
+__all__ = ['WikiUpdater']
 log = logging.getLogger(__name__)
 
 ArtistType = Union[Artist, Group, Singer, 'ArtistSet']
 
 CONFIG_DIR = Path('~/.config/music_manager/').expanduser()
-
-
-def update_tracks(
-    paths: Paths,
-    dry_run: bool = False,
-    soloist: bool = False,
-    hide_edition: bool = False,
-    collab_mode: Union[CollabMode, str] = CollabMode.ARTIST,
-    url: Optional[str] = None,
-    add_bpm: bool = False,
-    dest_base_dir: Union[Path, str, None] = None,
-    title_case: bool = False,
-    artist_sites: StrOrStrs = None,
-    album_sites: StrOrStrs = None,
-    dump: Optional[str] = None,
-    load: Optional[str] = None,
-    artist_url: Optional[str] = None,
-    update_cover: bool = False,
-    no_album_move: bool = False,
-    artist_only: bool = False,
-    add_genre: bool = True,
-):
-    config = UpdateConfig(
-        soloist=soloist,
-        hide_edition=hide_edition,
-        collab_mode=collab_mode,
-        artist_url=artist_url,
-        add_bpm=add_bpm,
-        title_case=title_case,
-        artist_sites=artist_sites,
-        album_sites=album_sites,
-        update_cover=update_cover,
-        no_album_move=no_album_move,
-        artist_only=artist_only,
-        add_genre=add_genre,
-    )
-    WikiUpdater(paths, config).update(dest_base_dir, load, url, dry_run, dump)
 
 
 class WikiUpdater:
@@ -639,6 +601,7 @@ class TrackZip:
         self.tracks = disco_part.tracks
 
     def _basic(self, multi_disk: bool = False) -> dict[SongFile, Track]:
+        log.debug(f'Performing basic track zip with {multi_disk=}')
         if multi_disk:
             files = sorted(self.files, key=lambda sf: (sf.disk_num, sf.track_num))
             wiki_tracks = [t for part in self.disco_part.edition.parts for t in part.tracks]
@@ -654,6 +617,7 @@ class TrackZip:
                 file_track_map[song_file] = tracks[song_file.track_num - 1]
             except IndexError:
                 raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
+        log.debug(f'Zipped tracks based on track numbers')
         return file_track_map
 
     def _zip_by_number_multi_disk(self, track_map: dict[tuple[int, int], Track], src: str) -> dict[SongFile, Track]:
@@ -688,6 +652,7 @@ class TrackZip:
         if len(tracks) == len(self.files):
             return self._basic(True)
 
+        log.debug('Performing disk-aware track zip')
         track_map: dict[tuple[int, int], Track] = {
             (d, n): track
             for d, part in enumerate(self.disco_part.edition.parts, 1)
@@ -699,11 +664,13 @@ class TrackZip:
             except TrackZipError as e:
                 log.debug(e)
 
+        log.debug('Falling back to basic track zip')
         return self._basic(True)
 
     def zip(self) -> dict[SongFile, Track]:
         n_files = len(self.files)
         n_tracks = len(self.tracks)
+        log.debug(f'Zipping track info for {n_files=} x {n_tracks=}')
         if n_files == n_tracks:
             return self._basic()
 

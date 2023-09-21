@@ -218,10 +218,7 @@ class DiscographyEntry(EntertainmentEntity):
     def type(self) -> Optional[DiscoEntryType]:
         if isinstance(self._type, DiscoEntryType):
             return self._type
-        for edition in self.editions:
-            if edition.type:
-                return edition.type
-        return None
+        return next((edition.type for edition in self.editions if edition.type), None)
 
     @cached_property
     def cls_type_name(self) -> str:

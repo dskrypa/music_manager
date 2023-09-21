@@ -617,6 +617,10 @@ class TrackZip:
                 file_track_map[song_file] = tracks[song_file.track_num - 1]
             except IndexError:
                 raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
+
+        if len(set(file_track_map.values())) != len(self.files):
+            raise TrackZipError(f'Multiple files in {self.album_dir} were mapped to the same track from {src}')
+
         log.debug(f'Zipped tracks based on track numbers')
         return file_track_map
 

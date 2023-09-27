@@ -34,7 +34,7 @@ __all__ = [
 log = logging.getLogger(__name__)
 
 FEAT_ARTIST_INDICATORS = ('with', 'feat.', 'feat ', 'featuring')
-IS_SPLIT = re.compile(r' is (?:a|the|part \S+ of)', re.IGNORECASE).split
+IS_SPLIT = re.compile(r' (?:is|are) (?:an|a|the|part \S+ of)', re.IGNORECASE).split
 LANG_ABBREV_MAP = {
     'chinese': 'Chinese', 'chn': 'Chinese',
     'english': 'English', 'en': 'English', 'eng': 'English',

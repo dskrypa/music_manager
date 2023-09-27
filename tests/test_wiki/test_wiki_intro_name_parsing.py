@@ -79,6 +79,7 @@ class IntroNameParsingTest(NameTestCaseBase):
 
     @skip('Disabled until as_node is fixed to prevent erroneous list creation')
     def test_better_known_as(self):
+        # TODO: Fix - the skip reason is no longer valid, but the template is not handled well right now
         page = fake_page(as_node("""'''Kim Tae-hyeong''' ({{Korean\n    | hangul  = 김태형\n    | hanja   =\n    | rr      =\n    | mr      =\n    | context =\n}}; born February 11, 1988), better known as '''Paul Kim''' ({{Korean\n    | hangul  = 폴킴\n    | hanja   =\n    | rr      =\n    | mr      =\n    | context =\n}}) is a South Korean singer. He debuted in 2014 and has released two extended plays and one full-length album in two parts: ''The Road'' (2017) and ''Tunnel'' (2018)."""))
         names = set(PageIntro(page).names())
         self.assertNamesEqual(names, {Name('Kim Tae-hyeong', '김태형'), Name('Paul Kim', '폴킴')})
@@ -136,6 +137,11 @@ class IntroNameParsingTest(NameTestCaseBase):
         page = fake_page(as_node("""'''John Nommensen Duchac''' (born February 25, 1953),<ref>{{cite web|url=https://familysearch.org/ark:/61903/1:1:KT3W-98G |title=United States Public Records, 1970-2009 |publisher=FamilySearch.org}}</ref> known professionally as '''John Doe''', is an American singer, songwriter, actor, poet, guitarist and bass player."""))
         names = set(PageIntro(page).names())
         self.assertNamesEqual(names, {Name('John Nommensen Duchac'), Name('John Doe')})
+
+    def test_yes(self):
+        page = fake_page(as_node("""'''Yes''' are <!-- not "is"; British English is used for this article. See WP:ENGVAR for more info. --> an English [[progressive rock]] band formed in London in 1968 by lead singer [[Jon Anderson]], bassist [[Chris Squire]], guitarist [[Peter Banks]], keyboardist [[Tony Kaye (musician)|Tony Kaye]], and drummer [[Bill Bruford]]. The band has undergone [[List of Yes band members|numerous lineup changes]] throughout their history, during which 20 musicians have been full-time members. Since February 2023, the band has consisted of guitarist [[Steve Howe]], keyboardist [[Geoff Downes]], bassist [[Billy Sherwood]], singer [[Jon Davison]], and drummer [[Jay Schellen]]. Yes have explored several musical styles over the years and are most notably regarded as progressive rock pioneers."""))
+        names = set(PageIntro(page).names())
+        self.assertNamesEqual(names, {Name('Yes')})
 
 
 if __name__ == '__main__':

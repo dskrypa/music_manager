@@ -68,7 +68,7 @@ class DiscographyEntry(EntertainmentEntity):
     """
     _categories = ()
     disco_entries: list[DiscoEntry]
-    _date: Optional[date]
+    _date: Optional[date] = None
     _artist: Optional[Artist]
     _type: Optional[DiscoEntryType]
 
@@ -84,7 +84,6 @@ class DiscographyEntry(EntertainmentEntity):
             name = name[1:-1]
         super().__init__(name, pages)
         self.disco_entries = [disco_entry] if disco_entry else []
-        self._date = None
         self._artist = artist
         self._type = entry_type
 
@@ -250,12 +249,11 @@ class DiscographyEntry(EntertainmentEntity):
     @cached_property
     def date(self) -> Optional[date]:
         if not isinstance(self._date, date):
-            for entry in self.disco_entries:
-                if entry.date:
-                    self._date = entry.date
-                    break
-            else:
-                self._date = min(edition.date for edition in self.editions) if self.editions else None
+            if entry_date := next((entry.date for entry in self.disco_entries if entry.date), None):
+                self._date = entry_date
+            elif self.editions and (ed_dates := [ed.date for ed in self.editions if ed.date]):
+                self._date = min(ed_dates)
+            # else: self._date is already None
         return self._date
 
     # endregion

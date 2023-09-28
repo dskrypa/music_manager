@@ -125,9 +125,11 @@ class WikiEntity(ClearableCachedPropertyMixin):
         :param visited: A set of links that have already been visited for disambiguation resolution
         :return tuple: Tuple of (WikiEntity subclass, page/entry)
         """
+        if visited is None:
+            visited = set()
+
         if isinstance(obj, WikiPage):
             if obj.is_disambiguation:
-                visited = visited or set()
                 visited.add(obj.as_link)
                 log.debug(f'{cls.__name__}._validate found a disambiguation page: {obj}')
                 return cls._resolve_ambiguous(obj, existing, name, prompt, visited)
@@ -144,14 +146,15 @@ class WikiEntity(ClearableCachedPropertyMixin):
             if isinstance(obj, WikiPage) and (obj.disambiguation_link or obj.similar_name_link):
                 log.debug(f'{cls.__name__}._validate found a possible disambiguation link from: {obj}')
                 link = obj.disambiguation_link or obj.similar_name_link
-                visited = visited or set()
                 if link not in visited:
                     try:
                         return cls._handle_disambiguation_link(link, existing, name, prompt, visited)
                     except PageMissingError as e:
                         log.debug(f'The disambiguation link was not found: {e}')
-            fmt = '{} has no categories that make it a {} or subclass thereof - page categories: {}'
-            raise EntityTypeError(fmt.format(obj, cls.__name__, obj.categories))
+            raise EntityTypeError(
+                f'{obj} has no categories that make it a {cls.__name__} or subclass thereof'
+                f' - page categories: {obj.categories}'
+            )
 
         return cls, obj
 
@@ -161,7 +164,8 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def _handle_disambiguation_link(
         cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: set[Link] = None
     ) -> tuple[Type[WE], PageEntry]:
-        visited = visited or set()
+        if visited is None:
+            visited = set()
         visited.add(link)
         mw_client, title = link.client_and_title
         return cls._validate(mw_client.get_page(title), existing, name, prompt, visited)
@@ -184,14 +188,12 @@ class WikiEntity(ClearableCachedPropertyMixin):
         :param prompt: Attempt to interactively resolve disambiguation pages if unable to do so automatically
         :return: Tuple of (WikiEntity subclass, WikiPage)
         """
-        links = disambiguation_links(page)
-        if not links:
+        if not (links := disambiguation_links(page)):
             raise AmbiguousPageError(page_name(page), page, links)
 
         client, title_link_map = next(iter(site_titles_map(links).items()))     # type: MediaWikiClient, dict[str, Link]
-        pages = client.get_pages(title_link_map)
         candidates = {}
-        for title, _page in pages.items():
+        for title, _page in client.get_pages(title_link_map).items():
             link = title_link_map[title]
             if _page.title != link.title:  # In case of redirects
                 link = Link(f'[[{_page.title}]]', link.root)
@@ -252,9 +254,9 @@ class WikiEntity(ClearableCachedPropertyMixin):
             if page_link_map:
                 raise AmbiguousPagesError(name, page_link_map)
             elif type_errors:
-                raise EntityTypeError(f'Encountered {type_errors} type errors and found no valid pages for {name=!r}')
+                raise EntityTypeError(f'Encountered {type_errors} type errors and found no valid pages for {name=}')
             else:
-                raise ValueError(f'No pages found for {name=!r}')
+                raise ValueError(f'No pages found for {name=}')
         else:
             if page_link_map:
                 lvl = logging.WARNING if strict else logging.DEBUG
@@ -285,21 +287,18 @@ class WikiEntity(ClearableCachedPropertyMixin):
         """
         sites = _sites(sites)
         pages, errors = MediaWikiClient.get_multi_site_page(title, sites, search=search)
-        if pages:
-            entity = cls._from_multi_site_pages(pages.values(), name, strict=strict, **kwargs)
-            if search and research:
-                if 0 < len(entity._pages) < len(sites):
-                    # noinspection PyUnboundLocalVariable
-                    if (name := entity.name) and (eng := name.english) and eng != title:
-                        log.debug(f'Returning {cls.__name__}.from_title for {eng=!r}')
-                        research_entity = cls.from_title(
-                            eng, set(sites).difference(entity._pages), search, False, **kwargs
-                        )
-                        research_entity._add_pages(entity._pages)
-                        return research_entity
-            return entity
+        if not pages:
+            raise NoPagesFoundError(f'No pages found for {title=} from any of these sites: {", ".join(sites)}')
 
-        raise NoPagesFoundError(f'No pages found for title={title!r} from any of these sites: {", ".join(sites)}')
+        entity = cls._from_multi_site_pages(pages.values(), name, strict=strict, **kwargs)
+        if search and research and 0 < len(entity._pages) < len(sites):
+            if (name := entity.name) and (eng := name.english) and eng != title:  # noqa
+                log.debug(f'Returning {cls.__name__}.from_title for {eng=!r}')
+                research_entity = cls.from_title(eng, set(sites).difference(entity._pages), search, False, **kwargs)
+                research_entity._add_pages(entity._pages)
+                return research_entity
+
+        return entity
 
     @classmethod
     def from_titles(
@@ -326,45 +325,46 @@ class WikiEntity(ClearableCachedPropertyMixin):
         # log.debug(f'Retrieving {cls.__name__}s: {query_map}', extra={'color': 14})
         log.debug(f'Retrieving {cls.__name__}s from sites={sorted(query_map)} with {titles=}')
         title_entity_map = cls._from_site_title_map(query_map, search, strict, title_name_map)
+        if not (search and research):
+            return title_entity_map
 
-        if search and research:
-            research_query_map = defaultdict(list)
-            research_title_name_map = {}
-            new_orig_title_map = {}
-            for title, entity in title_entity_map.items():
-                if 0 < len(entity._pages) < len(sites):
-                    # noinspection PyUnboundLocalVariable
-                    if (name := entity.name) and (eng := name.english) and eng != title and eng not in title_name_map:
-                        # log.debug(f'Will re-search for {eng=!r} {title=!r} {entity=!r}')
-                        new_orig_title_map[eng] = title
-                        research_title_name_map[eng] = title_name_map.get(title)
-                        for site in set(sites).difference(entity._pages).union({'kindie.fandom.com'}):
-                            research_query_map[site].append(eng)
+        research_query_map = defaultdict(list)
+        research_title_name_map = {}
+        new_orig_title_map = {}
+        for title, entity in title_entity_map.items():
+            if not (0 < len(entity._pages) < len(sites)):
+                continue
+            elif (name := entity.name) and (eng := name.english) and eng != title and eng not in title_name_map:  # noqa
+                # log.debug(f'Will re-search for {eng=!r} {title=!r} {entity=!r}')
+                new_orig_title_map[eng] = title
+                research_title_name_map[eng] = title_name_map.get(title)
+                for site in set(sites).difference(entity._pages).union({'kindie.fandom.com'}):
+                    research_query_map[site].append(eng)
 
-            if not title_entity_map:
-                for title in set(chain(titles, title_name_map)):
-                    if title.upper() == title:
-                        tc_title = title.title()
-                        new_orig_title_map[tc_title] = title
-                        research_title_name_map[tc_title] = title_name_map.get(title)
-                        for site in sites:
-                            research_query_map[site].append(tc_title)
+        if not title_entity_map:
+            for title in set(chain(titles, title_name_map)):
+                if title.upper() == title:
+                    tc_title = title.title()
+                    new_orig_title_map[tc_title] = title
+                    research_title_name_map[tc_title] = title_name_map.get(title)
+                    for site in sites:
+                        research_query_map[site].append(tc_title)
 
-            if research_query_map:
-                fmt = 'Re-attempting retrieval of {}s from sites={} with titles={}'
-                log.debug(fmt.format(cls.__name__, sorted(research_query_map), list(new_orig_title_map)))
-                new_title_entity_map = cls._from_site_title_map(
-                    research_query_map, search, strict, research_title_name_map
-                )
-                for eng_or_name, entity in new_title_entity_map.items():
-                    # log.debug(f'Found re-search result for {eng=!r} {entity=!r}')
-                    orig_title = new_orig_title_map.get(eng_or_name, eng_or_name)
-                    try:
-                        orig = title_entity_map[orig_title]
-                    except KeyError:
-                        title_entity_map[orig_title] = entity
-                    else:
-                        orig._add_pages(entity._pages)
+        if research_query_map:
+            log.debug(
+                f'Re-attempting retrieval of {cls.__name__}s from sites={sorted(research_query_map)} with'
+                f' titles={list(new_orig_title_map)}'
+            )
+            new_title_entity_map = cls._from_site_title_map(research_query_map, search, strict, research_title_name_map)
+            for eng_or_name, entity in new_title_entity_map.items():
+                # log.debug(f'Found re-search result for {eng=!r} {entity=!r}')
+                orig_title = new_orig_title_map.get(eng_or_name, eng_or_name)
+                try:
+                    orig = title_entity_map[orig_title]
+                except KeyError:
+                    title_entity_map[orig_title] = entity
+                else:
+                    orig._add_pages(entity._pages)
 
         return title_entity_map
 
@@ -377,17 +377,18 @@ class WikiEntity(ClearableCachedPropertyMixin):
         title_name_map=None,
     ) -> dict[Union[str, Name], WE]:
         # log.debug(f'{cls.__name__}._from_site_title_map({site_title_map=},\n{search=}, {strict=},\n{title_name_map=})')
-        title_name_map = title_name_map or {}
+        if title_name_map is None:
+            title_name_map = {}
         results, _errors = MediaWikiClient.get_multi_site_pages(site_title_map, search=search)
         for title, error in _errors.items():
-            log.error(f'Error processing {title=!r}: {error}', extra={'color': 9})
+            log.error(f'Error processing {title=}: {error}', extra={'color': 9})
 
         title_entity_map = {}
         for title, pages in multi_site_page_map(results).items():
             name = title_name_map.get(title)
             try:
                 title_entity_map[name or title] = cls._from_multi_site_pages(pages, name, strict)
-            except (EntityTypeError, AmbiguousPageError) as e:
+            except (EntityTypeError, AmbiguousPageError, AmbiguousPagesError) as e:
                 if strict > 1:
                     raise
                 else:

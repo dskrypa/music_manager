@@ -35,8 +35,7 @@ DEPartOrEntry = Union[DiscographyEntryPart, DiscographyEntry]
 
 def test_match(paths: Paths, identifier: str):
     for album_dir in iter_album_dirs(paths):
-        album_name = album_dir.name
-        if not album_name:
+        if not (album_name := album_dir.name):
             raise ValueError(f'Directories with multiple album names are not currently handled.')
 
         if URL_MATCH(identifier):
@@ -200,7 +199,9 @@ class AlbumFinder:
 
         return _filter_candidates(self.album_dir, candidates) if len(candidates) > 1 else candidates
 
-    def _get_artist_candidates(self, name: Name, artists: Iterable[Artist], album_name: AlbumName) -> set[DEPartOrEntry]:
+    def _get_artist_candidates(
+        self, name: Name, artists: Iterable[Artist], album_name: AlbumName
+    ) -> set[DEPartOrEntry]:
         alb_type = self.album_dir.type
         repackage, num = album_name.repackage, album_name.number
         track_count = len(self.album_dir)
@@ -216,8 +217,7 @@ class AlbumFinder:
     def _artist_candidates(
         self, name: Name, repackage: bool, num: int, track_count: int, entry: DEEntryOrEdition
     ) -> Iterator[DEPartOrEntry]:
-        alb_dir = self.album_dir
-        alb_type = alb_dir.type
+        alb_type = self.album_dir.type
         if name and name.matches(entry.name):
             entry_parts = tuple(entry.parts() if isinstance(entry, DiscographyEntry) else entry)
             pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
@@ -231,12 +231,11 @@ class AlbumFinder:
                     if self._tracks_match(part, track_count):
                         mlog.debug(f'{part=} matches {name}', extra={'color': 11})
                         yield part
+            elif entry_parts:
+                pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
+                mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}', extra={'color': 8})
             else:
-                if entry_parts:
-                    pkg_repr = ', '.join(f'{part}.repackage={part.repackage!r}' for part in entry_parts)
-                    mlog.debug(f'Found no matching parts for {entry=}: {pkg_repr}', extra={'color': 8})
-                else:
-                    mlog.debug(f'Found no parts for {entry=}', extra={'color': 8})
+                mlog.debug(f'Found no parts for {entry=}', extra={'color': 8})
         elif alb_type and alb_type == entry.type and num and entry.number and num == entry.number:
             if parts := tuple(entry.parts() if isinstance(entry, DiscographyEntry) else entry):
                 mlog.debug(f'{entry=} has {len(parts)} parts that match by type + number', extra={'color': 11})
@@ -253,14 +252,11 @@ class AlbumFinder:
 
 
 def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEntryPart]) -> set[DiscographyEntryPart]:
-    mlog.debug('Initial candidates ({}):\n{}'.format(len(candidates), '\n'.join(f' - {c}' for c in candidates)))
+    mlog.debug(f'Initial candidates ({len(candidates)}):\n' + '\n'.join(f' - {c}' for c in candidates))
 
     track_count = len(album_dir)
-    _candidates, candidates = candidates, set()
-    for part in _candidates:
-        if track_count == len(part):
-            candidates.add(part)
-    if not candidates:
+    _candidates = candidates
+    if not (candidates := {part for part in _candidates if track_count == len(part)}):
         mlog.debug(f'No candidates had matching track counts')
         candidates = _candidates
 
@@ -275,16 +271,16 @@ def _filter_candidates(album_dir: AlbumDir, candidates: Collection[DiscographyEn
         mlog.debug(f'No candidates had matching track names')
         candidates = _candidates
 
-    album_name = album_dir.name
-    if album_name.ost:
+    if album_dir.name.ost:
         candidates = _filter_ost_parts(album_dir.name, candidates)
 
     return candidates
 
 
 def _filter_ost_parts(album_name: AlbumName, candidates):
-    _candidates = set(c for c in candidates if getattr(c, 'part', None) == album_name.part)
-    return _candidates if _candidates else candidates
+    if filtered := set(c for c in candidates if getattr(c, 'part', None) == album_name.part):
+        return filtered
+    return candidates
 
 
 def _sites_for(album_dir: AlbumDir) -> tuple[str, ...]:

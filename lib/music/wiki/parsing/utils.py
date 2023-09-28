@@ -108,8 +108,7 @@ class PageIntro:
                 # log.debug(f'Found multi-lang name match={m} ({m_str=})')
                 yield from self._names_from_multi_lang_str(m_str)
             else:
-                name = self._base_name_str(name_str)
-                yield from self._split_name_parts(name)
+                yield from self._split_name_parts(self._base_name_str(name_str))
 
     def _names_from_multi_lang_str(self, m_str: str) -> Iterator[Name]:
         cleaned = rm_lang_prefix(m_str)
@@ -119,9 +118,8 @@ class PageIntro:
         # log.debug(f'Cleaned name: {cleaned!r}')
         parts = split_enclosed(cleaned, maxsplit=1)
         if len(parts) == 2:
-            names = _multi_lang_names(*parts)
-            # log.debug(f'Yielding from _multi_lang_names={names} for {parts=}')
-            if names:
+            if names := _multi_lang_names(*parts):
+                # log.debug(f'Yielding from _multi_lang_names={names} for {parts=}')
                 for name in names:
                     if name.english and name.extra and not name.non_eng:
                         yield Name('{} ({})'.format(*parts))
@@ -292,9 +290,7 @@ def find_language(node: Node, lang: Optional[str], langs: set[str]) -> Optional[
 
 def replace_lang_abbrev(text: str) -> str:
     if m := LANG_ABBREV_PAT.search(text):
-        abbrev = m.group(2).lower()
-        lang = LANG_ABBREV_MAP[abbrev]
-        return LANG_ABBREV_PAT.sub(r'\1{}\3'.format(lang), text)
+        return LANG_ABBREV_PAT.sub(fr'\1{LANG_ABBREV_MAP[m.group(2).lower()]}\3', text)
     return text
 
 

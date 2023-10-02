@@ -374,6 +374,8 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                         entry = part
                         break
 
+        # TODO: If parts are album sides, and total track count matches available track count, automatically combine
+        #  and ignore part/edition name
         return get_disco_part(entry)
 
     @cached_property

@@ -17,6 +17,7 @@ from ordered_set import OrderedSet
 from ds_tools.output.prefix import LoggingPrefix
 from tk_gui.elements import Element, HorizontalSeparator
 from tk_gui.popups import popup_ok, popup_error
+from tk_gui.styles import Style
 
 from music.files.album import AlbumDir
 from music.files.track.track import SongFile
@@ -77,10 +78,13 @@ class LogAndPopupHelper:
 
 
 def log_and_popup_error(message: str, exc_info: bool = False):
+    kwargs = {'multiline': True}
     if exc_info:
         message += '\n' + format_exc()
+        kwargs['text_kwargs'] = {'style': Style.default_style.sub_style(text_font=('Consolas', 11))}
+
     log.error(message)
-    popup_error(message, multiline=True)
+    popup_error(message, **kwargs)
 
 
 # endregion

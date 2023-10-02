@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from traceback import format_exc
 from typing import TYPE_CHECKING, Mapping, Any, Optional
 
 from requests import RequestException
@@ -16,7 +15,7 @@ from ds_tools.caching.decorators import cached_property
 from db_cache.utils import get_user_cache_dir
 from ds_tools.output.printer import Printer
 
-from tk_gui import button_handler, ChooseImagePopup, SpinnerPopup, popup_ok, popup_error
+from tk_gui import button_handler, ChooseImagePopup, SpinnerPopup, popup_ok
 from tk_gui.elements import Text, Button, Spacer, EventButton
 from tk_gui.options import GuiOptions, OptionColumn, OptionGrid
 from tk_gui.options.options import InputOption, BoolOption, DropdownOption, ListboxOption, SubmitOption

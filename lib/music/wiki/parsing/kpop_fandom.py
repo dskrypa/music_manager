@@ -114,16 +114,16 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                 elif isinstance(row, TableSeparator) and row.value and isinstance(row.value, String):
                     section = row.value.value
                     members[section] = []
-        else:
+        elif members_node:
             for member in members_node.iter_flat():
                 if title := get_artist_title(member, artist_page):
                     members['current'].append(title)
 
-        if sub_units := artist_page.sections.find('Sub-units', None):
-            members['sub_units'] = []
-            for sub_unit in sub_units.content.iter_flat():
+        if sub_units_section := artist_page.sections.find('Sub-units', None):
+            members['sub_units'] = sub_units = []
+            for sub_unit in sub_units_section.content.iter_flat():
                 if title := get_artist_title(sub_unit, artist_page):
-                    members['sub_units'].append(title)
+                    sub_units.append(title)
 
         return members
 

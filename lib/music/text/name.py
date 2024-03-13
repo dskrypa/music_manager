@@ -241,8 +241,8 @@ class Name(ClearableCachedPropertyMixin):
                 return False
         return True
 
-    def __hash__(self):
-        return reduce(xor, map(hash, self.__parts))
+    def __hash__(self) -> int:
+        return reduce(xor, map(hash, self.__parts))  # noqa
 
     def __add__(self, other: Name) -> Name:
         combined = self.__class__()

@@ -10,17 +10,17 @@ from fuzzywuzzy.fuzz import _token_sort as fuzz_token_sort_ratio, _token_set as 
 __all__ = ['fuzz_process', 'revised_weighted_ratio']
 
 
-def fuzz_process(text, strip_special=True, space=True):
+def fuzz_process(text: str, strip_special: bool = True, space: bool = True) -> str:
     """
     Performs the same functions as :func:`full_process<fuzzywuzzy.utils.full_process>`, with some additional steps.
     Consecutive spaces are condensed, and diacritical marks are stripped.  Example::\n
         >>> fuzz_process('Rosé  한')     # Note: there are 2 spaces here
         'rose 한'
 
-    :param str text: A string to be processed
-    :param bool strip_special: Strip special characters (defaults to True - set to False to preserve them)
-    :param bool space: Whether spaces should be preserved or stripped entirely
-    :return str: The processed string
+    :param text: A string to be processed
+    :param strip_special: Strip special characters (defaults to True - set to False to preserve them)
+    :param space: Whether spaces should be preserved or stripped entirely
+    :return: The processed string
     """
     if not text:
         return text
@@ -42,11 +42,10 @@ def fuzz_process(text, strip_special=True, space=True):
     if len(text) == 0:
         text = ' '.join(original.split()).lower().strip()   # In case the text is only non-letter/numeric characters
     # Remove accents and other diacritical marks; composed Hangul and the like stays intact
-    text = normalize('NFC', ''.join(c for c in normalize('NFD', text) if not combining(c)))
-    return text
+    return normalize('NFC', ''.join(c for c in normalize('NFD', text) if not combining(c)))
 
 
-def revised_weighted_ratio(p1, p2) -> int:
+def revised_weighted_ratio(p1: str, p2: str) -> int:
     """
     Return a measure of the sequences' similarity between 0 and 100, using different algorithms.
     **Steps in the order they occur**

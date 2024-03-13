@@ -607,12 +607,18 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return default
         return ';'.join(map(str, values))
 
+    def _iter_tags(self) -> Iterator[tuple[str, Any]]:
+        try:
+            yield from self._f.tags.items()
+        except AttributeError:
+            return
+
     def iter_clean_tags(self) -> Iterator[tuple[str, str, Any]]:
-        for tag, value in self._f.tags.items():
+        for tag, value in self._iter_tags():
             yield tag, self.normalize_tag_name(tag), value
 
     def iter_tag_id_name_values(self) -> Iterator[tuple[str, str, str, str, Any]]:
-        for tag_id, value in self._f.tags.items():
+        for tag_id, value in self._iter_tags():
             disp_name = self._get_tag_display_name(tag_id)
             tag_name = self.normalize_tag_name(tag_id)
             # log.debug(f'Processing values for {tag_name=} {tag_id=} {value=} on {self}')
@@ -1044,6 +1050,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # region Cover Image Methods
 
     def get_cover_tag(self):
+        # TODO: Handle front+back (return front, log the fact that a back cover was found?):
+        """
+        music.files.exceptions.TagValueException: Multiple 'cover' tags found for <WavFile("...wav")>:
+        APIC(encoding=<Encoding.LATIN1: 0>, mime='image/jpeg', type=<PictureType.COVER_FRONT: 3>, desc='', data=b'...'),
+        APIC(encoding=<Encoding.LATIN1: 0>, mime='image/jpeg', type=<PictureType.COVER_BACK: 4>, desc=' ', data=b'...')
+        """
         return self.get_tag('cover')
 
     def get_cover_data(self) -> tuple[bytes, str]:
@@ -1236,7 +1248,7 @@ class Id3SongFile(SongFile):
     # region Tag Iteration Helpers
 
     def iter_clean_tags(self) -> Iterator[tuple[str, str, Any]]:
-        for full_tag, value in self._f.tags.items():
+        for full_tag, value in self._iter_tags():
             tag = full_tag[:4]
             yield tag, self.normalize_tag_name(tag), value
 

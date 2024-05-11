@@ -23,6 +23,7 @@ from wiki_nodes.http import MediaWikiClient
 
 from music.manager.config import UpdateConfig
 from music.manager.wiki_update import WikiUpdater
+from music.wiki.parsing import WikiParser
 from music_gui.elements.helpers import IText, nav_button, section_header
 from music_gui.utils import AlbumIdentifier, get_album_info, LogAndPopupHelper, log_and_popup_error
 from .base import BaseView
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 __all__ = ['WikiUpdateView']
 log = logging.getLogger(__name__)
 
-ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
+ALL_SITES = WikiParser.get_sites()
 
 
 class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):

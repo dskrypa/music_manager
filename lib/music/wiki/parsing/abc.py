@@ -54,6 +54,10 @@ class WikiParser(ABC):
                     return None
         return parser
 
+    @classmethod
+    def get_sites(cls) -> list[str]:
+        return sorted(cls._site_parsers)
+
     # region Artist Page
 
     @abstractmethod

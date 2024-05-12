@@ -277,106 +277,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     # region High Level Discography
 
     def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
-        try:
-            section = artist_page.sections.find('Discography')
-        except KeyError:
-            return
-
-        err_msg = f'Unexpected error processing {section=} on {artist_page}'
-        if section.depth == 1:
-            for alb_type, alb_type_section in section.children.items():
-                if alb_type.lower().startswith('dvd'):
-                    log.debug(f'Skipping {alb_type=!r}')
-                    continue
-                try:
-                    self._process_disco_section(artist_page, finder, alb_type_section, alb_type)
-                except Exception:  # noqa
-                    log.error(err_msg, exc_info=True, extra={'color': 'red'})
-        elif section.depth == 2:  # key = language, value = sub-section
-            for lang, lang_section in section.children.items():
-                for alb_type, alb_type_section in lang_section.children.items():
-                    if alb_type.lower().startswith('dvd'):
-                        log.debug(f'Skipping {alb_type=!r}')
-                        continue
-                    # log.debug(f'{alb_type}: {alb_type_section.content}')
-                    try:
-                        self._process_disco_section(artist_page, finder, alb_type_section, alb_type, lang)
-                    except Exception:  # noqa
-                        log.error(err_msg, exc_info=True, extra={'color': 'red'})
-        else:
-            log.warning(f'Unexpected section depth: {section.depth} on {artist_page}')
-
-    def _process_disco_section(
-        self, artist_page: WikiPage, finder: DiscographyEntryFinder, section: Section, alb_type: str, lang: str = None
-    ) -> None:
-        content = section.content
-        # log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
-        if type(content) is CompoundNode:   # A template for splitting the discography into
-            content = content[0]            # columns follows the list of albums in this section
-
-        if not isinstance(content, List):
-            try:
-                raise TypeError(f'Unexpected content on {artist_page}: {content.pformat()}')
-            except AttributeError:
-                raise TypeError(f'Unexpected content on {artist_page}: {content!r}')
-
-        for entry in content.iter_flat():
-            # log.debug(f'Processing {artist_page} {entry=!r}')
-            # {primary artist} - {album or single} [(with collabs)] (year)
-            if isinstance(entry, String):
-                entry_str = entry.value
-                year_str = entry_str.rsplit(maxsplit=1)[1]
-            else:
-                entry_str = None
-                try:
-                    entry_str = entry[-1].value
-                    year_str = entry_str.rsplit(maxsplit=1)[-1]
-                except AttributeError:
-                    log.debug(f'Unable to parse year from {entry=!r} on {artist_page}')
-                    year_str = None
-
-            try:
-                year = datetime.strptime(year_str, '(%Y)').year if year_str else 0
-            except ValueError:
-                if entry_str and ORD_ALBUM_MATCH(entry_str):
-                    continue
-                else:
-                    log.warning(f'Unexpected disco {entry=!r} on {artist_page}', extra={'color': 'red'})
-            else:
-                disco_entry = DiscoEntry(artist_page, entry, type_=alb_type, lang=lang, year=year)
-                if isinstance(entry, CompoundNode):
-                    links = list(entry.find_all(Link, True))
-                    if alb_type in {'Features', 'Collaborations'}:
-                        # {primary artist} - {album or single} [(with collabs)] (year)
-                        if isinstance(entry[1], String):
-                            entry_1 = entry[1].value.strip()
-                            if entry_1 == '-' and self._check_type(entry, 2, Link):
-                                link = entry[2]
-                                links = [link]
-                                disco_entry.title = link.show
-                            elif entry_1.startswith('-'):
-                                disco_entry.title = entry_1[1:].strip(' "')
-                        elif isinstance(entry[1], Link):
-                            disco_entry.title = entry[1].show
-                    else:
-                        if isinstance(entry[0], Link):
-                            disco_entry.title = entry[0].show
-                        elif isinstance(entry[0], String):
-                            disco_entry.title = entry[0].value.strip(' "')
-
-                    if links:
-                        for link in links:
-                            try:
-                                finder.add_entry_link(link, disco_entry)
-                            except SiteDoesNotExist:
-                                log.log(19, f'Found bad {link=!r} on {artist_page=!r} in {section=!r}')
-                    else:
-                        finder.add_entry(disco_entry, entry)
-                elif isinstance(entry, String):
-                    disco_entry.title = entry.value.split('(')[0].strip(' "')
-                    finder.add_entry(disco_entry, entry)
-                else:
-                    log.warning(f'On page={artist_page}, unexpected type for {entry=!r}')
+        ArtistDiscographyParser(artist_page, finder, self).process_disco_sections()
 
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
         # This site does not use discography pages.
@@ -403,6 +304,127 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
 class KindieFandomParser(KpopFandomParser, site='kindie.fandom.com'):  # noqa
     pass
+
+
+class ArtistDiscographyParser:
+    __slots__ = ('artist_page', 'finder', 'site_parser')
+
+    def __init__(self, artist_page: WikiPage, finder: DiscographyEntryFinder, site_parser: KpopFandomParser):
+        self.artist_page: WikiPage = artist_page
+        self.finder: DiscographyEntryFinder = finder
+        self.site_parser: KpopFandomParser = site_parser
+
+    def process_disco_sections(self):
+        try:
+            section = self.artist_page.sections.find('Discography')
+        except KeyError:
+            log.debug(f'No Discography section found in {self.artist_page}')
+            return
+
+        for alb_type_section, alb_type, lang in self._iter_sections(section):
+            if alb_type.lower().startswith('dvd'):
+                log.debug(f'Skipping {alb_type=!r}')
+                continue
+
+            # log.debug(f'{alb_type}: {alb_type_section.content}')
+            try:
+                self._process_section(alb_type_section, alb_type, lang)
+            except Exception:  # noqa
+                log.error(
+                    f'Unexpected error processing {section=} on {self.artist_page}',
+                    exc_info=True,
+                    extra={'color': 'red'},
+                )
+
+    def _iter_sections(self, section: Section) -> Iterator[tuple[Section, str, str | None]]:
+        if section.depth == 1:
+            for alb_type, alb_type_section in section.children.items():
+                yield alb_type_section, alb_type, None
+        elif section.depth == 2:  # key = language, value = sub-section
+            for lang, lang_section in section.children.items():
+                for alb_type, alb_type_section in lang_section.children.items():
+                    yield alb_type_section, alb_type, lang
+        else:
+            log.warning(f'Unexpected section depth={section.depth} on {self.artist_page}')
+
+    def _process_section(self, section: Section, alb_type: str, lang: str = None):
+        content = section.content
+        # log.debug(f'Processing {section=} on {artist_page}:\n{content.pformat()}')
+        if type(content) is CompoundNode:  # A template for splitting the discography into
+            content = content[0]  # columns follows the list of albums in this section
+
+        if not isinstance(content, List):
+            try:
+                raise TypeError(f'Unexpected content on {self.artist_page}: {content.pformat()}')
+            except AttributeError:
+                raise TypeError(f'Unexpected content on {self.artist_page}: {content!r}')
+
+        for entry in content.iter_flat():
+            self._process_entry(section, entry, alb_type, lang)
+
+    def _process_entry(self, section: Section, entry: AnyNode, alb_type: str, lang: str):
+        # log.debug(f'Processing {artist_page} {entry=!r}')
+        if (year := self._parse_year(entry)) is None:
+            return
+
+        disco_entry = DiscoEntry(self.artist_page, entry, type_=alb_type, lang=lang, year=year)
+        if isinstance(entry, CompoundNode):
+            self._process_entry_node(disco_entry, entry, section, alb_type)
+        elif isinstance(entry, String):
+            disco_entry.title = entry.value.split('(')[0].strip(' "')
+            self.finder.add_entry(disco_entry, entry)
+        else:
+            log.warning(f'On page={self.artist_page}, unexpected type for {entry=}')
+
+    def _process_entry_node(self, disco_entry: DiscoEntry, entry: CompoundNode, section: Section, alb_type: str):
+        links = list(entry.find_all(Link, True))
+        if alb_type in {'Features', 'Collaborations'}:
+            # {primary artist} - {album or single} [(with collabs)] (year)
+            if isinstance(entry[1], String):
+                entry_1 = entry[1].value.strip()
+                if entry_1 == '-' and self.site_parser._check_type(entry, 2, Link):
+                    link = entry[2]
+                    links = [link]
+                    disco_entry.title = link.show
+                elif entry_1.startswith('-'):
+                    disco_entry.title = entry_1[1:].strip(' "')
+            elif isinstance(entry[1], Link):
+                disco_entry.title = entry[1].show
+        else:
+            if isinstance(entry[0], Link):
+                disco_entry.title = entry[0].show
+            elif isinstance(entry[0], String):
+                disco_entry.title = entry[0].value.strip(' "')
+
+        if links:
+            for link in links:
+                try:
+                    self.finder.add_entry_link(link, disco_entry)
+                except SiteDoesNotExist:
+                    log.log(19, f'Found bad {link=} on artist_page={self.artist_page!r} in {section=}')
+        else:
+            self.finder.add_entry(disco_entry, entry)
+
+    def _parse_year(self, entry) -> int | None:
+        # {primary artist} - {album or single} [(with collabs)] (year)
+        if isinstance(entry, String):
+            entry_str = entry.value
+            year_str = entry_str.rsplit(maxsplit=1)[1]
+        else:
+            entry_str = None
+            try:
+                entry_str = entry[-1].value  # noqa
+                year_str = entry_str.rsplit(maxsplit=1)[-1]
+            except AttributeError:
+                log.debug(f'Unable to parse year from {entry=} on {self.artist_page}')
+                year_str = None
+
+        try:
+            return datetime.strptime(year_str, '(%Y)').year if year_str else 0
+        except ValueError:
+            if not (entry_str and ORD_ALBUM_MATCH(entry_str)):
+                log.warning(f'Unexpected disco {entry=} on {self.artist_page}', extra={'color': 'red'})
+            return None
 
 
 def is_node_with(obj: AnyNode, cls: NodeTypes, val_cls: NodeTypes, **kwargs) -> bool:

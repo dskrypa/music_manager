@@ -13,6 +13,7 @@ from wiki_nodes.http.utils import URL_MATCH
 
 from ..common.prompts import choose_item
 from ..files.album import AlbumDir, iter_album_dirs
+from ..files.parsing import split_artists
 from ..text.name import Name
 from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album, DEEntryOrEdition, DEPart
 from ..wiki.artist import Artist, Group
@@ -25,12 +26,13 @@ if TYPE_CHECKING:
     from ds_tools.fs.typing import Paths
     from ..files.parsing import AlbumName
 
-__all__ = ['show_matches', 'find_artists', 'AlbumFinder', 'test_match']
+__all__ = ['show_matches', 'AlbumFinder', 'test_match']
 log = logging.getLogger(__name__)
 mlog = logging.getLogger(f'{__name__}.matching')
 mlog.setLevel(logging.WARNING)
 
 DEPartOrEntry = Union[DiscographyEntryPart, DiscographyEntry]
+GroupedNames = dict[str, set[Name]]
 
 
 def test_match(paths: Paths, identifier: str):
@@ -58,7 +60,7 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
     for album_dir in iter_album_dirs(paths):
         uprint(f'- Album: {album_dir}')
         try:
-            artists = find_artists(album_dir, sites=sites)
+            artists = ArtistFinder.for_dir(album_dir, sites).find_dir_artists(album_dir)
         except NoArtistMatchFoundException:
             log.error(f'    - Artist: No artist could be found', extra={'color': 11})
         except Exception as e:
@@ -83,49 +85,74 @@ def show_matches(paths: Paths, sites: StrOrStrs = None):
                 print_de_part(album, 4)
 
 
-def find_artists(album_dir: AlbumDir, sites: StrOrStrs = None) -> list[Artist]:
-    if artist_url := album_dir.artist_url:
-        log.debug(f'Found artist URL via tag for {album_dir}: {artist_url}', extra={'color': 10})
-        return [Artist.from_url(artist_url)]
-    elif artists := album_dir.all_artists:
-        log.debug(f'Processing artists in {album_dir}: {artists}')
-        sites = sites or _sites_for(album_dir)
-        remaining = set(artists)
-        artist_objs = []
-        if groups := album_dir._groups:
-            wiki_groups = Group.from_titles(set(groups), search=True, strict=1, research=True, sites=sites)
-            for title, group_obj in wiki_groups.items():
-                log.debug(f'Found {group_obj=}', extra={'color': 10})
-                for name in groups[title]:
-                    if singer := group_obj.find_member(name):
-                        artist_objs.append(singer)
-                        remaining.discard(name)
-                    else:
-                        log.warning(f'No match found for {name.artist_str()}', extra={'color': 11})
+class ArtistFinder:
+    __slots__ = ('sites',)
+
+    def __init__(self, sites: StrOrStrs = None):
+        self.sites = sites
+
+    @classmethod
+    def for_dir(cls, album_dir: AlbumDir, sites: StrOrStrs = None) -> ArtistFinder:
+        return cls(sites or _sites_for(album_dir))
+
+    def find_dir_artists(self, album_dir: AlbumDir) -> list[Artist]:
+        if artist_url := album_dir.artist_url:
+            log.debug(f'Found artist URL via tag for {album_dir}: {artist_url}', extra={'color': 10})
+            return [Artist.from_url(artist_url)]
+        elif artists := album_dir.all_artists:
+            log.debug(f'Processing artists in {album_dir}: {artists}')
+            return self.find_names(artists, album_dir._groups)
+        else:
+            raise NoArtistMatchFoundException(album_dir)
+
+    def find_name(self, name: str) -> list[Artist]:
+        return self.find_names(split_artists(name))
+
+    def find_names(self, names: Collection[Name], groups: GroupedNames | None = None) -> list[Artist]:
+        if groups:
+            artist_objs, remaining = self._process_groups(names, groups)
+        else:
+            artist_objs, remaining = [], set(names)
+
+        if not remaining:
+            return artist_objs
+
+        log.debug(f'Processing remaining artists: {remaining}', extra={'color': 14})
+        if artist_names := {a for a in names if a.english != 'Various Artists'}:
+            for name, artist in self._get_artists(artist_names).items():
+                artist_objs.append(artist)
+                remaining.discard(name)
 
         if remaining:
-            log.debug(f'Processing remaining artists in {album_dir}: {remaining}', extra={'color': 14})
-            if artist_names := {a for a in artists if a.english != 'Various Artists'}:
-                try:
-                    _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=sites)
-                except AmbiguousWikiPageError as e:
-                    if all(a.english == a.english.upper() for a in artist_names):
-                        log.debug(e)
-                        artist_names = {a.with_part(_english=a.english.title()) for a in artist_names}
-                        _artists = Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=sites)
-                    else:
-                        raise
-
-                for name, artist in _artists.items():
-                    artist_objs.append(artist)
-                    remaining.discard(name)
-
-        for name in remaining:
-            artist_objs.append(Artist(name.artist_str()))
+            artist_objs.extend(Artist(name.artist_str()) for name in remaining)
 
         return artist_objs
 
-    raise NoArtistMatchFoundException(album_dir)
+    def _process_groups(self, artists: Collection[Name], groups: GroupedNames) -> tuple[list[Artist], set[Name]]:
+        remaining = set(artists)
+        artist_objs = []
+        wiki_groups = Group.from_titles(set(groups), search=True, strict=1, research=True, sites=self.sites)
+        for title, group_obj in wiki_groups.items():
+            log.debug(f'Found {group_obj=}', extra={'color': 10})
+            for name in groups[title]:
+                if singer := group_obj.find_member(name):
+                    artist_objs.append(singer)
+                    remaining.discard(name)
+                else:
+                    log.warning(f'No match found for {name.artist_str()}', extra={'color': 11})
+
+        return artist_objs, remaining
+
+    def _get_artists(self, artist_names: Collection[Name]) -> dict[Name, Artist]:
+        try:
+            return Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=self.sites)
+        except AmbiguousWikiPageError as e:
+            if all(a.english == a.english.upper() for a in artist_names):
+                log.debug(e)
+                artist_names = {a.with_part(_english=a.english.title()) for a in artist_names}
+                return Artist.from_titles(artist_names, search=True, strict=1, research=True, sites=self.sites)
+            else:
+                raise
 
 
 class AlbumFinder:
@@ -169,7 +196,7 @@ class AlbumFinder:
     def _from_album_name(self, album_name: AlbumName) -> DEPartOrEntry:
         album_dir = self.album_dir
         name: Name = album_name.name
-        artists = self.artists or find_artists(album_dir, sites=self.sites)
+        artists = self.artists or ArtistFinder.for_dir(album_dir, self.sites).find_dir_artists(album_dir)
         log.debug(
             f'Processing album for {album_dir} with {album_name=} (repackage={album_name.repackage}) and {artists=}',
             extra={'color': (0, 14)}

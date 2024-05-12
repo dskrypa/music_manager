@@ -27,7 +27,7 @@ from ..wiki.parsing.utils import LANG_ABBREV_MAP
 from .enums import CollabMode
 from .exceptions import MatchException, NoArtistFoundError
 from .update import AlbumInfo, TrackInfo, normalize_case
-from .wiki_match import AlbumFinder, find_artists
+from .wiki_match import AlbumFinder, ArtistFinder
 from .wiki_utils import get_disco_part
 
 if TYPE_CHECKING:
@@ -163,7 +163,7 @@ class ArtistInfoProcessor:
     @classmethod
     def for_album_dir(cls, album_dir: AlbumDir, config: UpdateConfig) -> ArtistInfoProcessor:
         try:
-            artists = find_artists(album_dir, sites=config.artist_sites)
+            artists = ArtistFinder.for_dir(album_dir, config.artist_sites).find_dir_artists(album_dir)
         except Exception as e:
             if isinstance(e, ValueError) and e.args[0] == 'No candidates found':
                 raise MatchException(30, f'No match found for {album_dir} ({album_dir.name})') from e

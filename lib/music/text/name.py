@@ -97,13 +97,13 @@ class Name(ClearableCachedPropertyMixin):
     def from_parts(cls, parts: StrIter, **kwargs) -> Name:
         eng = None
         non_eng = None
-        extra = []
+        unknown = []
         name = None
         for part in parts:
             if not part:
                 continue
             elif name is not None:
-                extra.append(part)
+                unknown.append(part)
             elif not non_eng and LangCat.contains_any(part, LangCat.non_eng_cats):
                 non_eng = part
             elif not eng and LangCat.contains_any(part, LangCat.ENG):
@@ -117,23 +117,20 @@ class Name(ClearableCachedPropertyMixin):
                     name.romanized = eng
                 else:
                     name = None
-                    extra.append(part)
+                    unknown.append(part)
             else:
-                extra.append(part)
+                unknown.append(part)
 
         if name is None:
             if eng or non_eng:
                 name = cls(eng, non_eng, **kwargs)
-            elif extra and len(extra) == 1:
-                name = cls(extra[0], **kwargs)
-                extra = None
+            elif unknown and len(unknown) == 1:
+                return cls(unknown[0], **kwargs)
+
         if name is None:
-            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {extra=}')
-        if extra:
-            if name.extra:
-                name.extra['unknown'] = extra  # noqa
-            else:
-                name.extra = {'unknown': extra}
+            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {unknown=}')
+        if unknown:
+            name.add_extra('unknown', unknown)
         return name
 
     # endregion
@@ -431,6 +428,12 @@ class Name(ClearableCachedPropertyMixin):
         for data in (extra, kwargs):
             if data:
                 self.extra.update(data)
+
+    def add_extra(self, key: str, value: Any):
+        if self.extra is None:
+            self.extra = {key: value}
+        else:
+            self.extra[key] = value
 
     def with_part(self, **kwargs) -> Name:
         _copy = copy(self)

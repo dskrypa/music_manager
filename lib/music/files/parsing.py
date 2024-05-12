@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, InitVar, fields
 from functools import cached_property, reduce
 from operator import xor
-from typing import Iterator, Sequence, Union, MutableSequence, Optional, Iterable
+from typing import Iterator, Sequence, Collection, Union, MutableSequence, Optional, Iterable, Pattern
 
 from ds_tools.unicode.languages import LangCat
 from ds_tools.unicode.hangul.constants import HANGUL_REGEX_CHAR_CLASS
@@ -37,7 +37,6 @@ NTH_ALB_TYPE_MATCH = re.compile(
 OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
 REPACKAGE_ALBUM_MATCH = re.compile(r'^re:?package\salbum\s(.*)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
-CONTAINS_DELIM = re.compile(r'(?:[;,&]| [x×] (?!\())', re.IGNORECASE).search
 
 
 @dataclass
@@ -342,114 +341,51 @@ def fix_apostrophes(text: str) -> str:
     return text.translate(table)
 
 
-def _split_str_list(text: str) -> Iterator[str]:
-    """Split a list of artists on common delimiters"""
-    try:
-        delim_finditer = _split_str_list._delim_finditer
-    except AttributeError:
-        delim_finditer = _split_str_list._delim_finditer = re.compile(r'(?:[;,&]| [x×] (?!\())', re.IGNORECASE).finditer
+class _ArtistSplitter:
+    def split_artists(self, text: str) -> list[Name]:
+        try:
+            return self._split_artists(text)
+        except UnexpectedListFormat:
+            if ends_with_enclosed(text) and get_unpaired(text) == '(':
+                return self._split_artists(text + ')')
+            raise
 
-    last = 0
-    after = None
-    for m in delim_finditer(text):
-        start, end = m.span()
-        before = text[last:start]
-        delim = text[start:end]
-        after = text[end:]
-        last = end
-        # log.debug(f'{before=} {delim=} {after=}')
-        yield before
-        yield delim
-
-    if after:
-        yield after
-    elif last == 0:
-        yield text
-
-
-def split_str_list(text: str):
-    """
-    Split a list of artists on common delimiters, while preserving enclosed lists of artists that should be grouped
-    together
-    """
-    # log.debug(f'Splitting {text=}')
-    processed = []
-    processing = []
-    for i, part in enumerate(_split_str_list(text)):
-        part = fix_apostrophes(part)
-        kwargs = {'exclude': "'"} if part.count("'") % 2 == 1 else {}
-        if has_unpaired(part, **kwargs):
-            if processing:
-                processing.append(part)
-                processed.append(''.join(processing))
-                processing = []
-            else:
-                processing.append(part)
-        elif processing:
-            processing.append(part)
-        elif i % 2 == 0:
-            processed.append(part)
-        # else:
-        #     log.debug(f'Discarding {part=}')
-
-    if processing:
-        # for part in processing:
-        #     log.debug(f'Incomplete {part=}:')
-        #     for c in part:
-        #         log.debug(f'ord({c=}) = {ord(c)}')
-        raise UnexpectedListFormat(f'Unexpected str list format for {text=} -\n{processed=}\n{processing=}')
-    return map(str.strip, processed)
-
-
-def split_artists(text: str) -> list[Name]:
-    try:
-        return _split_artists(text)
-    except UnexpectedListFormat:
-        if ends_with_enclosed(text) and get_unpaired(text) == '(':
-            return _split_artists(text + ')')
-        raise
-
-
-def _split_artists(text: str) -> list[Name]:
-    artists = []
-    if pairs := _unzipped_list_pairs(text):
-        for pair in pairs:
-            # log.debug(f'Found {pair=}')
-            artists.append(_artist_name(pair))
-    else:
-        for part in split_str_list(text):
-            # log.debug(f'Found {part=}')
-            artists.append(_artist_name(part))
-
-    return artists
-
-
-def _artist_name(part: Union[str, Sequence[str]]) -> Name:
-    parts = split_enclosed(part, True, maxsplit=1) if isinstance(part, str) else part
-    part_count = len(parts)
-    if part_count == 2 and CONTAINS_DELIM(parts[1]):
-        # log.debug(f'Split group/members {parts=}')
-        name = Name.from_enclosed(parts[0])
-        name.extra = {'members': split_artists(parts[1])}
-    elif part_count == 2 and parts[1].startswith(('from ', 'of ')):
-        # log.debug(f'Split soloist/group {parts=}')
-        name = Name.from_enclosed(parts[0])
-        name.extra = {'group': Name.from_enclosed(parts[1].split(maxsplit=1)[1])}
-    elif part_count == 2 and all(ends_with_enclosed(p) for p in parts):
-        if all(LangCat.categorize(p) == LangCat.MIX for p in parts):
-            artist_a, artist_b = split_enclosed(parts[0], True, maxsplit=1)
-            group_a, group_b = split_enclosed(parts[1], True, maxsplit=1)
+    def _split_artists(self, text: str) -> list[Name]:
+        if pairs := self._unzipped_list_pairs(text):
+            return [self._artist_name(pair) for pair in pairs]
         else:
-            artist_a, group_a = split_enclosed(parts[0], True, maxsplit=1)
-            artist_b, group_b = split_enclosed(parts[1], True, maxsplit=1)
+            return [self._artist_name(part) for part in self.split_str_list(text)]
 
-        name = Name.from_parts((artist_a, artist_b))
-        name.extra = {'group': Name.from_parts((group_a, group_b))}
-    elif part_count == 2 and ends_with_enclosed(parts[0]) and LangCat.categorize(parts[0]) == LangCat.MIX:
-        artist_a, artist_b = split_enclosed(parts[0], True, maxsplit=1)
-        name = Name.from_parts((artist_a, artist_b))
-        name.extra = {'group': Name.from_enclosed(parts[1])}
-    else:
+    # region Artist Name
+
+    def _artist_name(self, part: str | Sequence[str]) -> Name:
+        parts = split_enclosed(part, True, maxsplit=1) if isinstance(part, str) else part
+        if len(parts) != 2:
+            return self._default_artist_name(part, parts)
+        elif self._contains_delim(parts[1]):
+            # log.debug(f'Split group/members {parts=}')
+            return Name.from_enclosed(parts[0], extra={'members': split_artists(parts[1])})
+        elif parts[1].startswith(('from ', 'of ')):
+            # log.debug(f'Split soloist/group {parts=}')
+            return Name.from_enclosed(parts[0], extra={'group': Name.from_enclosed(parts[1].split(maxsplit=1)[1])})
+        elif all(ends_with_enclosed(p) for p in parts):
+            if all(LangCat.categorize(p) == LangCat.MIX for p in parts):
+                artist_a, artist_b = split_enclosed(parts[0], True, maxsplit=1)
+                group_a, group_b = split_enclosed(parts[1], True, maxsplit=1)
+            else:
+                artist_a, group_a = split_enclosed(parts[0], True, maxsplit=1)
+                artist_b, group_b = split_enclosed(parts[1], True, maxsplit=1)
+
+            return Name.from_parts((artist_a, artist_b), extra={'group': Name.from_parts((group_a, group_b))})
+        elif ends_with_enclosed(parts[0]) and LangCat.categorize(parts[0]) == LangCat.MIX:
+            return Name.from_parts(
+                split_enclosed(parts[0], True, maxsplit=1),
+                extra={'group': Name.from_enclosed(parts[1])},
+            )
+        else:
+            return self._default_artist_name(part, parts)
+
+    def _default_artist_name(self, part: str | Sequence[str], parts: Collection[str]) -> Name:
         # log.debug(f'No custom action for {parts=}')
         name = Name.from_enclosed(part) if isinstance(part, str) else Name.from_parts(parts)
 
@@ -461,57 +397,131 @@ def _artist_name(part: Union[str, Sequence[str]]) -> Name:
                 name._english, group = split_enclosed(name._english, True, maxsplit=1)
                 name.extra = {'group': Name.from_enclosed(group)}
 
-    return name
+        return name
 
+    # endregion
 
-def _unzipped_list_pairs(text: str):
-    try:
-        unzipped = _unzipped_list_pairs._unzipped
-    except AttributeError:
-        unzipped = _unzipped_list_pairs._unzipped = re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE).search
+    # region Split Artist List
 
-    if unzipped(text):
-        parts = split_enclosed(text, True, maxsplit=1)
+    @cached_property
+    def _unzipped_pat(self) -> Pattern:
+        return re.compile(r'([;,&]| [x×] ).*?[(\[].*?\1', re.IGNORECASE)
+
+    @cached_property
+    def _delimiter_pat(self) -> Pattern:
+        # return re.compile(r'(?:[;,&]| [x×] (?!\())', re.IGNORECASE)
+        return re.compile(r'[;,&]| [x×] (?!\()', re.IGNORECASE)
+
+    def _contains_delim(self, text: str):
+        return self._delimiter_pat.search(text)
+
+    def _unzipped_list_pairs(self, text: str) -> Iterable[tuple[str, str]] | None:
+        if not self._unzipped_pat.search(text):
+            return None
+
+        parts: tuple[str, str] = split_enclosed(text, True, maxsplit=1)
         # log.debug(f'Found unzipped list:\n > a = {parts[0]!r}\n > b = {parts[1]!r}')
         if parts[0].count(',') == parts[1].count(','):
             # log.debug(f'Split {parts=}')
-            return zip(*map(split_str_list, parts))
-        elif CONTAINS_DELIM(parts[1]):
+            return zip(*map(self.split_str_list, parts))
+        elif self._contains_delim(parts[1]):
             # log.debug(f' > Delimiter counts did not match')
-            pairs = []
-            parts_a, parts_b = map(list, map(reversed, map(tuple, map(split_str_list, parts))))
-            while parts_a and parts_b:
-                a = parts_a.pop()
-                b = parts_b.pop()
-                if a == b:
-                    pairs.append((a,))
-                elif all(ends_with_enclosed(p) for p in (a, b)):
-                    try:
-                        if CONTAINS_DELIM(a):
-                            pairs.extend(_balance_unzipped_parts(parts_b, a, b))
-                        elif CONTAINS_DELIM(b):
-                            pairs.extend(_balance_unzipped_parts(parts_a, b, a))
-                        else:
-                            pairs.append((a, b))
-                    except UnexpectedListLength:
-                        log.debug(f'Unexpected end of unbalanced unzipped list for {parts=}')
-                        return None
+            return self._unzip_unbalanced(parts)
+        else:
+            return None
+
+    def _unzip_unbalanced(self, parts: tuple[str, str]) -> Iterable[tuple[str, str]] | None:
+        pairs = []
+        parts_a, parts_b = list(self.split_str_list(parts[0], True)), list(self.split_str_list(parts[1], True))
+        while parts_a and parts_b:
+            a = parts_a.pop()
+            b = parts_b.pop()
+            if a == b:
+                pairs.append((a,))
+            elif all(ends_with_enclosed(p) for p in (a, b)):
+                try:
+                    if self._contains_delim(a):
+                        pairs.extend(self._balance_unzipped_parts(parts_b, a, b))
+                    elif self._contains_delim(b):
+                        pairs.extend(self._balance_unzipped_parts(parts_a, b, a))
+                    else:
+                        pairs.append((a, b))
+                except UnexpectedListLength:
+                    log.debug(f'Unexpected end of unbalanced unzipped list for {parts=}')
+                    return None
+            else:
+                pairs.append((a, b))
+        return pairs
+
+    def _balance_unzipped_parts(self, parts: MutableSequence[str], a: str, b: str) -> Iterator[tuple[str, str]]:
+        group_a, a_members = split_enclosed(a, True, maxsplit=1)
+        members = list(self.split_str_list(a_members, reverse=True))
+        while members and (mem_x := members.pop()):
+            if b is None:
+                raise UnexpectedListLength
+            mem_y, group_b = split_enclosed(b, True, maxsplit=1)
+            yield f'{mem_x} ({mem_y})', f'of {group_a} ({group_b})'
+            b = parts.pop() if members and parts else None
+
+    # endregion
+
+    # region Split String List
+
+    def split_str_list(self, text: str, reverse: bool = False) -> Iterable[str]:
+        """
+        Split a list of artists on common delimiters, while preserving enclosed lists of artists that should be grouped
+        together
+        """
+        # log.debug(f'Splitting {text=}')
+        processed = []
+        processing = []
+        for i, part in enumerate(self._split_str_list(text)):
+            part = fix_apostrophes(part)
+            kwargs = {'exclude': "'"} if part.count("'") % 2 == 1 else {}
+            if has_unpaired(part, **kwargs):
+                if processing:
+                    processing.append(part)
+                    processed.append(''.join(processing))
+                    processing = []
                 else:
-                    pairs.append((a, b))
-            return pairs
-    return None
+                    processing.append(part)
+            elif processing:
+                processing.append(part)
+            elif i % 2 == 0:
+                processed.append(part)
+            # else:
+            #     log.debug(f'Discarding {part=}')
+
+        if processing:
+            # for part in processing:
+            #     log.debug(f'Incomplete {part=}:')
+            #     for c in part:
+            #         log.debug(f'ord({c=}) = {ord(c)}')
+            raise UnexpectedListFormat(f'Unexpected str list format for {text=} -\n{processed=}\n{processing=}')
+
+        return map(str.strip, processed[::-1] if reverse else processed)
+
+    def _split_str_list(self, text: str) -> Iterator[str]:
+        """Split a list of artists on common delimiters"""
+        last = 0
+        after = None
+        for m in self._delimiter_pat.finditer(text):
+            start, end = m.span()
+            yield text[last:start]  # before
+            yield text[start:end]   # delim
+            after = text[end:]
+            last = end
+            # log.debug(f'{before=} {delim=} {after=}')
+
+        if after:
+            yield after
+        elif last == 0:
+            yield text
+
+    # endregion
 
 
-def _balance_unzipped_parts(parts: MutableSequence[str], a: str, b: str) -> Iterator[tuple[str, str]]:
-    group_a, a_members = split_enclosed(a, True, maxsplit=1)
-    members = list(reversed(tuple(split_str_list(a_members))))
-    while members and (mem_x := members.pop()):
-        if b is None:
-            raise UnexpectedListLength()
-        mem_y, group_b = split_enclosed(b, True, maxsplit=1)
-        # noinspection PyUnboundLocalVariable
-        yield f'{mem_x} ({mem_y})', f'of {group_a} ({group_b})'
-        b = parts.pop() if members and parts else None
+split_artists = _ArtistSplitter().split_artists
 
 
 def _langs_match(parts):

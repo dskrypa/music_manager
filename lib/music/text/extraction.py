@@ -8,7 +8,7 @@ import logging
 import re
 from collections import defaultdict
 from itertools import chain
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Literal, overload
 
 if TYPE_CHECKING:
     from music.typing import Bool
@@ -163,6 +163,20 @@ def strip_unpaired(text: str, reverse: bool = False, exclude=_NotSet) -> str:
         elif i == len(text) - 1:
             return text[:-1].strip()
     return text
+
+
+@overload
+def split_enclosed(
+    text: str, reverse: bool = False, inner: bool = False, recurse: int = 0, maxsplit: Literal[1] = 0
+) -> tuple[str, str] | tuple[str]:
+    ...
+
+
+@overload
+def split_enclosed(
+    text: str, reverse: bool = False, inner: bool = False, recurse: int = 0, maxsplit: Literal[2] = 0
+) -> tuple[str, str, str] | tuple[str, str] | tuple[str]:
+    ...
 
 
 def split_enclosed(

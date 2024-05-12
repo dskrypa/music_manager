@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from cli_command_parser import Command, SubCommand, Counter, Positional, Option, Flag, ParamGroup, main  # noqa
+from cli_command_parser.inputs import NumRange
 
-from music.__version__ import __author_email__, __version__  # noqa
 from music.wiki import EntertainmentEntity
 
 ALL_SITES = ('kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org')
@@ -121,9 +121,26 @@ class Match(Wiki, help='Attempt to find a Wiki page that matches a given album d
     path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
 
     def main(self):
-        from music.manager.wiki_match import show_matches
+        from music.manager.wiki_match import show_album_dir_matches
 
-        show_matches(self.path)
+        show_album_dir_matches(self.path)
+
+
+class Find(Wiki, help='Attempt to find a Wiki page that matches the specified criteria'):
+    title = Option('-t', required=True, help='The title of the album to find')
+    artist = Option('-a', required=True, help='The name of the artist that released the album')
+    track_count: int = Option('-c', type=NumRange(min=1), help='The number of tracks in the album')
+    sites = Option('-s', nargs='+', choices=ALL_SITES, help='The wiki sites to search')
+
+    def main(self):
+        from music.manager.wiki_match import AlbumMetaData, show_matches
+
+        album_meta = AlbumMetaData.parse(
+            name=self.title,
+            artist=self.artist,
+            track_count=self.track_count,
+        )
+        show_matches(album_meta, sites=self.sites)
 
 
 class Test(Wiki, help='Test the compatibility of a given album directory with a given Wiki page'):

@@ -147,6 +147,17 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     # endregion
 
+    # region High Level Discography
+
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
+        ArtistDiscographyParser(artist_page, finder, self).process_disco_sections()
+
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
+        # This site does not use discography pages.
+        return None
+
+    # endregion
+
     # region Album Page
 
     def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
@@ -271,17 +282,6 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
                     name.update_extra(extra)
 
         return name
-
-    # endregion
-
-    # region High Level Discography
-
-    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
-        ArtistDiscographyParser(artist_page, finder, self).process_disco_sections()
-
-    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
-        # This site does not use discography pages.
-        return None
 
     # endregion
 

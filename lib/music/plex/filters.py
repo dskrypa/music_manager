@@ -53,7 +53,7 @@ def check_attrs(elem, **kwargs):
     # Return True if the elem should be included in results, False otherwise
     for attr, query in kwargs.items():
         attr, op, operator = get_attr_operator(attr)
-        # log.debug(f'Processing {attr=!r} {op=!r} {query=!r} for {elem.attrib.get("key", elem)!r}')
+        # log.debug(f'Processing {attr=} {op=} {query=} for {elem.attrib.get("key", elem)!r}')
         if op == 'custom':
             if not query(elem.attrib):
                 return False
@@ -135,7 +135,7 @@ def _cast(cast, value, attr, elem):
         try:
             return cast(value)
         except ValueError:
-            log.error(f'Unable to cast {attr=!r} {value=!r} from {elem=!r}')
+            log.error(f'Unable to cast {attr=} {value=} from {elem=}')
             raise
 
 

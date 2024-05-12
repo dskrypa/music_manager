@@ -110,7 +110,7 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
 
             return PlexPlayerView(plex=self.plex)
         else:
-            popup_input_invalid(f'Unexpected initial {view=!r}', logger=self.log)
+            popup_input_invalid(f'Unexpected initial {view=}', logger=self.log)
 
     def _settings(self):
         options = super()._settings()

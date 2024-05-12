@@ -71,7 +71,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     def parse_track_name(self, node: N) -> Name:
         if not isinstance(node, MappingNode):
-            raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=!r}')
+            raise TypeError(f'Unexpected track node type={node.__class__.__name__!r} for {node=}')
 
         title = node['Song Title']
         extra = {'artists': node['Artist']}
@@ -82,7 +82,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             return Name.from_parts((title,), extra=extra)
 
         if not isinstance(title, ContainerNode):
-            raise ValueError(f'Unexpected track node {title=} content for {node=!r}')
+            raise ValueError(f'Unexpected track node {title=} content for {node=}')
 
         eng, non_eng, inst = split_title(title)
         if inst:
@@ -178,7 +178,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             else:
                 yield SoundtrackPart(None, None, edition, track_table, artist=artist, release_date=release_date)
         else:
-            log.debug(f'Unexpected {edition.edition=!r} for {edition=!r}')
+            log.debug(f'Unexpected {edition.edition=} for {edition=}')
 
     # endregion
 
@@ -196,18 +196,18 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             if isinstance(entry, String):
                 if m := SONG_OST_YEAR_MATCH(entry.value):
                     song, album, year = map(str.strip, m.groups())
-                    log.debug(f'Creating entry for {song=!r} {album=!r} {year=!r}')
+                    log.debug(f'Creating entry for {song=} {album=} {year=}')
                     disco_entry = DiscoEntry(
                         artist_page, entry, type_='Soundtrack', year=int(year), song=song, title=album
                     )
                     if link := link_map.get(album):
-                        log.debug(f'  > Adding {link=!r}')
+                        log.debug(f'  > Adding {link=}')
                         finder.add_entry_link(link, disco_entry)
                     else:
-                        log.debug(f'  > Adding {entry=!r}')
+                        log.debug(f'  > Adding {entry=}')
                         finder.add_entry(disco_entry, entry)
                 else:
-                    log.debug(f'Unexpected String disco {entry=!r} / {entry.value!r}')
+                    log.debug(f'Unexpected String disco {entry=} / {entry.value!r}')
             else:
                 album, song, year = None, None, None
                 song_str = entry[0].value  # type: str
@@ -221,11 +221,11 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     album = m.group(1).strip() or None
                     year = int(m.group(2))
 
-                log.debug(f'Creating entry for {song=!r} {album=!r} {year=!r} | {song_str=!r} {end_str=!r} {entry=!r}')
+                log.debug(f'Creating entry for {song=} {album=} {year=} | {song_str=} {end_str=} {entry=}')
                 disco_entry = DiscoEntry(artist_page, entry, type_='Soundtrack', year=year, song=song, title=album)
 
                 if link := link_map.get(album):
-                    log.debug(f'  > Adding {link=!r}')
+                    log.debug(f'  > Adding {link=}')
                     finder.add_entry_link(link, disco_entry)
                 else:
                     if links := list(entry.find_all(Link, True)):
@@ -240,7 +240,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                     if not finder.add_entry_links(links, disco_entry):
                         if isinstance(entry[-2], String):
                             disco_entry.title = entry[-2].value
-                        log.debug(f'  > Adding {entry=!r}')
+                        log.debug(f'  > Adding {entry=}')
                         finder.add_entry(disco_entry, entry)
 
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
@@ -256,7 +256,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
                 if isinstance(ost_link, Link):
                     yield ost_link
                 else:
-                    log.warning(f'An {ost_link=!r} was found on {page=!r} but it was not a Link')
+                    log.warning(f'An {ost_link=} was found on {page=} but it was not a Link')
 
     def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
         info = get_info_map(next(iter(page.sections)).content)

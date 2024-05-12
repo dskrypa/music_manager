@@ -159,10 +159,10 @@ class ExtInput(Input):
                 self._refresh_colors(self._valid_value)
             elif self._dark:
                 if background_color := kwargs.get('background_color'):
-                    # log.info(f'Setting {background_color=!r} for {self!r}')
+                    # log.info(f'Setting {background_color=} for {self!r}')
                     self.TKEntry.configure(readonlybackground=background_color)
                 if text_color := kwargs.get('text_color'):
-                    # log.info(f'Setting {text_color=!r} for {self!r}')
+                    # log.info(f'Setting {text_color=} for {self!r}')
                     self.TKEntry.configure(fg=text_color)
 
     def validated(self, valid: bool):

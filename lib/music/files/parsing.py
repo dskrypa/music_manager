@@ -98,7 +98,7 @@ class AlbumName:
             try:
                 return DiscoEntryType.for_name(alb_type)
             except Exception as e:
-                log.debug(f'Error determining DiscoEntryType for {alb_type=!r}: {e}')
+                log.debug(f'Error determining DiscoEntryType for {alb_type=}: {e}')
         return DiscoEntryType.UNKNOWN
 
     @cached_property
@@ -176,7 +176,7 @@ class AlbumName:
             elif self._process_artist_collabs(part, lc_part, name_parts, artist, name, orig_parts, collabs, feat):
                 pass
             else:
-                # log.debug(f'No cases matched {part=!r}')
+                # log.debug(f'No cases matched {part=}')
                 name_parts.append(part)
 
         if len(name_parts) == 2 and _langs_match(name_parts) and sum(1 for c in APOSTROPHES if c in name) == 2:
@@ -217,14 +217,14 @@ class AlbumName:
                 if part.endswith('-'):
                     part = part[:-1].strip()
                 if part:
-                    # log.debug(f'Re-inserting {part=!r}')
+                    # log.debug(f'Re-inserting {part=}')
                     parts.insert(0, part)
         elif m := REPACKAGE_ALBUM_MATCH(part):
             self.repackage = True
             self.alb_type = 'Album'
             part = m.group(1).strip()
             if part:
-                # log.debug(f'Re-inserting {part=!r}')
+                # log.debug(f'Re-inserting {part=}')
                 parts.insert(0, part)
         elif m := SPECIAL_PREFIX_MATCH(part):
             self.alb_type, part = map(clean, m.groups())
@@ -299,7 +299,7 @@ class AlbumName:
             if len(name_parts) == 1 and name.endswith(f'~{name_parts[0]}~'):
                 name_parts[0] = f'{strip_unpaired(part)} ~{name_parts[0]}~'
             else:
-                log.debug(f'Discarding album name {part=!r} that matches {artist=!r}')
+                log.debug(f'Discarding album name {part=} that matches {artist=}')
         elif artist and artist.english and len(orig_parts) == 1 and ' - ' in part and artist.english in part:
             _parts = tuple(map(str.strip, part.split(' - ', 1)))
             ni, ai = (1, 0) if artist.english in _parts[0] else (0, 1)
@@ -357,7 +357,7 @@ def _split_str_list(text: str) -> Iterator[str]:
         delim = text[start:end]
         after = text[end:]
         last = end
-        # log.debug(f'{before=!r} {delim=!r} {after=!r}')
+        # log.debug(f'{before=} {delim=} {after=}')
         yield before
         yield delim
 
@@ -372,7 +372,7 @@ def split_str_list(text: str):
     Split a list of artists on common delimiters, while preserving enclosed lists of artists that should be grouped
     together
     """
-    # log.debug(f'Splitting {text=!r}')
+    # log.debug(f'Splitting {text=}')
     processed = []
     processing = []
     for i, part in enumerate(_split_str_list(text)):
@@ -390,14 +390,14 @@ def split_str_list(text: str):
         elif i % 2 == 0:
             processed.append(part)
         # else:
-        #     log.debug(f'Discarding {part=!r}')
+        #     log.debug(f'Discarding {part=}')
 
     if processing:
         # for part in processing:
-        #     log.debug(f'Incomplete {part=!r}:')
+        #     log.debug(f'Incomplete {part=}:')
         #     for c in part:
-        #         log.debug(f'ord({c=!r}) = {ord(c)}')
-        raise UnexpectedListFormat(f'Unexpected str list format for {text=!r} -\n{processed=}\n{processing=}')
+        #         log.debug(f'ord({c=}) = {ord(c)}')
+        raise UnexpectedListFormat(f'Unexpected str list format for {text=} -\n{processed=}\n{processing=}')
     return map(str.strip, processed)
 
 
@@ -414,11 +414,11 @@ def _split_artists(text: str) -> list[Name]:
     artists = []
     if pairs := _unzipped_list_pairs(text):
         for pair in pairs:
-            # log.debug(f'Found {pair=!r}')
+            # log.debug(f'Found {pair=}')
             artists.append(_artist_name(pair))
     else:
         for part in split_str_list(text):
-            # log.debug(f'Found {part=!r}')
+            # log.debug(f'Found {part=}')
             artists.append(_artist_name(part))
 
     return artists

@@ -171,7 +171,7 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
                 if includes:
                     ekey += '&' + urlencode(sorted(includes.items()))
 
-        # log.debug(f'Resolved {obj_type=!r} => {ekey=!r}')
+        # log.debug(f'Resolved {obj_type=} => {ekey=}')
         return ekey
 
     def find_songs_by_rating_gte(self, rating: int, **kwargs) -> set[Track]:

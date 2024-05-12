@@ -225,7 +225,7 @@ class AlbumFormatter:
                 new_val = sorted(new_vals)
 
             if (src_val or new_val) and src_val != new_val:
-                # self.log.debug(f'album: {key} is different: {src_val=!r} != {new_val=!r}')
+                # self.log.debug(f'album: {key} is different: {src_val=} != {new_val=}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys('album', key)
                 src_ele = value_ele(src_val, src_key, True, 45)
                 new_ele = value_ele(new_val, new_key, True, 45)
@@ -497,7 +497,7 @@ class TrackFormatter:
                 new_val = sorted(new_vals)
 
             if not skip and (src_val or new_val) and src_val != new_val:
-                # self.log.debug(f'{self.path_str}: {key} is different: {src_val=!r} != {new_val=!r}')
+                # self.log.debug(f'{self.path_str}: {key} is different: {src_val=} != {new_val=}')
                 label, sep_1, sep_2, src_key, new_key = label_and_diff_keys(self.path_str, key)
                 if key == 'rating':
                     src_row = self._rating_row(key, src_val, suffix='src')[1:]

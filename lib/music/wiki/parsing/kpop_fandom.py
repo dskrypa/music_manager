@@ -323,7 +323,7 @@ class ArtistDiscographyParser:
 
         for alb_type_section, alb_type, lang in self._iter_sections(section):
             if alb_type.lower().startswith('dvd'):
-                log.debug(f'Skipping {alb_type=!r}')
+                log.debug(f'Skipping {alb_type=}')
                 continue
 
             # log.debug(f'{alb_type}: {alb_type_section.content}')
@@ -363,7 +363,7 @@ class ArtistDiscographyParser:
             self._process_entry(section, entry, alb_type, lang)
 
     def _process_entry(self, section: Section, entry: AnyNode, alb_type: str, lang: str):
-        # log.debug(f'Processing {artist_page} {entry=!r}')
+        # log.debug(f'Processing {artist_page} {entry=}')
         if (year := self._parse_year(entry)) is None:
             return
 
@@ -758,10 +758,10 @@ class ComplexTrackName:
                         remainder = node.value
                         if remainder.count('"') == 1:
                             name_part, remainder = map(str.strip, remainder.split('"', 1))
-                            # log.debug(f'{base_name=!r} {name_part=!r} {remainder=!r}')
+                            # log.debug(f'{base_name=} {name_part=} {remainder=}')
                             base_name = f'{base_name} {name_part}'
                         # else:
-                        #     log.debug(f'{base_name=!r} {remainder=!r}')
+                        #     log.debug(f'{base_name=} {remainder=}')
                     else:
                         raise TypeError(f'Unexpected third node type for {self}')
                 else:
@@ -786,7 +786,7 @@ class ComplexTrackName:
                     if prefix := next(
                         (k for k in REMAINDER_ARTIST_EXTRA_TYPE_MAP if k in remainder and k != '('), None
                     ):
-                        # log.debug(f'Found {prefix=!r}')
+                        # log.debug(f'Found {prefix=}')
                         if not remainder.startswith(prefix):
                             non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
                             base_name = f'{base_name} {non_eng}'
@@ -846,25 +846,25 @@ class ComplexTrackName:
 
     def get_name(self) -> Name:
         base_name, remainder = self._process_base_name_part_1()
-        # log.debug(f'Processing complex track node: {base_name=!r} {remainder=!r} nodes={self.nodes}')
+        # log.debug(f'Processing complex track node: {base_name=} {remainder=} nodes={self.nodes}')
         base_name, remainder = self._process_base_name_part_2(base_name, remainder)
 
         if remainder and (extra_type := REMAINDER_ARTIST_EXTRA_TYPE_MAP.get(remainder.lower())):
-            # log.debug(f'Found {remainder=!r} => {extra_type=!r}')
+            # log.debug(f'Found {remainder=} => {extra_type=}')
             extra, remainder, artists = _process_track_extra_nodes(self.nodes, extra_type, self.orig_node)
-            # log.debug(f'Found {artists=} {remainder=!r} {nodes=} {extra=}')
+            # log.debug(f'Found {artists=} {remainder=} {nodes=} {extra=}')
         else:
             extra = {}
 
         remainder = self._process_remainder(remainder or '')
 
-        # log.debug(f'Checking {remainder=!r} for a duration...')
+        # log.debug(f'Checking {remainder=} for a duration...')
         if m := DURATION_MATCH(remainder):
             before, extra['length'], after = map(str.strip, m.groups())
             for part in filter(None, (before, after)):
                 extra.update(_process_track_extras(part))
 
-        # log.debug(f'orig_node={orig_node.pformat()} => {base_name=!r} + {extra=!r}')
+        # log.debug(f'orig_node={orig_node.pformat()} => {base_name=} + {extra=}')
         name = Name.from_enclosed(base_name, extra=extra or None)
         # log.info(f'parse_track_name has no handling yet for: {node.pformat()}', extra={'color': 10})
         return name
@@ -874,7 +874,7 @@ class TrackNameParser:
     __slots__ = ('extra', 'parts')
 
     def __init__(self, text: str, extra_content: str = None):
-        # log.debug(f'Processing track str={text!r} with {extra_content=!r}')
+        # log.debug(f'Processing track str={text!r} with {extra_content=}')
         self.extra = dict(_process_track_extras(extra_content)) if extra_content else {}
         if m := DURATION_MATCH(text):
             text, self.extra['length'], after = map(str.strip, m.groups())
@@ -947,7 +947,7 @@ def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[Wi
     remainder = None
     while nodes:
         node = nodes.pop(0)
-        # log.debug(f'Processing {node=!r}')
+        # log.debug(f'Processing {node=}')
         if isinstance(node, Link):
             artists.append(node)
         elif isinstance(node, String):
@@ -992,7 +992,7 @@ def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[Wi
                     else:
                         extra['feat'] = CompoundNode.from_nodes(feat, root=root, delim=' ')
             else:
-                # log.debug(f'Assuming {node=!r} is part of artists')
+                # log.debug(f'Assuming {node=} is part of artists')
                 artists.append(node)
         elif is_node_with(node, Template, CompoundNode) and node.value.__class__ is CompoundNode:
             # Specifically a Template containing a Compound node, not a subclass thereof
@@ -1005,7 +1005,7 @@ def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[Wi
         elif isinstance(node, Template):
             nodes.insert(0, node.value)
         else:
-            raise TypeError(f'Unexpected artist node type for track={source!r} {node=!r}')
+            raise TypeError(f'Unexpected artist node type for track={source!r} {node=}')
 
     return extra, remainder, artists
 

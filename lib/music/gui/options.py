@@ -206,7 +206,7 @@ class GuiOptions:
                 yield col_num, row_num, ExtInput('' if val is None else val, **common)
                 yield col_num, row_num, opt['button_func'](initial_folder=val)
             else:
-                raise ValueError(f'Unsupported {opt_type=!r}')
+                raise ValueError(f'Unsupported {opt_type=}')
 
     def _pack(self, layout: list[list[Element]], columns: list[list[list[Element]]]) -> list[list[Element]]:
         if self.align_text or self.align_checkboxes:
@@ -236,7 +236,7 @@ class GuiOptions:
     def layout(self, submit_key: str = None, disable_all: bool = None, submit_row: int = None) -> list[list[Element]]:
         if disable_all is None:
             disable_all = self.disable_on_parsed and self.parsed
-        self.log.debug(f'Building option layout with {self.parsed=!r} {submit_key=!r} {disable_all=!r}')
+        self.log.debug(f'Building option layout with {self.parsed=} {submit_key=} {disable_all=}')
 
         rows_per_column = sorted(((col, val) for col, val in self._rows_per_column.items() if col is not None))
         layout = [[] for _ in range(none_cols)] if (none_cols := self._rows_per_column.get(None)) else []
@@ -304,7 +304,7 @@ class GuiOptions:
             try:
                 return opt['type'](val)
             except Exception as e:
-                raise SingleParsingError(key, opt, f'Error parsing {val=!r} for option={name!r}: {e}', val)
+                raise SingleParsingError(key, opt, f'Error parsing {val=} for option={name!r}: {e}', val)
         elif opt_type == 'path':
             path = Path(val)
             if opt['button_func'] is FolderBrowse:

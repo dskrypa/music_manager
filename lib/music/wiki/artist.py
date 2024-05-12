@@ -153,7 +153,7 @@ class Group(Artist):
             for member in members:
                 log.debug(f'Comparing {mem_type}={member} to {name=}')
                 if member.name.matches(name):
-                    log.debug(f'Found {mem_type}={member} == {name=!r}', extra={'color': 10})
+                    log.debug(f'Found {mem_type}={member} == {name=}', extra={'color': 10})
                     return member
         return None
 

@@ -513,7 +513,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         try:
             tags[tag_id] = value
         except Exception as e:
-            log.error(f'Error setting tag={tag_id!r} on {self} to {value=!r}: {e}')
+            log.error(f'Error setting tag={tag_id!r} on {self} to {value=}: {e}')
             raise
 
     # endregion
@@ -970,7 +970,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         for tag_name, (file_val, new_value) in to_update.items():
             if not dry_run:
                 replace = not (add_genre and tag_name == 'genre')
-                log.log(9, f'Calling {self!r}.set_text_tag({tag_name=!r}, {new_value=!r}, {replace=!r})')
+                log.log(9, f'Calling {self!r}.set_text_tag({tag_name=}, {new_value=}, {replace=})')
                 try:
                     self.set_text_tag(tag_name, new_value, by_id=False, replace=replace)
                 except TagException as e:
@@ -1201,7 +1201,7 @@ class Id3SongFile(SongFile):
             log.debug(f'Creating tag with {tag_cls=} {kwargs=}')
             values = [tag_cls(**kwargs)]
 
-        log.debug(f'Setting {self}.tags.setall({tag_id=!r}, {value=!r})')
+        log.debug(f'Setting {self}.tags.setall({tag_id=}, {value=})')
         tags.setall(tag_id, values)
 
     def _delete_tag(self, tag_id: str):

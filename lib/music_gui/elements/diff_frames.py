@@ -284,7 +284,7 @@ class TrackDiffFrame(InteractiveFrame):
 
 
 def _diff_row(key: str, old_val, new_val, is_track: bool = True):
-    # log.debug(f'album: {key} is different: {old_val=!r} != {new_val=!r}')
+    # log.debug(f'album: {key} is different: {old_val=} != {new_val=}')
     old_ele = _build_diff_value_ele(key, old_val, is_track)
     new_ele = _build_diff_value_ele(key, new_val, is_track)
     return [label_ele(key), Text('from'), old_ele, Text('to'), new_ele]

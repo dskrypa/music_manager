@@ -124,7 +124,7 @@ def _filtered_candidates(name: Name, candidates: Candidates, existing: WE = None
         elif existing:
             log.debug(f'Matched disambiguation entry={_page} / {po_name!r} to {existing} / {name!r}')
             if group_names and not link.title.lower().startswith('category:'):
-                # log.debug(f'Checking groups for {link=!r}')
+                # log.debug(f'Checking groups for {link=}')
                 try:
                     cand_groups = candidate.groups
                 except Exception:

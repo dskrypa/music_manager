@@ -109,7 +109,7 @@ def _get_unpaired(text: str, reverse: bool = True, exclude=_NotSet) -> Optional[
         i = min(last.values())
         if reverse:
             i = len(text) - 1 - i
-        # log.debug(f'{text=!r} contains enclosing {pairs=} with unclosed={last} => {i} / {text[i]!r}')
+        # log.debug(f'{text=} contains enclosing {pairs=} with unclosed={last} => {i} / {text[i]!r}')
         return i
     return None
 
@@ -279,7 +279,7 @@ def _partition_enclosed(text: str, reverse: bool = False, inner: bool = False) -
     closed = defaultdict(int)
     first = defaultdict(list)   # Treat as a LIFO queue
     pairs = []
-    # log.debug(f'Partitioning enclosed {text=!r}')
+    # log.debug(f'Partitioning enclosed {text=}')
     for i, c in enumerate(text):
         # log.debug(f'{i=} {c=} ={ord(c)=} first={dict(first)} {pairs=} opened={dict(opened)} closed={dict(closed)}')
         try:

@@ -56,7 +56,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         :param pages: One or more WikiPage objects
         """
         if name is not None and not isinstance(name, str):
-            raise TypeError(f'Unexpected {name=!r} with {pages=}')
+            raise TypeError(f'Unexpected {name=} with {pages=}')
         self._name = name
         if isinstance(pages, MutableMapping):
             self._pages = pages
@@ -293,7 +293,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         entity = cls._from_multi_site_pages(pages.values(), name, strict=strict, **kwargs)
         if search and research and 0 < len(entity._pages) < len(sites):
             if (name := entity.name) and (eng := name.english) and eng != title:  # noqa
-                log.debug(f'Returning {cls.__name__}.from_title for {eng=!r}')
+                log.debug(f'Returning {cls.__name__}.from_title for {eng=}')
                 research_entity = cls.from_title(eng, set(sites).difference(entity._pages), search, False, **kwargs)
                 research_entity._add_pages(entity._pages)
                 return research_entity
@@ -335,7 +335,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
             if not (0 < len(entity._pages) < len(sites)):
                 continue
             elif (name := entity.name) and (eng := name.english) and eng != title and eng not in title_name_map:  # noqa
-                # log.debug(f'Will re-search for {eng=!r} {title=!r} {entity=!r}')
+                # log.debug(f'Will re-search for {eng=} {title=} {entity=}')
                 new_orig_title_map[eng] = title
                 research_title_name_map[eng] = title_name_map.get(title)
                 for site in set(sites).difference(entity._pages).union({'kindie.fandom.com'}):
@@ -357,7 +357,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
             )
             new_title_entity_map = cls._from_site_title_map(research_query_map, search, strict, research_title_name_map)
             for eng_or_name, entity in new_title_entity_map.items():
-                # log.debug(f'Found re-search result for {eng=!r} {entity=!r}')
+                # log.debug(f'Found re-search result for {eng=} {entity=}')
                 orig_title = new_orig_title_map.get(eng_or_name, eng_or_name)
                 try:
                     orig = title_entity_map[orig_title]

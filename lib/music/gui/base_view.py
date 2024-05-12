@@ -171,7 +171,7 @@ class GuiView(ABC):
                     wildcard_handlers[_compile_pattern(key)] = handler
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}[{self.name}][{self.primary=!r}][handlers: {len(self.event_handlers)}]>'
+        return f'<{self.__class__.__name__}[{self.name}][{self.primary=}][handlers: {len(self.event_handlers)}]>'
 
     def __iter__(self):
         return self
@@ -256,14 +256,14 @@ class GuiView(ABC):
         # self.log.debug(f'Calling {handler} with args=({self}, {event!r}, {data!r})')
         result = handler(self, event, data)
         if isinstance(result, GuiView):
-            # self.log.debug(f'{self}: {event=!r} returned view={result!r} - rendering it')
+            # self.log.debug(f'{self}: {event=} returned view={result!r} - rendering it')
             result.render()
             if not result.primary:
                 self.log.debug(f'Waiting for {result}')
                 result.run()
                 self.log.debug(f'Finished {result}')
         # else:
-        #     self.log.debug(f'{self}: {event=!r} returned {result=!r}')
+        #     self.log.debug(f'{self}: {event=} returned {result=}')
 
     def handle_event(self, event: Event, data: EventData):
         try:

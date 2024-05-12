@@ -261,7 +261,7 @@ class ArtistInfoProcessor:
     def normalize_artist(self, artist) -> str:
         artist_name = str(artist)
         if override := self.artist_name_overrides.get(artist_name):
-            log.debug(f'Overriding {artist_name=!r} with {override!r}')
+            log.debug(f'Overriding {artist_name=} with {override!r}')
             return override
         return artist_name
 
@@ -490,7 +490,7 @@ class AlbumInfoProcessor(ArtistInfoProcessor):
                 try:
                     artist = Artist.from_title(name, sites=self.config.artist_sites, name=artist.name, entity=artist)
                 except Exception as e:
-                    log.warning(f'Error finding alternate version of {artist=!r}: {e}')
+                    log.warning(f'Error finding alternate version of {artist=}: {e}')
 
         return artist
 

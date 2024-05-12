@@ -128,7 +128,7 @@ class Name(ClearableCachedPropertyMixin):
                 name = cls(extra[0], **kwargs)
                 extra = None
         if name is None:
-            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {extra=!r}')
+            raise ValueError(f'Unable to find any valid name parts from {parts!r}; found {extra=}')
         if extra:
             if name.extra:
                 name.extra['unknown'] = extra  # noqa
@@ -323,23 +323,23 @@ class Name(ClearableCachedPropertyMixin):
             if score == 100 and self._english and other._english:
                 ep_score = self._score_eng_parts(other)
                 score = (score + ep_score) // 2
-            # log.debug(f'score({self.non_eng_nospace=!r}, {other.non_eng_nospace=!r}) => {score}', extra={'color': (0, 8)})
+            # log.debug(f'score({self.non_eng_nospace=}, {other.non_eng_nospace=}) => {score}', extra={'color': (0, 8)})
             scores.append(score)
         if self.eng_fuzzed_nospace and other.eng_fuzzed_nospace:
             scores.append(revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace))
-            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]}', extra={'color': (0, 8)})
+            # log.debug(f'score({self.eng_fuzzed_nospace=}, {other.eng_fuzzed_nospace=}) => {scores[-1]}', extra={'color': (0, 8)})
         if self.non_eng_nospace and other.eng_fuzzed_nospace and self.has_romanization(other.eng_fuzzed_nospace, False):
             if ep_score is not None:
                 scores.append((romanization_match + ep_score) // 2)
             else:
                 scores.append(romanization_match)
-            # log.debug(f'score({self.non_eng_nospace=!r}, {other.eng_fuzzed_nospace=!r}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
+            # log.debug(f'score({self.non_eng_nospace=}, {other.eng_fuzzed_nospace=}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
         if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
             if ep_score is not None:
                 scores.append((romanization_match + ep_score) // 2)
             else:
                 scores.append(romanization_match)
-            # log.debug(f'score({self.eng_fuzzed_nospace=!r}, {other.non_eng_nospace=!r}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
+            # log.debug(f'score({self.eng_fuzzed_nospace=}, {other.non_eng_nospace=}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
 
         if try_alt:
             if not self.non_eng and self.eng_lang == LangCat.MIX and self.eng_langs.intersection(LangCat.asian_cats):
@@ -443,7 +443,7 @@ class Name(ClearableCachedPropertyMixin):
             s_value = getattr(self, attr)
             o_value = getattr(other, attr)
             if s_value and o_value and s_value != o_value:
-                raise ValueError(f'Unable to merge {self!r} and {other!r} because {attr=!r} does not match')
+                raise ValueError(f'Unable to merge {self!r} and {other!r} because {attr=} does not match')
             merged[attr] = s_value or o_value
         return merged
 
@@ -495,7 +495,7 @@ class Name(ClearableCachedPropertyMixin):
     def no_suffix_version(self) -> Name | None:
         if self._is_ost:
             stripped = {key: p[:-4].strip() for key, p in self.as_dict().items() if p and p.upper().endswith(' OST')}
-            # log.debug(f'{self!r}: {stripped=!r}')
+            # log.debug(f'{self!r}: {stripped=}')
             return self.with_part(**stripped)
         return None
 

@@ -75,7 +75,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                     log.debug(f'Error processing profile on {artist_page}: {e}')
                     return
             else:
-                log.debug(f'Unexpected {profile_content=!r} on {artist_page}')
+                log.debug(f'Unexpected {profile_content=} on {artist_page}')
                 return
 
             for key in ('Stage Name', 'Real Name', 'Korean Name'):
@@ -230,7 +230,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                             node = next(nodes, None)
 
         title, non_eng, lit_translation, extras, incomplete_extra = _split_name_parts(title, node)
-        # log.debug(f'{title=!r} {non_eng=!r} {lit_translation=!r} {extras=} {incomplete_extra=!r}')
+        # log.debug(f'{title=} {non_eng=} {lit_translation=} {extras=} {incomplete_extra=}')
         if artists:
             extras['artists'] = CompoundNode.from_nodes(artists, delim=' ')
 
@@ -248,7 +248,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                         non_eng, lit_translation = _split_non_eng_lit(last_val)
             incomplete_extra = None
 
-        # log.debug(f'{title=!r} {non_eng=!r} {lit_translation=!r} {extras=} {incomplete_extra=!r}')
+        # log.debug(f'{title=} {non_eng=} {lit_translation=} {extras=} {incomplete_extra=}')
 
         if not title.endswith(')') and ')' in title:
             pos = title.rindex(')') + 1
@@ -313,7 +313,7 @@ class GenerasiaParser(WikiParser, site='www.generasia.com'):
                 try:
                     a, b = split_enclosed(title, reverse=True, maxsplit=1)
                 except Exception:
-                    log.error(f'Error splitting {title=!r}', exc_info=True)
+                    log.error(f'Error splitting {title=}', exc_info=True)
                     raise
 
                 if OST_PAT_SEARCH(b) or is_extra(b):
@@ -489,7 +489,7 @@ class EditionProcessor:
         artist_link = self.node['Artist'].value
         album_name = self.get_album_name(name_key)
 
-        log.log(9, f'Processing edition entry with {album_name=!r} {entry_type=!r} {artist_link=!r}')
+        log.log(9, f'Processing edition entry with {album_name=} {entry_type=} {artist_link=}')
         lang, version, edition = self.get_name_info(album_name)
         release_dates = self.get_release_dates()
         for key, value in self.node.items():
@@ -541,7 +541,7 @@ class EditionProcessor:
                 # TODO:
                 # https://www.generasia.com/wiki/Miina_(Bonamana)
                 # https://www.generasia.com/wiki/The_SHINee_World
-                log.error(f'Unexpected value for {album_name_node=!r} on page={self.entry_page}')
+                log.error(f'Unexpected value for {album_name_node=} on page={self.entry_page}')
             else:
                 if prefix := clean_common_prefix(names):
                     log.debug(f'Using album={prefix!r} for {album_name_node} on page={self.entry_page}')
@@ -622,7 +622,7 @@ def _split_name_parts(
     :param node: The node to split
     :return:
     """
-    # log.debug(f'_split_name_parts({title=!r}, {node=!r})')
+    # log.debug(f'_split_name_parts({title=}, {node=})')
     original_title = title
     non_eng, lit_translation, name_parts_str, extra = None, None, None, None
     if isinstance(node, String):
@@ -634,7 +634,7 @@ def _split_name_parts(
             except ValueError:
                 pass
 
-    # log.debug(f'{title=!r} {name_parts_str=!r}')
+    # log.debug(f'{title=} {name_parts_str=}')
     if name_parts_str:
         non_eng, lit_translation = _split_non_eng_lit(name_parts_str)
     if non_eng is None and lit_translation is None:
@@ -646,7 +646,7 @@ def _split_name_parts(
     extras = {}
     incomplete_extra = None
     if extra:
-        # log.info(f'{node=!r} => {extra=!r}', extra={'color': 'red'})
+        # log.info(f'{node=} => {extra=}', extra={'color': 'red'})
         incomplete_extra = process_extra(extras, extra)
 
     # log.debug(f'node={node!r} => title={title!r} non_eng={non_eng!r} lit={lit_translation!r} extras={extras}')

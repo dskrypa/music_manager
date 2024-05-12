@@ -43,7 +43,7 @@ def configure_music_manager_gui(dry_run: bool, suffix: str = None):
 
 def _verify_runtime():
     if (system := platform.system()) != 'Windows':
-        raise RuntimeError(f'Automatic right-click menu integration is not supported on {system=!r}')
+        raise RuntimeError(f'Automatic right-click menu integration is not supported on {system=}')
     elif not sys.argv:
         raise RuntimeError(f'Unable to determine arguments used to run this program')
 

@@ -87,7 +87,7 @@ class PageIntro:
     def _to_process(self) -> list[str]:
         # Partition the first sentence of the intro into sections that should be processed individually
         first_string = IS_SPLIT(self.intro, 1)[0].strip()
-        log.debug(f'{first_string=!r}')
+        log.debug(f'{first_string=}')
 
         parts = [first_string]
         for partitioner in self.FIRST_SENTENCE_SECTION_PARTITIONERS:
@@ -166,7 +166,7 @@ class PageIntro:
     def _process_name_parts(self, name: str, first_part: str, paren_part: str) -> Iterator[Name]:
         # log.debug(f'_process_name_parts({name!r}, {first_part!r}, {paren_part!r})')
         while _should_resplit(first_part, paren_part):
-            # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}; re-splitting...', extra={'color': 11})
+            # log.debug(f'Split {name=} => {first_part=} {paren_part=}; re-splitting...', extra={'color': 11})
             try:
                 first_part, paren_part = split_enclosed(first_part, reverse=True, maxsplit=1)
             except ValueError:
@@ -175,7 +175,7 @@ class PageIntro:
             # else:
             #     log.debug('re-split')
 
-        # log.debug(f'Split {name=!r} => {first_part=!r} {paren_part=!r}')
+        # log.debug(f'Split {name=} => {first_part=} {paren_part=}')
         if paren_part.lower() == 'repackage':
             yield Name.from_enclosed(first_part, extra={'repackage': True})
         elif '; ' in paren_part:

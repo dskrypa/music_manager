@@ -18,7 +18,7 @@ class MiscExtractionTestCase(TestCaseBase):
             '(a)b [(c)d-e]': False
         }
         for text, unpaired in cases.items():
-            self.assertIs(has_unpaired(text), unpaired, f'Failed for {text=!r}')
+            self.assertIs(has_unpaired(text), unpaired, f'Failed for {text=}')
 
     def test__get_unpaired_reverse(self):
         cases = {
@@ -31,7 +31,7 @@ class MiscExtractionTestCase(TestCaseBase):
             '(a)b [(c)d-e]': None
         }
         for text, unpaired in cases.items():
-            self.assertEqual(_get_unpaired(text, True), unpaired, f'Failed for {text=!r}')
+            self.assertEqual(_get_unpaired(text, True), unpaired, f'Failed for {text=}')
 
     def test_get_unpaired_reverse(self):
         cases = {
@@ -44,7 +44,7 @@ class MiscExtractionTestCase(TestCaseBase):
             '(a)b [(c)d-e]': None
         }
         for text, unpaired in cases.items():
-            self.assertEqual(get_unpaired(text, True), unpaired, f'Failed for {text=!r}')
+            self.assertEqual(get_unpaired(text, True), unpaired, f'Failed for {text=}')
 
     def test__get_unpaired_forward(self):
         cases = {
@@ -57,7 +57,7 @@ class MiscExtractionTestCase(TestCaseBase):
             '(a)b [(c)d-e]': None
         }
         for text, unpaired in cases.items():
-            self.assertEqual(_get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
+            self.assertEqual(_get_unpaired(text, False), unpaired, f'Failed for {text=}')
 
     def test_get_unpaired_forward(self):
         cases = {
@@ -70,7 +70,7 @@ class MiscExtractionTestCase(TestCaseBase):
             '(a)b [(c)d-e]': None
         }
         for text, unpaired in cases.items():
-            self.assertEqual(get_unpaired(text, False), unpaired, f'Failed for {text=!r}')
+            self.assertEqual(get_unpaired(text, False), unpaired, f'Failed for {text=}')
 
     def test_ends_with_enclosed(self):
         self.assertEqual("''", ends_with_enclosed("test 'one'"))

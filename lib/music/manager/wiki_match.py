@@ -195,7 +195,7 @@ class AlbumFinder:
         try:
             candidates.add(cls.from_name(name_str))
         except Exception:  # noqa
-            log.debug(f'Error finding {cls.__name__} for {name_str=!r}:', exc_info=True, extra={'color': (0, 9)})
+            log.debug(f'Error finding {cls.__name__} for {name_str=}:', exc_info=True, extra={'color': (0, 9)})
 
         return _filter_candidates(self.album_dir, candidates) if len(candidates) > 1 else candidates
 
@@ -221,10 +221,10 @@ class AlbumFinder:
         if name and name.matches(entry.name):
             entry_parts = tuple(entry.parts() if isinstance(entry, DiscographyEntry) else entry)
             pkg_match_parts = [p for p in entry_parts if p.repackage == repackage]
-            # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}')
+            # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=}')
             if pkg_match_parts:
                 mlog.debug(
-                    f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=!r}',
+                    f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=}',
                     extra={'color': 11}
                 )
                 for part in pkg_match_parts:

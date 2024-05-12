@@ -154,7 +154,7 @@ class MainView(GuiView, view_name='main', defaults=DEFAULT_CONFIG):
 
             return CleanView(path=path, last_view=self)
         else:
-            popup_input_invalid(f'Unexpected initial {view=!r}', logger=self.log)
+            popup_input_invalid(f'Unexpected initial {view=}', logger=self.log)
 
     @event_handler
     def edit(self, event: Event, data: EventData):

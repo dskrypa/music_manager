@@ -24,7 +24,7 @@ def site_titles_map(links: Iterable[Link]) -> dict[MediaWikiClient, dict[str, Li
 def multi_site_page_map(get_multi_site_pages_results) -> dict[str, list[WikiPage]]:
     title_page_map = defaultdict(list)
     for site, pages in get_multi_site_pages_results.items():
-        log.debug(f'Found {len(pages)} pages from {site=!r}: {", ".join(sorted(pages))}')
+        log.debug(f'Found {len(pages)} pages from {site=}: {", ".join(sorted(pages))}')
         for title, page in pages.items():
             title_page_map[title].append(page)
     return title_page_map  # noqa

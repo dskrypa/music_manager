@@ -283,7 +283,7 @@ class Album(DiscographyEntry):
         client = MediaWikiClient('kpop.fandom.com')
         # results = client.get_pages(name, search=True, gsrwhat='text')
         results = client.get_pages(name, search=True)
-        log.debug(f'Search results for {name=!r}: {results}')
+        log.debug(f'Search results for {name=}: {results}')
         for title, page in results.items():
             try:
                 return cls._by_category(page)
@@ -291,7 +291,7 @@ class Album(DiscographyEntry):
                 try:
                     show = TVSeries._by_category(page)
                 except EntityTypeError:
-                    log.debug(f'Found {page=!r} that is neither an OST or a TVSeries')
+                    log.debug(f'Found {page=} that is neither an OST or a TVSeries')
                 else:
                     return cls.find_from_links(show.soundtrack_links())
 
@@ -325,7 +325,7 @@ class Soundtrack(DiscographyEntry):
     def from_name(cls, name: str) -> Soundtrack:
         client = MediaWikiClient('wiki.d-addicts.com')
         results = client.get_pages(name, search=True, gsrwhat='text')
-        log.debug(f'Search results for {name=!r}: {results}')
+        log.debug(f'Search results for {name=}: {results}')
         last_error = None
         for title, page in results.items():
             try:
@@ -334,7 +334,7 @@ class Soundtrack(DiscographyEntry):
                 try:
                     show = TVSeries._by_category(page)
                 except EntityTypeError:
-                    log.debug(f'Found {page=!r} that is neither an OST or a TVSeries')
+                    log.debug(f'Found {page=} that is neither an OST or a TVSeries')
                 else:
                     try:
                         return cls.find_from_links(show.soundtrack_links())
@@ -399,7 +399,7 @@ class _ArtistMixin(ABC):
                 log.debug(f'Found non-link artist values for {self._basic_repr}: {artist_strs}', extra={'color': 11})
 
             strict = 0 if artists or len(artist_links) > 1 else 1
-            log.debug(f'Looking for artists from links: {artist_links} {strict=!r}')
+            log.debug(f'Looking for artists from links: {artist_links} {strict=}')
             try:
                 artists.update(Artist.from_links(artist_links, strict=strict).values())
             except AmbiguousWikiPageError as e:
@@ -654,7 +654,7 @@ class DiscographyEntryEdition(_ArtistMixin):
                 album_lang = self.lang
                 artist_lang = self.artist.language if self.artist else None
 
-            log.debug(f'{self._basic_repr} {album_lang=!r} {artist_lang=!r}')
+            log.debug(f'{self._basic_repr} {album_lang=} {artist_lang=}')
             parts = (
                 f'{num}{ordinal_suffix(num)}',
                 None if artist_lang and album_lang and artist_lang == album_lang else album_lang,

@@ -74,7 +74,7 @@ class DiscographyMixin(ABC):
 
         for key, entries in temp.items():
             # if len(entries) > 1:
-            #     log.debug(f'Merging disco entries for {self}: {key=!r} {entries=!r}')
+            #     log.debug(f'Merging disco entries for {self}: {key=} {entries=}')
             merged.append(sum(entries))
             # entries = iter(entries)
             # entry = next(entries)
@@ -135,7 +135,7 @@ class DiscographyEntryFinder:
                 try:
                     disco_entry, link = title_entry_map.pop(title)
                 except KeyError:
-                    log.error(f'No disco entry was found for {title=!r} from {site=}', extra={'color': 9})
+                    log.error(f'No disco entry was found for {title=} from {site=}', extra={'color': 9})
                     continue
                 src_site = disco_entry.source.site
                 try:
@@ -172,7 +172,7 @@ class DiscographyEntryFinder:
 
             for title, (disco_entry, link) in title_entry_map.items():
                 if not self.created_entry[disco_entry]:
-                    log.log(9, f'No page found for {title=!r} / {link=} / entry={disco_entry}')
+                    log.log(9, f'No page found for {title=} / {link=} / entry={disco_entry}')
                     # log.debug(f'Creating DiscographyEntry for page=[none found] entry={disco_entry}')
                     try:
                         discography[disco_entry.source.site].append(

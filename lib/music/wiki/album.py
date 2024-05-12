@@ -522,7 +522,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         return self.page, self.artist, self.date, self._name, self.edition
 
     def __lt__(self, other: DiscographyEntryEdition) -> bool:
-        return self.__cmp_tuple < other.__cmp_tuple
+        return self.__cmp_tuple < other.__cmp_tuple  # noqa
 
     # endregion
 
@@ -734,10 +734,11 @@ class DiscographyEntryPart(_ArtistMixin):
         ed = self.edition
         edition = f'[edition={ed.edition!r}]' if ed.edition else ''
         name = f'[{self._name}]' if self._name else ''
-        return f'<[{ed.date_str}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}>'
+        disc = f'[disc={self.disc}]' if len({p.disc for p in ed.parts}) != 1 else ''
+        return f'<[{ed.date_str}]{self.cls_type_name}[{ed._name!r} @ {ed.page}]{edition}{name}{disc}>'
 
     def __lt__(self, other: DiscographyEntryPart) -> bool:
-        return (self.edition, self._name) < (other.edition, other._name)
+        return (self.edition, self._name) < (other.edition, other._name)  # noqa
 
     def __eq__(self, other) -> bool:
         return self.__class__ == other.__class__ and self._name == other._name and self.edition == other.edition
@@ -754,7 +755,7 @@ class DiscographyEntryPart(_ArtistMixin):
     def __len__(self) -> int:
         return len(self.track_names)
 
-    _basic_repr = property(__repr__)
+    _basic_repr = property(__repr__)  # noqa
 
     # endregion
 

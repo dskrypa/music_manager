@@ -160,6 +160,7 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
             else:
                 rel_date = None
 
+            # log.debug(f'_process_parts_edition_parts: [{i}] {artist=}, {rel_date=}')
             if numbered:
                 yield SoundtrackPart(i, f'Part {i}', edition, content[4], artist=artist, release_date=rel_date)
             else:

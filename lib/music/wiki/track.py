@@ -10,7 +10,7 @@ from functools import partialmethod
 from typing import TYPE_CHECKING, Any, Optional, Iterable
 
 from ds_tools.caching.decorators import cached_property
-from wiki_nodes import String, Link, ContainerNode
+from wiki_nodes import String, Link, ContainerNode, Node
 
 from ..text.extraction import strip_enclosed
 from ..text.name import Name
@@ -44,7 +44,7 @@ class Track:
     __repr__ = partialmethod(_repr, True)
 
     def __lt__(self, other: Track) -> bool:
-        return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)
+        return (self.album_part, self.num, self.name) < (other.album_part, other.num, other.name)  # noqa
 
     def __getitem__(self, item: str) -> Any:
         if extras := self.name.extra:
@@ -68,6 +68,8 @@ class Track:
                 log.debug(f'Error retrieving artist from link={artists!r}: {e}')
             else:
                 return {artist}
+        else:
+            log.debug(f'Unexpected value for track {artists=}')
 
         return set()
 

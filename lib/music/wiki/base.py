@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 GROUP_CATEGORIES = ('group', 'subunits', 'duos')
 SINGER_CATEGORIES = (
-    'singer', 'actor', 'actress', 'member', 'rapper', 'lyricist', 'pianist', 'songwriter', 'births', 'male'
+    'singer', 'actor', 'actress', 'member', 'rapper', 'lyricist', 'pianist', 'songwriter', 'births', 'male', 'kcomposer'
 )
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 

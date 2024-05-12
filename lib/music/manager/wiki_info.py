@@ -58,7 +58,15 @@ def show_wiki_entity(
     elif isinstance(entity, Artist):
         print_artist(entity, 2, expand, expand > 2, expand > 3, alb_types)
     elif isinstance(entity, Discography):
-        print_discography(entity, 2, expand > 0, expand > 1, expand > 2, alb_types, True)
+        print_discography(
+            entity,
+            indent=2,
+            expand_disco=expand > 0,
+            editions=expand > 1,
+            track_info=expand > 2,
+            alb_types=alb_types,
+            header=True,
+        )
     elif isinstance(entity, TVSeries):
         print_tv_series(entity, 2)
     else:
@@ -137,10 +145,14 @@ def print_discography(
 
 
 def print_disco_entry(
-    disco_entry: DiscographyEntry, indent: int = 0, editions: bool = False, limit: int = 0, track_info: bool = False
+    disco_entry: DiscographyEntry,
+    indent: int = 0,
+    editions: bool = False,
+    limit: int = 0,
+    track_info: bool = False,
 ):
     prefix = ' ' * indent
-    suffix = '' if disco_entry.editions else ' [{} info unavailable]'.format('Edition' if editions else 'Part')
+    suffix = '' if disco_entry.editions else f' [{"Edition" if editions else "Part"} info unavailable]'
     uprint(f'{prefix}- {disco_entry}:{suffix}')
     if names := disco_entry.names:
         uprint(f'{prefix}  Names:')
@@ -173,6 +185,11 @@ def print_de_part(part: DiscographyEntryPart, indent: int = 0, track_info: bool 
     prefix = ' ' * indent
     if part:
         uprint(f'{prefix}- {part}:')
+        if part.artists:
+            uprint(f'{prefix}    Artists:')
+            for artist in sorted(part.artists):
+                uprint(f'{prefix}      - {artist}')
+
         uprint(f'{prefix}    Tracks:')
         for track in part:
             uprint(f'{prefix}      - {track._repr()}')

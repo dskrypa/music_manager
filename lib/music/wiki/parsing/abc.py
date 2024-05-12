@@ -74,30 +74,6 @@ class WikiParser(ABC):
 
     # endregion
 
-    # region Album Page
-
-    @abstractmethod
-    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_track_name(self, node: N) -> Name:
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_single_page_track_name(self, page: WikiPage) -> Name:
-        raise NotImplementedError
-
-    @abstractmethod
-    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
-        raise NotImplementedError
-
-    @abstractmethod
-    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
-        raise NotImplementedError
-
-    # endregion
-
     # region High Level Discography
 
     @abstractmethod
@@ -106,6 +82,39 @@ class WikiParser(ABC):
 
     @abstractmethod
     def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
+        raise NotImplementedError
+
+    # endregion
+
+    # region Album Page
+
+    @abstractmethod
+    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
+        """
+        Parse the ordinal album number that indicates when the album was released by the artist, relative to other
+        releases of the same type by that artist.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_track_name(self, node: N) -> Name:
+        """Parse a track name found in a list of tracks on an album page"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_single_page_track_name(self, page: WikiPage) -> Name:
+        """
+        Parse a track name from a page that represents a Single release, and does not contain a (somewhat redundant)
+        track list.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
+        raise NotImplementedError
+
+    @abstractmethod
+    def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
         raise NotImplementedError
 
     # endregion

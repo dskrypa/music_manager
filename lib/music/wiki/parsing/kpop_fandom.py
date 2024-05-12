@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, date
-from typing import TYPE_CHECKING, Iterator, Optional, Any, Union, Type, Collection
+from typing import TYPE_CHECKING, Iterator, Any, Type, Collection
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.unicode import LangCat
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 __all__ = ['KpopFandomParser', 'KindieFandomParser']
 log = logging.getLogger(__name__)
 
-NodeTypes = Union[Type[AnyNode], tuple[Type[AnyNode], ...]]
+NodeTypes = Type[AnyNode] | tuple[Type[AnyNode], ...]
 
 DURATION_MATCH = re.compile(r'^(.*?)-\s*(\d+:\d{2})(.*)$').match
 MEMBER_TYPE_SECTIONS = {'former': 'Former', 'inactive': 'Inactive', 'sub_units': 'Sub-Units'}
@@ -160,12 +160,16 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
     # region Album Page
 
-    def parse_album_number(self, entry_page: WikiPage) -> Optional[int]:
+    def parse_album_number(self, entry_page: WikiPage) -> int | None:
+        """
+        Parse the ordinal album number that indicates when the album was released by the artist, relative to other
+        releases of the same type by that artist.
+        """
         if intro := entry_page.intro():
             return find_ordinal(intro.raw.string)
         return None
 
-    def _album_page_name(self, page: WikiPage) -> Name:  # noqa
+    def _get_album_page_name(self, page: WikiPage) -> Name:  # noqa
         if (names := list(PageIntro(page).names())) and len(names) > 0:
             # log.debug(f'Using name={names[0]!r} from page intro')
             return names[0]
@@ -187,57 +191,17 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
     def process_album_editions(self, entry: DiscographyEntry, entry_page: WikiPage) -> EditionIterator:
         log.debug(f'Processing album editions for page={entry_page}')
         try:
-            name = self._album_page_name(entry_page)
+            name = self._get_album_page_name(entry_page)
         except Exception as e:
             raise UnexpectedPageContent(f'Error parsing page name from {entry_page=}') from e
 
         yield from EditionFinder(name, entry, entry_page).editions()
 
     def process_edition_parts(self, edition: DiscographyEntryEdition) -> Iterator[DiscographyEntryPart]:
-        content = edition._content
-        # try:
-        #     log.debug(f'process_edition_parts: content={content.pformat()}')
-        # except AttributeError:
-        #     log.debug(f'process_edition_parts: content={content!r}')
-
-        if content.__class__ is CompoundNode and isinstance(content[0], List):
-            content_len = len(content)
-            if content_len % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
-                yield from _init_ost_edition_parts(edition, content)
-                return
-            elif content_len == 1:
-                content = content[0]
-            else:
-                raise ValueError(f'Unexpected content={content.pformat()} for {edition=}')
-
-        if isinstance(content, List):
-            yield DiscographyEntryPart(None, edition, RawTracks(content))
-        elif isinstance(content, list):
-            for i, track_node in enumerate(content):
-                yield DiscographyEntryPart(f'CD{i + 1}', edition, RawTracks(track_node))
-        elif isinstance(content, dict):
-            for name, section in content.items():
-                part_content = section.content
-                if part_content.__class__ is CompoundNode:  # May have a String sub-heading - see Start-Up_OST test
-                    for node in part_content:
-                        if isinstance(node, List):
-                            part_content = node
-                            break
-
-                # log.debug(f'Found disco part={name!r} with content={part_content}')
-                yield DiscographyEntryPart(name, edition, RawTracks(part_content))
-        elif content is None:
-            if edition.type == DiscoEntryType.Single:
-                yield DiscographyEntryPart(None, edition, None)
-            else:
-                log.warning(f'Unexpected type={edition.type} for {edition!r}')
-        else:
-            try:
-                log.warning(f'Unexpected type for {edition!r}._content: {content.pformat()}', extra={'color': 'red'})
-            except AttributeError:
-                log.warning(f'Unexpected type for {edition!r}._content: {content!r}')
+        yield from EditionPartFinder(edition).find_parts()
 
     def parse_track_name(self, node: N) -> Name:
+        """Parse a track name found in a list of tracks on an album page"""
         # log.debug(f'parse_track_name({node!r})')
         if isinstance(node, String):
             # log.debug(f'Processing track name from String {node=}')
@@ -260,7 +224,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             log.warning(f'parse_track_name has no handling yet for: {node}', extra={'color': 9})
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
-        name = self._album_page_name(page)
+        name = self._get_album_page_name(page)
         # if not isinstance(name, Name):
         #     name = Name.from_enclosed(name)
 
@@ -296,7 +260,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
 
         yield from links_section.find_all(Link, True)
 
-    def parse_source_show(self, page: WikiPage) -> Optional[TVSeries]:
+    def parse_source_show(self, page: WikiPage) -> TVSeries | None:
         raise NotImplementedError
 
     # endregion
@@ -459,7 +423,7 @@ class EditionFinder:
         self.entry = entry
         self.entry_page = entry_page
 
-    def get_track_list_section(self) -> Optional[Section]:
+    def get_track_list_section(self) -> Section | None:
         root = self.entry_page.sections
         for key in ('Track list', 'Tracklist'):
             try:
@@ -698,18 +662,86 @@ def _get_str_value(node) -> OptStr:
 # endregion
 
 
+class EditionPartFinder:
+    __slots__ = ('edition',)
+
+    def __init__(self, edition: DiscographyEntryEdition):
+        self.edition: DiscographyEntryEdition = edition
+
+    def find_parts(self) -> Iterator[DiscographyEntryPart]:
+        content, is_ost_parts = self._get_content()
+        if is_ost_parts:
+            yield from self._process_ost_parts(content)
+        elif isinstance(content, List):
+            yield DiscographyEntryPart(None, self.edition, RawTracks(content))
+        elif isinstance(content, list):
+            for i, track_node in enumerate(content):
+                yield DiscographyEntryPart(f'CD{i + 1}', self.edition, RawTracks(track_node))
+        elif isinstance(content, dict):
+            yield from self._process_section_map(content)
+        elif content is None and self.edition.type == DiscoEntryType.Single:
+            yield DiscographyEntryPart(None, self.edition, None)
+        elif isinstance(content, CompoundNode) and (lists := list(content.find_all(List))) and len(lists) == 1:  # noqa
+            # Example: Vincenzo_OST (has a note between the edition name and track list)
+            yield DiscographyEntryPart(None, self.edition, RawTracks(lists[0]))
+        else:
+            try:
+                log_content, extra = content.pformat(), {'color': 'red'}
+            except AttributeError:
+                log_content, extra = repr(content), None
+
+            log.warning(
+                f'Unable to find parts for {self.edition!r} with type={self.edition.type}, content={log_content}',
+                extra=extra,
+            )
+
+    def _get_content(self) -> tuple[CompoundNode | List | list | dict | None, bool]:
+        content = self.edition._content
+        # try:
+        #     log.debug(f'EditionPartFinder._get_content: content={content.pformat()}')
+        # except AttributeError:
+        #     log.debug(f'EditionPartFinder._get_content: content={content!r}')
+
+        if content.__class__ is CompoundNode and isinstance(content[0], List):
+            content_len = len(content)
+            if content_len % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
+                return content, True
+            elif content_len == 1:
+                return content[0], False
+            else:
+                raise ValueError(f'Unexpected content={content.pformat()} for edition={self.edition!r}')
+        else:
+            return content, False
+
+    def _process_ost_parts(self, list_nodes: list[List]) -> Iterator[SoundtrackPart]:
+        # log.debug(f'Processing OST parts from {edition=}')
+        for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
+            # log.debug(f'_init_ost_edition_parts: {node=}, {artist_nodes=}')
+            if not isinstance(node, (String, Link)):  # Likely a CompoundNode with ele 0 being a String
+                node = node[0]
+            name = node.show if isinstance(node, Link) else node.value
+            artists = set(find_nodes(artist_nodes, Link)) if artist_nodes else None
+            # yield DiscographyEntryPart(name, edition, track_list)
+            num = _parse_ost_part_num(name)
+            if num is not None:
+                name = f'Part {num}'
+            # log.debug(f'_init_ost_edition_parts: {num=}, {name=}, {artists=}')
+            yield SoundtrackPart(num, name, self.edition, track_list, artist=artists)
+
+    def _process_section_map(self, section_map: dict[str, Section]) -> Iterator[DiscographyEntryPart]:
+        for name, section in section_map.items():
+            part_content = section.content
+            if part_content.__class__ is CompoundNode:  # May have a String sub-heading - see Start-Up_OST test
+                for node in part_content:
+                    if isinstance(node, List):
+                        part_content = node
+                        break
+
+            # log.debug(f'Found disco part={name!r} with content={part_content}')
+            yield DiscographyEntryPart(name, self.edition, RawTracks(part_content))
+
+
 # region OST Edition Parts
-
-
-def _init_ost_edition_parts(edition: DiscographyEntryEdition, list_nodes: list[List]):
-    for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
-        # log.debug(f'_init_ost_edition_parts: {node=}, {artist_nodes=}')
-        if not isinstance(node, (String, Link)):  # Likely a CompoundNode with ele 0 being a String
-            node = node[0]
-        name = node.show if isinstance(node, Link) else node.value
-        artists = set(find_nodes(artist_nodes, Link)) if artist_nodes else None
-        # yield DiscographyEntryPart(name, edition, track_list)
-        yield SoundtrackPart(_parse_ost_part_num(name), name, edition, track_list, artist=artists)
 
 
 def _process_ost_part_lists(list_nodes: list[List]):
@@ -724,7 +756,7 @@ def _process_ost_part_lists(list_nodes: list[List]):
         yield node, artist_nodes, next(i_list_nodes)
 
 
-def _parse_ost_part_num(name) -> Optional[int]:
+def _parse_ost_part_num(name) -> int | None:
     if m := PART_NUM_SEARCH(str(name).lower()):
         return int(m.group(1))
     return None
@@ -745,7 +777,7 @@ class ComplexTrackName:
     def __repr__(self) -> str:
         return f'track={self.orig_node!r} node={self.node!r}'
 
-    def _process_base_name_part_1(self) -> tuple[str, Optional[str]]:
+    def _process_base_name_part_1(self) -> tuple[str, str | None]:
         remainder = None
         node = self.node
         if isinstance(node, String):
@@ -803,7 +835,7 @@ class ComplexTrackName:
 
         return base_name, remainder
 
-    def _process_base_name_part_2(self, base_name: str, remainder: OptStr) -> tuple[str, Optional[str]]:
+    def _process_base_name_part_2(self, base_name: str, remainder: OptStr) -> tuple[str, str | None]:
         if not remainder and self.nodes:
             self.node = node = self.nodes.pop(0)
             if isinstance(node, Template) and isinstance((tmpl_value := node.value), Link):
@@ -940,7 +972,7 @@ class TrackNameParser:
                 name.update(_english=combine_with_parens(name_parts))
 
 
-def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[WikiPage, N]):
+def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: WikiPage | N):
     root = source if isinstance(source, WikiPage) else source.root
     extra = {}
     artists = []
@@ -1010,7 +1042,7 @@ def _process_track_extra_nodes(nodes: list[N], extra_type: str, source: Union[Wi
     return extra, remainder, artists
 
 
-def _classify_track_part(text: str) -> tuple[OptStr, Union[str, bool]]:
+def _classify_track_part(text: str) -> tuple[OptStr, str | bool]:
     text = text.replace(' : ', ': ')
     lc_text = text.lower()
     if lc_text.startswith(('inst.', 'instrumental')):

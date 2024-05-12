@@ -433,6 +433,10 @@ class EditionFinder:
 
         return None
 
+    @property
+    def is_ost(self) -> bool:
+        return self.entry.type == DiscoEntryType.Soundtrack
+
     def editions(self) -> EditionIterator:
         track_list_section = self.get_track_list_section()
         # log.debug(f'On page={self.entry_page}, found {track_list_section=}')
@@ -440,6 +444,11 @@ class EditionFinder:
         if track_list_section is None:
             # Example: https://kpop.fandom.com/wiki/Tuesday_Is_Better_Than_Monday
             yield self._edition(None, None, self.find_language(self.entry_page))
+            return
+
+        if self.is_ost and all(s.title.startswith('Part.') for s in track_list_section):
+            # log.debug(f'Found {len(track_list_section)} OST parts')
+            yield self._edition(track_list_section.content, '[OST Parts]', None)
             return
 
         try:
@@ -670,6 +679,7 @@ class EditionPartFinder:
 
     def find_parts(self) -> Iterator[DiscographyEntryPart]:
         content, is_ost_parts = self._get_content()
+        # log.debug(f'find_parts: {type(content)=}, {is_ost_parts=!s}')
         if is_ost_parts:
             yield from self._process_ost_parts(content)
         elif isinstance(content, List):
@@ -682,7 +692,8 @@ class EditionPartFinder:
         elif content is None and self.edition.type == DiscoEntryType.Single:
             yield DiscographyEntryPart(None, self.edition, None)
         elif isinstance(content, CompoundNode) and (lists := list(content.find_all(List))) and len(lists) == 1:  # noqa
-            # Example: Vincenzo_OST (has a note between the edition name and track list)
+            # Full OST with a note between th edition name and the track list (example: Vincenzo_OST)
+            # log.debug('Found full OST with text before the track list')
             yield DiscographyEntryPart(None, self.edition, RawTracks(lists[0]))
         else:
             try:
@@ -711,9 +722,10 @@ class EditionPartFinder:
             else:
                 raise ValueError(f'Unexpected content={content.pformat()} for edition={self.edition!r}')
         else:
+            # log.debug(f'Processing edition part content with {content.__class__=}')
             return content, False
 
-    def _process_ost_parts(self, list_nodes: list[List]) -> Iterator[SoundtrackPart]:
+    def _process_ost_parts(self, list_nodes: CompoundNode | list[List]) -> Iterator[SoundtrackPart]:
         # log.debug(f'Processing OST parts from {edition=}')
         for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
             # log.debug(f'_init_ost_edition_parts: {node=}, {artist_nodes=}')
@@ -744,7 +756,7 @@ class EditionPartFinder:
 # region OST Edition Parts
 
 
-def _process_ost_part_lists(list_nodes: list[List]):
+def _process_ost_part_lists(list_nodes: CompoundNode | list[List]):
     i_list_nodes = iter(list_nodes)
     for list_node in i_list_nodes:
         node = list_node[0].value

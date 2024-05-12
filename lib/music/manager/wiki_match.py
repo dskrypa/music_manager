@@ -266,6 +266,7 @@ class AlbumFinder:
 
     def _choose_candidate(self, candidates, name=None) -> DEPartOrEntry:
         before = f'\nFound multiple possible matches for {name or self.album_meta}'
+        # TODO: Include current track count + the count for each candidate in the popup
         return choose_item(candidates, 'candidate', before=before, before_color=14)
 
     def _from_album_dir_url(self, album_url: str) -> DEPartOrEntry:

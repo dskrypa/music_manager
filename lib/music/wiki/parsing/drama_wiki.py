@@ -10,7 +10,8 @@ from collections import Counter
 from datetime import datetime, date
 from typing import TYPE_CHECKING, Iterator, Optional
 
-from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section, Tag
+from ds_tools.caching.decorators import cached_property
+from wiki_nodes.nodes import N, ContainerNode, Link, String, MappingNode, Section, Tag, AnyNode
 from wiki_nodes.page import WikiPage
 
 from music.text.extraction import ends_with_enclosed, split_enclosed
@@ -61,6 +62,16 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         if trivia := get_section_map(artist_page, 'Trivia'):
             if group_info := trivia.get('KPOP group'):
                 yield from group_info.find_all(Link, True)
+
+    # endregion
+
+    # region High Level Discography
+
+    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
+        ArtistDiscographyParser(artist_page, finder, self).process_disco_sections()
+
+    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
+        raise NotImplementedError
 
     # endregion
 
@@ -182,72 +193,6 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
 
     # endregion
 
-    # region High Level Discography
-
-    def process_disco_sections(self, artist_page: WikiPage, finder: DiscographyEntryFinder) -> None:
-        try:
-            section = artist_page.sections.find('TV Show Theme Songs')
-        except KeyError:
-            return
-
-        link_map = {link.show: link for link in artist_page.links()}
-        # Typical format: {song title} [by {member}] - {soundtrack title} ({year})
-        for entry in section.content.iter_flat():
-            if isinstance(entry, String):
-                if m := SONG_OST_YEAR_MATCH(entry.value):
-                    song, album, year = map(str.strip, m.groups())
-                    log.debug(f'Creating entry for {song=} {album=} {year=}')
-                    disco_entry = DiscoEntry(
-                        artist_page, entry, type_='Soundtrack', year=int(year), song=song, title=album
-                    )
-                    if link := link_map.get(album):
-                        log.debug(f'  > Adding {link=}')
-                        finder.add_entry_link(link, disco_entry)
-                    else:
-                        log.debug(f'  > Adding {entry=}')
-                        finder.add_entry(disco_entry, entry)
-                else:
-                    log.debug(f'Unexpected String disco {entry=} / {entry.value!r}')
-            else:
-                album, song, year = None, None, None
-                song_str = entry[0].value  # type: str
-                if song_str.endswith('-'):
-                    song = song_str[:-1].strip()
-                elif song_str.endswith(' with'):
-                    song = song_str[:-4].strip()
-
-                end_str = entry[-1].value  # type: str
-                if m := YEAR_MATCH(end_str):
-                    album = m.group(1).strip() or None
-                    year = int(m.group(2))
-
-                log.debug(f'Creating entry for {song=} {album=} {year=} | {song_str=} {end_str=} {entry=}')
-                disco_entry = DiscoEntry(artist_page, entry, type_='Soundtrack', year=year, song=song, title=album)
-
-                if link := link_map.get(album):
-                    log.debug(f'  > Adding {link=}')
-                    finder.add_entry_link(link, disco_entry)
-                else:
-                    if links := list(entry.find_all(Link, True)):
-                        try:
-                            entities = EntertainmentEntity.from_links(links)
-                        except Exception as e:
-                            log.debug(f'Error retrieving EntertainmentEntities from {links=}: {e}')
-                        else:
-                            artist_cats = (GROUP_CATEGORIES, SINGER_CATEGORIES)
-                            links = [link for link, ent in entities.items() if ent._categories not in artist_cats]
-
-                    if not finder.add_entry_links(links, disco_entry):
-                        if isinstance(entry[-2], String):
-                            disco_entry.title = entry[-2].value
-                        log.debug(f'  > Adding {entry=}')
-                        finder.add_entry(disco_entry, entry)
-
-    def parse_disco_page_entries(self, disco_page: WikiPage, finder: DiscographyEntryFinder) -> None:
-        raise NotImplementedError
-
-    # endregion
-
     # region Show / OST
 
     def parse_soundtrack_links(self, page: WikiPage) -> Iterator[Link]:
@@ -264,6 +209,91 @@ class DramaWikiParser(WikiParser, site='wiki.d-addicts.com'):
         return TVSeries.from_link(link) if link else None
 
     # endregion
+
+
+class ArtistDiscographyParser:
+    def __init__(self, artist_page: WikiPage, finder: DiscographyEntryFinder, site_parser: DramaWikiParser):
+        self.artist_page: WikiPage = artist_page
+        self.finder: DiscographyEntryFinder = finder
+        self.site_parser: DramaWikiParser = site_parser
+
+    @cached_property
+    def link_map(self):
+        return {link.show: link for link in self.artist_page.links()}
+
+    def process_disco_sections(self):
+        try:
+            section = self.artist_page.sections.find('TV Show Theme Songs')
+        except KeyError:
+            log.debug(f'No Discography section found in {self.artist_page}')
+            return
+
+        # Typical format: {song title} [by {member}] - {soundtrack title} ({year})
+        for entry in section.content.iter_flat():
+            if isinstance(entry, String):
+                self._process_string_entry(entry)
+            else:
+                self._process_other_entry(entry)
+
+    def _process_string_entry(self, entry: String):
+        if m := SONG_OST_YEAR_MATCH(entry.value):
+            song, album, year = map(str.strip, m.groups())
+            log.debug(f'Creating entry for {song=} {album=} {year=}')
+            disco_entry = DiscoEntry(
+                self.artist_page, entry, type_='Soundtrack', year=int(year), song=song, title=album
+            )
+            if link := self.link_map.get(album):
+                log.debug(f'  > Adding {link=}')
+                self.finder.add_entry_link(link, disco_entry)
+            else:
+                log.debug(f'  > Adding {entry=}')
+                self.finder.add_entry(disco_entry, entry)
+        else:
+            log.debug(f'Unexpected String disco {entry=} / {entry.value!r}')
+
+    def _process_other_entry(self, entry: AnyNode):
+        song_str, song = self._parse_song(entry)
+
+        end_str = entry[-1].value  # type: str
+        if m := YEAR_MATCH(end_str):
+            album = m.group(1).strip() or None
+            year = int(m.group(2))
+        else:
+            album = year = None
+
+        log.debug(f'Creating entry for {song=} {album=} {year=} | {song_str=} {end_str=} {entry=}')
+        disco_entry = DiscoEntry(self.artist_page, entry, type_='Soundtrack', year=year, song=song, title=album)
+
+        if link := self.link_map.get(album):
+            log.debug(f'  > Adding {link=}')
+            self.finder.add_entry_link(link, disco_entry)
+            return
+
+        if links := list(entry.find_all(Link, True)):
+            try:
+                entities = EntertainmentEntity.from_links(links)
+            except Exception as e:
+                log.debug(f'Error retrieving EntertainmentEntities from {links=}: {e}')
+            else:
+                artist_cats = (GROUP_CATEGORIES, SINGER_CATEGORIES)
+                links = [link for link, ent in entities.items() if ent._categories not in artist_cats]
+
+        if not self.finder.add_entry_links(links, disco_entry):
+            if isinstance(entry[-2], String):
+                disco_entry.title = entry[-2].value
+            log.debug(f'  > Adding {entry=}')
+            self.finder.add_entry(disco_entry, entry)
+
+    def _parse_song(self, entry: AnyNode) -> tuple[str, str | None]:
+        song_str = entry[0].value  # type: str
+        if song_str.endswith('-'):
+            song = song_str[:-1].strip()
+        elif song_str.endswith(' with'):
+            song = song_str[:-4].strip()
+        else:
+            song = None
+
+        return song_str, song
 
 
 def get_info_map(section_content):

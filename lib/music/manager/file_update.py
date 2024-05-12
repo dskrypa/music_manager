@@ -11,12 +11,12 @@ from functools import partial
 from multiprocessing import Pool
 from typing import TYPE_CHECKING, Iterable
 
-from ds_tools.input import get_input
 from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 
-from ..files.album import iter_album_dirs, iter_albums_or_files
-from ..files.exceptions import TagException
-from ..files.track.track import iter_music_files, SongFile
+from music.common.prompts import get_input
+from music.files.album import iter_album_dirs, iter_albums_or_files
+from music.files.exceptions import TagException
+from music.files.track.track import iter_music_files, SongFile
 
 if TYPE_CHECKING:
     from ds_tools.fs.typing import Paths

@@ -7,17 +7,13 @@ Unification of CLI and GUI prompts
 import logging
 from enum import Enum
 from getpass import getpass as cli_getpass
-from typing import Union, Callable, Collection, Any, Optional
+from typing import Callable, Collection, Any
 
 from ds_tools.input.prompts import choose_item as cli_choose_item, Color, get_input as cli_get_input, _NotSet
 from ds_tools.input.parsers import parse_yes_no
 
 from tk_gui.popups import popup_yes_no as tkg_yes_no, popup_get_text as tkg_get_text, popup_get_password as tkg_get_pw
 from tk_gui.popups import choose_item as tkg_choose_item
-
-from ..gui.popups.choose_item import choose_item as gui_choose_item
-from ..gui.popups.simple import popup_yes_no
-from ..gui.popups.text import popup_get_text
 
 __all__ = ['choose_item', 'UIMode', 'set_ui_mode', 'get_input', 'getpass']
 log = logging.getLogger(__name__)
@@ -36,7 +32,7 @@ class UIMode(Enum):
 UI_MODE = UIMode.CLI
 
 
-def set_ui_mode(mode: Union[str, UIMode]):
+def set_ui_mode(mode: UIMode | str):
     global UI_MODE
     UI_MODE = UIMode(mode)
 
@@ -46,7 +42,7 @@ def choose_item(
     name: str = 'value',
     source: Any = '',
     *,
-    before: Optional[str] = None,
+    before: str | None = None,
     retry: int = 0,
     before_color: Color = None,
     prompt_color: Color = 14,
@@ -69,6 +65,9 @@ def choose_item(
     elif UI_MODE == UIMode.TK_GUI:
         return tkg_choose_item(items, item_name=name, source=source, text=before, repr_func=repr_func, keep_on_top=True)
     else:
+        from music.gui.popups.choose_item import choose_item as gui_choose_item
+
+        _log_psg_warning('choose_item')
         return gui_choose_item(items, name, source, before=before, repr_func=repr_func)
 
 
@@ -89,12 +88,20 @@ def get_input(
     elif parser is parse_yes_no:
         if UI_MODE == UIMode.TK_GUI:
             return tkg_yes_no(prompt, keep_on_top=True, **kwargs)
-        return popup_yes_no(prompt, **kwargs)
+        else:
+            from music.gui.popups.simple import popup_yes_no
+
+            _log_psg_warning('popup_yes_no')
+            return popup_yes_no(prompt, **kwargs)
     else:
         if UI_MODE == UIMode.TK_GUI:
             result = tkg_get_text(prompt, keep_on_top=True, **kwargs)
         else:
+            from music.gui.popups.text import popup_get_text
+
+            _log_psg_warning('popup_get_text')
             result = popup_get_text(prompt, **kwargs)
+
         return parser(result)
 
 
@@ -104,4 +111,11 @@ def getpass(prompt: str, **kwargs):
     elif UI_MODE == UIMode.TK_GUI:
         return tkg_get_pw(prompt, keep_on_top=True, **kwargs)
     else:
+        from music.gui.popups.text import popup_get_text
+
+        _log_psg_warning('popup_get_text')
         return popup_get_text(prompt, password_char='*', **kwargs)
+
+
+def _log_psg_warning(func: str):
+    log.warning(f'Using deprecated PySimpleGUI {func}', extra={'color': {'color': 9, 'attrs': 'underlined'}})

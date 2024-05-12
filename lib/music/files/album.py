@@ -273,9 +273,9 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         if len(titles) == 1:
             title = titles.pop()
         elif len(titles) > 1:
-            log.warning('Conflicting album titles were found for {}: {}'.format(self, ', '.join(map(str, titles))))
+            log.warning(f'Conflicting album titles were found for {self}: {", ".join(map(str, titles))}')
         elif not titles:
-            log.warning('No album titles were found for {}'.format(self))
+            log.warning(f'No album titles were found for {self}')
         return title
 
     @cached_property
@@ -283,20 +283,18 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         return set(chain.from_iterable(music_file.all_artists for music_file in self.songs))
 
     @cached_property
-    def artist_url(self):
-        urls = set(music_file.artist_url for music_file in self.songs)
-        if len(urls) == 1:
-            return next(iter(urls))
-        elif urls:
+    def artist_url(self) -> str | None:
+        if urls := set(music_file.artist_url for music_file in self.songs):
+            if len(urls) == 1:
+                return next(iter(urls))
             log.debug(f'Found too many ({len(urls)}) artist URLs for {self}')
         return None
 
     @cached_property
-    def album_url(self):
-        urls = set(music_file.album_url for music_file in self.songs)
-        if len(urls) == 1:
-            return next(iter(urls))
-        elif urls:
+    def album_url(self) -> str | None:
+        if urls := set(music_file.album_url for music_file in self.songs):
+            if len(urls) == 1:
+                return next(iter(urls))
             log.debug(f'Found too many ({len(urls)}) album URLs for {self}')
         return None
 
@@ -313,7 +311,6 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         groups = defaultdict(set)
         for artist in self.all_artists:
             if (extra := artist.extra) and (group := extra.get('group')):
-                # noinspection PyUnboundLocalVariable
                 groups[group].add(artist)
         return groups
 
@@ -323,9 +320,9 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             if len(artists) == 1:
                 return next(iter(artists))
 
-            artists = Counter(chain.from_iterable(music_file.album_artists for music_file in self.songs))
-            artist = max(artists.items(), key=lambda kv: kv[1])[0]  # noqa
-            return artist
+            artists = Counter(a for music_file in self.songs for a in music_file.album_artists)
+            return max(artists.items(), key=lambda kv: kv[1])[0]
+
         return None
 
     @cached_property
@@ -345,30 +342,23 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
                 return next(iter(names))
 
             names = Counter(music_file.album_name for music_file in self.songs)
-            name = max(names.items(), key=lambda kv: kv[1])[0]  # noqa
-            return name
+            return max(names.items(), key=lambda kv: kv[1])[0]
 
         log.debug(f'{self}.names => {names}')
         return None
 
     @cached_property
     def type(self) -> DiscoEntryType:
-        if name := self.name:
-            return name.type
-        return DiscoEntryType.UNKNOWN
+        return self.name.type if self.name else DiscoEntryType.UNKNOWN
 
     @property
-    def length(self) -> int:
-        """
-        :return float: The length of this album in seconds
-        """
+    def length(self) -> float:
+        """The length of this album in seconds"""
         return sum(f.length for f in self.songs)
 
     @cached_property
     def length_str(self) -> str:
-        """
-        :return str: The length of this album in the format (HH:M)M:SS
-        """
+        """The length of this album in the format (HH:M)M:SS"""
         length = format_duration(int(self.length))  # Most other programs seem to floor the seconds
         if length.startswith('00:'):
             length = length[3:]
@@ -382,7 +372,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         if len(nums) == 1:
             return nums.pop()
         else:
-            log.error('Error determining disk number for {}: {}'.format(self, nums))
+            log.error(f'Error determining disk number for {self}: {nums}')
             return None
 
     @cached_property
@@ -441,23 +431,21 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
 
 
 def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:
-    for path in iter_paths(paths):
-        if path.is_dir():
-            for root, dirs, files in os.walk(path.as_posix()):  # as_posix for 3.5 compatibility
-                if files and not dirs:
-                    yield AlbumDir(root)
-        elif path.is_file():
-            yield AlbumDir(path.parent)
+    return _iter_albums_or_files(paths, False)
 
 
 def iter_albums_or_files(paths: Paths) -> Iterator[Union[AlbumDir, SongFile]]:
+    return _iter_albums_or_files(paths, True)
+
+
+def _iter_albums_or_files(paths: Paths, allow_files: bool) -> Iterator[Union[AlbumDir, SongFile]]:
     for path in iter_paths(paths):
         if path.is_dir():
-            for root, dirs, files in os.walk(path.as_posix()):  # as_posix for 3.5 compatibility
+            for root, dirs, files in os.walk(path):
                 if files and not dirs:
                     yield AlbumDir(root)
         elif path.is_file():
-            yield SongFile(path)
+            yield SongFile(path) if allow_files else AlbumDir(path.parent)
 
 
 def _normalize_init_path(path: PathLike) -> Path:

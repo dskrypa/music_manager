@@ -5,11 +5,12 @@
 import re
 from typing import Sequence, Iterable, Optional, Match
 
+from ds_tools.core.decorate import cached_classproperty
 from ds_tools.utils.text_processing import common_suffix
 
 from .extraction import ends_with_enclosed, split_enclosed
 
-__all__ = ['combine_with_parens', 'find_ordinal', 'title_case']
+__all__ = ['combine_with_parens', 'find_ordinal', 'title_case', 'NumberParser', 'parse_int_words']
 
 
 def combine_with_parens(parts: Iterable[str]) -> str:
@@ -68,3 +69,41 @@ def title_case(text: str):
         return group[0].upper() + group[1:].lower()
 
     return CAPITALIZE_SUB(_capitalize, text)
+
+
+class NumberParser:
+    @cached_classproperty
+    def magnitudes(cls) -> dict[str, int]:  # noqa
+        names = ['hundred', 'thousand', 'million', 'billion', 'trillion']
+        return {word: 10 ** (i * 3 or 2) for i, word in enumerate(names)}
+
+    @cached_classproperty
+    def word_value_map(cls) -> dict[str, int]:  # noqa
+        singles = [
+            'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+            'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+            'sixteen', 'seventeen', 'eighteen', 'nineteen',
+        ]
+        tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+        return {w: i for i, w in enumerate(singles)} | {w: i * 10 for i, w in enumerate(tens) if w}
+
+    def parse(self, text: str) -> int:
+        try:
+            return int(text.strip())
+        except ValueError:
+            pass
+
+        current = result = 0
+        for word in (w.lower() for w in map(str.strip, re.split(r'-|\s', text)) if w):
+            if scale := self.magnitudes.get(word):
+                result += current * scale
+                current = 0
+            elif (value := self.word_value_map.get(word)) is not None:
+                current += value
+            elif word != 'and':
+                raise ValueError(f'Invalid number {word=}')
+
+        return result + current
+
+
+parse_int_words = NumberParser().parse

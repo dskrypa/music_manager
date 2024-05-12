@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 __all__ = [
     'FEAT_ARTIST_INDICATORS',
     'LANG_ABBREV_MAP',
-    'NUM2INT',
     'get_artist_title',
     'find_language',
     'LANGUAGES',
@@ -48,7 +47,6 @@ MULTI_LANG_NAME_SEARCH = re.compile(r'^([^(]+ \([^;]+?\))').search
 LANG_PREFIX_SUB = re.compile(r'(?:{})\s?:'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE).sub
 LANG_ABBREV_PAT = re.compile(r'(^|\s)({})(\s|$)'.format('|'.join(LANG_ABBREV_MAP)), re.IGNORECASE)
 LIST_SPLIT = re.compile(r'[,;] ').split
-NUM2INT = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9}
 WIKI_STYLE_SEARCHES = (
     re.compile(r"^(''''')(.+?)(\1)").search, re.compile(r"^(''')(.+?)(\1)").search, re.compile(r"^('')(.+?)(\1)").search
 )

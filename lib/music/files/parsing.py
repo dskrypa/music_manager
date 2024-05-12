@@ -16,7 +16,7 @@ from ds_tools.unicode.hangul.constants import HANGUL_REGEX_CHAR_CLASS
 from ..common.disco_entry import DiscoEntryType
 from ..text.extraction import split_enclosed, has_unpaired, ends_with_enclosed, get_unpaired, strip_unpaired
 from ..text.name import Name, sort_name_parts
-from ..text.utils import find_ordinal
+from ..text.utils import find_ordinal, NumberParser, parse_int_words
 
 __all__ = ['AlbumName', 'split_artists', 'UnexpectedListFormat']
 log = logging.getLogger(__name__)
@@ -34,7 +34,13 @@ NTH_ALB_TYPE_MATCH = re.compile(
     r'(.*?album\s*(?:repackage)?)(.*)$',
     re.IGNORECASE,
 ).match
-OST_PART_MATCH = re.compile(r'(.*?)\s((?:O\.?S\.?T\.?)?)\s*-?\s*((?:Part|Code No)?)\.?\s*(\d+)$', re.IGNORECASE).match
+OST_PART_MATCH = re.compile(
+    '(.*?)'
+    + r'\s((?:O\.?S\.?T\.?)?)\s*[:-]?\s*((?:Part|Code No)?)\.?\s*'
+    + r'(\d+|' + '|'.join(NumberParser.word_value_map) + ')'
+    + '$',
+    re.IGNORECASE,
+).match
 REPACKAGE_ALBUM_MATCH = re.compile(r'^re:?package\salbum\s(.*)$', re.IGNORECASE).match
 SPECIAL_PREFIX_MATCH = re.compile(r'^(\S+\s+special)\s+(.*)$', re.IGNORECASE).match
 
@@ -128,7 +134,7 @@ class AlbumName:
             _name, _ost, _part, part_num = map(clean, m.groups())
             if _part or _ost:
                 self.ost = True
-                self.part = int(part_num)
+                self.part = parse_int_words(part_num)
                 name = _name
 
         try:
@@ -268,11 +274,11 @@ class AlbumName:
             if part:
                 name_parts.append(part)
         elif m := OST_PART_MATCH(part):
-            # log.debug(f'OST_PART_MATCH({part!r}) => {m.groups()}')
+            # log.debug(f'OST_PART_MATCH({part!r}) => {m.groups()} [{orig_parts=}]')
             _part, _ost, _part_, part_num = map(clean, m.groups())
             if _part_ or _ost:
                 self.ost = True
-                self.part = int(part_num)
+                self.part = parse_int_words(part_num)
                 part = _part
                 if len(orig_parts) == 2 and 'OST' not in orig_parts[int(not i)]:
                     real_album = part

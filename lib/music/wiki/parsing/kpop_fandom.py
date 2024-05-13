@@ -19,8 +19,9 @@ from wiki_nodes.page import WikiPage
 
 from music.common.disco_entry import DiscoEntryType
 from music.text.extraction import split_enclosed, ends_with_enclosed, has_unpaired, is_enclosed, partition_enclosed
+from music.text.extraction import strip_enclosed
 from music.text.name import Name
-from music.text.time import parse_date
+from music.text.time import parse_date, DateResult
 from music.text.utils import combine_with_parens, find_ordinal
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart, SoundtrackPart
 from ..base import EntertainmentEntity, GROUP_CATEGORIES, TVSeries
@@ -435,7 +436,9 @@ class EditionFinder:
 
     @property
     def is_ost(self) -> bool:
-        return self.entry.type == DiscoEntryType.Soundtrack
+        # This uses ._type instead of .type to avoid infinite recursion when ._type is None and DiscographyEntry.type
+        # checks editions to determine the type
+        return self.entry._type == DiscoEntryType.Soundtrack
 
     def editions(self) -> EditionIterator:
         track_list_section = self.get_track_list_section()
@@ -725,20 +728,61 @@ class EditionPartFinder:
             # log.debug(f'Processing edition part content with {content.__class__=}')
             return content, False
 
+    def _get_release_dates(self) -> list[tuple[str, DateResult]]:
+        try:
+            released = self.edition.page.infobox.value.get('released')
+        except (KeyError, AttributeError):
+            return []
+
+        ignore = {'<br>', '<br/>'}
+        try:
+            strings = [
+                s
+                for node in released
+                if (s := _get_str_value(node).strip()) and s not in ignore and (s := strip_enclosed(s).strip())
+            ]
+        except Exception as e:
+            log.debug(f'Unable to parse strings from released box: {e}', exc_info=True)
+            return []
+
+        # log.debug(f'Infobox released={strings}')
+
+        # Using a list of tuples for now in case a first date needs to be selected, or something like that...
+        release_dates = []
+        strings.reverse()
+        while strings:
+            try:
+                release_date = parse_date(strings.pop())
+            except ValueError:
+                log.debug(f'Unexpected released box content: {released}')
+                return []
+            try:
+                name_str = strings.pop()
+            except IndexError:
+                log.debug(f'Unexpected released box content: {released}')
+            else:
+                release_dates.append((name_str, release_date))
+
+        return release_dates
+
     def _process_ost_parts(self, list_nodes: CompoundNode | list[List]) -> Iterator[SoundtrackPart]:
         # log.debug(f'Processing OST parts from {edition=}')
+        release_dates = self._get_release_dates()
+        # log.debug(f'Found {release_dates=}', extra={'color': 14})
+
         for node, artist_nodes, track_list in _process_ost_part_lists(list_nodes):
             # log.debug(f'_init_ost_edition_parts: {node=}, {artist_nodes=}')
             if not isinstance(node, (String, Link)):  # Likely a CompoundNode with ele 0 being a String
                 node = node[0]
             name = node.show if isinstance(node, Link) else node.value
             artists = set(find_nodes(artist_nodes, Link)) if artist_nodes else None
+            released = next((d for n, d in release_dates if n == name), None)
             # yield DiscographyEntryPart(name, edition, track_list)
             num = _parse_ost_part_num(name)
             if num is not None:
                 name = f'Part {num}'
-            # log.debug(f'_init_ost_edition_parts: {num=}, {name=}, {artists=}')
-            yield SoundtrackPart(num, name, self.edition, track_list, artist=artists)
+            # log.debug(f'_init_ost_edition_parts: {num=}, {name=}, {artists=}, {released=}')
+            yield SoundtrackPart(num, name, self.edition, track_list, artist=artists, release_date=released)
 
     def _process_section_map(self, section_map: dict[str, Section]) -> Iterator[DiscographyEntryPart]:
         for name, section in section_map.items():

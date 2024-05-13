@@ -333,7 +333,19 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
 
     @cached_property
     def names(self) -> set[AlbumName]:
-        return {music_file.album_name for music_file in self.songs}
+        if names := set(self._album_names_from_tracks()):
+            return names
+
+        # If there is only one track, or two with matching names where one is an instrumental version, assume this
+        # album is a single
+        if len(self.songs) == 1 and (name := self.songs[0].title_as_album_name):
+            return {name}
+        elif len(self.songs) == 2:
+            ts = sorted([(s.tag_title, s) for s in self.songs], key=lambda x: len(x[0]))
+            if ts[1][0].startswith(ts[0][0]) and '(inst' in ts[1][0] and (name := ts[0][1].title_as_album_name):
+                return {name}
+
+        return names
 
     @cached_property
     def name(self) -> Optional[AlbumName]:
@@ -341,11 +353,23 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             if len(names) == 1:
                 return next(iter(names))
 
-            names = Counter(music_file.album_name for music_file in self.songs)
-            return max(names.items(), key=lambda kv: kv[1])[0]
+            # names = Counter(music_file.album_name for music_file in self.songs)
+            # return max(names.items(), key=lambda kv: kv[1])[0]
+            names = Counter(self._album_names_from_tracks())
+            max_count = max(names.values())
+            # Pick the alphanumerically sorted first name that occurs most frequently, even if multiple names have
+            # the name number of occurrences
+            return min(name for name, freq in names.items() if freq == max_count)
 
         log.debug(f'{self}.names => {names}')
         return None
+
+    def _album_names_from_tracks(self) -> Iterator[AlbumName]:
+        for track in self.songs:
+            if track.album_name:
+                yield track.album_name
+            if track.album_title_name:
+                yield track.album_title_name
 
     @cached_property
     def type(self) -> DiscoEntryType:

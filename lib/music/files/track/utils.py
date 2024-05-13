@@ -23,7 +23,7 @@ def tag_repr(tag_val, max_len=None, sub_len=None):
         img_type = tag_val.type._pprint()  # noqa
         if img_type.startswith('cover'):
             img_type = '{} ({})'.format(*img_type.split())
-        return f'<APIC[mime={tag_val.mime!r}, type={img_type!r}, desc={tag_val.desc!r}, size={size}]>'  # noqa
+        return f'<APIC[mime={tag_val.mime!r}, type={img_type!r}, desc={tag_val.desc!r}, {size=}]>'  # noqa
     elif isinstance(tag_val, USLT) and max_len is None and sub_len is None:
         max_len, sub_len = 45, 20
     else:

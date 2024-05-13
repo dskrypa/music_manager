@@ -80,11 +80,6 @@ class AlbumName:
         parts = f', {parts}' if parts else ''
         return f'{self.__class__.__name__}[{self.type.name}]({self.name!r}{parts})'
 
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, self.__class__):
-            return False
-        return self.__parts == other.__parts
-
     def __dir__(self) -> list[str]:
         return sorted(set(dir(self.__class__)).union(_fields(self)))
 
@@ -93,7 +88,17 @@ class AlbumName:
         return tuple(getattr(self, attr) for attr in _fields(self))
 
     def __hash__(self) -> int:
-        return reduce(xor, map(hash, self.__parts))
+        return hash(self.__class__) ^ reduce(xor, map(hash, self.__parts))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+        return self.__parts == other.__parts
+
+    def __lt__(self, other) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.name < other.name
 
     @cached_property
     def type(self) -> DiscoEntryType:

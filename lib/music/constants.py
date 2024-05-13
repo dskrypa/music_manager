@@ -3,6 +3,7 @@ TYPED_TAG_MAP = {   # See: https://wiki.hydrogenaud.io/index.php?title=Tag_Mappi
     'date': {'mp4': '\xa9day', 'id3': 'TDRC', 'vorbis': 'DATE'},
     'genre': {'mp4': '\xa9gen', 'id3': 'TCON', 'vorbis': 'GENRE'},
     'album': {'mp4': '\xa9alb', 'id3': 'TALB', 'vorbis': 'ALBUM'},
+    'album_title': {'vorbis': 'ALBUMTITLE'},  # Non-standard tag, but encountered on a fair number of files in the wild
     'artist': {'mp4': '\xa9ART', 'id3': 'TPE1', 'vorbis': 'ARTIST'},
     'album_artist': {'mp4': 'aART', 'id3': 'TPE2', 'vorbis': 'ALBUMARTIST'},
     'track': {'mp4': 'trkn', 'id3': 'TRCK', 'vorbis': 'TRACKNUMBER'},

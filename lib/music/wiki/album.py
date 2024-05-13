@@ -119,7 +119,7 @@ class DiscographyEntry(EntertainmentEntity):
         return self.year or release_date.year, release_date, self.name
 
     def __lt__(self, other: DiscographyEntry) -> bool:
-        return self._sort_key < other._sort_key
+        return self._sort_key < other._sort_key  # noqa
 
     def __iter__(self) -> Iterator[DiscographyEntryEdition]:
         """Iterate over every edition part in this DiscographyEntry"""

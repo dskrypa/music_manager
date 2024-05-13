@@ -90,6 +90,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_album_artist: OptStr    = TextTagProperty('album_artist', default=None)
     tag_title: OptStr           = TextTagProperty('title', default=None)
     tag_album: OptStr           = TextTagProperty('album', default=None)
+    tag_album_title: OptStr     = TextTagProperty('album_title', default=None)  # Non-standard, low frequency of use
     tag_genre: OptStr           = TextTagProperty('genre', default=None)
     tag_genres: list[str]       = TagValuesProperty('genre', default=None)
     date: Optional[date]        = TextTagProperty('date', parse_file_date, default=None)
@@ -111,7 +112,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return cls.__instances[file_path]
         except KeyError:
             if (music_file := cls._new_file(file_path, *args, options=options, **kwargs)) is not None:
-                mf_cls = cls.__ft_cls_map.get(type(music_file), cls)
+                mf_cls: Type[SongFile] = cls.__ft_cls_map.get(type(music_file), cls)
                 # print(f'Found {mf_cls=} for {type(music_file)=}')
                 obj = super().__new__(mf_cls)
             else:
@@ -601,7 +602,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         """
         try:
             values = self.get_tag_values(tag, strip=strip, by_id=by_id)
-        except TagNotFound:
+        except (TagNotFound, UnsupportedTagForFileType):
             if default is _NotSet:
                 raise
             return default
@@ -685,6 +686,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     @cached_property
     def album_name(self) -> Optional[AlbumName]:
         if album := self.tag_album:
+            return AlbumName.parse(album, self.tag_artist)
+        return None
+
+    @cached_property
+    def album_title_name(self) -> Optional[AlbumName]:
+        # Non-standard, but encountered occasionally in the wild
+        if album := self.tag_album_title:
             return AlbumName.parse(album, self.tag_artist)
         return None
 
@@ -1461,8 +1469,7 @@ class OggFile(VorbisSongFile, ft_classes=(OggFileType, OggFLAC, OggVorbis, OggOp
 def iter_music_files(paths: Paths) -> Iterator[SongFile]:
     non_music_exts = {'.jpg', '.jpeg', '.png', '.jfif', '.part', '.pdf', '.zip', '.webp'}
     for file_path in iter_files(paths):
-        music_file = SongFile(file_path)
-        if music_file:
+        if music_file := SongFile(file_path):
             yield music_file
         else:
             if file_path.suffix not in non_music_exts:

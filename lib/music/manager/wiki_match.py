@@ -254,13 +254,13 @@ class AlbumFinder:
             return self._from_album_dir_url(album_url)
         elif album_name := album_meta.name:
             return self._from_album_name(album_name)
-        elif (album_dir := album_meta.album_dir) is None:
-            raise ValueError('An album name is required to find an album match without an album directory')
-        elif album_dir.names == {None}:
-            if len(album_dir) == 1 and (album_name := album_dir.songs[0].title_as_album_name):
-                log.debug(f'Using single {album_name=}')
-                return self._from_album_name(album_name)
-            raise ValueError(f'No album name is defined for album={album_dir.path.as_posix()!r}')
+        # elif (album_dir := album_meta.album_dir) is None:
+        #     raise ValueError('An album name is required to find an album match without an album directory')
+        # elif album_dir.names == {None}:
+        #     if len(album_dir) == 1 and (album_name := album_dir.songs[0].title_as_album_name):
+        #         log.debug(f'Using single {album_name=}')
+        #         return self._from_album_name(album_name)
+        #     raise ValueError(f'No album name is defined for album={album_dir.path.as_posix()!r}')
         else:
             raise ValueError('Directories with multiple album names are not currently handled.')
 

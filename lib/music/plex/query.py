@@ -19,7 +19,7 @@ from ..files.track.track import SongFile
 from ..text.name import Name
 from .config import config
 from .exceptions import InvalidQueryFilter
-from .filters import check_attrs
+from .filters import ele_matches_filters
 
 if TYPE_CHECKING:
     from .server import LocalPlexServer
@@ -197,7 +197,7 @@ class QueryResults:
         final_filters = '\n'.join(f'    {key}={short_repr(val)}' for key, val in sorted(kwargs.items()))
         msg = msg or 'the following'
         log.debug(f'Applying {msg} filters to {self._type}s:\n{final_filters}')
-        return [elem for elem in data if check_attrs(elem, **kwargs)]
+        return [elem for elem in data if ele_matches_filters(elem, **kwargs)]
 
     def filter(self, **kwargs) -> QueryResults:
         if not kwargs:

@@ -11,7 +11,7 @@ import json
 import logging
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Union, Collection, Optional
+from typing import TYPE_CHECKING, Collection
 from xml.etree.ElementTree import tostring, fromstring
 
 from plexapi.audio import Track
@@ -22,43 +22,34 @@ from plexapi.utils import joinArgs
 from ds_tools.fs.paths import prepare_path
 from ds_tools.output.color import colored
 from ds_tools.output.formatting import bullet_list
+from ds_tools.output.prefix import LoggingPrefix
+
 from .exceptions import InvalidPlaylist
 from .query import QueryResults
 
 if TYPE_CHECKING:
     from music.typing import PathLike
     from .server import LocalPlexServer
+    from .typing import PlaylistType
 
 __all__ = ['PlexPlaylist', 'dump_playlists', 'compare_playlists', 'list_playlists']
 log = logging.getLogger(__name__)
-Tracks = Union[Collection[Track], QueryResults]
+
+Tracks = Collection[Track] | QueryResults
 
 
 class PlexPlaylist:
+    plex: LocalPlexServer
+    name: str
+    lp: LoggingPrefix
+
     def __init__(self, name: str, plex: LocalPlexServer = None, playlist: Playlist = None):
         self.plex = _get_plex(plex)
         self.name = name
         self._playlist = playlist
+        self.lp = LoggingPrefix(self.plex.dry_run)
 
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.name!r})'
-
-    @property
-    def playlist(self) -> Optional[Playlist]:
-        if self._playlist is None:
-            playlists = self.plex.server.playlists()
-            if (playlist := next((p for p in playlists if p.title == self.name), None)) is not None:
-                self._playlist = playlist
-            else:
-                lc_name = self.name.lower()
-                if (playlist := next((p for p in playlists if p.title.lower() == lc_name), None)) is not None:
-                    self._playlist = playlist
-                    self.name = playlist.title
-        return self._playlist
-
-    @property
-    def exists(self):
-        return self.playlist is not None
+    # region Create Playlist
 
     @classmethod
     def new(cls, name: str, plex: LocalPlexServer = None, content: Tracks = None, **criteria) -> PlexPlaylist:
@@ -68,27 +59,54 @@ class PlexPlaylist:
 
     def create(self, content: Tracks = None, **criteria):
         items = list(_get_tracks(self.plex, content, **criteria))
-        prefix = '[DRY RUN] Would create' if self.plex.dry_run else 'Creating'
-        log.info(f'{prefix} {self} with {len(items):,d} tracks', extra={'color': 10})
+        log.info(f'{self.lp.create} {self} with {len(items):,d} tracks', extra={'color': 10})
         log.debug(f'Creating {self} with tracks: {items}')
         if not self.plex.dry_run:
             self._playlist = Playlist.create(self.plex.server, self.name, items)
 
+    # endregion
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.name!r})'
+
+    # region Properties
+
+    @property
+    def playlist(self) -> Playlist | None:
+        if self._playlist is not None:
+            return self._playlist
+
+        playlists = self.plex.server.playlists()
+        if (playlist := next((p for p in playlists if p.title == self.name), None)) is not None:
+            self._playlist = playlist
+        else:
+            lc_name = self.name.lower()
+            if (playlist := next((p for p in playlists if p.title.lower() == lc_name), None)) is not None:
+                self._playlist = playlist
+                self.name = playlist.title
+        return self._playlist
+
+    @property
+    def exists(self) -> bool:
+        return self.playlist is not None
+
     @cached_property
-    def type(self):
+    def type(self) -> PlaylistType:
         try:
             return self.playlist.playlistType
-        except AttributeError:
-            raise InvalidPlaylist(f'{self} has no type because it does not exist')
+        except AttributeError as e:
+            raise InvalidPlaylist(f'{self} has no type because it does not exist') from e
 
-    def _log_change(self, items: Collection[Track], adding: bool, size: int = None):
-        size = len(self.playlist) if size is None else size
-        dry_run = self.plex.dry_run
-        prefix = f'[DRY RUN] Would {"add" if adding else "remove"}' if dry_run else ('Adding' if adding else 'Removing')
-        num = len(items)
-        new, prep, color = (size + num, 'to', 14) if adding else (size - num, 'from', 13)
-        log.info(f'{prefix} {num:,d} tracks {prep} {self} ({size:,d} tracks => {new:,d}):', extra={'color': color})
-        print(bullet_list(items))
+    @property
+    def tracks(self) -> list[Track]:
+        # Technically, the return type would correspond with the playlist type
+        if playlist := self.playlist:
+            return playlist.items()
+        return []
+
+    # endregion
+
+    # region Add / Remove Items & Sync
 
     def remove_items(self, items: Collection[Track], quiet: bool = False):
         """
@@ -100,24 +118,30 @@ class PlexPlaylist:
                 plist.removeItem(track)
         """
         if not quiet:
-            self._log_change(items, False)
+            self._log_change(items, 'remove')
+
         if self.plex.dry_run:
             return
-        if not (playlist := self.playlist):
+        elif not (playlist := self.playlist):
             raise InvalidPlaylist(f'{self} does not exist - cannot remove items from it')
+
         del_method = playlist._server._session.delete
-        uri_fmt = '{}/items/{{}}'.format(playlist.key)
-        results = [playlist._server.query(uri_fmt.format(item.playlistItemID), method=del_method) for item in items]
+        results = [
+            playlist._server.query(f'{playlist.key}/items/{item.playlistItemID}', method=del_method)
+            for item in items
+        ]
         playlist.reload()
         return results
 
     def add_items(self, items: Collection[Track], quiet: bool = False):
         if not quiet:
-            self._log_change(items, True)
+            self._log_change(items, 'add')
+
         if self.plex.dry_run:
             return
-        if (playlist := self.playlist) is None:
+        elif (playlist := self.playlist) is None:
             raise InvalidPlaylist(f'{self} does not exist - cannot add items to it')
+
         list_type = self.type
         rating_keys = []
         for item in items:
@@ -139,8 +163,7 @@ class PlexPlaylist:
 
     def sync(self, query: QueryResults = None, **criteria):
         expected = _get_tracks(self.plex, query, **criteria)
-        plist = self.playlist
-        plist_items = set(plist.items())
+        plist_items = set(self.playlist.items())
         size = len(plist_items)
         if to_rm := plist_items.difference(expected):
             self.remove_items(to_rm)
@@ -149,7 +172,7 @@ class PlexPlaylist:
             log.log(19, f'{self} does not contain any tracks that should be removed')
 
         if to_add := expected.difference(plist_items):
-            self._log_change(to_add, True, size)
+            self._log_change(to_add, 'add', size)
             self.add_items(to_add, quiet=True)
             size += len(to_add)
         else:
@@ -158,6 +181,19 @@ class PlexPlaylist:
         if not to_add and not to_rm:
             msg = f'{self} contains {size:,d} tracks and is already in sync with the given criteria'
             log.info(msg, extra={'color': 11})
+
+    def _log_change(self, items: Collection[Track], verb: str, size: int = None):
+        if size is None:
+            size = len(self.playlist)
+
+        num = len(items)
+        new, prep, color = (size + num, 'to', 14) if verb == 'add' else (size - num, 'from', 13)
+        log.info(
+            f'{self.lp[verb]} {num:,d} tracks {prep} {self} ({size:,d} tracks => {new:,d}):', extra={'color': color}
+        )
+        print(bullet_list(items, sort=isinstance(items, set)))
+
+    # endregion
 
     def compare_tracks(self, other: PlexPlaylist, strict: bool = False):
         self_tracks = set(self.playlist.items())
@@ -172,16 +208,25 @@ class PlexPlaylist:
             # log.info(f'{len(removed)} tracks are in {other} but not in {self}', extra={'color': 'red'})
             log.info(f'{len(removed)} tracks were removed from {other}:', extra={'color': 'red'})
             print(colored(bullet_list(removed), 'red'))
+
         if added:
             # log.info(f'{len(added)} tracks are in {self} but not in {other}', extra={'color': 'green'})
             log.info(f'{len(added)} tracks were added to {self}:', extra={'color': 'green'})
             print(colored(bullet_list(added), 'green'))
+
         if not removed and not added:
             log.info(f'Playlists {self} and {other} are identical')
 
+    def print_info(self, flac_color: str | int | None = None, other_color: str | int | None = 'red'):
+        tracks = self.playlist.items()
+        print(f'{self} contains {len(tracks)} tracks:')
+        for track in tracks:
+            is_flac = track.media[0].audioCodec == 'flac'
+            print(colored(f'  - {track}', flac_color if is_flac else other_color))
+
     # region Serialization
 
-    def dumps(self) -> dict[str, Union[str, list[str]]]:
+    def dumps(self) -> dict[str, str | list[str]]:
         playlist = tostring(self.playlist._data, encoding='unicode')  # noqa
         tracks = [tostring(track._data, encoding='unicode') for track in self.playlist.items()]
         return {'playlist': playlist, 'tracks': tracks}
@@ -191,16 +236,16 @@ class PlexPlaylist:
         log.info(f'Saving {self} to {path.as_posix()}')
         open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
         with open_func(path, mode, encoding='utf-8') as f:
-            json.dump(self.dumps(), f, indent=4, sort_keys=True)
+            json.dump(self.dumps(), f, indent=4, ensure_ascii=False)
 
     @classmethod
     def dump_all(cls, path: PathLike, plex: LocalPlexServer = None, compress: bool = True):
-        playlists = {name: playlist.dumps() for name, playlist in _get_plex(plex).playlists.items()}
+        playlists = {name: playlist.dumps() for name, playlist in sorted(_get_plex(plex).playlists.items())}
         path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'), add_date=True)
         log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
         open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
         with open_func(path, mode, encoding='utf-8') as f:
-            json.dump(playlists, f, indent=4, sort_keys=True)
+            json.dump(playlists, f, indent=4, ensure_ascii=False)
 
     @classmethod
     def loads(cls, playlist_data: str, track_data: Collection[str], plex: LocalPlexServer = None) -> PlexPlaylist:
@@ -236,20 +281,22 @@ class PlexPlaylist:
 
 # region Public Functions
 
-def dump_playlists(plex: LocalPlexServer, path: Union[str, Path], name: str = None, compress: bool = True):
+
+def dump_playlists(plex: LocalPlexServer, path: str | Path, name: str = None, compress: bool = True):
     if name:
         plex.playlist(name).dump(path, compress)
     else:
         PlexPlaylist.dump_all(path, plex, compress)
 
 
-def compare_playlists(plex: LocalPlexServer, path: Union[str, Path], name: str = None, strict: bool = False):
+def compare_playlists(plex: LocalPlexServer, path: str | Path, name: str = None, strict: bool = False):
     file_playlists = PlexPlaylist.load_all(path, plex)
     if name:
         try:
             file_playlists = {name: file_playlists[name]}
         except KeyError as e:
             raise ValueError(f'Playlist {name!r} was not stored in {path}') from e
+
     live_playlists = plex.playlists
     for name, playlist in file_playlists.items():
         try:
@@ -262,9 +309,10 @@ def compare_playlists(plex: LocalPlexServer, path: Union[str, Path], name: str =
             current.compare_tracks(playlist, strict)
 
 
-def list_playlists(plex: LocalPlexServer, path: Union[str, Path]):
+def list_playlists(plex: LocalPlexServer, path: str | Path):
     for name in sorted(PlexPlaylist.load_all(path, plex)):
         print(name)
+
 
 # endregion
 
@@ -290,7 +338,9 @@ def _get_plex(plex: LocalPlexServer = None) -> LocalPlexServer:
     """Workaround for the circular dependency"""
     if plex is None:
         from .server import LocalPlexServer
+
         plex = LocalPlexServer()
+
     return plex
 
 
@@ -302,8 +352,6 @@ def _track_diff(a: set[Track], b: set[Track]) -> list[str]:
     :param b: A set of tracks
     :return: The set of tracks that are in set A that are not in set B
     """
-    # a_dict = {(t.grandparentTitle, t.parentTitle, t.title): t for t in a}
-    # b_titles = {(t.grandparentTitle, t.parentTitle, t.title) for t in b}
     a_dict = {_track_key(t): (i, t) for i, t in enumerate(a, 1)}
     b_titles = {_track_key(t) for t in b}
     if title_diff := set(a_dict).difference(b_titles):

@@ -7,11 +7,10 @@ Local Plex server client implementation.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from plexapi import DEFAULT_CONFIG_PATH
-from plexapi.audio import Track, Artist, Album
 from plexapi.exceptions import Unauthorized
 from plexapi.library import Library, LibrarySection, MusicSection, ShowSection, MovieSection
 from plexapi.server import PlexServer
@@ -26,14 +25,18 @@ from .constants import TYPE_SECTION_MAP
 from .patches import apply_plex_patches
 from .playlist import PlexPlaylist
 from .query import QueryResults
-from .typing import PlexObjTypes, PlexObj, LibSection
+
+if TYPE_CHECKING:
+    from plexapi.audio import Track, Artist, Album
+
+    from .typing import AnyLibSection, LibSection, PlexObj, PlexObjTypes
 
 __all__ = ['LocalPlexServer']
 log = logging.getLogger(__name__)
 
 PLEX_TYPE_CLS_MAP = {cls.TYPE: cls for cls in PLEXOBJECTS.values() if cls.TYPE}
 
-Section = Union[MusicSection, ShowSection, MovieSection]
+Section = MusicSection | ShowSection | MovieSection
 
 
 class LocalPlexServer(ClearableCachedPropertyMixin):
@@ -71,7 +74,7 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.user}@{self.url})>'
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: LocalPlexServer) -> bool:
         return self.user == other.user and self.url == other.url
 
     @cached_property
@@ -99,7 +102,7 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
 
     # region Library Sections
 
-    def get_lib_section(self, section: LibSection = None, obj_type: PlexObjTypes = None) -> LibrarySection:
+    def get_lib_section(self, section: LibSection = None, obj_type: PlexObjTypes = None) -> AnyLibSection:
         if section is None:
             try:
                 return self._get_primary_section(obj_type)
@@ -125,11 +128,11 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
         return self.primary_sections[section_name]
 
     @cached_property
-    def sections(self) -> dict[str, LibrarySection]:
+    def sections(self) -> dict[str, AnyLibSection]:
         return {section.title: section for section in self.library.sections()}
 
     @cached_property
-    def typed_sections(self) -> dict[str, dict[str, LibrarySection]]:
+    def typed_sections(self) -> dict[str, dict[str, Section]]:
         types = {'music': MusicSection, 'tv': ShowSection, 'movies': MovieSection}
         sections = {'music': {}, 'tv': {}, 'movies': {}}
         for name, section in self.sections.items():
@@ -174,6 +177,27 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
         # log.debug(f'Resolved {obj_type=} => {ekey=}')
         return ekey
 
+    # region Base Query Methods
+
+    def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
+        return QueryResults.new(self, _normalize_type(obj_type), section, **kwargs)
+
+    def find_object(self, obj_type: PlexObjTypes, **kwargs) -> PlexObj | None:
+        return self.query(obj_type, **kwargs).result()
+
+    def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> set[PlexObj]:
+        return self.query(obj_type, **kwargs).results()
+
+    # endregion
+
+    # region Find Track Methods
+
+    def get_track(self, **kwargs) -> Track | None:
+        return self.find_object('track', **kwargs)
+
+    def get_tracks(self, **kwargs) -> set[Track]:
+        return self.find_objects('track', **kwargs)
+
     def find_songs_by_rating_gte(self, rating: int, **kwargs) -> set[Track]:
         """
         :param rating: Song rating on a scale of 0-10
@@ -181,31 +205,24 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
         """
         return self.get_tracks(userRating__gte=rating, **kwargs)
 
-    def find_song_by_path(self, path: str, section: LibSection = None) -> Optional[Track]:
+    def find_song_by_path(self, path: str, section: LibSection = None) -> Track | None:
         return self.get_track(media__part__file=path, section=section)
 
+    # endregion
+
+    # region Find Artist Methods
+
     def get_artists(self, name, mode='contains', **kwargs) -> set[Artist]:
-        kwargs.setdefault('title__{}'.format(mode), name)
+        kwargs.setdefault(f'title__{mode}', name)
         return self.find_objects('artist', **kwargs)
 
     def get_albums(self, name, mode='contains', **kwargs) -> set[Album]:
-        kwargs.setdefault('title__{}'.format(mode), name)
+        kwargs.setdefault(f'title__{mode}', name)
         return self.find_objects('album', **kwargs)
 
-    def find_object(self, obj_type: PlexObjTypes, **kwargs) -> Optional[PlexObj]:
-        return self.query(obj_type, **kwargs).result()
+    # endregion
 
-    def find_objects(self, obj_type: PlexObjTypes, **kwargs) -> set[PlexObj]:
-        return self.query(obj_type, **kwargs).results()
-
-    def get_track(self, **kwargs) -> Optional[Track]:
-        return self.find_object('track', **kwargs)
-
-    def get_tracks(self, **kwargs) -> set[Track]:
-        return self.find_objects('track', **kwargs)
-
-    def query(self, obj_type: PlexObjTypes, section: LibSection = None, **kwargs) -> QueryResults:
-        return QueryResults.new(self, _normalize_type(obj_type), section, **kwargs)
+    # region Playlist Methods
 
     @property
     def playlists(self) -> dict[str, PlexPlaylist]:
@@ -215,6 +232,8 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
         if (playlist := PlexPlaylist(name, self)).exists:
             return playlist
         raise ValueError(f'Playlist {name!r} does not exist')
+
+    # endregion
 
 
 def _normalize_type(obj_type: PlexObjTypes) -> PlexObjTypes:

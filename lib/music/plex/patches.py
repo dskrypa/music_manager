@@ -6,7 +6,7 @@ Patches for PlexAPI
 
 import logging
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cached_property
 from hashlib import sha256
 from inspect import getsource
@@ -15,11 +15,11 @@ from xml.etree.ElementTree import Element
 
 from plexapi import __version__ as PLEX_API_VERSION
 from plexapi.audio import Track, Album, Artist, Audio
-from plexapi.base import PlexObject, Playable, PlexPartialObject, PlexSession
+from plexapi.base import PlexObject, Playable, PlexPartialObject, PlexSession, MediaContainer, PlexHistory
 from plexapi.base import _DONT_RELOAD_FOR_KEYS, USER_DONT_RELOAD_FOR_KEYS
 from plexapi.exceptions import UnknownType
-from plexapi.media import Media, Field, Mood, Collection, Label, Guid
-from plexapi.utils import PLEXOBJECTS, toDatetime, cast, iterXMLBFS
+from plexapi.media import Media, Field, Mood, Collection, Label, Guid, Chapter, Genre
+from plexapi.utils import toDatetime, cast, iterXMLBFS, getPlexObject
 
 from ..common.ratings import stars
 from ..common.utils import deinit_colorama as _deinit_colorama
@@ -73,23 +73,22 @@ def apply_perf_patches(skip_changed: bool = True):
 
 
 def _apply_plex_patches():
-    def album_repr(self):
-        fmt = '<{}#{}[{}]({!r}, artist={!r}, genres={})>'
+    def album_repr(self) -> str:
         rating = stars(float(self._data.attrib.get('userRating', 0)))
         genres = ', '.join(g.tag for g in self.genres)
-        return fmt.format(self.__class__.__name__, self._int_key, rating, self.title, self.parentTitle, genres)
+        artist = self.parentTitle
+        return f'<{self.__class__.__name__}#{self._int_key}[{rating}]({self.title!r}, {artist=}, {genres=!s})>'
 
-    def artist_repr(self):
-        fmt = '<{}#{}[{}]({!r}, genres={})>'
+    def artist_repr(self) -> str:
         rating = stars(float(self._data.attrib.get('userRating', 0)))
         genres = ', '.join(g.tag for g in self.genres)
-        return fmt.format(self.__class__.__name__, self._int_key, rating, self.title, genres)
+        return f'<{self.__class__.__name__}#{self._int_key}[{rating}]({self.title!r}, {genres=!s})>'
 
-    def track_repr(self, rating=None):
-        fmt = '<{}#{}[{}]({!r}, artist={!r}, album={!r})>'
+    def track_repr(self, rating=None) -> str:
         rating = stars(rating or self.userRating or 0)
         artist = self.originalTitle if self.grandparentTitle == 'Various Artists' else self.grandparentTitle
-        return fmt.format(self.__class__.__name__, self._int_key, rating, self.title, artist, self.parentTitle)
+        album = self.parentTitle
+        return f'<{self.__class__.__name__}#{self._int_key}[{rating}]({self.title!r}, {artist=}, {album=})>'
 
     def full_info(ele):
         return {'_type': ele.tag, 'attributes': ele.attrib, 'elements': [full_info(e) for e in ele]}
@@ -108,12 +107,23 @@ def _apply_perf_patches(skip_changed: bool = True):
     # region Utility Patches
 
     def to_datetime(value):
-        if value is not None:
+        if value is None:
+            return value
+
+        try:
             value = int(value)
-            if value <= 0:
-                value = 86400
-            value = datetime.fromtimestamp(value)
-        return value
+        except ValueError:
+            log.warning(f'Failed to parse {value=} as an epoch timestamp')
+            return None
+
+        try:
+            return datetime.fromtimestamp(value)
+        except (OSError, OverflowError, ValueError):
+            try:
+                return datetime.fromtimestamp(0) + timedelta(seconds=value)
+            except OverflowError:
+                log.warning(f'Failed to parse {value=} as an epoch timestamp')
+                return None
 
     def cast_num(func, value):
         if value is not None:
@@ -135,7 +145,7 @@ def _apply_perf_patches(skip_changed: bool = True):
 
     # endregion
 
-    # region Method Patches
+    # region Load Data Method Patches
 
     def audio_load_data(self: Audio, data: Element):
         """ Load attribute values from Plex XML response. """
@@ -144,6 +154,7 @@ def _apply_perf_patches(skip_changed: bool = True):
         self.addedAt = to_datetime(get_attrib('addedAt'))
         self.art = get_attrib('art')
         self.artBlurHash = get_attrib('artBlurHash')
+        self.distance = cast_num(float, get_attrib('distance '))
         self.fields = find_items(self, data, Field)  # self.findItems(data, Field)
         self.guid = get_attrib('guid')
         self.index = cast_num(int, get_attrib('index'))
@@ -169,9 +180,6 @@ def _apply_perf_patches(skip_changed: bool = True):
 
     def playable_load_data(self: Playable, data: Element):
         get_attrib = data.attrib.get
-        self.viewedAt = to_datetime(get_attrib('viewedAt'))  # history
-        self.accountID = cast_num(int, get_attrib('accountID'))  # history
-        self.deviceID = cast_num(int, get_attrib('deviceID'))  # history
         self.playlistItemID = cast_num(int, get_attrib('playlistItemID'))  # playlist
         self.playQueueItemID = cast_num(int, get_attrib('playQueueItemID'))  # playqueue
 
@@ -198,9 +206,12 @@ def _apply_perf_patches(skip_changed: bool = True):
         audio_load_data(self, data)
         playable_load_data(self, data)
         get_attrib = data.attrib.get
+        self.audienceRating = cast_num(float, get_attrib('audienceRating'))
+        self.chapters = find_items(self, data, Chapter)  # self.findItems(data, media.Chapter)
         self.chapterSource = get_attrib('chapterSource')
         self.collections = find_items(self, data, Collection)  # self.findItems(data, media.Collection)
         self.duration = cast_num(int, get_attrib('duration'))
+        self.genres = find_items(self, data, Genre)  # self.findItems(data, media.Genre)
         self.grandparentArt = get_attrib('grandparentArt')
         self.grandparentGuid = get_attrib('grandparentGuid')
         self.grandparentKey = get_attrib('grandparentKey')
@@ -219,15 +230,20 @@ def _apply_perf_patches(skip_changed: bool = True):
         self.parentThumb = get_attrib('parentThumb')
         self.parentTitle = get_attrib('parentTitle')
         self.primaryExtraKey = get_attrib('primaryExtraKey')
+        self.rating = cast_num(float, get_attrib('rating'))
         self.ratingCount = cast_num(int, get_attrib('ratingCount'))
         self.skipCount = cast_num(int, get_attrib('skipCount'))
+        self.sourceURI = get_attrib('source')  # remote playlist item
         self.viewOffset = cast_num(int, get_attrib('viewOffset', 0))
         self.year = cast_num(int, get_attrib('year'))
+
+    # endregion
+
+    # region PlexObject Method Patches
 
     _get_attr_operator = staticmethod(get_attr_operator)
     _get_attr_value = staticmethod(get_attr_value)
     _check_attrs = staticmethod(check_attrs)
-    _get_ecls = PLEXOBJECTS.get
 
     false = {False, 0, '0'}
 
@@ -236,22 +252,27 @@ def _apply_perf_patches(skip_changed: bool = True):
             All parameters are included by default with the option to override each parameter
             or disable each parameter individually by setting it to False or 0.
         """
-        details_key = self.key
-        try:
-            if details_key and (cls_includes := self._INCLUDES):
-                if kwargs:
-                    includes = {}
-                    for k, v in cls_includes.items():
-                        value = kwargs.get(k, v)
-                        if value not in false:
-                            includes[k] = 1 if value is True else value
-                else:
-                    # includes = {k: 1 if v is True else v for k, v in cls_includes.items() if v not in false}
-                    includes = cls_includes
-                if includes:
-                    details_key += '?' + urlencode(sorted(includes.items()))
-        except AttributeError:
-            pass
+        if not (details_key := self.key):
+            return details_key
+
+        if cls_includes := getattr(self, '_INCLUDES', None):
+            if kwargs:
+                params = {
+                    1 if value is True else value
+                    for k, v in cls_includes.items()
+                    if (value := kwargs.pop(k, v)) not in false
+                }
+            else:
+                params = cls_includes.copy()
+        else:
+            params = {}
+
+        if kwargs and (cls_excludes := getattr(self, '_EXCLUDES', None)):
+            params |= {k: 1 if v is True else v for k in cls_excludes if (v := kwargs.pop(k, None)) is not None}
+
+        if params:
+            details_key += '?' + urlencode(sorted(params.items()))
+
         return details_key
 
     def build_item(self, elem, cls=None, initpath=None):
@@ -264,59 +285,73 @@ def _apply_perf_patches(skip_changed: bool = True):
         # cls is not specified, try looking it up in PLEXOBJECTS
         get_attr = elem.attrib.get
         if etype := get_attr('streamType') or get_attr('tagType') or get_attr('type'):
-            suffix = '.session' if initpath == '/status/sessions' else ''
-            ecls = _get_ecls(f'{elem.tag}.{etype}{suffix}') or _get_ecls(elem.tag)
+            if initpath == '/status/sessions':
+                suffix = '.session'
+            elif initpath.startswith('/status/sessions/history'):
+                suffix = '.history'
+            else:
+                suffix = ''
+
+            ecls = getPlexObject(f'{elem.tag}.{etype}{suffix}', elem.tag)
         else:
-            ecls = _get_ecls(elem.tag)
+            ecls = getPlexObject(elem.tag, elem.tag)
+
         if ecls:
-            return ecls(self._server, elem, initpath)
+            return ecls(self._server, elem, initpath, parent=self)
+
         raise UnknownType(f'Unknown library type <{elem.tag} type={etype!r}../>')
+
+    def _normalize_find_item_data(data, cls, rtag, kwargs):
+        # filter on cls attrs if specified
+        if cls:
+            if cls.TAG and 'tag' not in kwargs:
+                kwargs['etag'] = cls.TAG
+            if cls.TYPE and 'type' not in kwargs:
+                kwargs['type'] = cls.TYPE
+
+        # rtag to iter on a specific root tag using breadth-first search
+        if rtag:
+            try:
+                return next(iterXMLBFS(data, rtag))
+            except StopIteration:
+                return Element('Empty')
+
+        return data
+
+    def _build_items(self, cls, data, initpath, kwargs):
+        # loop through all data elements to find matches
+        for elem in data:
+            if check_attrs(elem, **kwargs):
+                try:
+                    yield build_item(self, elem, cls, initpath)
+                except UnknownType:
+                    pass
 
     def find_item(self, data, cls=None, initpath=None, rtag=None, **kwargs):
         """ Load the specified data to find and build the first items with the specified tag
             and attrs. See :func:`~plexapi.base.PlexObject.fetchItem` for more details
             on how this is used.
         """
-        # filter on cls attrs if specified
-        if cls and cls.TAG and 'tag' not in kwargs:
-            kwargs['etag'] = cls.TAG
-        if cls and cls.TYPE and 'type' not in kwargs:
-            kwargs['type'] = cls.TYPE
-        # rtag to iter on a specific root tag
-        if rtag:
-            data = next(data.iter(rtag), [])
-        # loop through all data elements to find matches
-        for elem in data:
-            if check_attrs(elem, **kwargs):
-                try:
-                    return build_item(self, elem, cls, initpath)
-                except UnknownType:
-                    return None  # This matches what the original logic would do...
-        return None
+        data = _normalize_find_item_data(data, cls, rtag, kwargs)
+        return next(_build_items(self, cls, data, initpath, kwargs), None)
 
     def find_items(self, data, cls=None, initpath=None, rtag=None, **kwargs):
         """ Load the specified data to find and build all items with the specified tag
             and attrs. See :func:`~plexapi.base.PlexObject.fetchItem` for more details
             on how this is used.
         """
-        # filter on cls attrs if specified
-        if cls and cls.TAG and 'tag' not in kwargs:
-            kwargs['etag'] = cls.TAG
-        if cls and cls.TYPE and 'type' not in kwargs:
-            kwargs['type'] = cls.TYPE
-        # rtag to iter on a specific root tag using breadth-first search
-        if rtag:
-            data = next(iterXMLBFS(data, rtag), [])  # Newish in 4.11.2
-            # data = next(data.iter(rtag), [])  # Prior to 4.11.2
-        # loop through all data elements to find matches
-        items = []
-        for elem in data:
-            if check_attrs(elem, **kwargs):
-                try:
-                    items.append(build_item(self, elem, cls, initpath))
-                except UnknownType:
-                    pass
-        return items
+        data = _normalize_find_item_data(data, cls, rtag, kwargs)
+        if data.tag == 'MediaContainer':
+            items = MediaContainer[cls](self._server, data, initpath=initpath)
+            for item in _build_items(self, cls, data, initpath, kwargs):
+                items.append(item)
+            return items
+        else:
+            return list(_build_items(self, cls, data, initpath, kwargs))
+
+    # endregion
+
+    # region PlexPartialObject Method Patches
 
     no_reload = _DONT_RELOAD_FOR_KEYS.union(USER_DONT_RELOAD_FOR_KEYS)
     real_get_attribute = object.__getattribute__
@@ -329,7 +364,7 @@ def _apply_perf_patches(skip_changed: bool = True):
             return value
         elif not self.key or (self._details_key or self.key) == self._initpath:  # == self.isFullObject()
             return value
-        elif not self._autoReload or isinstance(self, PlexSession):
+        elif not self._autoReload or isinstance(self, (PlexSession, PlexHistory)):
             return value
         # Log the reload.
         title = self.__dict__.get('title') or self.__dict__.get('name')
@@ -343,21 +378,21 @@ def _apply_perf_patches(skip_changed: bool = True):
 
     # region Patch Target Change Checks
 
-    # Last updated for PlexAPI version: 4.13.2 (2023-01-28)
-    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.13.1...4.13.2
+    # Last updated for PlexAPI version: 4.15.14 (2024-07-06)
+    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.13.2...4.15.14
     perf_patches = [
-        (Track, '_loadData', track_load_data, '22b4a4bb6578276088cff20a5ae592a50deb8189b3d989aef90ac50b46e5b487'),
-        (Audio, '_loadData', audio_load_data, '582a5d25a9fa824c426c0b7c1f011a7297a6211ec6d06d092b8909482cee1dbd'),
-        (Playable, '_loadData', playable_load_data, 'c79cafa697dde0c0e81fe12b89e6f8452bf1723b39e467ff0cf608ff576692ee'),
+        (Audio, '_loadData', audio_load_data, '6614f35f02b7f0c0b0e73f5c54323ee866058b7e8f02b3d554252368ce7575d5'),
+        (Track, '_loadData', track_load_data, '0b7dc3f3f34c402da635015eec4441a540b8d22e88759480744a9f477130a5d7'),
+        (Playable, '_loadData', playable_load_data, 'c24c0ced7e444c08e8967b92353309b58df113a7373f6b876e8c7d8d77ffe234'),
         (PlexSession, '_loadData', session_load_data, '249132147cc678ff7b0f9aeb078baedeb0bb52e023586458be75816bc50b2f9c'),
         (PlexObject, '_getAttrOperator', _get_attr_operator, '8379d358737730f32cae86016d812eae676305801367d7d9c5116c7272bf88de'),
-        (PlexObject, '_getAttrValue', _get_attr_value, '2aa52b5a750f2bafab3ff195d9def179401e4f5e4cca53eac40c055aedc6db22'),
-        (PlexObject, '_buildDetailsKey', build_details_key, 'f71b5ac061a50d27fa22ba28c7a5c3abe709222b0a9bb79b8cd526defa9508fe'),
+        (PlexObject, '_getAttrValue', _get_attr_value, 'df6e55a4e7b8c3cb6507ec7c4a1956a0b53a2be5ca7c97c7c2143fe715cc5095'),
+        (PlexObject, '_buildDetailsKey', build_details_key, '521fd2274d5b6938c9a513c1481b132df4455f469c9c5fcdc01c5a1334e65e1f'),
+        (PlexObject, '_buildItem', build_item, '6033a510bbb7b78c33beb5c6dd27a211b3e5871d04e96e33e6ca45e7c4bf5516'),
         (PlexObject, '_checkAttrs', _check_attrs, '63774f2c264f1625e060e8b781b0ce9ee1a8484aad032a48363212d012e78f0f'),
-        (PlexObject, '_buildItem', build_item, 'bb27b16e125d54a3295eb3c220a52e12a2a545eba72255871c0378169894d50b'),
-        (PlexObject, 'findItem', find_item, '165b8689c5d6c3451fde0f550dc4a09dab98244b00646d953a59175698e4b4b7'),
-        (PlexObject, 'findItems', find_items, '72eefd6656c8cdc26bc9e2a50c720ae682dfac083c926c79b4cbbfea140861e3'),
-        (PlexPartialObject, '__getattribute__', get_attribute, 'e8b76646fcf0bfebd1459996dcedb97b2ce55b1306a9de6255b1aa881c594955')
+        (PlexObject, 'findItem', find_item, 'c2fa6874b80cb35964b874b7a20caca692446ad1f9d30d0c9c17b97fed346a54'),
+        (PlexObject, 'findItems', find_items, '627cf7e635ea5ada35a1c8be2a593652bb9c470eee492053ad7c9bc162ffd665'),
+        (PlexPartialObject, '__getattribute__', get_attribute, '95bff73e5305d24a886df2b5bfa83a5ad76f3a619304a23d52265dc1bf21a750')
     ]
     for cls, method_name, patched_method, patched_sha256 in perf_patches:
         method = getattr(cls, method_name)
@@ -371,14 +406,15 @@ def _apply_perf_patches(skip_changed: bool = True):
         setattr(cls, method_name, patched_method)
         # print(f'Patched {method.__qualname__}')
 
-    # Functions whose use was replaced in the methods patched above, but are not directly monkey-patched themselves
-    # TODO: If skip_changed, and these changed, but the methods using them were not, then those methods should probably
-    #  be skipped too
+    # Warn about changes to functions whose use was replaced in the methods patched above, but are not directly
+    # monkey-patched themselves
     util_perf_patches = [
-        ('plexapi.utils.cast', cast, cast_num, 'a786e4c543ed60802e066de7c2b469d71096ff9236cf21c6d33c459f6a6ffeb4'),
-        ('plexapi.utils.toDatetime', toDatetime, to_datetime, '56cfa4cc2ec8ca95a0eedf93ed558fbab2ef2370c75249b1c624902343fed414'),
+        # cast -> cast_num, cast_bool
+        ('plexapi.utils.cast', cast, '7496260439ef28694812e05949a2a516ae477ef60f643d48206d5f1cce2fa435'),
+        # toDatetime -> to_datetime
+        ('plexapi.utils.toDatetime', toDatetime, 'cb0e95730eefe4d328331c89ec764a751a93063e37ec83b8f3d0a9926bd3c711'),
     ]
-    for fq_name, func, patched_func, patched_sha256 in util_perf_patches:
+    for fq_name, func, patched_sha256 in util_perf_patches:
         current_sha256 = sha256(getsource(func).encode('utf-8')).hexdigest()
         if current_sha256 != patched_sha256:
             warnings.warn(PatchedMethodChanged(fq_name, patched_sha256, current_sha256))

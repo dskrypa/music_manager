@@ -57,44 +57,46 @@ def check_attrs(elem, **kwargs):
         if op == 'custom':
             if not query(elem.attrib):
                 return False
+            else:
+                continue
+
+        values = get_attr_value(elem, attr)
+        # special case query in (None, 0, '') to include missing attr
+        if op == 'exact' and not values and query in (None, 0, ''):
+            # original would return True here, bypassing other filters, which was bad!
+            pass
+        elif op == 'notset':
+            if not operator(values, query):
+                return False
         else:
-            values = get_attr_value(elem, attr)
-            # special case query in (None, 0, '') to include missing attr
-            if op == 'exact' and not values and query in (None, 0, ''):
-                # original would return True here, bypassing other filters, which was bad!
-                pass
-            elif op == 'notset':
-                if not operator(values, query):
+            cast = cast_func(op, query)
+            # return if attr we're looking for is missing
+            if op == 'ne' or op == 'nsregex' or 'not' in op:
+                # If any value is not truthy for a negative filter, then it should be filtered out
+                if not all(operator(_cast(cast, value, attr, elem), query) for value in values):
                     return False
             else:
-                cast = cast_func(op, query)
-                # return if attr we're looking for is missing
-                if op == 'ne' or op == 'nsregex' or 'not' in op:
-                    # If any value is not truthy for a negative filter, then it should be filtered out
-                    if not all(operator(_cast(cast, value, attr, elem), query) for value in values):
-                        return False
+                for value in values:
+                    try:
+                        if operator(_cast(cast, value, attr, elem), query):
+                            # if op == 'sregex' and attr == 'originalTitle':
+                            #     log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => True')
+                            break
+                        # else:
+                        #     if op == 'sregex' and attr == 'originalTitle':
+                        #         log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => False')
+                    except ValueError:
+                        # log.error(f'Problem processing operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
+                        # raise
+                        if operator(value, query):
+                            break
                 else:
-                    for value in values:
-                        try:
-                            if operator(_cast(cast, value, attr, elem), query):
-                                # if op == 'sregex' and attr == 'originalTitle':
-                                #     log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => True')
-                                break
-                            # else:
-                            #     if op == 'sregex' and attr == 'originalTitle':
-                            #         log.debug(f'[op={op}][attr={attr}][cast={cast}][title={elem.attrib.get("title")!r}] operator({value!r}, {query}) => False')
-                        except ValueError:
-                            # log.error(f'Problem processing operator={operator} value={value!r} attr={attr!r} elem={elem!r} query={query!r}')
-                            # raise
-                            if operator(value, query):
-                                break
-                    else:
-                        return False
+                    return False
     return True
 
 
 def get_attr_value(elem, attrstr, results=None):
-    # log.debug('Fetching {} in {}'.format(attrstr, elem.tag))
+    # log.debug(f'Fetching {attrstr} in {elem.tag}')
     try:
         value = elem.attrib[attrstr]
     except KeyError:
@@ -102,6 +104,7 @@ def get_attr_value(elem, attrstr, results=None):
             return [elem.tag]
     else:
         return [value]
+
     try:
         attr, attrstr = attrstr.split('__', 1)
     except ValueError:
@@ -118,14 +121,13 @@ def get_attr_value(elem, attrstr, results=None):
         return []
     else:
         lc_attr = attr.lower()
-        results = [] if results is None else results
+        if results is None:
+            results = []
+
         for child in (c for c in elem if c.tag.lower() == lc_attr):
             results.extend(get_attr_value(child, attrstr, results))
-        return list(filter(_is_not_none, results))
 
-
-def _is_not_none(value):
-    return value is not None
+        return [r for r in results if r is not None]
 
 
 def _cast(cast, value, attr, elem):

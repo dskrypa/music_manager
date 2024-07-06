@@ -100,7 +100,7 @@ class SyncRatings(PlexManager, choice='sync ratings', help='Sync song rating inf
         after = Option('-a', type=Date(), help='Only sync files last modified after this date')
         after_days = Option('-A', type=TimeDelta('days'), help='Only sync files last modified after this many days ago')
 
-    def main(self, *args, **kwargs):
+    def main(self):
         from music.plex.ratings import RatingSynchronizer
 
         before = self.before_days or self.before
@@ -110,7 +110,7 @@ class SyncRatings(PlexManager, choice='sync ratings', help='Sync song rating inf
 
 
 class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists with custom filters'):
-    def main(self, *args, **kwargs):
+    def main(self):
         from music.plex.playlist import PlexPlaylist
 
         kpop_tracks = self.plex.query('track', mood__ne='Duplicate Rating')
@@ -122,7 +122,9 @@ class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists w
         )
         PlexPlaylist('K-Pop ALL', self.plex).sync_or_create(query=kpop_tracks)
         PlexPlaylist('K-Pop 1 Star', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=2))
+        # PlexPlaylist('K-Pop 1\u00BD Star', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=3))
         PlexPlaylist('K-Pop 2 Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=4))
+        # PlexPlaylist('K-Pop 2\u00BD Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=5))
         PlexPlaylist('K-Pop 3 Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=6))
         PlexPlaylist('K-Pop 3+ Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=6))
         PlexPlaylist('K-Pop 3\u00BD Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=7))
@@ -165,7 +167,7 @@ class Find(PlexManager, help='Find Plex information'):
     format = Option('-f', choices=PRINTER_FORMATS, default='yaml', help='Output format to use for --full_info')
     query = PassThru(help=f'Query in the format <field><operation><value>; valid operations: {OPS}')
 
-    def main(self, *args, **kwargs):
+    def main(self):
         from typing import Iterable
 
         from plexapi.audio import Track
@@ -175,7 +177,7 @@ class Find(PlexManager, help='Find Plex information'):
 
         p = Printer(self.format)
         filters = PlexQuery.parse(
-            ' '.join(self.query) if self.query else None,
+            ' '.join(self.query) if self.query else None,  # noqa
             self.escape,
             self.allow_inst,
             title=' '.join(self.title),
@@ -201,12 +203,12 @@ class Rate(PlexManager, help='Update ratings in Plex'):
     allow_inst = Flag('-I', help='Allow search results that include instrumental versions of songs')
     query = PassThru(help=f'Query in the format <field><operation><value>; valid operations: {OPS}')
 
-    def main(self, *args, **kwargs):
+    def main(self):
         from music.plex.ratings import find_and_rate
         from music.plex.query_parsing import PlexQuery
 
         filters = PlexQuery.parse(
-            ' '.join(self.query) if self.query else None,
+            ' '.join(self.query) if self.query else None,  # noqa
             self.escape,
             self.allow_inst,
             title=' '.join(self.title),
@@ -221,7 +223,7 @@ class RateOffset(PlexManager, help='Update all track ratings in Plex with an off
     max_rating: int = Option('-max', default=10, help='Maximum rating for which a change will be made')
     offset: int = Option('-o', default=-1, help='Adjustment to make')
 
-    def main(self, *args, **kwargs):
+    def main(self):
         from music.plex.ratings import adjust_track_ratings
 
         adjust_track_ratings(self.plex, self.min_rating, self.max_rating, self.offset)
@@ -246,7 +248,7 @@ class Dump(Playlist, help='Save playlists'):
         from music.files.patches import apply_mutagen_patches
         apply_mutagen_patches()
 
-    def main(self, *args, **kwargs):
+    def main(self):
         from music.plex.playlist import dump_playlists
 
         dump_playlists(self.plex, self.path, self.playlist)
@@ -263,13 +265,23 @@ class Compare(Playlist, help='Compare playlists'):
         compare_playlists(self.plex, self.path, self.playlist, self.strict)
 
 
-class List(Playlist, help='List playlists in a dump'):
-    path = Positional(help='Playlist dump location')
+class List(Playlist, help='List playlists'):
+    path = Option('-p', help='List playlists from the specified dump location instead of the live server')
 
-    def main(self, *args, **kwargs):
+    def main(self):
+        if self.path:
+            self._list_from_dump()
+        else:
+            self._list_from_plex()
+
+    def _list_from_dump(self):
         from music.plex.playlist import list_playlists
 
         list_playlists(self.plex, self.path)
+
+    def _list_from_plex(self):
+        for name, playlist in self.plex.playlists.items():
+            print(f'  - {name}: {len(playlist.tracks)} tracks')
 
 
 # endregion

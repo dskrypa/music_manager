@@ -451,8 +451,16 @@ class EditionFinder:
         elif isinstance(content, CompoundNode):
             for node in content:
                 if isinstance(node, Template):
-                    edition = self._process_template(section, node, is_subsection, edition_parts[:])  # Copy is required
-                    edition_parts.append(edition)
+                    try:
+                        # Note: the copy of edition_parts below is required
+                        edition = self._process_template(section, node, is_subsection, edition_parts[:])
+                    except InvalidTrackTemplate as e:
+                        if e.name_matches('citation needed'):
+                            log.debug(f'Ignoring node in {section=} of page={self.entry_page}: {node}')
+                        else:
+                            raise
+                    else:
+                        edition_parts.append(edition)
                 else:
                     log.debug(f'Ignoring node in {section=} of page={self.entry_page}: {node}')
         else:
@@ -478,13 +486,8 @@ class EditionFinder:
         is_subsection: bool,
         prev_eds: list[WikipediaAlbumEditionPart] = None,
     ) -> WikipediaAlbumEditionPart:
-        if template.lc_name not in {'tracklist', 'track listing'}:
-            raise ValueError(f'Unexpected track template={template.name!r} in {section=} on page={self.entry_page}')
-        # TODO: , 'tracklisting' - https://en.wikipedia.org/wiki/Draw_the_Line_(Aerosmith_album)
-        #  https://en.wikipedia.org/wiki/Rocks_(Aerosmith_album)
-
-        # TODO: ValueError: Unexpected track template='citation needed' in section=<Section[2: Track listing]> on page=<WikiPage['Just Push Play' @ en.wikipedia.org]>
-        #  https://en.wikipedia.org/wiki/Just_Push_Play
+        if (lc_name := ''.join(template.lc_name.split())) not in {'tracklist', 'tracklisting'}:
+            raise InvalidTrackTemplate(lc_name, template, section, self.entry_page)
 
         return WikipediaAlbumEditionPart(self.entry, self.entry_page, section, template, is_subsection, prev_eds)
 
@@ -840,6 +843,21 @@ class WikipediaAlbumEditionPart:
 
 class TitleNotFound(Exception):
     """Exception that indicates a title column could not be found"""
+
+
+class InvalidTrackTemplate(ValueError):
+    def __init__(self, lc_name: str, template: Template, section: Section, page: WikiPage):
+        self.lc_name = lc_name
+        self.template = template
+        self.section = section
+        self.page = page
+
+    def name_matches(self, name: str) -> bool:
+        return self.lc_name == ''.join(name.lower().split())
+
+    def __str__(self) -> str:
+        section, page = self.section, self.page
+        return f'Unexpected track template={self.template.name!r} in {section=} on {page=}'
 
 
 def _disco_sections(section_iter: Iterable[Section]) -> list[Section]:

@@ -47,9 +47,10 @@ class FutureDate:
         return 'TBA' if year == 9999 else year
 
 
-def parse_date(value: DateObj) -> DateResult:
+def parse_date(value: DateObj, allow_time: bool = False) -> DateResult:
     """
-    :param str|date|datetime|None value: The value from which a date should be parsed
+    :param value: The value from which a date should be parsed
+    :param allow_time: Whether patterns that include time of day should be included
     :return: The parsed date
     """
     if value is None or isinstance(value, date):
@@ -62,6 +63,15 @@ def parse_date(value: DateObj) -> DateResult:
             return datetime.strptime(value, fmt).date()
         except ValueError:
             pass
+
+    if allow_time:
+        time_formats = (' %H:%M:%S', 'T%H:%M:%S')
+        for date_fmt in DATE_FORMATS:
+            for time_fmt in time_formats:
+                try:
+                    return datetime.strptime(value, date_fmt + time_fmt).date()
+                except ValueError:
+                    pass
 
     if value.isdigit() and len(value) == 4 and value.startswith(datetime.now().strftime('%Y')[:2]):
         return FutureDate(value)

@@ -2,6 +2,7 @@
 :author: Doug Skrypa
 """
 
+import logging
 from itertools import count
 from pathlib import Path
 from typing import Optional, Iterable
@@ -17,13 +18,21 @@ from ..wiki import EntertainmentEntity, DiscographyEntry, Artist, DiscographyEnt
 from ..wiki.discography import DiscographyMixin, Discography
 
 __all__ = ['show_wiki_entity', 'pprint_wiki_page']
+log = logging.getLogger(__name__)
+
 AlbTypes = Optional[set[DiscoEntryType]]
 
 
-def pprint_wiki_page(url: str, mode: str):
+def pprint_wiki_page(url: str, mode: str, infobox: bool = False):
     page = MediaWikiClient.page_for_article(url)
     page.intro(True)
-    page.sections.pprint(mode)
+    if infobox:
+        if page.infobox:
+            page.infobox.pprint(mode)
+        else:
+            log.warning(f'No infobox exists on {page}')
+    else:
+        page.sections.pprint(mode)
 
 
 def show_wiki_entity(

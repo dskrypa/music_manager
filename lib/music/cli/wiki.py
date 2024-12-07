@@ -31,12 +31,15 @@ class Wiki(Command, description='Wiki matching / informational functions'):
 
 class Pprint(Wiki, help='Pretty-print the parsed Wiki content for a given URL'):
     url = Positional(help='A wiki entity URL')
-    mode = Option('-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode')
+    mode = Option(
+        '-m', choices=('content', 'processed', 'reprs', 'headers', 'raw'), default='content', help='Pprint mode'
+    )
+    infobox = Flag('-i', help='Print only the infobox (default: all sections)')
 
     def main(self):
         from music.manager.wiki_info import pprint_wiki_page
 
-        pprint_wiki_page(self.url, self.mode)
+        pprint_wiki_page(self.url, self.mode, self.infobox)
 
 
 class Raw(Wiki, help='Show the raw Wiki text content for a given URL'):

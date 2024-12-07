@@ -4,9 +4,11 @@ Utilities for extracting and adding cover art.
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from PIL import Image
 
@@ -22,7 +24,7 @@ __all__ = ['extract_album_art', 'set_album_art', 'del_album_art']
 log = logging.getLogger(__name__)
 
 
-def extract_album_art(path: Paths, output: Union[Path, str]):
+def extract_album_art(path: Paths, output: Path | str):
     output = Path(output)
     if not output.parent.exists():
         output.parent.mkdir(parents=True)
@@ -49,7 +51,7 @@ def extract_album_art(path: Paths, output: Union[Path, str]):
                 f.write(cover_data)
 
 
-def set_album_art(path: Union[Path, str], image_path: Union[Path, str], max_width: int = 1200, dry_run: bool = False):
+def set_album_art(path: Path | str, image_path: Path | str, max_width: int = 1200, dry_run: bool = False):
     image = Image.open(Path(image_path).expanduser().resolve())
     path = Path(path).expanduser().resolve()
     if path.is_file():
@@ -58,7 +60,7 @@ def set_album_art(path: Union[Path, str], image_path: Union[Path, str], max_widt
         AlbumDir(path).set_cover_data(image, dry_run, max_width)
 
 
-def del_album_art(path: Union[Path, str], dry_run: bool = False):
+def del_album_art(path: Path | str, dry_run: bool = False):
     path = Path(path).expanduser().resolve()
     if path.is_file():
         SongFile(path).del_cover_tag(True, dry_run)

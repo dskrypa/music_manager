@@ -22,7 +22,7 @@ from music.common.disco_entry import DiscoEntryType
 from music.text.extraction import split_enclosed, extract_enclosed
 from music.text.name import Name
 from music.text.time import parse_date
-from music.text.utils import find_ordinal, title_case
+from music.text.utils import find_ordinal, title_case, parse_int_words
 from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart, Single
 from ..base import TVSeries
 from ..disco_entry import DiscoEntry
@@ -111,8 +111,12 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         content: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart] = edition._content
 
         if isinstance(content, list):
-            for edition_part in content:  # type: WikipediaAlbumEditionPart
-                yield DiscographyEntryPart(edition_part.part_name, edition, RawWikipediaTracks(edition_part))
+            if all(ep.album_side is not None for ep in content):
+                yield DiscographyEntryPart(content[0].part_name, edition, RawWikipediaTracks(content))
+            else:
+                for edition_part in content:  # type: WikipediaAlbumEditionPart
+                    # log.debug(f'process_edition_parts: {edition_part=}', extra={'color': 14})
+                    yield DiscographyEntryPart(edition_part.part_name, edition, RawWikipediaTracks(edition_part))
         elif content:
             yield DiscographyEntryPart(None, edition, RawWikipediaTracks(content))
         else:
@@ -120,6 +124,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
 
     def parse_track_name(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart) -> Name:  # noqa
         # log.debug(f'parse_track_name: {row=}, {edition_part=}')
+        # TODO: Don't treat parenthesized text in EN-only titles as a translation or something - it should be retained
         return TrackNameParser(row, edition_part).parse_name()
 
     def parse_single_page_track_name(self, page: WikiPage) -> Name:
@@ -239,16 +244,16 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             if details.__class__ is CompoundNode:
                 details = details[0]
             details = details.as_dict(multiline=False)
-            if date := details.get('Released', details.get('To be released')):
-                if isinstance(date, String):
-                    date = date.value
-                elif date.__class__ is CompoundNode and isinstance(date[0], String):
-                    date = date[0].value
+            if rel_date := details.get('Released', details.get('To be released')):
+                if isinstance(rel_date, String):
+                    rel_date = rel_date.value
+                elif rel_date.__class__ is CompoundNode and isinstance(rel_date[0], String):
+                    rel_date = rel_date[0].value
 
-                if '(' in date:
-                    date = date.split('(', maxsplit=1)[0].strip()
+                if '(' in rel_date:
+                    rel_date = rel_date.split('(', maxsplit=1)[0].strip()
         else:
-            date = None
+            rel_date = None
 
         year = int(row.get('Year').value) if 'Year' in row else None
         try:
@@ -258,7 +263,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             from_albums = None
 
         disco_entry = DiscoEntry(
-            page, row, type_=alb_types, lang=lang, date=date, year=year, track_data=track_data, from_albums=from_albums
+            page, row, type_=alb_types, lang=lang,
+            date=rel_date, year=year, track_data=track_data, from_albums=from_albums
         )
         if isinstance(title, Link):
             finder.add_entry_link(title, disco_entry)
@@ -386,11 +392,14 @@ class TrackNameParser:
 
 class RawWikipediaTracks(RawTracks):
     __slots__ = ()
-    raw_tracks: WikipediaAlbumEditionPart
+    raw_tracks: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart]
 
     def get_names(self, part: DiscographyEntryPart, parser: WikipediaParser) -> list[Name]:
         raw_tracks = self.raw_tracks
-        return [parser.parse_track_name(row, raw_tracks) for row in raw_tracks.tracks]
+        if isinstance(raw_tracks, WikipediaAlbumEditionPart):
+            return [parser.parse_track_name(row, raw_tracks) for row in raw_tracks.tracks]
+        else:
+            return [parser.parse_track_name(row, group) for group in raw_tracks for row in group.tracks]
 
 
 # endregion
@@ -471,6 +480,11 @@ class EditionFinder:
     ) -> WikipediaAlbumEditionPart:
         if template.lc_name not in {'tracklist', 'track listing'}:
             raise ValueError(f'Unexpected track template={template.name!r} in {section=} on page={self.entry_page}')
+        # TODO: , 'tracklisting' - https://en.wikipedia.org/wiki/Draw_the_Line_(Aerosmith_album)
+        #  https://en.wikipedia.org/wiki/Rocks_(Aerosmith_album)
+
+        # TODO: ValueError: Unexpected track template='citation needed' in section=<Section[2: Track listing]> on page=<WikiPage['Just Push Play' @ en.wikipedia.org]>
+        #  https://en.wikipedia.org/wiki/Just_Push_Play
 
         return WikipediaAlbumEditionPart(self.entry, self.entry_page, section, template, is_subsection, prev_eds)
 
@@ -489,6 +503,7 @@ class EditionFinder:
             released = self.entry_page.infobox['released']
         except (AttributeError, KeyError, TypeError):
             return {}
+
         try:
             value = released.value
         except AttributeError:
@@ -498,6 +513,15 @@ class EditionFinder:
                 return {None: value.date()}
             elif isinstance(value, date):
                 return {None: value}
+
+        # This block handles albums that use a date template with additional tags present (ex: Aerosmith_(album))
+        for part in released.strings():
+            try:
+                rel_date = parse_date(part, allow_time=True)
+            except (ValueError, TypeError):
+                pass
+            else:
+                return {None: rel_date}
 
         released = '-'.join(released.strings())
         try:
@@ -578,8 +602,9 @@ class EditionGrouper:
         else:
             if not self._groups:
                 self._group_editions()
-            yield from (self._edition(group, name) for name, group in self._groups.items())
-            # yield from self._old_group_iter()
+
+            for name, group in self._groups.items():
+                yield self._edition(group, name)
 
     def _edition(
         self, content: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart], edition: OptStr = None
@@ -625,7 +650,14 @@ class EditionGrouper:
 
         group.append(edition_part)
 
+    def _handle_album_sides(self):
+        self._groups[None].extend(self.edition_parts)
+
     def _group_editions(self):
+        if all(ep.album_side is not None for ep in self.edition_parts):
+            self._handle_album_sides()
+            return
+
         bonus_disks = []
         for edition_part in self.edition_parts:
             if edition_part.bonus_disk_match:
@@ -635,37 +667,6 @@ class EditionGrouper:
 
         for edition_part in bonus_disks:
             self._add_bonus_group(edition_part)
-
-    # def _old_group_iter(self) -> EditionIterator:
-    #     last: Optional[WikipediaAlbumEditionPart] = None
-    #     group: list[WikipediaAlbumEditionPart] = []
-    #     for edition_part in self.edition_parts:
-    #         if edition_part.disk == 1:
-    #             if group:
-    #                 yield self._edition(group, last.name)
-    #                 group = []
-    #             elif last:
-    #                 yield self._edition(last, last.name)
-    #
-    #             last = edition_part
-    #         elif last and not group:
-    #             if edition_part.bonus_disk_match:
-    #                 yield self._edition(last, last.name)
-    #                 group = [last, edition_part]
-    #                 last = edition_part  # To use the bonus edition's name
-    #             elif last.name == edition_part.name:
-    #                 group = [last, edition_part]
-    #             else:
-    #                 yield self._edition(last, last.name)
-    #                 group = [self.standard_edition_part, edition_part]
-    #                 last = edition_part  # To use the new edition's name
-    #         else:
-    #             if not group:
-    #                 group.append(last)
-    #             group.append(edition_part)
-    #
-    #     if final := group or last:
-    #         yield self._edition(final, last.name)
 
 
 class WikipediaAlbumEditionPart:
@@ -681,6 +682,7 @@ class WikipediaAlbumEditionPart:
     _edition_disk_part_match = re.compile(
         r'^(.*?)\s*(?:\s*[:-]\s*)?(?:CD|dis[ck])[:#. ]?(\d+)(?:\s*[:-]\s*)?(.*)$', re.IGNORECASE
     ).match
+    _album_side_match = re.compile(r'^side (\d+|[a-z]+)$', re.IGNORECASE).match
     meta: dict[str, AnyNode]
     _tracks: list[TrackRow]
 
@@ -771,6 +773,12 @@ class WikipediaAlbumEditionPart:
                     nodes = (node for node in header if not isinstance(node, Tag) or node.name != 'ref')
                     return ' '.join(s for node in nodes for s in node.strings())
                 return ' '.join(header.strings())
+        return None
+
+    @cached_property
+    def album_side(self) -> int | None:
+        if self.name and (m := self._album_side_match(self.name)):
+            return parse_int_words(m.group(1))
         return None
 
     def find_language(self, category_langs, lang: str = None):

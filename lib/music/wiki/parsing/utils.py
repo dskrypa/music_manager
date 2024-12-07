@@ -233,18 +233,25 @@ class RawTracks:
         self.raw_tracks = raw_tracks
 
     def get_names(self, part: DiscographyEntryPart, parser: WikiParser) -> list[Name]:
-        if self.raw_tracks is None:
+        return list(self._iter_names(self.raw_tracks, part, parser))
+
+    def _iter_names(self, raw_tracks, part: DiscographyEntryPart, parser: WikiParser) -> Iterator[Name]:
+        if raw_tracks is None:
             if part.edition.type == DiscoEntryType.Single:
-                return [parser.parse_single_page_track_name(part.edition.page)]
+                yield parser.parse_single_page_track_name(part.edition.page)
             else:
                 log.debug(f'No tracks found for {self}')
-                return []
-        elif isinstance(self.raw_tracks, Table):
-            return [parser.parse_track_name(row) for row in self.raw_tracks]
-        else:
+        elif isinstance(raw_tracks, Table):
+            for row in raw_tracks:
+                yield parser.parse_track_name(row)
+        elif hasattr(raw_tracks, 'iter_flat'):
             # if isinstance(self._tracks, ListNode):
             #     log.debug(f'Processing tracks for {self}')
-            return [parser.parse_track_name(node) for node in self.raw_tracks.iter_flat()]
+            for node in raw_tracks.iter_flat():
+                yield parser.parse_track_name(node)
+        else:
+            for group in raw_tracks:
+                yield from self._iter_names(group, part, parser)
 
 
 def _should_resplit(first_part, paren_part) -> bool:

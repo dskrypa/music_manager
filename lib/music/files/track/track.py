@@ -43,7 +43,7 @@ from music.constants import TYPED_TAG_MAP, TYPED_TAG_DISPLAY_NAME_MAP, TAG_NAME_
 from music.text.name import Name
 from ..cover import prepare_cover_image, bytes_to_image
 from ..exceptions import InvalidTagName, TagException, TagNotFound, TagValueException, UnsupportedTagForFileType
-from ..exceptions import InvalidAlbumDir
+from ..exceptions import InvalidAlbumDir, BPMCalculationError
 from ..parsing import split_artists, AlbumName
 from ..paths import ON_WINDOWS, FileBasedObject, plex_track_path
 from .descriptors import MusicFileProperty, TextTagProperty, TagValuesProperty, _NotSet
@@ -907,7 +907,12 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         from .bpm import get_bpm
 
         if not (bpm := self._bpm):
-            bpm = self._bpm = get_bpm(self.path, self.sample_rate)
+            try:
+                bpm = self._bpm = get_bpm(self.path, self.sample_rate)
+            except RuntimeError as e:
+                # log.error(f'Unable to calculate BPM for {self}: {e}')
+                raise BPMCalculationError(f'Unable to calculate BPM for {self}: {e}') from e
+
         if save:
             self.set_text_tag('bpm', bpm)
             log.debug(f'Saving {bpm=} for {self}')
@@ -916,11 +921,21 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return bpm
 
     def maybe_add_bpm(self, dry_run: Bool = False) -> str:
+        if self is None:
+            log.warning('Cannot add BPM for non-track')  # TODO: WTF is causing this?!
+            return 'Cannot add BPM for non-track'
+
         if bpm := self._get_bpm():
             level, message = 19, f'{self} already has a value stored for BPM={bpm}'
         else:
-            bpm = self._calculate_bpm(not dry_run)
-            level, message = 20, f'{LoggingPrefix(dry_run).add} BPM={bpm} to {self}'
+            try:
+                bpm = self._calculate_bpm(not dry_run)
+            except BPMCalculationError as e:
+                level = logging.ERROR
+                message = str(e)
+            else:
+                level, message = 20, f'{LoggingPrefix(dry_run).add} BPM={bpm} to {self}'
+
         log.log(level, message)
         return message
 

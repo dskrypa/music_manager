@@ -4,7 +4,7 @@
 
 __all__ = [
     'InvalidAlbumDir', 'InvalidTagName', 'MusicException', 'TagException', 'TagNotFound', 'TagValueException',
-    'UnsupportedTagForFileType',
+    'UnsupportedTagForFileType', 'BPMCalculationError',
 ]
 
 
@@ -46,3 +46,7 @@ class TagValueException(TagException):
 
 class InvalidAlbumDir(MusicException):
     """Exception to be raised when an AlbumDir is initialized with an invalid directory"""
+
+
+class BPMCalculationError(MusicException):
+    """Raised when BPM cannot be calculated for a given track"""

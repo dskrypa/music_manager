@@ -34,7 +34,7 @@ def fix_song_tags(tracks: TrackIter, dry_run: bool = False, add_bpm: bool = Fals
         return
 
     with ThreadPoolExecutor(max_workers=8) as executor:
-        for future in as_completed([executor.submit(music_file.maybe_add_bpm, dry_run) for music_file in tracks]):
+        for future in as_completed([executor.submit(f.maybe_add_bpm, dry_run) for f in tracks if f is not None]):
             future.result()
 
 

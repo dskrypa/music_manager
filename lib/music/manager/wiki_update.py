@@ -621,6 +621,7 @@ class TrackZip:
                 raise TrackZipError(f'Unable to match {song_file=} by number between {self.album_dir} and {src}')
 
         if len(set(file_track_map.values())) != len(self.files):
+            # TODO: Support this somehow?
             raise TrackZipError(f'Multiple files in {self.album_dir} were mapped to the same track from {src}')
 
         log.debug(f'Zipped tracks based on track numbers')

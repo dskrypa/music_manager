@@ -72,6 +72,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         ]
 
     def _prepare_option_grid(self):  # noqa
+        # TODO: Allow album-only update (skip track-level updates)
         yield [
             BoolOption('soloist', 'Soloist', tooltip='For solo artists, use only their name instead of including their group, and do not sort them with their group'),
             BoolOption('artist_only', 'Artist Match Only', tooltip='Only match the artist / only use the artist URL if provided'),

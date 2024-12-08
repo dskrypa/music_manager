@@ -237,7 +237,7 @@ class RawTracks:
 
     def _iter_names(self, raw_tracks, part: DiscographyEntryPart, parser: WikiParser) -> Iterator[Name]:
         if raw_tracks is None:
-            if part.edition.type == DiscoEntryType.Single:
+            if part.edition.type in (DiscoEntryType.Single, DiscoEntryType.Soundtrack):
                 yield parser.parse_single_page_track_name(part.edition.page)
             else:
                 log.debug(f'No tracks found for {self}')

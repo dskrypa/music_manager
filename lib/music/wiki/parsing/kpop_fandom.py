@@ -236,6 +236,7 @@ class KpopFandomParser(WikiParser, site='kpop.fandom.com', domain='fandom.com'):
             pass
         else:
             name.update(extra={'length': length})
+
         try:
             artist = infobox['artist']
         except KeyError:
@@ -692,8 +693,8 @@ class EditionPartFinder:
                 yield DiscographyEntryPart(f'CD{i + 1}', self.edition, RawTracks(track_node))
         elif isinstance(content, dict):
             yield from self._process_section_map(content)
-        elif content is None and self.edition.type == DiscoEntryType.Single:
-            yield DiscographyEntryPart(None, self.edition, None)
+        elif content is None and self.edition.type in (DiscoEntryType.Single, DiscoEntryType.Soundtrack):
+            yield DiscographyEntryPart(None, self.edition, None, artist=self.edition._artist)
         elif isinstance(content, CompoundNode) and (lists := list(content.find_all(List))) and len(lists) == 1:  # noqa
             # Full OST with a note between th edition name and the track list (example: Vincenzo_OST)
             # log.debug('Found full OST with text before the track list')
@@ -734,6 +735,9 @@ class EditionPartFinder:
             if content_len % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
                 return content, True
             elif content_len == 1:
+                return content[0], False
+            elif content_len > 1 and isinstance(content[0], List):
+                # Example: https://kpop.fandom.com/wiki/Gold_(English_Ver.)
                 return content[0], False
             else:
                 raise ValueError(

@@ -10,7 +10,7 @@ from functools import partialmethod
 from typing import TYPE_CHECKING, Any, Optional, Iterable
 
 from ds_tools.caching.decorators import cached_property
-from wiki_nodes import String, Link, ContainerNode, Node
+from wiki_nodes import String, Link, ContainerNode
 
 from ..text.extraction import strip_enclosed
 from ..text.name import Name
@@ -87,7 +87,7 @@ class Track:
 
         if feat := extra.get('feat'):
             if isinstance(feat, (ContainerNode, list)):
-                feat = artist_string(feat)[0]
+                feat = ArtistStringBuilder(feat).build_str()
             elif isinstance(feat, Link):
                 try:
                     feat = Artist.from_link(feat)
@@ -100,12 +100,12 @@ class Track:
 
         if collab := extra.get('collabs'):
             if isinstance(collab, ContainerNode):
-                collab = artist_string(collab)[0]
+                collab = ArtistStringBuilder(collab).build_str()
             parts.append(f'with {collab}')
 
         if artists := extra.get('artists'):
             if isinstance(artists, ContainerNode):
-                artists, found = artist_string(artists)
+                artists, found = ArtistStringBuilder(artists).build_and_found()
                 if suffixes and (suffix := ARTISTS_SUFFIXES.get(found)):
                     artists = f'{artists} {suffix}'  # noqa
             elif isinstance(artists, Link):
@@ -171,38 +171,53 @@ class Track:
         return {}
 
 
-def artist_string(node: ContainerNode | Iterable[Link|String]) -> tuple[str, int]:
-    try:
-        children = node.children
-    except AttributeError:
-        children = node
-        link_artist_map = Artist.from_links([obj for obj in node if isinstance(obj, Link)])
-    else:
-        link_artist_map = Artist.from_links(node.find_all(Link))
-    # log.debug(f'Found {link_artist_map=}')
+class ArtistStringBuilder:
+    __slots__ = ('found', 'children', 'link_artist_map')
 
-    found = 0
-    parts = []
-    for child in children:
-        if isinstance(child, String):
-            parts.append(child.value)
-            # value = child.value.strip()
-            # if value not in '()':
-            #     feat_parts.append(value)
-        elif isinstance(child, Link):
-            found += 1
-            try:
-                parts.append(link_artist_map[child].name)
-            except KeyError:
-                parts.append(child.show)
-        elif isinstance(child, str):
-            parts.append(child)
+    def __init__(self, node: ContainerNode | Iterable[Link | String]):
+        self.found = 0
+        try:
+            self.children = node.children
+        except AttributeError:
+            self.children = node
+            self.link_artist_map = Artist.from_links([obj for obj in node if isinstance(obj, Link)])
+        else:
+            self.link_artist_map = Artist.from_links(node.find_all(Link))
+        # log.debug(f'Found {self.link_artist_map=}')
 
-    log.debug(f'Artist string parts: {parts}')
-    processed = []
-    last = None
-    for part in map(str, parts):
-        if part:
+    def _iter_parts(self):
+        for child in self.children:
+            if isinstance(child, String):
+                yield child.value
+                # value = child.value.strip()
+                # if value not in '()':
+                #     feat_parts.append(value)
+            elif isinstance(child, Link):
+                self.found += 1
+                try:
+                    yield self.link_artist_map[child].name
+                except KeyError:
+                    if child.text:
+                        yield child.text.strip()
+                    elif child.title:
+                        try:
+                            title = child.iw_key_title[-1]
+                        except ValueError:
+                            yield child.title.strip()
+                        else:
+                            yield title[3:].strip() if title.lower().startswith('en:') else title.strip()
+            elif isinstance(child, str):
+                yield child
+
+    def build_and_found(self) -> tuple[str, int]:
+        return self.build_str(), self.found
+
+    def build_str(self) -> str:
+        parts = [p for p in map(str, self._iter_parts()) if p]
+        log.debug(f'Artist string parts: {parts}')
+        processed = []
+        last = None
+        for part in parts:
             if last and part == ', &':
                 part = ' & '
             elif last == ')':
@@ -210,7 +225,8 @@ def artist_string(node: ContainerNode | Iterable[Link|String]) -> tuple[str, int
                     processed.append(' ')
             elif last and last not in ' (' and part != ',':
                 processed.append(' ')
+
             processed.append(part)
             last = part[-1]
 
-    return ''.join(processed), found
+        return ''.join(processed)

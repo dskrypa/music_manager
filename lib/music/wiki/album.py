@@ -382,7 +382,7 @@ class _ArtistMixin(ABC):
 
     @cached_property
     def _artists(self) -> set[Artist]:
-        log.debug(f'{self._basic_repr}: Processing {self._artist}', extra={'color': 13})
+        log.debug(f'{self._basic_repr}: Processing _artist={self._artist}', extra={'color': 13})
         artists = set()
         if isinstance(self._artist, Artist):
             artists.add(self._artist)
@@ -710,16 +710,14 @@ class DiscographyEntryPart(_ArtistMixin):
         self,
         name: OptStr,
         edition: DiscographyEntryEdition,
-        tracks: Optional[RawTracks],
+        tracks: RawTracks | None,
         disc: int = None,
         release_date: date = None,
         artist: NodeOrNodes = None,
     ):
-        if not isinstance(tracks, RawTracks) and (tracks is not None or edition.type == DiscoEntryType.Single):
-            tracks = RawTracks(tracks)
         self._name = name
         self.edition = edition
-        self._tracks = tracks
+        self._tracks = _normalize_raw_tracks(tracks, edition)
         self._date = release_date
         self._artist = artist
         if disc is not None:
@@ -832,6 +830,15 @@ class DiscographyEntryPart(_ArtistMixin):
                 eng_non_eng_map[eng] = non_eng
             elif eng and eng in eng_non_eng_map:
                 track.name.non_eng = eng_non_eng_map[eng]
+        return tracks
+
+
+def _normalize_raw_tracks(tracks, edition: DiscographyEntryEdition):
+    if isinstance(tracks, RawTracks):
+        return tracks
+    elif tracks is not None or edition.type in (DiscoEntryType.Single, DiscoEntryType.Soundtrack):
+        return RawTracks(tracks)
+    else:
         return tracks
 
 

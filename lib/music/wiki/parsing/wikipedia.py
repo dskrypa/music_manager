@@ -119,6 +119,8 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
                     yield DiscographyEntryPart(edition_part.part_name, edition, RawWikipediaTracks(edition_part))
         elif content:
             yield DiscographyEntryPart(None, edition, RawWikipediaTracks(content))
+        elif content is None and edition.type == DiscoEntryType.Single:
+            yield DiscographyEntryPart(None, edition, None)
         else:
             log.warning(f'Unexpected {content=} for {edition=}')
 

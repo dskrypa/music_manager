@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union, Mapping, Iterable
+from typing import Mapping, Iterable
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.unicode import LangCat
@@ -26,20 +26,33 @@ class DiscoEntry:
 
     May provide useful information when a full page does not exist for a given entry.
     """
+
+    source: WikiPage
+    node: N | None
+    _title: str | Name | None
+    language: LangCat | None
+    date: DateResult
+    year: int | None
+    _link: Link | None
+    links: list[Link]
+    song: str | None
+    track_data: N | None
+    from_albums: Mapping[str, Link | None] | None
+
     def __init__(
         self,
         source: WikiPage,
         node: N,
         *,
-        title: Union[str, Name] = None,
-        lang: Union[str, LangCat] = None,
-        type_: Union[DiscoEntryType, str, Iterable[str]] = None,
+        title: str | Name = None,
+        lang: str | LangCat = None,
+        type_: DiscoEntryType | str | Iterable[str] = None,
         date: DateObj = None,
         year: int = None,
         link: Link = None,
         song: str = None,
         track_data: N = None,
-        from_albums: Mapping[str, Optional[Link]] = None,
+        from_albums: Mapping[str, Link | None] = None,
     ):
         """
         A basic discography entry from an artist or artist discography page.
@@ -57,18 +70,18 @@ class DiscoEntry:
         :param from_albums: A mapping of {str(name): :class:`Link` or None} for the albums that this
           single / OST track / etc was in, if any.
         """
-        self.source = source                                                        # type: WikiPage
-        self.node = node                                                            # type: Optional[N]
-        self._title = title                                                         # type: Union[str, Name, None]
+        self.source = source
+        self.node = node
+        self._title = title
         self._type = type_
-        self.language = LangCat.for_name(lang) if isinstance(lang, str) else lang   # type: Optional[LangCat]
-        self.date = parse_date(date)                                                # type: DateResult
-        self.year = year if year else self.date.year if self.date else None         # type: Optional[int]
-        self._link = link                                                           # type: Optional[Link]
-        self.links = []                                                             # type: list[Link]
-        self.song = song                                                            # type: Optional[str]
-        self.track_data = track_data                                                # type: Optional[N]
-        self.from_albums = from_albums                                  # type: Optional[Mapping[str, Optional[Link]]]
+        self.language = LangCat.for_name(lang) if isinstance(lang, str) else lang
+        self.date = parse_date(date)
+        self.year = year if year else self.date.year if self.date else None
+        self._link = link
+        self.links = []
+        self.song = song
+        self.track_data = track_data
+        self.from_albums = from_albums
 
     def __repr__(self) -> str:
         date = self.date.strftime('%Y-%m-%d') if self.date else self.year
@@ -79,7 +92,7 @@ class DiscoEntry:
         return f'<{type(self).__name__}[{self.name}, {date}] from {self.source}[{additional}]>'
 
     @property
-    def link(self) -> Optional[Link]:
+    def link(self) -> Link | None:
         if self._link:
             return self._link
         if links := self.links:
@@ -96,7 +109,7 @@ class DiscoEntry:
         return Name()
 
     @property
-    def title(self) -> Optional[str]:
+    def title(self) -> str | None:
         if title := self._title:
             return str(title)
         return self.link.show if self.link else None
@@ -117,5 +130,5 @@ class DiscoEntry:
         return DiscoEntryType.for_name(self._type)
 
     @property
-    def categories(self) -> tuple[str]:
+    def categories(self) -> tuple[str, ...]:
         return self.type.categories

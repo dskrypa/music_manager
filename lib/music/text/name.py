@@ -435,10 +435,16 @@ class Name(ClearableCachedPropertyMixin):
         else:
             self.extra[key] = value
 
+    def with_extras(self, **kwargs) -> Name:
+        clone = copy(self)
+        for key, val in kwargs.items():
+            clone.add_extra(key, val)
+        return clone
+
     def with_part(self, **kwargs) -> Name:
-        _copy = copy(self)
-        _copy.update(**kwargs)
-        return _copy
+        clone = copy(self)
+        clone.update(**kwargs)
+        return clone
 
     def _merge_basic(self, other: Name) -> dict[str, OptStr]:
         merged = {}

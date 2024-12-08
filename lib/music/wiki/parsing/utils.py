@@ -85,7 +85,11 @@ class PageIntro:
     def _to_process(self) -> list[str]:
         # Partition the first sentence of the intro into sections that should be processed individually
         first_string = IS_SPLIT(self.intro, 1)[0].strip()
-        log.debug(f'{first_string=}')
+        if first_string == '{{PAGENAME}}':
+            first_string = self.page.title
+            log.debug(f'Using page title for {first_string=}')
+        else:
+            log.debug(f'{first_string=}')
 
         parts = [first_string]
         for partitioner in self.FIRST_SENTENCE_SECTION_PARTITIONERS:
@@ -238,7 +242,9 @@ class RawTracks:
     def _iter_names(self, raw_tracks, part: DiscographyEntryPart, parser: WikiParser) -> Iterator[Name]:
         if raw_tracks is None:
             if part.edition.type in (DiscoEntryType.Single, DiscoEntryType.Soundtrack):
-                yield parser.parse_single_page_track_name(part.edition.page)
+                name = parser.parse_single_page_track_name(part.edition.page)
+                yield name
+                yield name.with_extras(instrumental=True)
             else:
                 log.debug(f'No tracks found for {self}')
         elif isinstance(raw_tracks, Table):

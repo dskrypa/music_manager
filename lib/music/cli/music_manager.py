@@ -160,15 +160,14 @@ class Clean(MusicManager, help='Clean undesirable tags from the specified files'
 
 class Remove(MusicManager, help='Remove the specified tags from the specified files'):
     path = Positional(nargs='+', help='One or more paths of music files or directories containing music files')
-    with ParamGroup(mutually_exclusive=True):
+    with ParamGroup(mutually_exclusive=True, required=True):
         tag = Option('-t', nargs='+', help='Tag ID(s) to remove')
         all = Flag('-A', help='Remove ALL tags')
 
     def main(self):
         from music.manager.file_update import remove_tags
-        if not self.tag and not self.all:
-            raise ValueError('Either --tag/-t or --all/-A must be provided')
-        remove_tags(self.path, self.tag, self.dry_run, self.all)
+
+        remove_tags(self.path, self.tag, self.dry_run, self.all, missing_log_lvl=19 if self.tag else None)
 
 
 class Bpm(MusicManager, help='Add BPM info to the specified files'):

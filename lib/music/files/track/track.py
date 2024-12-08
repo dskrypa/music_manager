@@ -453,14 +453,25 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         if not dry_run:
             self._f.tags.delete(self._f.filename)
 
-    def remove_tags(self, tag_ids: StrIter, dry_run: Bool = False, log_lvl: int = logging.DEBUG) -> bool:
-        tag_ids = list(map(self.normalize_tag_id, tag_ids))
-        to_remove = {
-            tag_id: val if isinstance(val, list) else [val]
-            for tag_id in sorted(tag_ids) if (val := self.tags.get(tag_id) or self.tags_for_id(tag_id))
-        }
+    def _get_tags_to_remove(self, tag_ids: StrIter) -> dict[str, list[str]]:
+        to_remove = {}
+        for tag_id in tag_ids:
+            norm_id = self.normalize_tag_id(tag_id)
+            if val := self.tags.get(norm_id) or self.tags_for_id(norm_id):
+                to_remove[norm_id] = val
+            elif val := self.tags.get(tag_id) or self.tags_for_id(tag_id):
+                to_remove[tag_id] = val
+
+        return {key: val if isinstance(val, list) else [val] for key, val in sorted(to_remove.items())}
+
+    def remove_tags(
+        self, tag_ids: StrIter, dry_run: Bool = False, log_lvl: int = logging.DEBUG, missing_log_lvl: int = None
+    ) -> bool:
+        to_remove = self._get_tags_to_remove(tag_ids)
         if not to_remove:
-            log.log(log_lvl, f'{self}: Did not have the tags specified for removal')
+            if missing_log_lvl is None:
+                missing_log_lvl = log_lvl
+            log.log(missing_log_lvl, f'{self}: Did not have the tags specified for removal')
             return False
 
         info_str = ', '.join(f'{tag_id} ({len(vals)})' for tag_id, vals in to_remove.items())

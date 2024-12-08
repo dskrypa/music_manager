@@ -15,7 +15,7 @@ from ds_tools.logging import init_logging, ENTRY_FMT_DETAILED_PID
 
 from music.common.prompts import get_input
 from music.files.album import iter_album_dirs, iter_albums_or_files
-from music.files.exceptions import TagException
+from music.files.exceptions import TagException, InvalidTagName
 from music.files.track.track import iter_music_files, SongFile
 
 if TYPE_CHECKING:
@@ -90,12 +90,17 @@ def clean_tags(paths: Paths, dry_run: bool = False, add_bpm: bool = False, verbo
         add_track_bpm(paths, dry_run=dry_run, verbosity=verbosity)
 
 
-def remove_tags(paths: Paths, tag_ids: Iterable[str], dry_run: bool = False, remove_all: bool = False):
+def remove_tags(
+    paths: Paths, tag_ids: Iterable[str], dry_run: bool = False, remove_all: bool = False, missing_log_lvl: int = None
+):
     for music_file in iter_music_files(paths):
         if remove_all:
             music_file.remove_all_tags(dry_run)
         else:
-            music_file.remove_tags(tag_ids, dry_run, logging.INFO)
+            try:
+                music_file.remove_tags(tag_ids, dry_run, logging.INFO, missing_log_lvl=missing_log_lvl)
+            except InvalidTagName as e:
+                log.debug(e)
 
 
 def add_track_bpm(paths: Paths, parallel: int = 4, dry_run: bool = False, verbosity: int = 0):

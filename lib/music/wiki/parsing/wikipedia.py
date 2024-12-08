@@ -10,7 +10,7 @@ from collections import defaultdict
 from copy import copy
 from datetime import datetime, date
 from functools import partial
-from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any, Match
+from typing import TYPE_CHECKING, Iterator, Optional, Sequence, Iterable, Union, Any, Match, Collection
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output import short_repr as _short_repr
@@ -111,13 +111,19 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
         content: WikipediaAlbumEditionPart | list[WikipediaAlbumEditionPart] = edition._content
 
         if isinstance(content, list):
-            if all(ep.album_side is not None for ep in content):
-                yield DiscographyEntryPart(content[0].part_name, edition, RawWikipediaTracks(content))
-            else:
-                for edition_part in content:  # type: WikipediaAlbumEditionPart
+            log.debug(f'Processing {len(content)} edition parts for {edition=}')
+            sides, other = _split_edition_parts(content)
+            if sides:
+                log.debug(f'Combining {len(sides)} album sides into one edition Part for {edition=}')
+                yield DiscographyEntryPart(sides[0].part_name, edition, RawWikipediaTracks(sides))
+
+            if other:
+                log.debug(f'Found {len(other)} edition Parts for {edition=}')
+                for edition_part in other:  # type: WikipediaAlbumEditionPart
                     # log.debug(f'process_edition_parts: {edition_part=}', extra={'color': 14})
                     yield DiscographyEntryPart(edition_part.part_name, edition, RawWikipediaTracks(edition_part))
         elif content:
+            log.debug(f'Found single content entry for {edition=}')
             yield DiscographyEntryPart(None, edition, RawWikipediaTracks(content))
         elif content is None and edition.type == DiscoEntryType.Single:
             yield DiscographyEntryPart(None, edition, None)
@@ -125,7 +131,7 @@ class WikipediaParser(WikiParser, site='en.wikipedia.org'):
             log.warning(f'Unexpected {content=} for {edition=}')
 
     def parse_track_name(self, row: TrackRow, edition_part: WikipediaAlbumEditionPart) -> Name:  # noqa
-        # log.debug(f'parse_track_name: {row=}, {edition_part=}')
+        log.debug(f'parse_track_name: {row=}, {edition_part=}')
         # TODO: Don't treat parenthesized text in EN-only titles as a translation or something - it should be retained
         return TrackNameParser(row, edition_part).parse_name()
 
@@ -655,23 +661,32 @@ class EditionGrouper:
 
         group.append(edition_part)
 
-    def _handle_album_sides(self):
-        self._groups[None].extend(self.edition_parts)
-
     def _group_editions(self):
-        if all(ep.album_side is not None for ep in self.edition_parts):
-            self._handle_album_sides()
-            return
+        sides, other = _split_edition_parts(self.edition_parts)
+        if sides:
+            self._groups[None].extend(sides)
 
-        bonus_disks = []
-        for edition_part in self.edition_parts:
-            if edition_part.bonus_disk_match:
-                bonus_disks.append(edition_part)
-            else:
-                self._add_to_group(edition_part)
+        if other:
+            bonus_disks = []
+            for edition_part in other:
+                if edition_part.bonus_disk_match:
+                    bonus_disks.append(edition_part)
+                else:
+                    self._add_to_group(edition_part)
 
-        for edition_part in bonus_disks:
-            self._add_bonus_group(edition_part)
+            for edition_part in bonus_disks:
+                self._add_bonus_group(edition_part)
+
+
+def _split_edition_parts(edition_parts: Collection[WikipediaAlbumEditionPart]):
+    sides, other = [], []
+    for edition_part in edition_parts:  # type: WikipediaAlbumEditionPart
+        if edition_part.album_side is not None:
+            sides.append(edition_part)
+        else:
+            other.append(edition_part)
+
+    return sides, other
 
 
 class WikipediaAlbumEditionPart:
@@ -827,7 +842,9 @@ class WikipediaAlbumEditionPart:
 
     @cached_property
     def tracks(self) -> list[TrackRow]:
-        if self._first_num > 1 and (prev_editions := self.prev_editions):
+        if self.album_side:
+            return self._tracks
+        elif self._first_num > 1 and (prev_editions := self.prev_editions):
             expected_last = self._first_num - 1
             for edition in prev_editions[::-1]:
                 if edition.last_num == expected_last:

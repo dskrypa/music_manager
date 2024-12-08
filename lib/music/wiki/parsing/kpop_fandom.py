@@ -717,13 +717,29 @@ class EditionPartFinder:
         #     log.debug(f'EditionPartFinder._get_content: content={content!r}')
 
         if content.__class__ is CompoundNode and isinstance(content[0], List):
+            """
+            TODO: handle Special Track, Part.1~10, Bonus Track; Full OST
+            https://kpop.fandom.com/wiki/Business_Proposal_OST
+
+            From drama_wiki parser:
+
+            if edition.edition == '[OST Parts]':
+                yield from self._process_parts_edition_parts(edition, True)
+            elif edition.edition == '[Extra Parts]':
+                yield from self._process_parts_edition_parts(edition, False)
+            elif edition.edition == '[Full OST]':
+            """
+
             content_len = len(content)
             if content_len % 2 == 0 and str(content[0][0].value.raw).startswith('Part'):
                 return content, True
             elif content_len == 1:
                 return content[0], False
             else:
-                raise ValueError(f'Unexpected content={content.pformat()} for edition={self.edition!r}')
+                raise ValueError(
+                    f'Unexpected content for edition={self.edition!r} on page={self.edition.page.url}'
+                    f' - content: {content.pformat()}'
+                )
         else:
             # log.debug(f'Processing edition part content with {content.__class__=}')
             return content, False
@@ -834,52 +850,14 @@ class ComplexTrackName:
         return f'track={self.orig_node!r} node={self.node!r}'
 
     def _process_base_name_part_1(self) -> tuple[str, str | None]:
-        remainder = None
         node = self.node
         if isinstance(node, String):
             if node.value == '"':
-                self.node = node = self.nodes.pop(0)
-                if isinstance(node, Link):
-                    base_name = node.show
-                    self.node = node = self.nodes.pop(0)
-                    if isinstance(node, String):
-                        remainder = node.value
-                        if remainder.count('"') == 1:
-                            name_part, remainder = map(str.strip, remainder.split('"', 1))
-                            # log.debug(f'{base_name=} {name_part=} {remainder=}')
-                            base_name = f'{base_name} {name_part}'
-                        # else:
-                        #     log.debug(f'{base_name=} {remainder=}')
-                    else:
-                        raise TypeError(f'Unexpected third node type for {self}')
-                else:
-                    raise ValueError(f'Unexpected second node value for {self}')
+                return self._process_base_name_part_1_quote()
             else:
-                value = node.value
-                if (
-                    len(self.nodes) > 1 and value.startswith('"') and has_unpaired(value)
-                    and isinstance(self.nodes[1], String)
-                    and '"' in self.nodes[1].value and has_unpaired(self.nodes[1].value)
-                ):
-                    value = value[1:]
-                    self.nodes[1].value = self.nodes[1].value.replace('"', '')
-                else:
-                    log.debug(f'nodes={self.nodes}')
-                split_name = split_enclosed(value, maxsplit=1)
-                # log.debug(f'split_enclosed({value!r}) => {split_name}')
-                if len(split_name) == 1:
-                    base_name = split_name[0]
-                else:
-                    base_name, remainder = split_name
-                    if prefix := next(
-                        (k for k in REMAINDER_ARTIST_EXTRA_TYPE_MAP if k in remainder and k != '('), None
-                    ):
-                        # log.debug(f'Found {prefix=}')
-                        if not remainder.startswith(prefix):
-                            non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
-                            base_name = f'{base_name} {non_eng}'
-                            remainder = f'{extra_prefix} {after}'.strip()
+                return self._process_base_name_part_1_str(node)
         elif isinstance(node, Link):
+            remainder = None
             split_name = split_enclosed(node.show, maxsplit=1)
             # log.debug(f'split_enclosed({value!r}) => {split_name}')
             if len(split_name) == 1:
@@ -888,6 +866,60 @@ class ComplexTrackName:
                 base_name, remainder = split_name
         else:
             raise TypeError(f'Unexpected first node type for {self}')
+
+        return base_name, remainder
+
+    def _process_base_name_part_1_quote(self) -> tuple[str, str | None]:
+        self.node = node = self.nodes.pop(0)
+        if not isinstance(node, Link):
+            raise ValueError(f'Unexpected second node value for {self}')
+
+        base_name = node.show
+        try:
+            self.node = node = self.nodes.pop(0)
+        except IndexError:
+            self.node = node = String('"')  # Allow link names where the user forgot to type the end quote
+
+        if not isinstance(node, String):
+            raise TypeError(f'Unexpected third node type for {self}')
+
+        remainder = node.value
+        if remainder.count('"') == 1:
+            name_part, remainder = map(str.strip, remainder.split('"', 1))
+            # log.debug(f'{base_name=} {name_part=} {remainder=}')
+            base_name = f'{base_name} {name_part}'
+        # else:
+        #     log.debug(f'{base_name=} {remainder=}')
+
+        return base_name, remainder
+
+    def _process_base_name_part_1_str(self, node: String) -> tuple[str, str | None]:
+        remainder = None
+        value = node.value
+        if (
+            len(self.nodes) > 1 and value.startswith('"') and has_unpaired(value)
+            and isinstance(self.nodes[1], String)
+            and '"' in self.nodes[1].value and has_unpaired(self.nodes[1].value)
+        ):
+            value = value[1:]
+            self.nodes[1].value = self.nodes[1].value.replace('"', '')
+        else:
+            log.debug(f'nodes={self.nodes}')
+
+        split_name = split_enclosed(value, maxsplit=1)
+        # log.debug(f'split_enclosed({value!r}) => {split_name}')
+        if len(split_name) == 1:
+            base_name = split_name[0]
+        else:
+            base_name, remainder = split_name
+            if prefix := next(
+                (k for k in REMAINDER_ARTIST_EXTRA_TYPE_MAP if k in remainder and k != '('), None
+            ):
+                # log.debug(f'Found {prefix=}')
+                if not remainder.startswith(prefix):
+                    non_eng, extra_prefix, after = map(str.strip, remainder.partition(prefix))
+                    base_name = f'{base_name} {non_eng}'
+                    remainder = f'{extra_prefix} {after}'.strip()
 
         return base_name, remainder
 

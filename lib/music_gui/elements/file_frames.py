@@ -194,6 +194,7 @@ class SelectableSongFileFrame(SongFileFrame):
         self.reset_selection()
 
     def _build_tag_row(self, tag_id: str, uniq_id: str, disp_name: str, value: Any) -> tuple[Text, CheckBox, ValueEle]:
+        # TODO: If a rating tag is present, then shift+click doesn't work, and individually selected ones are not removed
         key_ele, val_ele = super()._build_tag_row(tag_id, uniq_id, disp_name, value)
 
         data = {'track_frame': self, 'tag_id': tag_id}

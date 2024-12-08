@@ -663,6 +663,8 @@ class EditionGrouper:
 
     def _group_editions(self):
         sides, other = _split_edition_parts(self.edition_parts)
+        # TODO: This won't handle cases where there are 2 sides and an extended edition that should be a combo of
+        #  all 3 well.
         if sides:
             self._groups[None].extend(sides)
 
@@ -931,6 +933,7 @@ def node_to_link_dict(node: Node) -> Optional[dict[str, Optional[Node]]]:
                     b = b[4:].strip()
                 else:
                     as_dict[a.show] = a
+
                 if b == 'and':
                     as_dict[c.show] = c
                 else:

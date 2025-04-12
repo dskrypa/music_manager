@@ -11,7 +11,7 @@ from FreeSimpleGUI import Button, Text
 
 from ..window import Window
 
-__all__ = ['popup', 'popup_ok', 'popup_input_invalid', 'popup_yes_no', 'popup_no_yes']
+__all__ = ['popup', 'popup_ok', 'popup_input_invalid', 'popup_yes_no']
 log = logging.getLogger(__name__)
 
 
@@ -22,11 +22,6 @@ def popup_ok(message: str = None, title: str = '', **kwargs):
 
 def popup_yes_no(message: str = None, title: str = '', **kwargs) -> bool:
     result = popup(message, title=title, button_text=('Yes', 'No'), binds={'<Escape>': 'Exit'}, **kwargs)
-    return result == 'Yes'
-
-
-def popup_no_yes(message: str = None, title: str = '', **kwargs) -> bool:
-    result = popup(message, title=title, button_text=('No', 'Yes'), binds={'<Escape>': 'Exit'}, **kwargs)
     return result == 'Yes'
 
 

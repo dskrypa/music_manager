@@ -1,5 +1,5 @@
 """
-Extended Window class from FreeSimpleGUI.  This has not been tested since switching from PySimpleGUI to FreeSimpleGUI.
+Extended Window class from FreeSimpleGUI.
 
 :author: Doug Skrypa
 """

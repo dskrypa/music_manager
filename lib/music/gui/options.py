@@ -356,11 +356,6 @@ class GuiOptions:
             self._default_col = old_col
             self._default_row = old_row
 
-    def as_popup(self, **kwargs):
-        from .popups.options import OptionsView
-
-        return OptionsView(self, **kwargs).get_result()
-
 
 def make_checkbox_grid(rows: list[list[Checkbox]]):
     if len(rows) > 1 and len(rows[-1]) == 1:

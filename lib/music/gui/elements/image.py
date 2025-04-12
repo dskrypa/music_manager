@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
 from inspect import Signature
 from itertools import count
 from pathlib import Path
@@ -16,11 +15,10 @@ from ds_tools.images.colors import color_at_pos
 from ds_tools.images.animated.cycle import PhotoImageCycle
 from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
-from ds_tools.images.lcd import SevenSegmentDisplay
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
 from ..utils import FinishInitMixin
 
-__all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage', 'ClockImage']
+__all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage']
 log = logging.getLogger(__name__)
 
 
@@ -183,56 +181,6 @@ class SpinnerImage(ExtendedImage, animated=True):
         self._animation.next(True)
         if self._bind_click:
             self._widget.bind('<Button-1>', self.handle_click)
-
-
-class ClockImage(ExtendedImage, animated=True):
-    _clock: SevenSegmentDisplay
-    _clock_keys = set(Signature.from_callable(SevenSegmentDisplay).parameters.keys())
-
-    def __init__(self, *args, slim: bool = False, img_size: tuple[int, int] = None, **kwargs):
-        clock_kwargs = {key: kwargs.pop(key) for key in self._clock_keys if key in kwargs}
-        clock_kwargs.setdefault('bar_pct', 0.2)
-        clock_kwargs.setdefault('width', 40)
-        self._show_seconds = kwargs.pop('seconds', True)
-        self._clock = clock = SevenSegmentDisplay(**clock_kwargs)
-        if img_size is not None:
-            clock.resize(clock.calc_width(calculate_resize(*clock.time_size(self._show_seconds), *img_size)[1]) - 1)
-
-        kwargs.setdefault('size', clock.time_size(self._show_seconds))
-        kwargs['bind_click'] = False
-        kwargs.setdefault('background_color', 'black')
-        kwargs.setdefault('pad', (0, 0))
-        super().__init__(*args, **kwargs)
-        self._next_id = None
-        self._last_time = datetime.now() - timedelta(seconds=1)
-        self._delay = 200 if self._show_seconds else 1000
-        self._slim = slim
-
-    def resize(self, width: int, height: int):
-        width, height = size = calculate_resize(*self._current_size, width, height)
-        self._current_size = size
-        self._clock.resize(self._clock.calc_width(height) - 1)
-        self._last_time -= timedelta(seconds=1)
-        if self._next_id is None:
-            if self._bind_click:
-                self._widget.bind('<Button-1>', self.handle_click)
-            self.next_frame()
-
-    def toggle_slim(self):
-        self._clock.resize(bar_pct=(self._clock.bar_pct * (2 if self._slim else 0.5)), preserve_height=True)
-        self._slim = not self._slim
-        self._last_time -= timedelta(seconds=1)
-
-    def next_frame(self):
-        widget = self._widget
-        now = datetime.now()
-        if now.second != self._last_time.second:
-            self._last_time = now
-            widget.image = image = PhotoImage(self._clock.draw_time(now, self._show_seconds))
-            width, height = self._current_size
-            widget.configure(image=image, width=width, height=height)
-            self._pack_restore_settings()
-        self._next_id = widget.after(self._delay, self.next_frame)
 
 
 class Animation:

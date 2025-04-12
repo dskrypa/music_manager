@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import logging
 import webbrowser
 from functools import cached_property
-from tkinter import Label, X, Y, BOTH
-from typing import Union, Any
+from typing import TYPE_CHECKING, Union, Any
 
 from FreeSimpleGUI import Text, COLOR_SYSTEM_DEFAULT, pin
+
+if TYPE_CHECKING:
+    from tkinter import Label
 
 __all__ = ['ExtText']
 log = logging.getLogger(__name__)

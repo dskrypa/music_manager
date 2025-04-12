@@ -4,6 +4,8 @@ Patches for PlexAPI
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 import warnings
 from datetime import datetime, timedelta
@@ -20,7 +22,7 @@ from plexapi.base import PlexObject, Playable, PlexPartialObject, PlexSession, M
 from plexapi.base import _DONT_RELOAD_FOR_KEYS, USER_DONT_RELOAD_FOR_KEYS
 from plexapi.exceptions import UnknownType
 from plexapi.media import Media, Field, Mood, Collection, Label, Guid, Chapter, Genre, Country, Similar, Style, Format
-from plexapi.media import Subformat
+from plexapi.media import Subformat, Image, UltraBlurColors
 from plexapi.utils import toDatetime, cast, iterXMLBFS, getPlexObject
 
 from ..common.ratings import stars
@@ -30,7 +32,7 @@ from .filters import get_attr_operator, get_attr_value, ele_matches_filters
 __all__ = ['apply_plex_patches']
 log = logging.getLogger(__name__)
 
-PATCHED_VERSION = '4.15.14'
+PATCHED_VERSION = '4.16.1'
 _APPLIED_BASIC_PATCHES = False
 _APPLIED_PERF_PATCHES = False
 _NotSet = object()
@@ -111,7 +113,7 @@ def _apply_perf_patches(skip_changed: bool = True):
 
     def audio_load_data(self: Audio, data: Element):
         """ Load attribute values from Plex XML response. """
-        self._data = data  # All attributes based on this data are now implemented as descriptors below
+        self._data = data  # All attributes based on this data are now implemented in patch_audio_data_attrs below
 
     def playable_load_data(self: Playable, data: Element):
         pass  # Only 2 attributes were set here, and both are now descriptors
@@ -227,14 +229,14 @@ def _apply_perf_patches(skip_changed: bool = True):
         Artist: patch_artist_data_attrs,
     }
 
-    # Last updated for PlexAPI version: 4.15.14 (2024-07-06)
-    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.13.2...4.15.14
+    # Last updated for PlexAPI version: 4.16.1 (2025-04-12)
+    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.15.14...4.16.1
     perf_patches = [
-        (Audio, '_loadData', audio_load_data, '6614f35f02b7f0c0b0e73f5c54323ee866058b7e8f02b3d554252368ce7575d5'),
+        (Audio, '_loadData', audio_load_data, '4b72e0128985b05040299dedd4f366713cee6a86188f5e2927dae8e1a856c43f'),
         (Playable, '_loadData', playable_load_data, 'c24c0ced7e444c08e8967b92353309b58df113a7373f6b876e8c7d8d77ffe234'),
         (Track, '_loadData', track_load_data, '0b7dc3f3f34c402da635015eec4441a540b8d22e88759480744a9f477130a5d7'),
-        (Album, '_loadData', album_load_data, 'c9211a2d0183cc9a3411df9738cf1746e08bbe64d2b87b404b4878a31070ebbf'),
-        (Artist, '_loadData', artist_load_data, 'a46ae9584183ae07e5fc492cf6e055e2351090364d00785ec8cf94159de15023'),
+        (Album, '_loadData', album_load_data, 'edc08c7e823e3ab65ee10354db941743d30b6d0c03624f47505cb6377ac4f6e5'),
+        (Artist, '_loadData', artist_load_data, '2a6ec4e70a30d562e9a999b1c04f3195626ab646e0a1c8fc1bcaac3782921f25'),
         (PlexSession, '_loadData', session_load_data, '249132147cc678ff7b0f9aeb078baedeb0bb52e023586458be75816bc50b2f9c'),
         (PlexObject, '_getAttrOperator', _get_attr_operator, '8379d358737730f32cae86016d812eae676305801367d7d9c5116c7272bf88de'),
         (PlexObject, '_getAttrValue', _get_attr_value, 'df6e55a4e7b8c3cb6507ec7c4a1956a0b53a2be5ca7c97c7c2143fe715cc5095'),
@@ -526,6 +528,7 @@ def patch_audio_data_attrs():
     Audio.distance = PlexDataAttribute(cast_func=cast_float)
     Audio.fields = PlexItemsAttribute(Field)
     Audio.guid = PlexDataAttribute()
+    Audio.images = PlexItemsAttribute(Image)
     Audio.index = PlexDataAttribute(cast_func=cast_int)
     Audio.key = PlexDataAttribute(default='')
     Audio.lastRatedAt = PlexDataAttribute(cast_func=to_datetime)
@@ -616,6 +619,7 @@ def patch_album_data_attrs():
     Album.studio = PlexDataAttribute()
     Album.styles = PlexItemsAttribute(Style)
     Album.subformats = PlexItemsAttribute(Subformat)
+    Album.ultraBlurColors = PlexItemsAttribute(UltraBlurColors)
     Album.viewedLeafCount = PlexDataAttribute(cast_func=cast_int)
     Album.year = PlexDataAttribute(cast_func=cast_int)
 
@@ -636,6 +640,7 @@ def patch_artist_data_attrs():
     Artist.similar = PlexItemsAttribute(Similar)
     Artist.styles = PlexItemsAttribute(Style)
     Artist.theme = PlexDataAttribute()
+    Artist.ultraBlurColors = PlexItemsAttribute(UltraBlurColors)
 
     PlexAttribute.set_names(Artist)
 

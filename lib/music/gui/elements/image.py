@@ -18,7 +18,7 @@ from ds_tools.images.animated.gif import AnimatedGif
 from ds_tools.images.animated.spinner import Spinner
 from ds_tools.images.lcd import SevenSegmentDisplay
 from ds_tools.images.utils import ImageType, Size, as_image, calculate_resize
-from ..utils import FinishInitMixin, padding
+from ..utils import FinishInitMixin
 
 __all__ = ['ExtendedImage', 'Spacer', 'SpinnerImage', 'ClockImage']
 log = logging.getLogger(__name__)
@@ -130,8 +130,6 @@ class ExtendedImage(ImageElement, FinishInitMixin):
                     self._current_size = (new_w, new_h)
                     self._widget.configure(image=tk_image, width=new_w, height=new_h)
                     self._widget.image = tk_image
-                    # self._widget.pack(padx=self.pad_used[0], pady=self.pad_used[1])
-                    # self._widget.pack(**padding(self))
                     self._pack_restore_settings()
 
             if self._bind_click:
@@ -233,9 +231,6 @@ class ClockImage(ExtendedImage, animated=True):
             widget.image = image = PhotoImage(self._clock.draw_time(now, self._show_seconds))
             width, height = self._current_size
             widget.configure(image=image, width=width, height=height)
-            # x, y = self.pad_used
-            # widget.pack(padx=x, pady=y)
-            # self._widget.pack(**padding(self))
             self._pack_restore_settings()
         self._next_id = widget.after(self._delay, self.next_frame)
 
@@ -285,8 +280,6 @@ class Animation:
         self._widget.configure(image=frame, width=width, height=height)
         if init:
             self._widget.image = frame
-            # x, y = self._image_ele.pad_used
-            # self._widget.pack(padx=x, pady=y)
             self._widget.pack(**padding(self._image_ele))
 
         if self._run:
@@ -311,6 +304,11 @@ class Animation:
     def resume(self):
         self._run = True
         self.next()
+
+
+def padding(ele) -> dict[str, int]:
+    x, y = ele.Pad if ele.Pad is not None else ele.ParentForm.ElementPadding
+    return {'padx': x, 'pady': y}
 
 
 class Spacer(ImageElement):

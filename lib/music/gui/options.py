@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator,
 from FreeSimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse, Button
 
 from .elements.inputs import ExtInput
-from .utils import resize_text_column, make_checkbox_grid
 
 if TYPE_CHECKING:
     from .base_view import GuiView
@@ -217,7 +216,10 @@ class GuiOptions:
 
             for row_set in row_sets:
                 if self.align_text and (rows_with_text := [r for r in row_set if r and isinstance(r[0], Text)]):
-                    resize_text_column(rows_with_text)  # noqa
+                    longest = max(map(len, (row[0].DisplayText for row in rows_with_text)))  # noqa
+                    for row in rows_with_text:
+                        row[0].Size = (longest, 1)  # noqa
+
                 if self.align_checkboxes:
                     if box_rows := [r for r in row_set if r and all(isinstance(e, Checkbox) for e in r)]:
                         self.log.info(f'Processing checkboxes into grid: {box_rows}')
@@ -358,6 +360,24 @@ class GuiOptions:
         from .popups.options import OptionsView
 
         return OptionsView(self, **kwargs).get_result()
+
+
+def make_checkbox_grid(rows: list[list[Checkbox]]):
+    if len(rows) > 1 and len(rows[-1]) == 1:
+        last_row = rows[-1]
+        rows = rows[:-1]
+    else:
+        last_row = None
+
+    shortest_row = min(map(len, (row for row in rows)))
+    longest_boxes = [max(map(len, (row[column].Text for row in rows))) for column in range(shortest_row)]
+    for row in rows:
+        for column, width in enumerate(longest_boxes):
+            row[column].Size = (width, 1)
+
+    if last_row is not None:
+        rows.append(last_row)
+    return rows
 
 
 class GuiOptionError(Exception):

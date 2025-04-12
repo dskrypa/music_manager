@@ -477,12 +477,6 @@ class GuiView(ABC):
     def display_name(self) -> str:
         return self.name.replace('_', ' ').title()
 
-    @event_handler
-    def about(self, event: Event, data: EventData):
-        from .popups.about import AboutView
-
-        return AboutView()
-
     def _settings(self) -> GuiOptions:
         options = GuiOptions(self, submit='Save', title=None)
         with options.next_row() as options:

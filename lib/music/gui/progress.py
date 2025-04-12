@@ -8,16 +8,12 @@ import logging
 from functools import cached_property
 from typing import Union, TypeVar, Iterable, Iterator, Optional
 
-from FreeSimpleGUI import ProgressBar
-
-from ..files.track.track import SongFile
 from .elements.image import SpinnerImage, ExtendedImage
 from .elements.text import ExtText
 from .positioning import positioner
 from .window import Window
 
-__all__ = ['Spinner', 'ProgressTracker']
-# SPINNERS_DIR = Path(__file__).resolve().parents[3].joinpath('icons', 'spinners')
+__all__ = ['Spinner']
 log = logging.getLogger(__name__)
 T = TypeVar('T')
 
@@ -117,43 +113,3 @@ class SpinnerPopup:
 
     def read(self, timeout: int = 1):
         return self.window.read(timeout)
-
-
-class ProgressTracker:
-    def __init__(self, *args, text=None, **kwargs):
-        self.bar = ProgressBar(*args, **kwargs)
-        self.text = text
-        self.complete = 0
-
-    def update(self, text: Union[str, SongFile] = None, n: int = None):
-        if text is not None:
-            self.text.update(text.path.as_posix() if isinstance(text, SongFile) else text)
-        self.complete += 1
-        self.bar.update(self.complete)
-
-    def __call__(self, iterable):
-        for item in iterable:
-            self.update()
-            yield item
-
-
-if __name__ == '__main__':
-    from argparse import ArgumentParser
-    from ds_tools.logging import init_logging
-    parser = ArgumentParser()
-    parser.add_argument('image_path', nargs='*', help='Path to an image file')
-    args = parser.parse_args()
-    init_logging(12, log_path=None, names=None)
-
-    spinner = Spinner(
-        args.image_path[0] if args.image_path else None,
-        # size=(200, 200)
-    )
-    # popup.read(None)  # noqa
-    spinner.update()
-    # import time
-    # while True:
-    #     time.sleep(0.1)
-    #     spinner.update()
-
-    spinner._popup.read(None)  # noqa

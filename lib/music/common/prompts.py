@@ -4,6 +4,8 @@ Unification of CLI and GUI prompts
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from enum import Enum
 from getpass import getpass as cli_getpass
@@ -65,10 +67,7 @@ def choose_item(
     elif UI_MODE == UIMode.TK_GUI:
         return tkg_choose_item(items, item_name=name, source=source, text=before, repr_func=repr_func, keep_on_top=True)
     else:
-        from music.gui.popups.choose_item import choose_item as gui_choose_item
-
-        _log_psg_warning('choose_item')
-        return gui_choose_item(items, name, source, before=before, repr_func=repr_func)
+        raise RuntimeError(f'Unexpected {UI_MODE=} for choose_item')
 
 
 def get_input(

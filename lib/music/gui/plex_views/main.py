@@ -30,11 +30,7 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
 
     def __init__(self, *, plex: LocalPlexServer = None, **kwargs):
         super().__init__(**kwargs)
-        self.menu = [
-            ['&File', ['&Settings', 'E&xit']],
-            # ['&Actions', []],
-            ['&Help', ['&About']],
-        ]
+        self.menu = [['&File', ['&Settings', 'E&xit']]]
         self.plex: LocalPlexServer = plex or LocalPlexServer(config_path=self.config['config_path'])
 
     @property

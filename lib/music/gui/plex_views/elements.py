@@ -46,13 +46,13 @@ FIELD_SIZES = {
     'plays': (5, 1),
 }
 TYPE_FIELDS_MAP = {
-    'track': {'cover', 'year', 'artist', 'album', 'title', 'duration', 'plays', 'rating', 'play'},
+    'track': {'cover', 'year', 'artist', 'album', 'title', 'duration', 'plays', 'rating'},
     'album': {'cover', 'year', 'artist', 'title', 'plays', 'rating'},
     'artist': {'image', 'title'},
-    'movie': {'image', 'year', 'title', 'duration', 'plays', 'rating', 'play'},
+    'movie': {'image', 'year', 'title', 'duration', 'plays', 'rating'},
     'show': {'image', 'year', 'title', 'duration', 'plays', 'rating'},
     'season': {'image', 'show', 'title', 'plays'},
-    'episode': {'image', 'year', 'show', 'season', 'title', 'duration', 'plays', 'rating', 'play'},
+    'episode': {'image', 'year', 'show', 'season', 'title', 'duration', 'plays', 'rating'},
 }
 DEFAULT_SORT_FIELDS = {
     'track': ('artist', 'album', 'title'),
@@ -199,24 +199,23 @@ class Result:
 class ResultRow:
     __counter = count()
     _img_cache = ImageCache()
-    _play_icon = Icons(15).draw_base64('play')
+
 
     def __init__(self, img_size: tuple[int, int] = None):
         self.img_size = img_size or (40, 40)
         self._num = next(self.__counter)
         kp = f'result:{self._num}'
         self.image = ExtendedImage(size=self.img_size, key=f'{kp}:cover', pad=((20, 5), 3))
-        self.play_button = Button(image_data=self._play_icon, key=f'{kp}:play')
         self.result_type = None
         self.fields: dict[str, ExtText] = {
             field: ExtText(
                 size=size, key=f'{kp}:{field}', justification='right' if field in ('duration', 'plays') else None
             )
-            for field, size in FIELD_SIZES.items() if field != 'play'
+            for field, size in FIELD_SIZES.items()
         }
         self.rating = Rating(key=f'{kp}:rating', change_cb=self.rating_changed)
         self.visible = True
-        self.row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating, self.play_button]
+        self.row = [self.image, *(cell.pin for cell in self.fields.values()), self.rating]
         self.result: Optional[Result] = None
 
     def hide(self):
@@ -239,7 +238,6 @@ class ResultRow:
             show_fields = show_fields or TYPE_FIELDS_MAP[result_type]
             for field, text_ele in self.fields.items():
                 text_ele.update_visibility(field in show_fields)
-            self.play_button.update(visible='play' in show_fields)
             if hide:
                 self.hide()
 
@@ -267,13 +265,13 @@ class ResultTable(Column):
     def __init__(self, rows: int = 50, img_size: tuple[int, int] = None, sort_by: Iterable[str] = None, **kwargs):
         self.img_size = img_size
         self.rows = [ResultRow(img_size) for _ in range(rows)]
-        header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1), 'play': (4, 1)}
+        header_sizes = {'cover': (4, 1), 'image': (4, 1), **FIELD_SIZES, 'rating': (5, 1)}
         self.headers: dict[str, ExtText] = {
             header.strip(): ExtText(
                 header.title(),
                 size=size,
                 key=f'header:{header}',
-                justification='right' if header in ('duration', 'plays', 'play') else None,
+                justification='right' if header in ('duration', 'plays') else None,
             )
             for header, size in header_sizes.items()
         }

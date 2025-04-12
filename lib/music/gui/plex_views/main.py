@@ -105,10 +105,6 @@ class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', de
             from .search import PlexSearchView
 
             return PlexSearchView(plex=self.plex)
-        elif view == 'player':
-            from .player import PlexPlayerView
-
-            return PlexPlayerView(plex=self.plex)
         else:
             popup_input_invalid(f'Unexpected initial {view=}', logger=self.log)
 

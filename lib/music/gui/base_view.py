@@ -34,7 +34,7 @@ from threading import Thread
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Optional, Callable, Type, Mapping, Collection, Union
 
-from PySimpleGUI import WIN_CLOSED, Element, theme, theme_list
+from FreeSimpleGUI import WIN_CLOSED, Element, theme, theme_list
 
 from .config import GuiConfig
 from .exceptions import NoEventHandlerRegistered

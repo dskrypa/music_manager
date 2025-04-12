@@ -6,7 +6,7 @@ View: Choose item from list
 
 from typing import Callable, Sequence, Any, Union, Collection
 
-from PySimpleGUI import Element, Text, Button, Radio, Column
+from FreeSimpleGUI import Element, Text, Button, Radio, Column
 
 from ds_tools.input.prompts import _prepare_source
 from ds_tools.utils.grammar import a_or_an

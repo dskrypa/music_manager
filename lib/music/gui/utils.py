@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from typing import Union, Set
 from weakref import WeakSet
 
-from PySimpleGUI import Element, Input, Output, Multiline, Listbox, Checkbox, Text
+from FreeSimpleGUI import Element, Input, Output, Multiline, Listbox, Checkbox, Text
 
 from ds_tools.logging import DatetimeFormatter, ENTRY_FMT_DETAILED
 

@@ -4,7 +4,7 @@ View: Search results
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Text, Button, Combo
+from FreeSimpleGUI import Text, Button, Combo
 
 from ...plex.exceptions import QueryParseError
 from ...plex.query_parsing import PlexQuery

@@ -8,7 +8,7 @@ import sys
 from typing import Union
 
 from PIL.Image import MIME
-from PySimpleGUI import Image as GuiImage, Button, Column
+from FreeSimpleGUI import Image as GuiImage, Button, Column
 
 from ds_tools.images.utils import ImageType, as_image
 from ..elements.image import ExtendedImage

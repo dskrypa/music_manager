@@ -8,7 +8,7 @@ import logging
 from functools import cached_property
 from typing import Union, TypeVar, Iterable, Iterator, Optional
 
-from PySimpleGUI import ProgressBar
+from FreeSimpleGUI import ProgressBar
 
 from ..files.track.track import SongFile
 from .elements.image import SpinnerImage, ExtendedImage
@@ -24,7 +24,7 @@ T = TypeVar('T')
 
 class Spinner:
     """
-    Helper class for simplifying / automating spinner animations via :func:`popup_animated<PySimpleGUI.popup_animated>`.
+    Helper class for simplifying / automating spinner animations via :func:`<FreeSimpleGUI.popup_animated>`.
     Can be used as a context manager so that the animation is automatically ended at the end of the context block.  Can
     additionally be called to wrap an iterable (used similarly as the builtin :func:`enumerate` function) to
     automatically advance the animation on each iteration.

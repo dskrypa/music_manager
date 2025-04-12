@@ -1,9 +1,3 @@
-"""
-Input elements for PySimpleGUI
-
-:author: Doug Skrypa
-"""
-
 import logging
 import webbrowser
 from functools import partial
@@ -11,7 +5,7 @@ from pathlib import Path
 from tkinter import TclError, Entry
 from typing import Union, Optional
 
-from PySimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
+from FreeSimpleGUI import Input, theme, theme_input_background_color, theme_input_text_color
 
 from ds_tools.utils.launch import explore, launch
 from ...text.extraction import split_enclosed
@@ -38,8 +32,8 @@ class ExtInput(Input):
     ):
         """
         :param value: The initial value to display
-        :param args: Positional arguments to pass to :class:`PySimpleGUI.Input`
-        :param right_click_menu: Either a vanilla right-click menu as a list of strings/lists supported by PySimpleGUI
+        :param args: Positional arguments to pass to :class:`FreeSimpleGUI.Input`
+        :param right_click_menu: Either a vanilla right-click menu as a list of strings/lists supported by FreeSimpleGUI
           or a :class:`ContextualMenu`
         :param link: Whether the displayed text should be hyperlinked to open a browser with the text as the URL
           (default: link if the text starts with ``http://`` or ``https://``)
@@ -47,7 +41,7 @@ class ExtInput(Input):
           additional information will be appended to this value.
         :param path: To allow right-click to open a path in file manager, set to True to use the displayed text, or
           specify a specific path to open
-        :param kwargs: Keyword arguments to pass to :class:`PySimpleGUI.Input`
+        :param kwargs: Keyword arguments to pass to :class:`FreeSimpleGUI.Input`
         """
         self._dark = 'dark' in theme().lower()
         kwargs.setdefault('background_color', theme_input_background_color())

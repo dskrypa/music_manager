@@ -15,9 +15,9 @@ from tkinter import Menu, Tk, Event as TkEvent
 from typing import Optional, Union
 from urllib.parse import urlencode
 
+from FreeSimpleGUI import Button, Image, ProgressBar, WIN_CLOSED
 from plexapi.audio import Track
 from plexapi.video import Movie, Episode
-from PySimpleGUI import Button, Image, ProgressBar, WIN_CLOSED
 try:
     from vlc import Instance, MediaPlayer, Media, EventManager, Event as VlcEvent, EventType
 except (FileNotFoundError, OSError) as e:

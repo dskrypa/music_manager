@@ -1,16 +1,10 @@
-"""
-Text elements for PySimpleGUI
-
-:author: Doug Skrypa
-"""
-
 import logging
 import webbrowser
 from functools import cached_property
 from tkinter import Label, X, Y, BOTH
 from typing import Union, Any
 
-from PySimpleGUI import Text, COLOR_SYSTEM_DEFAULT, pin
+from FreeSimpleGUI import Text, COLOR_SYSTEM_DEFAULT, pin
 
 __all__ = ['ExtText']
 log = logging.getLogger(__name__)
@@ -29,12 +23,12 @@ class ExtText(Text):
     ):
         """
         :param value: The initial value to display
-        :param args: Positional arguments to pass to :class:`PySimpleGUI.Text`
+        :param args: Positional arguments to pass to :class:`FreeSimpleGUI.Text`
         :param link: Whether the displayed text should be hyperlinked to open a browser with the text as the URL, or the
           URL to open (default: link if the text starts with ``http://`` or ``https://``)
         :param tooltip: A tooltip to be displayed when hovering over this element.  If link / a link is detected, then
           additional information will be appended to this value.
-        :param kwargs: Keyword arguments to pass to :class:`PySimpleGUI.Input`
+        :param kwargs: Keyword arguments to pass to :class:`FreeSimpleGUI.Input`
         """
         self._orig_tooltip = tooltip
         self._link = link or link is None

@@ -1,9 +1,3 @@
-"""
-High level PySimpleGUI elements that represent Plex objects
-
-:author: Doug Skrypa
-"""
-
 from __future__ import annotations
 
 import logging
@@ -18,9 +12,9 @@ from typing import TYPE_CHECKING, Union, Collection, Optional, Iterable
 from urllib.parse import quote
 
 from cachetools import LRUCache
+from FreeSimpleGUI import Column, HorizontalSeparator, Image, Button
 from plexapi.audio import Track, Album, Artist
 from plexapi.video import Movie, Show, Season, Episode
-from PySimpleGUI import Column, HorizontalSeparator, Image, Button
 from requests import RequestException
 
 from ds_tools.images.utils import ImageType, as_image, scale_image

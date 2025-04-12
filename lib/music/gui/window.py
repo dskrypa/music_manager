@@ -1,5 +1,5 @@
 """
-Extended Window class from PySimpleGUI
+Extended Window class from FreeSimpleGUI.  This has not been tested since switching from PySimpleGUI to FreeSimpleGUI.
 
 :author: Doug Skrypa
 """
@@ -9,7 +9,7 @@ import signal
 from typing import Callable
 from weakref import WeakSet
 
-from PySimpleGUI import Window as _Window
+from FreeSimpleGUI import Window as _Window
 
 from .utils import FinishInitMixin
 

@@ -6,7 +6,7 @@ View: Test Popup
 
 from typing import Any
 
-from PySimpleGUI import Element, Multiline
+from FreeSimpleGUI import Element, Multiline
 
 from .base import BasePopup, Event, EventData, event_handler
 

@@ -5,8 +5,6 @@ plex_manager.py = music.cli.plex_manager:main
 transcode.py = music.cli.transcode:main
 wiki.py = music.cli.wiki:main
 
-clock.py = music.cli.clock:main
-gui_music_manager.py = music.cli.gui_music_manager:main
+# GUI entry points
+music_manager_gui.py = music_gui.cli.music_manager_gui:main
 plex_manager_gui.py = music.cli.plex_manager_gui:main
-
-new_music_manager.py = music_gui.cli.new_music_manager:main

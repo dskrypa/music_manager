@@ -11,7 +11,7 @@ from pathlib import Path
 from tkinter.filedialog import askdirectory, asksaveasfilename, askopenfilenames, askopenfilename
 from typing import Any, Union, Optional, Collection
 
-from PySimpleGUI import Element, Text, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs
+from FreeSimpleGUI import Element, Text, Button, FolderBrowse, FileBrowse, FilesBrowse, SaveAs
 
 from ..base_view import event_handler
 from ..elements.inputs import ExtInput

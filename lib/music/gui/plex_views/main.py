@@ -8,8 +8,8 @@ Defines the top menu and some common configuration properties.
 
 from pathlib import Path
 
+from FreeSimpleGUI import Menu, Button, Column, Image
 from plexapi.library import LibrarySection
-from PySimpleGUI import Menu, Button, Column, Image
 
 from ds_tools.images.utils import image_to_bytes
 

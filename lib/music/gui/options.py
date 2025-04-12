@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Collection, Iterator, Mapping, Union
 
-from PySimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse, Button
+from FreeSimpleGUI import Text, Element, Checkbox, Frame, Submit, Column, Combo, Listbox, FolderBrowse, Button
 
 from .elements.inputs import ExtInput
 from .utils import resize_text_column, make_checkbox_grid

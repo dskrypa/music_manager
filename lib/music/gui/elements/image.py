@@ -1,9 +1,3 @@
-"""
-Extended image elements for PySimpleGUI
-
-:author: Doug Skrypa
-"""
-
 from __future__ import annotations
 
 import logging
@@ -16,7 +10,7 @@ from typing import Optional, Callable, Union
 
 from PIL.ImageTk import PhotoImage
 from PIL.Image import Image as PILImage, Resampling
-from PySimpleGUI import Image as ImageElement
+from FreeSimpleGUI import Image as ImageElement
 
 from ds_tools.images.colors import color_at_pos
 from ds_tools.images.animated.cycle import PhotoImageCycle

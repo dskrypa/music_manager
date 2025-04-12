@@ -8,7 +8,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from PySimpleGUI import Element, Text, Button, Multiline, Input, Column
+from FreeSimpleGUI import Element, Text, Button, Multiline, Input, Column
 
 from ds_tools.images.utils import ImageType
 from ..base_view import event_handler, RenderArgs

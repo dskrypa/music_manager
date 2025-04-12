@@ -1,16 +1,10 @@
-"""
-Rating element for PySimpleGui
-
-:author: Doug Skrypa
-"""
-
 import logging
 from functools import cached_property
 from itertools import count
 from typing import Optional, Literal, Iterator, Callable
 
 from PIL.Image import Image as PILImage, new as new_image
-from PySimpleGUI import Column, Text, Element, ELEM_TYPE_GRAPH
+from FreeSimpleGUI import Column, Text, Element, ELEM_TYPE_GRAPH
 
 from ...common.ratings import star_fill_counts, stars_to_256
 from ..icons import Icons

@@ -7,7 +7,7 @@ Simple popups.
 import logging
 from typing import Union, Iterable
 
-from PySimpleGUI import Button, Text
+from FreeSimpleGUI import Button, Text
 
 from ..window import Window
 

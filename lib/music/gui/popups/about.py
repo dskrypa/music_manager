@@ -11,7 +11,7 @@ from pathlib import Path
 from functools import cached_property
 from typing import Any
 
-from PySimpleGUI import Element, Text, OK
+from FreeSimpleGUI import Element, Text, OK
 
 from ..base_view import event_handler
 from .base import BasePopup

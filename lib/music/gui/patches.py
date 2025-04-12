@@ -1,10 +1,10 @@
 """
-Monkey patches for PySimpleGUI
+Monkey patches for FreeSimpleGUI
 
 :author: Doug Skrypa
 """
 
-from PySimpleGUI import Element
+from FreeSimpleGUI import Element
 
 __all__ = ['patch_all', 'patch_element_repr']
 

@@ -17,8 +17,8 @@ log = logging.getLogger(__name__)
 @contextmanager
 def temp_hidden_window(logger: logging.LoggerAdapter = None):
     """
-    Creates and destroys a temporary Window similar to the way that PySimpleGUI does in
-    :func:`popup_get_folder<PySimpleGUI.popup_get_folder>` while creating a file prompt.  Mostly copied from that func.
+    Creates and destroys a temporary Window similar to the way that FreeSimpleGUI does in
+    :func:`popup_get_folder<FreeSimpleGUI.popup_get_folder>` while creating a file prompt. Mostly copied from that func.
     """
     logger = log if logger is None else logger
     if not Window.hidden_master_root:

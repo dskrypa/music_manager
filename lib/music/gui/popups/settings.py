@@ -7,7 +7,7 @@ View: Settings
 from functools import partial
 from typing import TYPE_CHECKING, Any, Iterable, Collection
 
-from PySimpleGUI import Element, Submit, theme, Listbox
+from FreeSimpleGUI import Element, Submit, theme, Listbox
 
 from ..base_view import event_handler, Event, EventData
 from ..options import GuiOptions, SingleParsingError, MultiParsingError

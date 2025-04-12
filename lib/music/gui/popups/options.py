@@ -7,7 +7,7 @@ View: Options
 from functools import partial
 from typing import Any, Iterable
 
-from PySimpleGUI import Element
+from FreeSimpleGUI import Element
 
 from ..base_view import event_handler, Event, EventData
 from ..options import GuiOptions, SingleParsingError, MultiParsingError

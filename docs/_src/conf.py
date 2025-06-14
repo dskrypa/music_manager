@@ -63,7 +63,7 @@ autodoc_default_options = {
     'private-members': '_pre_init_actions_,_init_command_,_before_main_,_after_main_',
 }
 autodoc_typehints_format = 'short'
-autodoc_mock_imports = ['vlc']
+# autodoc_mock_imports = []
 # autodoc_typehints_description_target = ''
 
 templates_path = [docs_dir.joinpath('_templates').as_posix()]

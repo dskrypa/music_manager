@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import logging
+import platform
 import shutil
 import webbrowser
 from datetime import datetime
@@ -74,8 +75,7 @@ class BuildDocs(Command, description='Build documentation using Sphinx'):
                     path.unlink()
                 continue
 
-            is_auto = DOCS_AUTO.get(path.name)
-            if is_auto:
+            if is_auto := DOCS_AUTO.get(path.name):
                 try:
                     content_is_auto, content = is_auto
                 except TypeError:
@@ -105,13 +105,15 @@ class BuildDocs(Command, description='Build documentation using Sphinx'):
         # TODO: It doesn't like the import_main / _venv_helper approach...
         lib_join = PROJECT_ROOT.joinpath('lib').joinpath
         scripts = (f for pkg in ('music', 'music_gui') for f in lib_join(pkg, 'cli').glob('*.py'))
+        log.info('Documenting scripts...')
         self.rst_writer.document_scripts(scripts, 'scripts', index_header='Scripts')
 
     @after_main('-o', help='Open the docs in the default web browser after running sphinx-build')
     def open(self):
         index_path = PROJECT_ROOT.joinpath('docs', 'index.html').as_posix()
         if not self.dry_run:
-            webbrowser.open(f'file://{index_path}')
+            log.info(f'Opening docs in browser: {index_path}')
+            BrowserFinder.open(f'file://{index_path}')
 
     # endregion
 
@@ -135,8 +137,8 @@ class BuildDocs(Command, description='Build documentation using Sphinx'):
         for src_path in rst_paths:
             rel_path = src_path.relative_to(self.docs_src_path)
             dst_path = backup_dir.joinpath(rel_path)
-            if not dst_path.parent.exists() and not self.dry_run:
-                dst_path.parent.mkdir(parents=True)
+            if not self.dry_run:
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
 
             if rel_path.parts[0] in auto_generated:
                 log.debug(f'{mv_pre} {src_path.as_posix()} -> {dst_path.as_posix()}')
@@ -146,6 +148,42 @@ class BuildDocs(Command, description='Build documentation using Sphinx'):
                 log.debug(f'{cp_pre} {src_path.as_posix()} -> {dst_path.as_posix()}')
                 if not self.dry_run:
                     shutil.copy(src_path, dst_path)
+
+
+class BrowserFinder:
+    @classmethod
+    def open(cls, uri: str):
+        if platform.system().lower() == 'windows':
+            # This seems to work correctly by default on Windows
+            webbrowser.open(uri)
+            return
+
+        # On Linux, the first browser it finds ends up being `xdg-open`, which ends up launching VLC Player instead of
+        # an expected web browser...
+        for browser in cls._iter_browsers():
+            log.debug(f'Using browser={browser.name!r} to open {uri!r}')
+            if browser.open(uri):
+                return
+
+        raise RuntimeError(f'Unable to find a browser to open {uri=}')
+
+    @classmethod
+    def _iter_browsers(cls):
+        browser = webbrowser.get()  # This populates `webbrowser._tryorder`
+        tried = {browser.name}
+        try_xdg_open = False
+        if browser.name == 'xdg-open':
+            try_xdg_open = True
+        else:
+            yield browser
+
+        for name in webbrowser._tryorder:  # noqa
+            if name not in tried:
+                yield webbrowser.get(name)
+                tried.add(name)
+
+        if try_xdg_open:
+            yield webbrowser.get('xdg-open')
 
 
 def delete(path: Path):

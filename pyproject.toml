@@ -3,7 +3,7 @@ requires = ['setuptools']
 build-backend = 'setuptools.build_meta'
 
 [project]
-dynamic = ['version', 'entry-points']
+dynamic = ['version', 'entry-points', 'scripts']
 name = 'music_manager'
 description = 'Music Manager'
 readme = 'readme.rst'
@@ -56,15 +56,16 @@ plex_db = ['paramiko', 'scp']
 plex_gui = ['FreeSimpleGUI']
 tests = ['coverage']
 
-[tools.setuptools]
+[tool.setuptools]
 include-package-data = true
+package-dir = {'' = 'lib'}
 
-[tools.setuptools.packages.find]
+[tool.setuptools.packages.find]
 where = ['lib']
-#include = ['music*']
+include = ['music', 'music.*', 'music_gui', 'music_gui.*']
 namespaces = false
 
-[tools.setuptools.dynamic]
+[tool.setuptools.dynamic]
 version = {attr='music.__version__.__version__'}
 entry-points = {file=['entry_points.txt']}
 

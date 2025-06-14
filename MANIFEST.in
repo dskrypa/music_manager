@@ -1,14 +1,5 @@
-include *.rst
-include *.txt
-include *.json
-include *.woff
-include *.md
-include *.png
-include *.gif
-include *.xz
-include README*
-include LICENSE
 include MANIFEST.in
 
-# Include all files in the scowl data directory
+# Include all files in the following data directories
+graft lib/music/gui/_icons
 graft lib/music/text/_data/scowl

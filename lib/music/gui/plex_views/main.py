@@ -6,8 +6,6 @@ Defines the top menu and some common configuration properties.
 :author: Doug Skrypa
 """
 
-from pathlib import Path
-
 from FreeSimpleGUI import Menu, Button, Column, Image
 from plexapi.library import LibrarySection
 
@@ -18,11 +16,11 @@ from music.plex.server import LocalPlexServer
 from ..base_view import event_handler, GuiView, Event, EventData, RenderArgs
 from ..popups.simple import popup_input_invalid
 from ..popups.text import popup_warning
+from ..icons import ICONS_DIR
 from .constants import LIB_TYPE_ENTITY_MAP
 
 __all__ = ['PlexView']
 DEFAULT_CONFIG = {'config_path': '~/.config/plexapi/config.ini'}
-ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 class PlexView(GuiView, view_name='plex', config_path='plex_gui_config.json', defaults=DEFAULT_CONFIG):

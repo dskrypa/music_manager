@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 from base64 import b64encode
+from importlib.resources import files
 from io import BytesIO
-from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from PIL.Image import Image as PILImage, new as new_image
@@ -24,7 +24,9 @@ if TYPE_CHECKING:
 
 __all__ = ['Icons']
 
-ICON_DIR = Path(__file__).resolve().parents[3].joinpath('icons', 'bootstrap')
+ICONS_DIR = files('music.gui._icons')
+ICON_DIR = ICONS_DIR.joinpath('bootstrap')
+
 Icon = Union[str, int]
 
 
@@ -34,7 +36,7 @@ class Icons:
 
     def __init__(self, size: int = 10):
         if self._font is None:
-            self.__class__._font = truetype(ICON_DIR.joinpath('bootstrap-icons.woff').as_posix())
+            self.__class__._font = truetype(ICON_DIR.joinpath('bootstrap-icons.woff').as_posix())  # noqa
         self.font: FreeTypeFont = self._font.font_variant(size=size)
 
     @property

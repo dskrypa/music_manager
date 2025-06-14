@@ -5,7 +5,6 @@ View: Text Popup
 """
 
 from functools import cached_property
-from pathlib import Path
 from typing import Any
 
 from FreeSimpleGUI import Element, Text, Button, Multiline, Input, Column
@@ -14,10 +13,10 @@ from ds_tools.images.utils import ImageType
 from ..base_view import event_handler, RenderArgs
 from ..elements.image import ExtendedImage
 from ..window import Window
+from ..icons import ICONS_DIR
 from .base import BasePopup
 
 __all__ = ['TextPopup', 'popup_ok', 'popup_error', 'TextInputPopup', 'popup_get_text', 'popup_warning']
-ICONS_DIR = Path(__file__).resolve().parents[4].joinpath('icons')
 
 
 def popup_ok(*args, **kwargs):

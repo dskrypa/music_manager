@@ -9,3 +9,6 @@ include *.xz
 include README*
 include LICENSE
 include MANIFEST.in
+
+# Include all files in the scowl data directory
+graft lib/music/text/_data/scowl

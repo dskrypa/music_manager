@@ -1,21 +1,72 @@
-[tool.blue]
-line-length = 120
-include = '\.pyi?$'
-target-version = ['py39', 'py310']
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | __pycache__
-  | .*\.ya?ml$
-  | .*\.toml$
-)/
-'''
-force-exclude = '''.*?(?:\.ya?ml|Makefile|\.toml)$'''
+[build-system]
+requires = ['setuptools']
+build-backend = 'setuptools.build_meta'
+
+[project]
+dynamic = ['version', 'entry-points']
+name = 'music_manager'
+description = 'Music Manager'
+readme = 'readme.rst'
+authors = [{name='Doug Skrypa', email='dskrypa@gmail.com'}]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Environment :: Console',
+    'Intended Audience :: Developers',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
+]
+requires-python = '>=3.11'
+dependencies = [
+    'requests_client @ git+https://github.com/dskrypa/requests_client',
+    'wiki_nodes @ git+https://github.com/dskrypa/wiki_nodes',
+    'ds_tools[images,J2R] @ git+https://github.com/dskrypa/ds_tools',
+    'tk_gui @ git+https://github.com/dskrypa/tk_gui',
+    'beautifulsoup4',
+    'cachetools',
+    'cli-command-parser',
+    'fuzzywuzzy',
+    'mutagen',
+    'ordered-set',
+    'pillow',
+    'plexapi',
+    'python-Levenshtein',
+    'requests',
+    'rich',
+    'send2trash',
+    'symspellpy',
+    'urllib3',
+]
+
+[project.urls]
+Source = 'https://github.com/dskrypa/music_manager'
+
+[project.optional-dependencies]
+# bpm: Used for BPM calculation; on Win10 with Python 3.8, requires VS 2019 build tools:
+# https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019
+# Note: ffmpeg Also requires: https://ffmpeg.org/download.html + ffmpeg in PATH
+bpm = ['numpy', 'aubio', 'ffmpeg-python']
+ipod = ['pypod @ git+https://github.com/dskrypa/pypod']
+gui = ['filelock', 'psutil', 'screeninfo', 'lark', 'watchdog']
+plex_db = ['paramiko', 'scp']
+plex_gui = ['FreeSimpleGUI']
+tests = ['coverage']
+
+[tools.setuptools]
+include-package-data = true
+
+[tools.setuptools.packages.find]
+where = ['lib']
+#include = ['music*']
+namespaces = false
+
+[tools.setuptools.dynamic]
+version = {attr='music.__version__.__version__'}
+entry-points = {file=['entry_points.txt']}
+
+[tool.uv]
+reinstall-package = ['music_manager']  # Always reinstall to generate entry points

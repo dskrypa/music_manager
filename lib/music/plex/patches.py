@@ -32,7 +32,7 @@ from .filters import get_attr_operator, get_attr_value, ele_matches_filters
 __all__ = ['apply_plex_patches']
 log = logging.getLogger(__name__)
 
-PATCHED_VERSION = '4.16.1'
+PATCHED_VERSION = '4.17.0'
 _APPLIED_BASIC_PATCHES = False
 _APPLIED_PERF_PATCHES = False
 _NotSet = object()
@@ -121,19 +121,13 @@ def _apply_perf_patches(skip_changed: bool = True):
     def session_load_data(self: PlexSession, data: Element):
         get_attrib = data.attrib.get
         self.live = cast_bool(get_attrib('live', '0'))
-        self.player = player = find_item(self, data, etag='Player')  # self.findItem(data, etag='Player')
-        self.session = session = find_item(self, data, etag='Session')  # self.findItem(data, etag='Session')
         self.sessionKey = cast_num(int, get_attrib('sessionKey'))
-        self.transcodeSession = tc_session = find_item(self, data, etag='TranscodeSession')  # self.findItem(data, etag='TranscodeSession')
 
         get_user_attrib = data.find('User').attrib.get
         self._username = username = get_user_attrib('title')
         self._userId = cast_num(int, get_user_attrib('id'))
 
         # For backwards compatibility
-        self.players = [player] if player else []
-        self.sessions = [session] if session else []
-        self.transcodeSessions = [tc_session] if tc_session else []
         self.usernames = [username] if username else []
 
     def track_load_data(self: Track, data: Element):
@@ -149,7 +143,6 @@ def _apply_perf_patches(skip_changed: bool = True):
     def artist_load_data(self: Artist, data: Element):
         self._data = data
         self.key = self.key.replace('/children', '')  # FIX_BUG_50
-        self.locations = self.listAttrs(data, 'path', etag='Location')
 
     # endregion
 
@@ -229,15 +222,15 @@ def _apply_perf_patches(skip_changed: bool = True):
         Artist: patch_artist_data_attrs,
     }
 
-    # Last updated for PlexAPI version: 4.16.1 (2025-04-12)
-    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.15.14...4.16.1
+    # Last updated for PlexAPI version: 4.17.0 (2025-06-14)
+    # Compare between tags example: https://github.com/pkkid/python-plexapi/compare/4.16.1...4.17.0
     perf_patches = [
-        (Audio, '_loadData', audio_load_data, '4b72e0128985b05040299dedd4f366713cee6a86188f5e2927dae8e1a856c43f'),
-        (Playable, '_loadData', playable_load_data, 'c24c0ced7e444c08e8967b92353309b58df113a7373f6b876e8c7d8d77ffe234'),
-        (Track, '_loadData', track_load_data, '0b7dc3f3f34c402da635015eec4441a540b8d22e88759480744a9f477130a5d7'),
-        (Album, '_loadData', album_load_data, 'edc08c7e823e3ab65ee10354db941743d30b6d0c03624f47505cb6377ac4f6e5'),
-        (Artist, '_loadData', artist_load_data, '2a6ec4e70a30d562e9a999b1c04f3195626ab646e0a1c8fc1bcaac3782921f25'),
-        (PlexSession, '_loadData', session_load_data, '249132147cc678ff7b0f9aeb078baedeb0bb52e023586458be75816bc50b2f9c'),
+        (Audio, '_loadData', audio_load_data, 'e5acfe83968877810dd988fa558358c55f41f6d3255ea85e6101c8a9fc9401c6'),
+        (Playable, '_loadData', playable_load_data, '27e67b5494b91a51dc949523216748e53b9bc3bf3688f07d240ffb8dadf468fe'),
+        (Track, '_loadData', track_load_data, 'e8957eb2b4e898bef2b4460d51da9fc046fd5a04b257fb7c70b094e647bf75f5'),
+        (Album, '_loadData', album_load_data, '7a82a8f1ef2c51eec7589f97498c1b7361e37e4084ca98856b4e321d10202f27'),
+        (Artist, '_loadData', artist_load_data, 'e61ad80a567e13f8001d872aa72001258e901516b7b12a785984bc2ab3657d1e'),
+        (PlexSession, '_loadData', session_load_data, '9b603a82b7b378fe595b601786a38c62eacc862f1454919b7078aea62c36c410'),
         (PlexObject, '_getAttrOperator', _get_attr_operator, '8379d358737730f32cae86016d812eae676305801367d7d9c5116c7272bf88de'),
         (PlexObject, '_getAttrValue', _get_attr_value, 'df6e55a4e7b8c3cb6507ec7c4a1956a0b53a2be5ca7c97c7c2143fe715cc5095'),
         (PlexObject, '_buildDetailsKey', build_details_key, '521fd2274d5b6938c9a513c1481b132df4455f469c9c5fcdc01c5a1334e65e1f'),

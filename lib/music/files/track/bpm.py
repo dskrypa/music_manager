@@ -4,15 +4,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from shutil import copy
+from subprocess import check_output, SubprocessError
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
-try:
-    import ffmpeg
-except ImportError:
-    ffmpeg = None
 try:
     import aubio
     from aubio import source, tempo  # noqa
@@ -26,6 +24,7 @@ if TYPE_CHECKING:
     from music.typing import PathLike
 
 __all__ = ['get_bpm', 'BPMDetectionError']
+log = logging.getLogger(__name__)
 
 
 class BpmCalculator:
@@ -75,19 +74,22 @@ class BpmCalculator:
 
     def _convert_and_get_bpm(self, path: Path) -> int:
         # This was easier than getting aubio installed on Windows with ffmpeg support built-in
-        if ffmpeg is None:
-            raise RuntimeError('ffmpeg-python is required to calculate bpm for non-WAV files')
-
         with TemporaryDirectory() as d:
             temp_path = Path(d).joinpath('temp.wav').as_posix()
-            ffmpeg_obj = ffmpeg.input(path.as_posix())
+
+            cmd = [find_ffmpeg(), '-i', path.as_posix(), '-sample_fmt', 's16']
             if self.sample_rate > 44100:
-                ffmpeg_obj = ffmpeg_obj.output(temp_path, ar=44100)  # Aubio was choking on 96000 Hz FLACs
+                cmd += ['-ar', '44100']  # Aubio was choking on 96000 Hz FLACs
                 self.sample_rate = 44100
+
+            cmd.append(temp_path)
+            try:
+                check_output(cmd)
+            except SubprocessError as e:
+                log.error(f'Unable to convert {path.as_posix()} to WAV to calculate BPM: {e}')
+                raise RuntimeError(f'Unable to convert {path.as_posix()} to WAV to calculate BPM') from e
             else:
-                ffmpeg_obj = ffmpeg_obj.output(temp_path)
-            ffmpeg_obj.run(quiet=True, cmd=find_ffmpeg())
-            return self._get_bpm(temp_path)
+                return self._get_bpm(temp_path)
 
 
 def get_bpm(path: PathLike, sample_rate: int = 44100, window_size: int = 1024, hop_size: int = 512) -> int:

@@ -2,7 +2,10 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import shutil
+from functools import cached_property
 from pathlib import Path
 
 __all__ = ['MissingMixin', 'deinit_colorama', 'can_add_bpm', 'find_ffmpeg', 'format_duration']
@@ -22,18 +25,25 @@ def deinit_colorama():
 def can_add_bpm():
     try:
         import aubio
-        import ffmpeg
         import numpy
     except ImportError:
         return False
     return bool(find_ffmpeg())
 
 
-def find_ffmpeg():
-    for path in (None, Path('~/sbin/ffmpeg/bin').expanduser(), Path('~/bin/ffmpeg/bin').expanduser()):
-        if ffmpeg := shutil.which('ffmpeg', path=path):
-            return ffmpeg
-    return None
+class FfmpegFinder:
+    @cached_property
+    def ffmpeg_path(self) -> Path | None:
+        for path in (None, Path('~/sbin/ffmpeg/bin').expanduser(), Path('~/bin/ffmpeg/bin').expanduser()):
+            if ffmpeg := shutil.which('ffmpeg', path=path):
+                return ffmpeg
+        return None
+
+    def find_ffmpeg(self) -> Path | None:
+        return self.ffmpeg_path
+
+
+find_ffmpeg = FfmpegFinder().find_ffmpeg
 
 
 def format_duration(seconds: float) -> str:

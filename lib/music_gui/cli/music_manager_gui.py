@@ -4,6 +4,7 @@ Music Manager GUI that uses `tk_gui <https://github.com/dskrypa/tk_gui>`__.
 
 import logging
 from pathlib import Path
+from multiprocessing import set_start_method
 
 from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, inputs, main  # noqa
 
@@ -22,6 +23,7 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
         from ds_tools.logging import init_logging
 
         init_logging(self.verbose, names=None, millis=True, set_levels={'PIL': 30}, set_tz=False)
+        set_start_method('spawn')
 
     def main(self):
         self.run_gui()

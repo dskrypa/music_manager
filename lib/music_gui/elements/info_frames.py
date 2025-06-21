@@ -14,7 +14,8 @@ from tk_gui.elements.choices import ListBox, CheckBox, Combo
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.menu import Menu, MenuItem
 from tk_gui.elements.rating import Rating
-from tk_gui.popups import pick_file_popup
+# from tk_gui.popups import pick_file_popup
+from tk_gui.popups.paths import PickFile
 
 from music.common.disco_entry import DiscoEntryType
 from music.files import SongFile
@@ -236,7 +237,9 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
     def _replace_cover_image(self, event=None):
         if self.disabled:
             return
-        if path := pick_file_popup(title='Pick new album cover'):
+
+        # if path := pick_file_popup(title='Pick new album cover'):
+        if path := PickFile(title='Pick new album cover').run():
             cover_path_ele: Input = self._tag_vals_and_eles['cover_path'][1]
             cover_path_ele.update(path.as_posix())
             image_ele: Image = self.cover_image_frame.rows[0].elements[0]

@@ -1,5 +1,5 @@
 repos:
   - repo: https://github.com/dskrypa/incr_version
-    rev: f49a29fcceccf60c612e68de6d715e98369490ec
+    rev: 20c64597e6d9cb9e368e2a710fa389b8ffd5517f
     hooks:
       - id: incr_version

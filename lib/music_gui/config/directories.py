@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ds_tools.caching.decorators import cached_property, ClearableCachedPropertyMixin, ClearableCachedProperty
-from tk_gui import popup_input_invalid, pick_folder_popup
+# from tk_gui import popup_input_invalid, pick_folder_popup
+from tk_gui.popups.common import popup_input_invalid
+from tk_gui.popups.paths import PickDirectory
 
 from music.files.album import AlbumDir
 from music.files.exceptions import InvalidAlbumDir
@@ -84,10 +86,11 @@ class DirManager(ClearableCachedPropertyMixin):
 
     def get_any_dir_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> Path | None:
         last_dir = self._get_last_dir(dir_type)
-        if path := pick_folder_popup(last_dir, prompt or 'Pick Directory', parent=parent):
-            log.debug(f'Selected directory {path=}')
+        # if path := pick_folder_popup(last_dir, prompt or 'Pick Directory', parent=parent):
+        if path := PickDirectory(last_dir, title=prompt or 'Pick Directory', parent=parent).run():
+            log.debug(f'Selected directory {path=}')  # noqa
             if path != last_dir:
-                self._set_last_dir(path, dir_type)
+                self._set_last_dir(path, dir_type)  # noqa
         return path
 
     def get_album_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> OptAlbDir:
@@ -97,8 +100,9 @@ class DirManager(ClearableCachedPropertyMixin):
         return album_dir
 
     def select_album(self, last_dir: Path | None, prompt: str = None, parent: Window = None) -> OptAlbDir:  # noqa
-        if path := pick_folder_popup(last_dir, prompt or 'Pick Album Directory', parent=parent):
-            log.debug(f'Selected album {path=}')
+        # if path := pick_folder_popup(last_dir, prompt or 'Pick Album Directory', parent=parent):
+        if path := PickDirectory(last_dir, title=prompt or 'Pick Album Directory', parent=parent).run():
+            log.debug(f'Selected album {path=}')  # noqa
             try:
                 return AlbumDir(path)
             except InvalidAlbumDir as e:

@@ -48,6 +48,6 @@ class ConfigUpdater:
         yield [PopupOption('style', 'Style', StylePopup, default=self.config.style, **style_kwargs)]
 
     def _directory_rows(self, kwargs):
-        for kw in ('Output', 'Library', 'Archive', 'Skipped'):
+        for kw in ('Input', 'Output', 'Library', 'Archive', 'Skipped'):
             key = f'{kw.lower()}_base_dir'
             yield [DirectoryOption(key, f'{kw} Directory', default=self.config.get(key), **kwargs)]

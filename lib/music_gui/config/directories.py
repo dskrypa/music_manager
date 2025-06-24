@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 
 
 class DirCategory(Enum):
+    INPUT = 'input'
     OUTPUT = 'output'
     LIBRARY = 'library'
     ARCHIVE = 'archive'
@@ -69,6 +70,7 @@ class DirManager(ClearableCachedPropertyMixin):
 
     # region Configured Directories
 
+    input_base_dir = ConfigDir(DirCategory.INPUT)
     output_base_dir = ConfigDir(DirCategory.OUTPUT)
     library_base_dir = ConfigDir(DirCategory.LIBRARY)
     archive_base_dir = ConfigDir(DirCategory.ARCHIVE)
@@ -76,8 +78,7 @@ class DirManager(ClearableCachedPropertyMixin):
 
     @cached_property
     def output_sorted_dir(self) -> Path:
-        date_str = date.today().strftime('%Y-%m-%d')
-        return self.output_base_dir.joinpath(f'sorted_{date_str}')
+        return self.output_base_dir.joinpath(f'sorted_{date.today().isoformat()}')
 
     def dir_for_category(self, category: DirCategory | str) -> Path:
         return getattr(self, self._cat_dir_attr_map[DirCategory(category)])
@@ -85,6 +86,7 @@ class DirManager(ClearableCachedPropertyMixin):
     # endregion
 
     def get_any_dir_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> Path | None:
+        # Used by the `clean` view to select any directory
         last_dir = self._get_last_dir(dir_type)
         # if path := pick_folder_popup(last_dir, prompt or 'Pick Directory', parent=parent):
         if path := PickDirectory(last_dir, title=prompt or 'Pick Directory', parent=parent).run():
@@ -94,6 +96,7 @@ class DirManager(ClearableCachedPropertyMixin):
         return path
 
     def get_album_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> OptAlbDir:
+        # Primary method used for selecting an album directory from the initial view or File>Open menu
         last_dir = self._get_last_dir(dir_type)
         if (album_dir := self.select_album(last_dir, prompt, parent)) and album_dir.path != last_dir:
             self._set_last_dir(album_dir.path, dir_type)
@@ -109,16 +112,16 @@ class DirManager(ClearableCachedPropertyMixin):
                 popup_input_invalid(str(e), logger=log)
         return None
 
-    def _get_last_dir(self, dir_type: str = None) -> Path | None:
+    def _get_last_dir(self, dir_type: str | None = None) -> Path | None:
         key = f'last_dir:{dir_type}' if dir_type else 'last_dir'
-        if last_dir := self.config.get(key):
-            last_dir = Path(last_dir)
-            if last_dir.exists():
-                return last_dir
-            elif last_dir.parent.exists():
-                return last_dir.parent
-            else:
-                return self.output_base_dir
+        if last_dir := self.config.get(key, type=Path):
+            # Try the last processed album dir, then ancestor dirs, assuming dir structure: unsorted/batch/artist/album
+            for _ in range(4):
+                if last_dir.exists():
+                    return last_dir
+                last_dir = last_dir.parent
+            return self.input_base_dir
+
         return None
 
     def _set_last_dir(self, path: Path, dir_type: str = None):

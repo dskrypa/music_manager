@@ -14,7 +14,6 @@ from tk_gui.elements.choices import ListBox, CheckBox, Combo
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.menu import Menu, MenuItem
 from tk_gui.elements.rating import Rating
-# from tk_gui.popups import pick_file_popup
 from tk_gui.popups.paths import PickFile
 
 from music.common.disco_entry import DiscoEntryType
@@ -45,7 +44,7 @@ class TagModMixin:
 
     def reset_tag_values(self):
         for key, val_ele, original_val, value in self._iter_changes():
-            match val_ele:
+            match val_ele:  # noqa
                 case ListBox() | EditableListBox():
                     val_ele.update(choices=original_val, replace=True, select=True)
                 case _:  # Input() | Text() | CheckBox() | Combo() | Rating()
@@ -99,7 +98,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         disabled = self.disabled
         for key, value in self.album_info.to_dict(skip={'tracks'}, genres_as_set=True).items():
             if tooltip := tooltips.get(key):
-                kwargs = {'tooltip': tooltip}
+                kwargs: dict[str, Any] = {'tooltip': tooltip}
             else:
                 kwargs = {}
 
@@ -238,7 +237,6 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
         if self.disabled:
             return
 
-        # if path := pick_file_popup(title='Pick new album cover'):
         if path := PickFile(title='Pick new album cover').run():
             cover_path_ele: Input = self._tag_vals_and_eles['cover_path'][1]
             cover_path_ele.update(path.as_posix())

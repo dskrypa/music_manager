@@ -83,13 +83,23 @@ class DirManager(ClearableCachedPropertyMixin):
     def dir_for_category(self, category: DirCategory | str) -> Path:
         return getattr(self, self._cat_dir_attr_map[DirCategory(category)])
 
+    @property
+    def _bookmarks(self) -> dict[str, Path]:
+        return {
+            'Unprocessed': self.input_base_dir,
+            'Processed': self.output_base_dir,
+            'Music Library': self.library_base_dir,
+            'Archive': self.archive_base_dir,
+        }
+
     # endregion
 
     def get_any_dir_selection(self, prompt: str = None, dir_type: str = None, parent: Window = None) -> Path | None:
         # Used by the `clean` view to select any directory
         last_dir = self._get_last_dir(dir_type)
         # if path := pick_folder_popup(last_dir, prompt or 'Pick Directory', parent=parent):
-        if path := PickDirectory(last_dir, title=prompt or 'Pick Directory', parent=parent).run():
+        picker = PickDirectory(last_dir, title=prompt or 'Pick Directory', parent=parent, bookmarks=self._bookmarks)
+        if path := picker.run():
             log.debug(f'Selected directory {path=}')  # noqa
             if path != last_dir:
                 self._set_last_dir(path, dir_type)  # noqa
@@ -104,7 +114,10 @@ class DirManager(ClearableCachedPropertyMixin):
 
     def select_album(self, last_dir: Path | None, prompt: str = None, parent: Window = None) -> OptAlbDir:  # noqa
         # if path := pick_folder_popup(last_dir, prompt or 'Pick Album Directory', parent=parent):
-        if path := PickDirectory(last_dir, title=prompt or 'Pick Album Directory', parent=parent).run():
+        picker = PickDirectory(
+            last_dir, title=prompt or 'Pick Album Directory', parent=parent, bookmarks=self._bookmarks
+        )
+        if path := picker.run():
             log.debug(f'Selected album {path=}')  # noqa
             try:
                 return AlbumDir(path)

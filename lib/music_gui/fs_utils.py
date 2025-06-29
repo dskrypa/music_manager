@@ -14,7 +14,7 @@ from send2trash import send2trash, TrashPermissionError
 from ds_tools.fs.mount_info import on_same_fs
 from ds_tools.fs.paths import path_repr
 from ds_tools.output.prefix import LoggingPrefix
-from tk_gui.popups.files import CopyFilesPopup
+from tk_gui.popups.copy_files import CopyFilesPopup
 
 from music_gui.utils import log_and_popup_error
 

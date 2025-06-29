@@ -6,9 +6,8 @@ import logging
 from pathlib import Path
 from multiprocessing import set_start_method
 
-from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, inputs, main  # noqa
-
-from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
+from cli_command_parser import Command, Counter, SubCommand, ParamGroup, Flag, Positional, Option, main
+from cli_command_parser.inputs import Path as IPath
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class MusicManagerGui(Command, description='Music Manager GUI'):
 
 
 class Open(MusicManagerGui, help='Open directly to the Album view for the given path'):
-    path: Path = Positional(type=inputs.Path(), help='Path to an album or track')
+    path: Path = Positional(type=IPath(), help='Path to an album or track')
     view = Option('-V', choices=('album', 'tags'), default='album', help='The view to use for the specified album')
 
     def main(self):
@@ -102,3 +101,7 @@ class Configure(MusicManagerGui, help='Configure registry entries for right-clic
             log.error('The configure action is only currently supported on Windows')
         else:
             configure_music_manager_gui(self.dry_run, ' (New)')
+
+
+if __name__ == '__main__':
+    main()

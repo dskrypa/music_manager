@@ -8,24 +8,19 @@ from typing import TYPE_CHECKING, Iterator
 from cli_command_parser import Command, Counter, Positional, Option, Flag, PassThru, ParamGroup, main  # noqa
 from cli_command_parser import SubCommand, Action
 from cli_command_parser.inputs import Path as IPath, Date, TimeDelta
-
-from music.__version__ import __author_email__, __version__  # noqa
 from ds_tools.output.constants import PRINTER_FORMATS
 
 if TYPE_CHECKING:
     from plexapi.video import Movie
     from ds_tools.output.prefix import LoggingPrefix
+    from music.plex import LocalPlexServer
 
 log = logging.getLogger(__name__)
 OBJ_TYPES = ('track', 'artist', 'album', 'tracks', 'artists', 'albums')
-OPS = (
+QUERY_OPS = (
     'contains, endswith, exact, exists, gt, gte, icontains, iendswith, iexact, in, iregex, istartswith, like, lt, '
     'lte, ne, regex, startswith'
 )
-DESCRIPTION = """Plex Manager
-
-You will be securely prompted for your password for the first login, after which a session token will be cached
-"""
 _PATH_ROOT_HELP = """
 The root of the path to use from this computer to generate paths to files from the path used by Plex.
 When you click on the "..." for a song in Plex and click "Get Info", there will be a path in the "Files" box -
@@ -39,7 +34,13 @@ _URL_HELP = (
 )
 
 
-class PlexManager(Command, description=DESCRIPTION):
+class PlexManager(Command):
+    """
+    Plex Manager
+
+    You will be securely prompted for your password for the first login, after which a session token will be cached
+    """
+
     sub_cmd = SubCommand()
     with ParamGroup('Server / Connection'):
         server_path_root = Option('-r', metavar='PATH', help=_PATH_ROOT_HELP)
@@ -59,11 +60,21 @@ class PlexManager(Command, description=DESCRIPTION):
         verbose = Counter('-v', help='Increase logging verbosity (can specify multiple times)')
         dry_run = Flag('-D', help='Print the actions that would be taken instead of taking them')
 
+    _use_log_file: bool = False
+
+    def __init_subclass__(cls, use_log_file: bool = False, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if use_log_file:
+            cls._use_log_file = use_log_file
+
     def _init_command_(self):
         from ds_tools.logging import init_logging
-        init_logging(self.verbose, log_path=None, names=None, millis=True, set_levels={'paramiko.transport': 50})
+
+        kwargs = {} if self._use_log_file else {'log_path': None}
+        init_logging(self.verbose, names=None, millis=True, set_levels={'paramiko.transport': 50}, **kwargs)
 
         from music.files.patches import apply_mutagen_patches
+
         apply_mutagen_patches()
 
     @cached_property
@@ -73,7 +84,7 @@ class PlexManager(Command, description=DESCRIPTION):
         return LoggingPrefix(self.dry_run)
 
     @cached_property
-    def plex(self):
+    def plex(self) -> LocalPlexServer:
         from music.plex import LocalPlexServer
 
         return LocalPlexServer(
@@ -86,6 +97,9 @@ class PlexManager(Command, description=DESCRIPTION):
             tv_library=self.tv_library,
             dry_run=self.dry_run,
         )
+
+
+# region Sync Commands
 
 
 class SyncRatings(PlexManager, choice='sync ratings', help='Sync song rating information between Plex and files'):
@@ -158,6 +172,9 @@ class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists w
         )
 
 
+# endregion
+
+
 class Find(PlexManager, help='Find Plex information'):
     obj_type = Positional(choices=OBJ_TYPES, help='Object type')
     title = Positional(nargs='*', help='Object title (optional)')
@@ -165,26 +182,20 @@ class Find(PlexManager, help='Find Plex information'):
     allow_inst = Flag('-I', help='Allow search results that include instrumental versions of songs')
     full_info = Flag('-F', help='Print all available info about the discovered objects')
     format = Option('-f', choices=PRINTER_FORMATS, default='yaml', help='Output format to use for --full_info')
-    query = PassThru(help=f'Query in the format <field><operation><value>; valid operations: {OPS}')
+    query = PassThru(help=f'Query in the format <field><operation><value>; valid operations: {QUERY_OPS}')
 
     def main(self):
-        from typing import Iterable
-
-        from plexapi.audio import Track
-
         from ds_tools.output import bullet_list, Printer
         from music.plex.query_parsing import PlexQuery
 
         p = Printer(self.format)
         filters = PlexQuery.parse(
-            ' '.join(self.query) if self.query else None,  # noqa
-            self.escape,
-            self.allow_inst,
+            ' '.join(self.query) if self.query else '',
+            escape=self.escape,
+            allow_inst=self.allow_inst,
             title=' '.join(self.title),
         )
-        objects = self.plex.find_objects(self.obj_type, **filters)  # type: Iterable[Track]
-
-        if objects:
+        if objects := self.plex.find_objects(self.obj_type, **filters):
             if self.full_info:
                 p.pprint({repr(obj): obj.as_dict() for obj in objects})
                 # for obj in objects:
@@ -195,22 +206,25 @@ class Find(PlexManager, help='Find Plex information'):
             log.warning('No results.')
 
 
+# region Rating Commands
+
+
 class Rate(PlexManager, help='Update ratings in Plex'):
     obj_type = Positional(choices=OBJ_TYPES, help='Object type')
     rating: int = Positional(help='Rating out of 10')
     title = Positional(nargs='*', help='Object title (optional)')
     escape = Option('-e', default='()', help='Escape the provided regex special characters (default: %(default)r)')
     allow_inst = Flag('-I', help='Allow search results that include instrumental versions of songs')
-    query = PassThru(help=f'Query in the format <field><operation><value>; valid operations: {OPS}')
+    query = PassThru(help=f'Query in the format <field><operation><value>; valid operations: {QUERY_OPS}')
 
     def main(self):
         from music.plex.ratings import find_and_rate
         from music.plex.query_parsing import PlexQuery
 
         filters = PlexQuery.parse(
-            ' '.join(self.query) if self.query else None,  # noqa
-            self.escape,
-            self.allow_inst,
+            ' '.join(self.query) if self.query else '',
+            escape=self.escape,
+            allow_inst=self.allow_inst,
             title=' '.join(self.title),
         )
         find_and_rate(
@@ -229,6 +243,9 @@ class RateOffset(PlexManager, help='Update all track ratings in Plex with an off
         adjust_track_ratings(self.plex, self.min_rating, self.max_rating, self.offset)
 
 
+# endregion
+
+
 # region Playlist Commands
 
 
@@ -236,22 +253,17 @@ class Playlist(PlexManager, help='Save or compare playlists'):
     sub_cmd = SubCommand()
 
 
-class Dump(Playlist, help='Save playlists'):
+class Dump(Playlist, help='Save playlists', use_log_file=True):
     path = Positional(help='Playlist dump location')
-    playlist = Option('-p', help='Dump the specified playlist (default: all)')
-
-    def _init_command_(self):
-        # Overrides logging init so a log file is used for scheduled playlist dumps
-        from ds_tools.logging import init_logging
-        init_logging(self.verbose, names=None, millis=True, set_levels={'paramiko.transport': 50})
-
-        from music.files.patches import apply_mutagen_patches
-        apply_mutagen_patches()
+    compress = Flag('--no-compress', '-C', default=True, help='Do NOT compress the playlist dump')
+    with ParamGroup(mutually_exclusive=True):
+        playlist = Option('-p', help='Dump the specified playlist (default: all)')
+        separate = Flag('-s', help='Store each playlist in a separate file (default: combine)')
 
     def main(self):
         from music.plex.playlist import dump_playlists
 
-        dump_playlists(self.plex, self.path, self.playlist)
+        dump_playlists(self.plex, self.path, self.playlist, compress=self.compress, separate=self.separate)
 
 
 class Compare(Playlist, help='Compare playlists'):
@@ -386,6 +398,6 @@ class SyncPlayed(PlexManager, choice='sync played', help='Sync played status for
     def iter_movies(self) -> Iterator[tuple[Movie, Path, bool]]:
         for movie in self.plex.find_objects('movie'):
             is_played = movie.isPlayed
-            for media in movie.media:
+            for media in movie.media:  # noqa
                 for part in media.parts:
                     yield movie, Path(part.file), is_played

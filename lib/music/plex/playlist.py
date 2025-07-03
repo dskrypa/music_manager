@@ -9,9 +9,12 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+from datetime import date
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Collection
+from tarfile import TarFile
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any, Collection
 from xml.etree.ElementTree import tostring, fromstring
 
 from plexapi.audio import Track
@@ -19,7 +22,7 @@ from plexapi.exceptions import BadRequest
 from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
-from ds_tools.fs.paths import prepare_path
+from ds_tools.fs.paths import prepare_path, sanitize_file_name, unique_path
 from ds_tools.output.color import colored
 from ds_tools.output.formatting import bullet_list
 from ds_tools.output.prefix import LoggingPrefix
@@ -48,6 +51,9 @@ class PlexPlaylist:
         self.name = name
         self._playlist = playlist
         self.lp = LoggingPrefix(self.plex.dry_run)
+        # TODO: Add way to identify an ordered playlist (manually configured via web UI)
+        #  vs an unordered "smart" playlist configured via web UI
+        #  vs an unordered playlist synced via this library
 
     # region Create Playlist
 
@@ -58,6 +64,8 @@ class PlexPlaylist:
         return self
 
     def create(self, content: Tracks = None, **criteria):
+        # TODO: Add way to "restore" an ordered playlist where the original files have been replaced by higher
+        #  quality versions
         items = list(_get_tracks(self.plex, content, **criteria))
         log.info(f'{self.lp.create} {self} with {len(items):,d} tracks', extra={'color': 10})
         log.debug(f'Creating {self} with tracks: {items}')
@@ -121,7 +129,7 @@ class PlexPlaylist:
             self._log_change(items, 'remove')
 
         if self.plex.dry_run:
-            return
+            return []
         elif not (playlist := self.playlist):
             raise InvalidPlaylist(f'{self} does not exist - cannot remove items from it')
 
@@ -138,7 +146,7 @@ class PlexPlaylist:
             self._log_change(items, 'add')
 
         if self.plex.dry_run:
-            return
+            return []
         elif (playlist := self.playlist) is None:
             raise InvalidPlaylist(f'{self} does not exist - cannot add items to it')
 
@@ -229,23 +237,18 @@ class PlexPlaylist:
     def dumps(self) -> dict[str, str | list[str]]:
         playlist = tostring(self.playlist._data, encoding='unicode')  # noqa
         tracks = [tostring(track._data, encoding='unicode') for track in self.playlist.items()]
-        return {'playlist': playlist, 'tracks': tracks}
+        return {'name': self.name, 'playlist': playlist, 'tracks': tracks}
 
     def dump(self, path: PathLike, compress: bool = True):
-        path = prepare_path(path, (self.name, '.json.gz' if compress else '.json'), sanitize=True, add_date=True)
-        log.info(f'Saving {self} to {path.as_posix()}')
-        open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
-        with open_func(path, mode, encoding='utf-8') as f:
-            json.dump(self.dumps(), f, indent=4, ensure_ascii=False)
+        PlaylistSerializer._dump(self.dumps(), dst_dir=path, stem=self.name, log_name=self, compress=compress)
 
     @classmethod
-    def dump_all(cls, path: PathLike, plex: LocalPlexServer = None, compress: bool = True):
-        playlists = {name: playlist.dumps() for name, playlist in sorted(_get_plex(plex).playlists.items())}
-        path = prepare_path(path, ('all_plex_playlists', '.json.gz' if compress else '.json'), add_date=True)
-        log.info(f'Saving {len(playlists)} playlists to {path.as_posix()}')
-        open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
-        with open_func(path, mode, encoding='utf-8') as f:
-            json.dump(playlists, f, indent=4, ensure_ascii=False)
+    def dump_all(cls, dst_dir: PathLike, plex: LocalPlexServer = None, compress: bool = True, separate: bool = False):
+        PlaylistSerializer(dst_dir, plex, compress).dump_all(separate)
+
+    # endregion
+
+    # region Deserialization
 
     @classmethod
     def loads(cls, playlist_data: str, track_data: Collection[str], plex: LocalPlexServer = None) -> PlexPlaylist:
@@ -279,14 +282,105 @@ class PlexPlaylist:
     # endregion
 
 
+class PlaylistSerializer:
+    __slots__ = ('dst_dir', 'plex', 'compress', 'playlists')
+
+    def __init__(self, dst_dir: PathLike, plex: LocalPlexServer = None, compress: bool = True):
+        self.dst_dir = Path(dst_dir)
+        self.plex = _get_plex(plex)
+        self.compress = compress
+        self.playlists = {name: playlist.dumps() for name, playlist in sorted(self.plex.playlists.items())}
+
+    def dump_all(self, separate: bool = False):
+        if separate:
+            self._dump_separate()
+        else:
+            self._dump_combined()
+
+    def _dump_combined(self):
+        self._dump(
+            self.playlists,
+            dst_dir=self.dst_dir,
+            stem='all_plex_playlists',
+            log_name=f'{len(self.playlists)} playlists',
+            compress=self.compress,
+            sanitize=False,
+        )
+
+    def _dump_separate(self):
+        dump_name = f'all_plex_playlists_{date.today().isoformat()}'
+        with TemporaryDirectory() as tmp:
+            playlists_dir = Path(tmp, dump_name)
+            playlists_dir.mkdir()
+            self._dump_separate_to_dir(playlists_dir)
+            if self.compress:
+                self._compress_separate(playlists_dir, dump_name)
+            else:
+                self._rename_separate(playlists_dir, dump_name)
+
+    def _dump_separate_to_dir(self, playlists_dir: Path):
+        for name, playlist in self.playlists.items():
+            self._dump(
+                playlist,
+                dst_dir=playlists_dir,
+                stem=name,
+                log_name=f'playlist={name!r}',
+                log_level=logging.DEBUG,
+                compress=False,
+                dir_exists=True,
+            )
+
+    def _compress_separate(self, playlists_dir: Path, dump_name: str):
+        tgz_path = playlists_dir.parent.joinpath(f'{dump_name}.tgz')
+        with TarFile.gzopen(tgz_path, 'w') as tf:
+            tf.add(playlists_dir, arcname=dump_name)
+
+        dst_path = unique_path(self.dst_dir, dump_name, '.tgz')
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        tgz_path.rename(dst_path)
+        log.info(f'Saved {len(self.playlists)} to {dst_path.as_posix()}')
+
+    def _rename_separate(self, playlists_dir: Path, dump_name: str):
+        dst_path = unique_path(self.dst_dir, dump_name)
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        playlists_dir.rename(dst_path)
+        log.info(f'Saved {len(self.playlists)} to {dst_path.as_posix()}')
+
+    @classmethod
+    def _dump(
+        cls,
+        data,
+        dst_dir: PathLike,
+        stem: str,
+        log_name: Any,
+        *,
+        log_level: int = logging.INFO,
+        compress: bool = True,
+        sanitize: bool = True,
+        dir_exists: bool = False,
+    ):
+        ext = '.json.gz' if compress else '.json'
+        if dir_exists:
+            path = Path(dst_dir, sanitize_file_name(stem + ext) if sanitize else f'{stem}{ext}')
+        else:
+            path = prepare_path(dst_dir, (stem, ext), sanitize=sanitize, add_date=True)
+
+        log.log(log_level, f'Saving {log_name} to {path.as_posix()}')
+        open_func, mode = (gzip.open, 'wt') if compress else (open, 'w')
+        with open_func(path, mode, encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+
 # region Public Functions
 
 
-def dump_playlists(plex: LocalPlexServer, path: str | Path, name: str = None, compress: bool = True):
+def dump_playlists(
+    plex: LocalPlexServer, path: str | Path, name: str = None, compress: bool = True, separate: bool = False
+):
     if name:
         plex.playlist(name).dump(path, compress)
     else:
-        PlexPlaylist.dump_all(path, plex, compress)
+        PlaylistSerializer(path, plex, compress).dump_all(separate)
 
 
 def compare_playlists(plex: LocalPlexServer, path: str | Path, name: str = None, strict: bool = False):

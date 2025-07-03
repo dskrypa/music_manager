@@ -75,37 +75,10 @@ reinstall-package = ['music_manager']  # Always reinstall to generate entry poin
 
 [tool.ruff]
 # https://docs.astral.sh/ruff/configuration/
-exclude = [
-    '.bzr',
-    '.direnv',
-    '.eggs',
-    '.git',
-    '.git-rewrite',
-    '.hg',
-    '.ipynb_checkpoints',
-    '.mypy_cache',
-    '.nox',
-    '.pants.d',
-    '.pyenv',
-    '.pytest_cache',
-    '.pytype',
-    '.ruff_cache',
-    '.svn',
-    '.tox',
-    '.venv',
-    '.vscode',
-    '__pypackages__',
-    '_build',
-    'buck-out',
-    'build',
-    'dist',
-    'node_modules',
-    'site-packages',
-    'venv',
-]
+exclude = ['.git', '.mypy_cache', '.pytest_cache', '.ruff_cache', 'build', 'dist', 'site-packages', 'venv']
 line-length = 120
 indent-width = 4
-target-version = 'py310'
+target-version = 'py311'
 show-fixes = true
 
 

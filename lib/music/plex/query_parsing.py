@@ -4,6 +4,8 @@ Plex query grammar / parsing
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from functools import cached_property
 from io import StringIO
@@ -13,7 +15,7 @@ from lark import Lark, Tree, Token, Transformer, v_args
 from lark.exceptions import UnexpectedEOF, UnexpectedInput
 
 from ds_tools.core.decorate import cached_classproperty
-from .exceptions import UnexpectedParseError, InvaidQuery
+from .exceptions import UnexpectedParseError, InvalidQuery
 
 __all__ = ['PlexQuery']
 log = logging.getLogger(__name__)
@@ -59,29 +61,12 @@ class PlexQuery:
             filters.setdefault('title__not_like', r'inst(?:\.?|rumental)')
         return filters
 
-    @classmethod
-    def parse_old(cls, obj_type: str, title: str, query: str, escape: str = '()', allow_inst: bool = False):
-        obj_type = obj_type[:-1] if obj_type.endswith('s') else obj_type
-        plex_query = cls(query, escape)
-        title = title.translate(plex_query.escape_tbl)
-        filters = plex_query.parsed
-        if title and title != '.*':
-            if not any(c in title for c in '()[]{}^$+*.?' if c not in escape):
-                filters.setdefault('title__icontains', title)
-            else:
-                filters.setdefault('title__like', title)
-
-        if not allow_inst:
-            filters.setdefault('title__not_like', r'inst(?:\.?|rumental)')
-        return obj_type, filters
-
     @cached_property
-    def parsed(self):
-        parsed = {
+    def parsed(self) -> dict[str, str]:
+        return {
             f'{key}__{op}': value.translate(self.escape_tbl) if 'regex' in op or 'like' in op else value
             for (key, op), value in self._parsed.items()
         }
-        return parsed
 
     @cached_property
     def _parsed(self):
@@ -92,7 +77,7 @@ class PlexQuery:
         try:
             return self.parser.parse(self._query)  # noqa
         except (UnexpectedEOF, UnexpectedInput) as e:
-            raise InvaidQuery(self._query, e) from e
+            raise InvalidQuery(self._query, e) from e
         except Exception as e:
             err_msg = f'Unexpected error parsing query={self._query!r}'
             log.error(f'{err_msg}:', exc_info=True)

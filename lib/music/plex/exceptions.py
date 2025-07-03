@@ -2,7 +2,7 @@
 :author: Doug Skrypa
 """
 
-from typing import Union
+from __future__ import annotations
 
 from lark.exceptions import UnexpectedEOF, UnexpectedInput
 
@@ -14,7 +14,7 @@ __all__ = [
     'BaseQueryParseError',
     'UnexpectedParseError',
     'QueryParseError',
-    'InvaidQuery',
+    'InvalidQuery',
 ]
 
 
@@ -46,7 +46,7 @@ class UnexpectedParseError(BaseQueryParseError):
 
 
 class QueryParseError(BaseQueryParseError):
-    def __init__(self, text: str, cause: Union[UnexpectedInput, UnexpectedEOF]):
+    def __init__(self, text: str, cause: UnexpectedInput | UnexpectedEOF):
         self.text = text
         self.cause = cause
         if isinstance(cause, UnexpectedInput):
@@ -58,15 +58,15 @@ class QueryParseError(BaseQueryParseError):
         else:
             raise TypeError(f'Unexpected {cause=}')
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.context is not None:
             return f'Parsing error - section with unexpected content:\n{self.context}'
         else:
             return f'Parsing error - unexpected EOF - expected one of:\n{self.expected}'
 
 
-class InvaidQuery(QueryParseError):
-    def __str__(self):
+class InvalidQuery(QueryParseError):
+    def __str__(self) -> str:
         if self.context is not None:
             return f'Invalid query - section with unexpected content:\n{self.context}'
         else:

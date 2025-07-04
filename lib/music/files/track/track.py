@@ -152,8 +152,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             self.__initialized = True
 
     @classmethod
-    def for_plex_track(cls, track_or_rel_path: Union[Track, str], root: Union[str, Path]) -> SongFile:
-        return cls(plex_track_path(track_or_rel_path, root))
+    def for_plex_track(cls, track_or_rel_path: Track | str, root: PathLike, strip_prefix: OptStr = None) -> SongFile:
+        return cls(plex_track_path(track_or_rel_path, root, strip_prefix))
 
     # endregion
 

@@ -22,8 +22,14 @@ from .exceptions import InvalidQueryFilter
 from .filters import ele_matches_filters
 
 if TYPE_CHECKING:
+    from plexapi.library import LibrarySection, MusicSection, ShowSection, MovieSection, PhotoSection
+
     from .server import LocalPlexServer
+    # from .typing import AnyLibSection, PlexObjTypes, PlexObj, LibSection, Bool
     from .typing import PlexObjTypes, PlexObj, LibSection, Bool
+
+    # This is duplicated to work around a PyCharm bug...
+    AnyLibSection = LibrarySection | MusicSection | ShowSection | MovieSection | PhotoSection
 
 __all__ = ['QueryResults']
 log = logging.getLogger(__name__)
@@ -34,6 +40,8 @@ CUSTOM_OPS = {'__like': 'sregex', '__like_exact': 'sregex', '__not_like': 'nsreg
 
 
 class QueryResults:
+    _type: PlexObjTypes
+
     def __init__(self, plex: LocalPlexServer, obj_type: PlexObjTypes, data: RawResultData, library_section_id=None):
         self.plex = plex
         self._type = obj_type
@@ -51,17 +59,18 @@ class QueryResults:
         plex: LocalPlexServer,
         obj_type: PlexObjTypes,
         section: LibSection = None,
-        full: bool = False,
+        full: bool = False,             # Whether all optional metadata should be retrieved with entities
         check_files: bool = False,
         **kwargs,
     ) -> QueryResults:
-        section = plex.get_lib_section(section, obj_type)
+        section: AnyLibSection = plex.get_lib_section(section, obj_type)
         params = _resolve_query_filters(obj_type, section, kwargs)
         log.debug(f'Beginning new query for {obj_type=} in {section=} ({full=}, {check_files=}) with {params=}')
         data = section._server.query(plex._ekey(obj_type, section, full, check_files), params=params)
+        log.debug(f'Received {len(data)} {data.__class__.__name__} results')
         return cls(plex, obj_type, data, section.key).filter(**kwargs)
 
-    def _new(self, data: RawResultData, obj_type: PlexObjTypes = None) -> QueryResults:
+    def _new(self, data: RawResultData, obj_type: PlexObjTypes | None = None) -> QueryResults:
         return self.__class__(self.plex, obj_type or self._type, data, self._library_section_id)
 
     # region Dunder Methods
@@ -113,13 +122,13 @@ class QueryResults:
     def __serializable__(self):
         return self.results()
 
-    def keys(self, trim=None, level='key', suffix=None) -> set[str]:
+    def keys(self, trim: int | None = None, level: str = 'key', suffix: str | None = None) -> set[str]:
         keys = {o.attrib[level] for o in self._data} if trim is None else {o.attrib[level][:trim] for o in self._data}
         if suffix:
             keys = {f'{key}{suffix}' for key in keys}
         return keys
 
-    def items(self, trim=None) -> Iterator[tuple[str, Element]]:
+    def items(self, trim: int | None = None) -> Iterator[tuple[str, Element]]:
         if trim is None:
             for obj in self._data:
                 yield obj.attrib['key'], obj
@@ -127,7 +136,7 @@ class QueryResults:
             for obj in self._data:
                 yield obj.attrib['key'][:trim], obj
 
-    def key_map(self, trim=None) -> dict[str, Element]:
+    def key_map(self, trim: int | None = None) -> dict[str, Element]:
         return dict(self.items(trim))
 
     def in_playlist(self, name: str) -> QueryResults:
@@ -214,22 +223,22 @@ class QueryResults:
         return self._new(results)
 
     def results(self) -> set[PlexObj]:
+        return set(self._iter_results())  # noqa
+
+    def _iter_results(self) -> Iterator[PlexObj]:
         library_section_id = self._library_section_id
-        initpath = self.plex.music._initpath
+        init_path = self.plex.music._initpath
         server = self.plex.music._server
         get_ecls = PLEXOBJECTS.get
-        results = set()
-        add_result = results.add
         for elem in self._data:
             get_attr = elem.attrib.get
             etype = get_attr('streamType', get_attr('tagType', get_attr('type')))
             if ecls := get_ecls(f'{elem.tag}.{etype}' if etype else elem.tag, get_ecls(elem.tag)):
-                obj = ecls(server, elem, initpath)
+                obj = ecls(server, elem, init_path)
                 obj.librarySectionID = library_section_id
-                add_result(obj)
-        return results
+                yield obj
 
-    def result(self) -> Optional[PlexObj]:
+    def result(self) -> PlexObj | None:
         build_item = self.plex.music._buildItemOrNone
         for elem in self._data:
             if (obj := build_item(elem, None, None)) is not None:
@@ -348,7 +357,7 @@ def _pick_uniq_track(existing: Element, track: Element, rated, latest, singles) 
         elif not existing.attrib.get('userRating') and track.attrib.get('userRating'):
             # log.debug(f'Keeping {track=} instead of {existing=} because of rating', extra={'color': 11})
             return track
-        elif latest and (latest_track := _get_latest(existing, track, config.server_root, singles)):
+        elif latest and (latest_track := _get_latest(existing, track, singles)):
             # if latest_track == existing:
             #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
             # else:
@@ -357,7 +366,7 @@ def _pick_uniq_track(existing: Element, track: Element, rated, latest, singles) 
             return latest_track
         else:                                                           # Ensure the chosen value is stable between runs
             return min(existing, track, key=lambda e: int(e.attrib['ratingKey']))
-    elif latest and (latest_track := _get_latest(existing, track, config.server_root, singles)):
+    elif latest and (latest_track := _get_latest(existing, track, singles)):
         # if latest_track == existing:
         #     log.debug(f'Keeping {existing=} instead of {track=} because of date', extra={'color': 11})
         # else:
@@ -368,7 +377,7 @@ def _pick_uniq_track(existing: Element, track: Element, rated, latest, singles) 
         return min(existing, track, key=lambda e: int(e.attrib['ratingKey']))
 
 
-def _get_latest(a: Element, b: Element, server_root, singles):
+def _get_latest(a: Element, b: Element, singles):
     a_path = a[0][0].attrib['file']
     b_path = b[0][0].attrib['file']
     if singles:
@@ -379,8 +388,11 @@ def _get_latest(a: Element, b: Element, server_root, singles):
         elif '/singles/' in b_path_lc and '/singles/' not in a_path_lc:
             return a
 
-    a_file = SongFile.for_plex_track(a_path, server_root)
-    b_file = SongFile.for_plex_track(b_path, server_root)
+    server_root = config.server_root
+    strip_prefix = config.server_path_strip_prefix
+
+    a_file = SongFile.for_plex_track(a_path, server_root, strip_prefix)
+    b_file = SongFile.for_plex_track(b_path, server_root, strip_prefix)
     try:
         a_date = a_file.date
     except Exception as e:
@@ -403,7 +415,7 @@ def _get_latest(a: Element, b: Element, server_root, singles):
 
 
 def _prefixed_filters(field, filters):
-    us_key = '{}__'.format(field)
+    us_key = f'{field}__'
     return {k for k in filters if k == field or k.startswith(us_key)}
 
 
@@ -419,7 +431,7 @@ def _extract_kwargs(kwargs, keys, intermediate_field='title'):
             if base.endswith('__not'):
                 op = 'not__' + op
 
-        intm_kwargs['{}__{}'.format(intermediate_field, op)] = filter_val
+        intm_kwargs[f'{intermediate_field}__{op}'] = filter_val
     return intm_kwargs
 
 
@@ -446,10 +458,9 @@ def _resolve_aliases(kwargs):
 def _resolve_custom_ops(kwargs):
     # Replace custom/shorthand ops with the real operators
     for filter_key, filter_val in sorted(kwargs.items()):
-        keyword = next((val for val in CUSTOM_OPS if filter_key.endswith(val)), None)
-        if keyword:
+        if keyword := next((val for val in CUSTOM_OPS if filter_key.endswith(val)), None):
             kwargs.pop(filter_key)
-            target_key = '{}__{}'.format(filter_key[:-len(keyword)], CUSTOM_OPS[keyword])
+            target_key = f'{filter_key[:-len(keyword)]}__{CUSTOM_OPS[keyword]}'
             if keyword == '__like' and isinstance(filter_val, str):
                 filter_val = filter_val.replace(' ', '.*?')
             filter_val = re.compile(filter_val, re.IGNORECASE) if isinstance(filter_val, str) else filter_val

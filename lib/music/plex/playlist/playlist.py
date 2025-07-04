@@ -84,6 +84,9 @@ class PlexPlaylist:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.name!r})'
 
+    def __len__(self) -> int:
+        return len(self.playlist)
+
     # region Properties
 
     @property
@@ -112,6 +115,13 @@ class PlexPlaylist:
             return self.playlist.playlistType
         except AttributeError as e:
             raise InvalidPlaylist(f'{self} has no type because it does not exist') from e
+
+    @cached_property
+    def item_type(self) -> str:
+        if self.type == 'audio':
+            return 'track'
+        else:
+            raise AttributeError(f'item_type is not currently supported for playlist type={self.type!r}')
 
     @cached_property
     def is_smart(self) -> bool:
@@ -267,7 +277,7 @@ class PlexPlaylist:
         if not removed and not added:
             log.info(f'Playlists {self} and {other} are identical')
 
-    def print_info(self, flac_color: AnsiColor = 11, other_color: AnsiColor = 9):
+    def print_info(self, flac_color: AnsiColor = 10, other_color: AnsiColor = 9):
         tracks = self.playlist.items()
         print(f'{self} contains {len(tracks)} tracks:')
         for track in tracks:
@@ -286,15 +296,20 @@ class PlexPlaylist:
             'Last modified': self.playlist.updatedAt.isoformat(' '),
         }
 
-    def pprint(self, *, show_tracks: bool = False, flac_color: AnsiColor = 11, other_color: AnsiColor = 9):
+    def pprint(self, *, show_tracks: bool = False, ok_color: AnsiColor = 10, bad_color: AnsiColor = 9):
         print(f' - {self.name}:')
         for key, val in self._get_info().items():
             print(f'   - {key}: {val}')
         if show_tracks:
             print(f'   - Tracks:')
             for track in self.tracks:
-                is_flac = track.media[0].audioCodec == 'flac'
-                print(f'     - {colored(track, flac_color if is_flac else other_color)}')
+                codec = track.media[0].audioCodec
+                is_flac = codec == 'flac'
+                exists = track in self.plex.all_tracks
+                exists_str = 'exists' if exists else 'missing'
+                color = ok_color if is_flac and exists else bad_color
+                track_str = f'[{codec:>4s}, {exists_str:>7s}] {track}'
+                print(f'     - {colored(track_str, color)}')
 
     # region Serialization
 
@@ -378,7 +393,7 @@ class PlexPlaylist:
 # region Public Functions
 
 
-def compare_playlists(plex: OptServer, path: PathLike, name: str = None, strict: bool = False):
+def compare_playlists(plex: LocalPlexServer, path: PathLike, name: str = None, strict: bool = False):
     file_playlists = PlexPlaylist.load_all(path, plex)
     if name:
         try:

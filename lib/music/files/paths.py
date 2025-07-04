@@ -91,11 +91,14 @@ def _trim_prefix(basename: str) -> str:
     return basename
 
 
-def plex_track_path(track_or_rel_path: Union[Track, str], root: PathLike) -> Path:
+def plex_track_path(track_or_rel_path: Track | str, root: PathLike, strip_prefix: str | None = None) -> Path:
     if isinstance(track_or_rel_path, str):
         rel_path = track_or_rel_path
     else:
         rel_path = track_or_rel_path.media[0].parts[0].file
+
+    if strip_prefix and rel_path.startswith(strip_prefix):
+        rel_path = rel_path[len(strip_prefix):]
 
     if ON_WINDOWS and (root_str := root.as_posix() if isinstance(root, Path) else root).startswith('/'):
         # Path requires 2 parts for a leading // to be preserved on Windows.  If the root is for a network location

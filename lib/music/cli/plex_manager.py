@@ -285,19 +285,56 @@ class Compare(Playlist, help='Compare playlists'):
         compare_playlists(self.plex, self.path, self.playlist, self.strict)
 
 
+class Show(Playlist, help='Show a playlist and its contents'):
+    name = Positional(help='The name of the playlist to show')
+    path = Option('-p', help='Load the playlist from the specified dump location instead of the live server')
+    hide_tracks = Flag('-H', help='Hide tracks and only print metadata')
+
+    def main(self):
+        self._get_playlist().pprint(show_tracks=not self.hide_tracks)
+
+    def _get_playlist(self) -> PlexPlaylist:
+        if self.path:
+            from music.plex.playlist import PlexPlaylist
+
+            return PlexPlaylist.load_all(self.path, self.plex)[self.name]
+        else:
+            return self.plex.playlist(self.name)
+
+
 class List(Playlist, help='List playlists'):
     path = Option('-p', help='List playlists from the specified dump location instead of the live server')
 
     with ParamGroup(mutually_exclusive=True):
         show_tracks = Flag('-t', help='Show all tracks in each playlist (may be very verbose)')
-        names_only = Flag('-n', help='Show playlist names only (default: show some metadata)')
+        names_only = Flag('-N', help='Show playlist names only (default: show some metadata)')
+
+    with ParamGroup('Filter'):
+        name = Option('-n', metavar='GLOB', help='Filter playlists to include only ones matching the provided pattern')
+        ordered = Flag('-o', help='Only include ordered playlists (exclude "smart" and externally synced ones)')
+        max_size: int = Option('-s', help='Exclude playlists with more items than the specified size')
 
     def main(self):
-        for name, playlist in self._get_playlists().items():
+        for name, playlist in self.get_playlists().items():
             if self.names_only:
                 print(name)
             else:
                 playlist.pprint(show_tracks=self.show_tracks)
+
+    def get_playlists(self) -> dict[str, PlexPlaylist]:
+        playlists = self._get_playlists()
+        if self.name:
+            from fnmatch import fnmatch
+
+            playlists = {name: playlist for name, playlist in playlists.items() if fnmatch(name, self.name)}
+
+        if self.ordered:
+            playlists = {name: playlist for name, playlist in playlists.items() if playlist.is_ordered}
+
+        if self.max_size and self.max_size > 0:
+            playlists = {name: playlist for name, playlist in playlists.items() if len(playlist) <= self.max_size}
+
+        return playlists
 
     def _get_playlists(self) -> dict[str, PlexPlaylist]:
         if self.path:

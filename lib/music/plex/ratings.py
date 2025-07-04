@@ -120,7 +120,7 @@ class RatingSynchronizer:
                 raise
 
     def _get_song_file(self, track: Track) -> SongFile | None:
-        path = plex_track_path(track, config.server_root)
+        path = plex_track_path(track, config.server_root, config.server_path_strip_prefix)
         mod_before, mod_after = self.mod_before, self.mod_after
         if mod_before or mod_after:
             modified = datetime.fromtimestamp(path.stat().st_mtime)

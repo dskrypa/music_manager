@@ -180,7 +180,9 @@ class PlexConfig(ClearableCachedPropertyMixin):
     user: str | None = ConfigEntry('auth', 'myplex_username', 'username', required=_token, inverse=True)  # noqa
 
     #: Local mount point for Plex server media that matches the root for media paths as reported by Plex
-    server_root: Path | None = ConfigEntry('custom', 'server_path_root', type=Path)
+    server_root: Path | None = ConfigEntry('custom', 'server_path_root', type=lambda p: Path(p).expanduser())
+    #: Text to strip from track paths when mapping to a locally accessible path
+    server_path_strip_prefix: str | None = ConfigEntry('custom')
 
     # Primary Library Section Names
     music_lib_name: str = ConfigEntry('custom', default='Music')

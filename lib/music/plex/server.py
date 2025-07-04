@@ -192,6 +192,10 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
 
     # region Find Track Methods
 
+    @cached_property
+    def all_tracks(self) -> set[Track]:
+        return self.get_tracks()
+
     def get_track(self, **kwargs) -> Track | None:
         return self.find_object('track', **kwargs)
 

@@ -150,6 +150,7 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
     def copy_album_tags(self, event: Event, key=None) -> CallbackAction | None:
         from .diff import FullSyncDiffView
 
+        # TODO: Configurable categories of items to copy (all tags, just ratings, etc)
         if key == 'copy_src_album_tags':
             kwargs = {'src_album': self.album}
         elif key == 'copy_src_lib_album_tags':

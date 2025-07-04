@@ -306,8 +306,12 @@ class PlexPlaylist:
                 codec = track.media[0].audioCodec
                 is_flac = codec == 'flac'
                 exists = track in self.plex.all_tracks
+                if exists:
+                    color = ok_color if is_flac and exists else bad_color
+                else:
+                    color = 201
+
                 exists_str = 'exists' if exists else 'missing'
-                color = ok_color if is_flac and exists else bad_color
                 track_str = f'[{codec:>4s}, {exists_str:>7s}] {track}'
                 print(f'     - {colored(track_str, color)}')
 

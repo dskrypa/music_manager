@@ -165,11 +165,13 @@ def _dt_repr(dt: datetime) -> str:
     return dt.isoformat(' ', 'seconds')
 
 
-def _normalize_mod_time(dt_or_delta: datetime | date | timedelta | None) -> datetime | date | None:
+def _normalize_mod_time(dt_or_delta: datetime | date | timedelta | None) -> datetime | None:
     if not dt_or_delta:
         return None
     elif isinstance(dt_or_delta, timedelta):
         return datetime.now() - dt_or_delta
+    elif isinstance(dt_or_delta, date):
+        return datetime(dt_or_delta.year, dt_or_delta.month, dt_or_delta.day)
     else:
         return dt_or_delta
 

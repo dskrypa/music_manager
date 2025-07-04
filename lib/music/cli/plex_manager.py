@@ -256,14 +256,19 @@ class Playlist(PlexManager, help='Save or compare playlists'):
 class Dump(Playlist, help='Save playlists', use_log_file=True):
     path = Positional(help='Playlist dump location')
     compress = Flag('--no-compress', '-C', default=True, help='Do NOT compress the playlist dump')
+    format = Option('-f', choices=('json', 'xml'), default='json', help='Serialization format')
     with ParamGroup(mutually_exclusive=True):
         playlist = Option('-p', help='Dump the specified playlist (default: all)')
         separate = Flag('-s', help='Store each playlist in a separate file (default: combine)')
 
     def main(self):
-        from music.plex.playlist import dump_playlists
+        if self.playlist:
+            self.plex.playlist(self.playlist).dump(self.path, self.compress)
+        else:
+            from music.plex.playlist import PlaylistSerializer
 
-        dump_playlists(self.plex, self.path, self.playlist, compress=self.compress, separate=self.separate)
+            serializer = PlaylistSerializer(self.path, self.plex, compress=self.compress, xml=self.format == 'xml')
+            serializer.dump_all(self.separate)
 
 
 class Compare(Playlist, help='Compare playlists'):

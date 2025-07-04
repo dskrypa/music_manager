@@ -2,6 +2,8 @@
 :author: Doug Skrypa
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Literal, Union, Iterable, Any
@@ -27,3 +29,5 @@ PlaylistType = Literal['audio', 'video', 'photo']
 Bool = Union[bool, Any]
 PathLike = Union[str, Path]
 StrOrStrs = Union[str, Iterable[str]]
+
+AnsiColor = str | int | None

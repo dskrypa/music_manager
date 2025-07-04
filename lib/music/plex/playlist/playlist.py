@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from functools import cached_property
-from typing import TYPE_CHECKING, Collection
+from typing import TYPE_CHECKING, Any, Collection
 from xml.etree.ElementTree import Element, indent as _indent, tostring
 
 from plexapi.audio import Track
@@ -17,9 +17,10 @@ from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
 from ds_tools.output.color import colored
-from ds_tools.output.formatting import bullet_list
+from ds_tools.output.formatting import bullet_list, format_duration
 from ds_tools.output.prefix import LoggingPrefix
 
+from ..config import config
 from ..exceptions import InvalidPlaylist
 from ..query import QueryResults
 from .utils import PlaylistXmlDict, get_plex
@@ -27,11 +28,11 @@ from .utils import PlaylistXmlDict, get_plex
 if TYPE_CHECKING:
     from music.typing import PathLike
     from ..server import LocalPlexServer
-    from ..typing import PlaylistType
+    from ..typing import PlaylistType, AnsiColor
 
     OptServer = LocalPlexServer | None
 
-__all__ = ['PlexPlaylist', 'compare_playlists', 'list_playlists']
+__all__ = ['PlexPlaylist', 'compare_playlists']
 log = logging.getLogger(__name__)
 
 Tracks = Collection[Track] | QueryResults
@@ -41,22 +42,31 @@ class PlexPlaylist:
     plex: LocalPlexServer
     name: str
     lp: LoggingPrefix
+    _externally_synced: bool | None = None
     _playlist: Playlist | None
 
-    def __init__(self, name: str, plex: OptServer = None, playlist: Playlist | None = None):
+    def __init__(
+        self, name: str, plex: OptServer = None, playlist: Playlist | None = None, externally_synced: bool | None = None
+    ):
         self.plex = get_plex(plex)
         self.name = name
         self._playlist = playlist
+        self.externally_synced = externally_synced
         self.lp = LoggingPrefix(self.plex.dry_run)
-        # TODO: Add way to identify an ordered playlist (manually configured via web UI)
-        #  vs an unordered "smart" playlist configured via web UI
-        #  vs an unordered playlist synced via this library
 
     # region Create Playlist
 
     @classmethod
-    def new(cls, name: str, plex: OptServer = None, content: Tracks = None, **criteria) -> PlexPlaylist:
-        self = cls(name, plex)
+    def new(
+        cls,
+        name: str,
+        plex: OptServer = None,
+        content: Tracks = None,
+        *,
+        externally_synced: bool | None = None,
+        **criteria,
+    ) -> PlexPlaylist:
+        self = cls(name, plex, externally_synced=externally_synced)
         self.create(content, **criteria)
         return self
 
@@ -102,6 +112,41 @@ class PlexPlaylist:
             return self.playlist.playlistType
         except AttributeError as e:
             raise InvalidPlaylist(f'{self} has no type because it does not exist') from e
+
+    @cached_property
+    def is_smart(self) -> bool:
+        try:
+            return self.playlist.smart
+        except AttributeError as e:
+            raise InvalidPlaylist(f'{self} has no type because it does not exist') from e
+
+    @property
+    def externally_synced(self) -> bool:
+        # This is used to be able to determine whether the playlist is automatically synced by this library
+        # for the purpose of attempting to determine whether the order of items matters
+        if self._externally_synced is None:
+            self._externally_synced = self.name in config.externally_synced_playlists
+        return self._externally_synced
+
+    @externally_synced.setter
+    def externally_synced(self, value: bool | None):
+        if value is None:
+            return
+
+        self._externally_synced = value
+        externally_synced_playlists = config.externally_synced_playlists
+        if value:
+            if self.name not in externally_synced_playlists:
+                config.externally_synced_playlists = externally_synced_playlists | {self.name}  # Store -> save to file
+        elif self.name in externally_synced_playlists:
+            externally_synced_playlists.remove(self.name)
+            config.externally_synced_playlists = externally_synced_playlists  # Store -> save to file
+
+    @property
+    def is_ordered(self) -> bool:
+        # Assume that if this is not a "smart" playlist and if it is not managed via rules in this lib, then it was
+        # likely configured via the web UI, and the order likely matters
+        return not self.is_smart and not self.externally_synced
 
     @property
     def tracks(self) -> list[Track]:
@@ -222,12 +267,34 @@ class PlexPlaylist:
         if not removed and not added:
             log.info(f'Playlists {self} and {other} are identical')
 
-    def print_info(self, flac_color: str | int | None = None, other_color: str | int | None = 'red'):
+    def print_info(self, flac_color: AnsiColor = 11, other_color: AnsiColor = 9):
         tracks = self.playlist.items()
         print(f'{self} contains {len(tracks)} tracks:')
         for track in tracks:
             is_flac = track.media[0].audioCodec == 'flac'
             print(colored(f'  - {track}', flac_color if is_flac else other_color))
+
+    def _get_info(self) -> dict[str, Any]:
+        return {
+            'Track count': len(self.playlist),
+            'Duration': format_duration(self.playlist.duration / 1000),
+            'Type': self.type,
+            'Smart': self.is_smart,
+            'Externally synced': self.externally_synced,
+            'Is ordered': self.is_ordered,
+            'Created': self.playlist.addedAt.isoformat(' '),
+            'Last modified': self.playlist.updatedAt.isoformat(' '),
+        }
+
+    def pprint(self, *, show_tracks: bool = False, flac_color: AnsiColor = 11, other_color: AnsiColor = 9):
+        print(f' - {self.name}:')
+        for key, val in self._get_info().items():
+            print(f'   - {key}: {val}')
+        if show_tracks:
+            print(f'   - Tracks:')
+            for track in self.tracks:
+                is_flac = track.media[0].audioCodec == 'flac'
+                print(f'     - {colored(track, flac_color if is_flac else other_color)}')
 
     # region Serialization
 
@@ -329,11 +396,6 @@ def compare_playlists(plex: OptServer, path: PathLike, name: str = None, strict:
             current.name += ' (current)'
             playlist.name += ' (old)'
             current.compare_tracks(playlist, strict)
-
-
-def list_playlists(plex: OptServer, path: PathLike):
-    for name in sorted(PlexPlaylist.load_all(path, plex)):
-        print(name)
 
 
 # endregion

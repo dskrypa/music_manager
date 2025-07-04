@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from functools import cached_property
+from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
 
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from plexapi.video import Movie
     from ds_tools.output.prefix import LoggingPrefix
     from music.plex import LocalPlexServer
+    from music.plex.playlist import PlexPlaylist
 
 log = logging.getLogger(__name__)
 OBJ_TYPES = ('track', 'artist', 'album', 'tracks', 'artists', 'albums')
@@ -43,11 +44,11 @@ class PlexManager(Command):
 
     sub_cmd = SubCommand()
     with ParamGroup('Server / Connection'):
-        server_path_root = Option('-r', metavar='PATH', help=_PATH_ROOT_HELP)
-        server_url = Option('-u', metavar='URL', help=_URL_HELP)
-        username = Option('-n', help='Plex username (only needed when a token is not already cached)')
+        server_path_root = Option(metavar='PATH', help=_PATH_ROOT_HELP)
+        server_url = Option(metavar='URL', help=_URL_HELP)
+        username = Option(help='Plex username (only needed when a token is not already cached)')
         config_path = Option(
-            '-c', metavar='PATH', default='~/.config/plexapi/config.ini',
+            metavar='PATH', default='~/.config/plexapi/config.ini',
             help='Config file in which your token and server_path_root / server_url are stored'
         )
 
@@ -128,29 +129,31 @@ class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists w
         from music.plex.playlist import PlexPlaylist
 
         kpop_tracks = self.plex.query('track', mood__ne='Duplicate Rating')
-        PlexPlaylist('K-Pop Female Solo Artists 3+ Stars', self.plex).sync_or_create(
+        playlist = partial(PlexPlaylist, plex=self.plex, externally_synced=True)
+
+        playlist('K-Pop Female Solo Artists 3+ Stars').sync_or_create(
             query=kpop_tracks.filter(
                 userRating__gte=6,
                 grandparentTitle__like=r'taeyeon|chungha|younha|heize|rothy|sunmi|ailee|lee hi|jo yuri|seori|\biu\b|choi ye.?na|yuju|baek ji young|gummy|yuqi|hong jin young|bibi|hyori|hyolyn|yourbeagle|wendy|whee in|hwa sa|minnie|joy|seulgi|siyeon',
             )
         )
-        PlexPlaylist('K-Pop ALL', self.plex).sync_or_create(query=kpop_tracks)
-        PlexPlaylist('K-Pop 1 Star', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=2))
-        # PlexPlaylist('K-Pop 1\u00BD Star', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=3))
-        PlexPlaylist('K-Pop 2 Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=4))
-        # PlexPlaylist('K-Pop 2\u00BD Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=5))
-        PlexPlaylist('K-Pop 3 Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=6))
-        PlexPlaylist('K-Pop 3+ Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=6))
-        PlexPlaylist('K-Pop 3\u00BD Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=7))
-        PlexPlaylist('K-Pop 3\u00BD+ Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=7))
-        PlexPlaylist('K-Pop 4 Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=8))
-        PlexPlaylist('K-Pop 4+ Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=8))
-        PlexPlaylist('K-Pop 4~4\u00BD Stars', self.plex).sync_or_create(
+        playlist('K-Pop ALL').sync_or_create(query=kpop_tracks)
+        playlist('K-Pop 1 Star').sync_or_create(query=kpop_tracks.filter(userRating=2))
+        # playlist('K-Pop 1\u00BD Star').sync_or_create(query=kpop_tracks.filter(userRating=3))
+        playlist('K-Pop 2 Stars').sync_or_create(query=kpop_tracks.filter(userRating=4))
+        # playlist('K-Pop 2\u00BD Stars').sync_or_create(query=kpop_tracks.filter(userRating=5))
+        playlist('K-Pop 3 Stars').sync_or_create(query=kpop_tracks.filter(userRating=6))
+        playlist('K-Pop 3+ Stars').sync_or_create(query=kpop_tracks.filter(userRating__gte=6))
+        playlist('K-Pop 3\u00BD Stars').sync_or_create(query=kpop_tracks.filter(userRating=7))
+        playlist('K-Pop 3\u00BD+ Stars').sync_or_create(query=kpop_tracks.filter(userRating__gte=7))
+        playlist('K-Pop 4 Stars').sync_or_create(query=kpop_tracks.filter(userRating=8))
+        playlist('K-Pop 4+ Stars').sync_or_create(query=kpop_tracks.filter(userRating__gte=8))
+        playlist('K-Pop 4~4\u00BD Stars').sync_or_create(
             query=kpop_tracks.filter(userRating__gte=8, userRating__lte=9)
         )
-        PlexPlaylist('K-Pop 4\u00BD Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating=9))
-        PlexPlaylist('K-Pop 5 Stars', self.plex).sync_or_create(query=kpop_tracks.filter(userRating__gte=10))
-        PlexPlaylist('K-Pop Unrated', self.plex).sync_or_create(
+        playlist('K-Pop 4\u00BD Stars').sync_or_create(query=kpop_tracks.filter(userRating=9))
+        playlist('K-Pop 5 Stars').sync_or_create(query=kpop_tracks.filter(userRating__gte=10))
+        playlist('K-Pop Unrated').sync_or_create(
             query=kpop_tracks.filter(
                 userRating=0,
                 genre__like_exact='k-?pop',
@@ -160,7 +163,7 @@ class SyncPlaylists(PlexManager, choice='sync playlists', help='Sync playlists w
                 duration__gte=60000,
             ).unique()
         )
-        PlexPlaylist('K-Pop Unrated from Known Artists', self.plex).sync_or_create(
+        playlist('K-Pop Unrated from Known Artists').sync_or_create(
             query=kpop_tracks.filter(userRating__gte=6).artists().tracks().filter(
                 userRating=0,
                 genre__like_exact='k-?pop',
@@ -285,20 +288,25 @@ class Compare(Playlist, help='Compare playlists'):
 class List(Playlist, help='List playlists'):
     path = Option('-p', help='List playlists from the specified dump location instead of the live server')
 
+    with ParamGroup(mutually_exclusive=True):
+        show_tracks = Flag('-t', help='Show all tracks in each playlist (may be very verbose)')
+        names_only = Flag('-n', help='Show playlist names only (default: show some metadata)')
+
     def main(self):
+        for name, playlist in self._get_playlists().items():
+            if self.names_only:
+                print(name)
+            else:
+                playlist.pprint(show_tracks=self.show_tracks)
+
+    def _get_playlists(self) -> dict[str, PlexPlaylist]:
         if self.path:
-            self._list_from_dump()
+            from music.plex.playlist import PlexPlaylist
+
+            playlists = PlexPlaylist.load_all(self.path, self.plex)
+            return {name: pl for name, pl in sorted(playlists.items())}
         else:
-            self._list_from_plex()
-
-    def _list_from_dump(self):
-        from music.plex.playlist import list_playlists
-
-        list_playlists(self.plex, self.path)
-
-    def _list_from_plex(self):
-        for name, playlist in self.plex.playlists.items():
-            print(f'  - {name}: {len(playlist.tracks)} tracks')
+            return self.plex.playlists  # pre-sorted
 
 
 # endregion

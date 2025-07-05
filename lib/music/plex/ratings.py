@@ -11,44 +11,30 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta
 from threading import Event
-from typing import TYPE_CHECKING, Union, Iterable
+from typing import TYPE_CHECKING
 
 from ..common.ratings import stars
 from ..files.track.track import SongFile
 from ..files.paths import plex_track_path
 from .config import config
 from .server import LocalPlexServer
-from .utils import parse_filters
 
 if TYPE_CHECKING:
     from plexapi.audio import Track
+    from .typing import PlexObjTypes
 
 __all__ = ['find_and_rate', 'RatingSynchronizer', 'adjust_track_ratings']
 log = logging.getLogger(__name__)
 
 
-def find_and_rate(
-    plex: LocalPlexServer,
-    rating: int,
-    obj_type: str,
-    title: Union[str, Iterable[str]],
-    filters: Union[dict[str, str], str],
-    escape: str,
-    allow_inst: bool,
-    pre_parsed: bool = False,
-):
+def find_and_rate(plex: LocalPlexServer, rating: int, obj_type: PlexObjTypes, filters: dict[str, str]):
     if rating < 0 or rating > 10:
         raise ValueError(f'Invalid {rating=} - must be between 0 and 10')
 
-    if pre_parsed:
-        kwargs = filters
-    else:
-        obj_type, kwargs = parse_filters(obj_type, title, filters, escape, allow_inst)
-
-    if len(kwargs) == 1:
+    if len(filters) == 1:
         raise ValueError('At least one identifier is required')
 
-    if not (objects := plex.find_objects(obj_type, **kwargs)):
+    if not (objects := plex.find_objects(obj_type, **filters)):
         log.warning('No results.')
         return
 

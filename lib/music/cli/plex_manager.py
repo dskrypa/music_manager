@@ -230,9 +230,7 @@ class Rate(PlexManager, help='Update ratings in Plex'):
             allow_inst=self.allow_inst,
             title=' '.join(self.title),
         )
-        find_and_rate(
-            self.plex, self.rating, self.obj_type, self.title, filters, self.escape, self.allow_inst, pre_parsed=True
-        )
+        find_and_rate(self.plex, self.rating, self.obj_type, filters)
 
 
 class RateOffset(PlexManager, help='Update all track ratings in Plex with an offset'):
@@ -259,7 +257,7 @@ class Playlist(PlexManager, help='Save or compare playlists'):
 class Dump(Playlist, help='Save playlists', use_log_file=True):
     path = Positional(help='Playlist dump location')
     compress = Flag('--no-compress', '-C', default=True, help='Do NOT compress the playlist dump')
-    format = Option('-f', choices=('json', 'xml'), default='json', help='Serialization format')
+    format = Option('-f', choices=('json', 'xml'), default='xml', help='Serialization format')
     with ParamGroup(mutually_exclusive=True):
         playlist = Option('-p', help='Dump the specified playlist (default: all)')
         separate = Flag('-s', help='Store each playlist in a separate file (default: combine)')

@@ -494,7 +494,8 @@ class PlaylistSynchronizer(ClearableCachedPropertyMixin):
             return True
         elif self.plist_items == self.tracks:
             log.info(
-                f'{self} contains {len(self.plist_items):,d} tracks and is already in sync with the given criteria',
+                f'{self.playlist} contains {len(self.plist_items):,d} tracks'
+                f' and is already in sync with the given criteria',
                 extra={'color': 11},
             )
             return True
@@ -534,7 +535,7 @@ class PlaylistSynchronizer(ClearableCachedPropertyMixin):
             self.clear_cached_properties()
             size -= len(to_rm)
         else:
-            log.log(19, f'{self} does not contain any out-of-order tracks that should be removed')
+            log.log(19, f'{self.playlist} does not contain any out-of-order tracks that should be removed')
 
         return size
 

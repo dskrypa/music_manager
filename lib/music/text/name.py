@@ -261,10 +261,9 @@ class Name(ClearableCachedPropertyMixin):
 
     def is_version_of(self, other: Name, partial: bool = False) -> bool:
         matches = self._matches(other)
-        any_match = any(matches)
         if partial:
-            return any_match
-        elif any_match:
+            return any(matches)
+        elif any(matches):
             return not any(m is False for m in matches)
         return False
 

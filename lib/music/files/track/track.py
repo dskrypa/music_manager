@@ -14,7 +14,7 @@ from datetime import date
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, Iterator, Any, Collection, Type, Mapping, TypeVar, Callable
+from typing import TYPE_CHECKING, Iterator, Any, Collection, Type, Mapping, TypeVar, Callable
 from urllib.parse import quote
 from weakref import WeakValueDictionary
 
@@ -64,6 +64,9 @@ log = logging.getLogger(__name__)
 MP4_STR_ENCODINGS = {AtomDataType.UTF8: 'utf-8', AtomDataType.UTF16: 'utf-16be'}  # noqa
 MP4_MIME_FORMAT_MAP = {'image/jpeg': MP4Cover.FORMAT_JPEG, 'image/png': MP4Cover.FORMAT_PNG}
 
+# note: webm is not supported by mutagen
+DEFAULT_OPTIONS = (MP3, FLAC, MP4, ID3FileType, WAVE, OggFLAC, OggVorbis, OggOpus)
+
 T = TypeVar('T')
 
 
@@ -77,8 +80,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # endregion
     # region Instance Attributes + File/Tag Properties
     _bpm: OptInt = None
-    _f: Optional[MutagenFile] = None
-    _path: Optional[Path] = None
+    _f: MutagenFile | None = None
+    _path: Path | None = None
     tags: TagsType              = MusicFileProperty('tags')
     filename: str               = MusicFileProperty('filename')
     length: float               = MusicFileProperty('info.length')  # length of this song in seconds
@@ -93,7 +96,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     tag_album_title: OptStr     = TextTagProperty('album_title', default=None)  # Non-standard, low frequency of use
     tag_genre: OptStr           = TextTagProperty('genre', default=None)
     tag_genres: list[str]       = TagValuesProperty('genre', default=None)
-    date: Optional[date]        = TextTagProperty('date', parse_file_date, default=None)
+    date: date | None           = TextTagProperty('date', parse_file_date, default=None)
     album_url: OptStr           = TextTagProperty('wiki:album', default=None)
     artist_url: OptStr          = TextTagProperty('wiki:artist', default=None)
     rating: OptInt              = TextTagProperty('rating', int, default=None, save=True)
@@ -106,7 +109,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     # region Constructors
 
-    def __new__(cls, file_path: PathLike, *args, options=_NotSet, **kwargs):
+    def __new__(cls, file_path: PathLike, *args, options=DEFAULT_OPTIONS, **kwargs):
         file_path = Path(file_path).expanduser().resolve() if isinstance(file_path, str) else file_path
         try:
             return cls.__instances[file_path]
@@ -124,9 +127,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             return obj
 
     @classmethod
-    def _new_file(cls, file_path: PathLike, *args, options=_NotSet, **kwargs):
-        if options is _NotSet:  # note: webm is not supported by mutagen
-            options = (MP3, FLAC, MP4, ID3FileType, WAVE, OggFLAC, OggVorbis, OggOpus)
+    def _new_file(cls, file_path: PathLike, *args, options=DEFAULT_OPTIONS, **kwargs):
         ipod = hasattr(file_path, '_ipod')
         filething = file_path.open('rb') if ipod else file_path
         error = True
@@ -159,15 +160,15 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
     @cached_property
     def album_dir(self) -> AlbumDir | None:
+        if self._album_dir is not None:
+            return self._album_dir
+
         from ..album import AlbumDir
 
-        if album_dir := self._album_dir is not None:
-            return album_dir
         try:
             return AlbumDir(self.path.parent)
         except InvalidAlbumDir:
-            pass
-        return None
+            return None
 
     # region Internal Methods
 
@@ -303,13 +304,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     @cached_property
     def sample_rate(self) -> int:
         # total_samples = file_info.sample_rate * file_info.length
-        file = self._f
-        info = file.info
+        info = self._f.info
         try:
             return info.sample_rate
         except AttributeError:
-            if not isinstance(file, OggOpus):
+            if not isinstance(self._f, OggOpus):
                 raise
+
         with self.path.open('rb') as f:
             while not (page := OggPage(f)).packets[0].startswith(b'OpusHead'):
                 pass
@@ -324,9 +325,8 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return False
 
     @cached_property
-    def info(self) -> dict[str, Union[str, int, float, bool]]:
+    def info(self) -> dict[str, str | int | float | bool]:
         file_info = self._f.info
-        file_type = self.file_type
         size = self.path.stat().st_size
         info = {
             'bitrate': self.bitrate,            'bitrate_str': f'{self.bitrate // 1000} Kbps',
@@ -337,15 +337,18 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
             'channels': file_info.channels,
             'bits_per_sample': getattr(file_info, 'bits_per_sample', None),
         }
-        if file_type == 'mp3':
-            info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'
-            if encoder_info := file_info.encoder_info:
-                info['encoder'] = encoder_info
-        elif file_type == 'mp4':
-            codec = file_info.codec
-            info['codec'] = codec if codec == 'alac' else f'{codec} ({file_info.codec_description})'
-        elif file_type == 'ogg':
-            info['codec'] = self.tag_version[4:-1]
+
+        match self.file_type:
+            case 'mp3':
+                info['bitrate_str'] += f' ({str(file_info.bitrate_mode)[12:]})'
+                if encoder_info := file_info.encoder_info:
+                    info['encoder'] = encoder_info
+            case 'mp4':
+                codec = file_info.codec
+                info['codec'] = codec if codec == 'alac' else f'{codec} ({file_info.codec_description})'
+            case 'ogg':
+                info['codec'] = self.tag_version[4:-1]
+
         return info
 
     def info_summary(self) -> str:
@@ -643,7 +646,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # endregion
 
     @property
-    def common_tag_info(self) -> dict[str, Union[str, int, float, bool, None]]:
+    def common_tag_info(self) -> dict[str, str | int | float | bool | None]:
         return {
             'album artist': self.tag_album_artist,
             'artist': self.tag_artist,
@@ -679,13 +682,13 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return set()
 
     @cached_property
-    def album_artist(self) -> Optional[Name]:
+    def album_artist(self) -> Name | None:
         if (artists := self.album_artists) and len(artists) == 1:
             return next(iter(artists))
         return None
 
     @cached_property
-    def artist(self) -> Optional[Name]:
+    def artist(self) -> Name | None:
         if (artists := self.artists) and len(artists) == 1:
             return next(iter(artists))
         return None
@@ -695,20 +698,20 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
     # region Album Name Tag Properties
 
     @cached_property
-    def album_name(self) -> Optional[AlbumName]:
+    def album_name(self) -> AlbumName | None:
         if album := self.tag_album:
             return AlbumName.parse(album, self.tag_artist)
         return None
 
     @cached_property
-    def album_title_name(self) -> Optional[AlbumName]:
+    def album_title_name(self) -> AlbumName | None:
         # Non-standard, but encountered occasionally in the wild
         if album := self.tag_album_title:
             return AlbumName.parse(album, self.tag_artist)
         return None
 
     @cached_property
-    def title_as_album_name(self) -> Optional[AlbumName]:
+    def title_as_album_name(self) -> AlbumName | None:
         # Intended for use for singles with no album name tag
         if title := self.tag_title:
             return AlbumName.parse(title, self.tag_artist)
@@ -767,7 +770,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None
 
     @star_rating_10.setter
-    def star_rating_10(self, value: Union[int, float]):
+    def star_rating_10(self, value: int | float):
         self.rating = stars_to_256(value, 10)
 
     @property
@@ -782,7 +785,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
         return None
 
     @star_rating.setter
-    def star_rating(self, value: Union[int, float]):
+    def star_rating(self, value: int | float):
         self.rating = stars_to_256(value, 5)
 
     # endregion
@@ -1144,7 +1147,7 @@ class SongFile(ClearableCachedPropertyMixin, FileBasedObject):
 
 class Id3SongFile(SongFile):
     tag_type = 'id3'
-    _f: Union[MP3, ID3FileType, WAVE]
+    _f: MP3 | ID3FileType | WAVE
 
     # region Basic Functionality
 
@@ -1385,7 +1388,7 @@ class Mp4File(SongFile, ft_classes=(MP4,)):
 
 class VorbisSongFile(SongFile):
     tag_type = 'vorbis'
-    _f: Union[FLAC, OggFLAC, OggVorbis, OggOpus]
+    _f: FLAC | OggFLAC | OggVorbis | OggOpus
 
     # region Basic Functionality
 

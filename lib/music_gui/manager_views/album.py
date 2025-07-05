@@ -151,19 +151,19 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
         from .diff import FullSyncDiffView
 
         # TODO: Configurable categories of items to copy (all tags, just ratings, etc)
-        if key == 'copy_src_album_tags':
+        if key == 'copy_src_album_tags':        # Copy Tags To Album...
             kwargs = {'src_album': self.album}
-        elif key == 'copy_src_lib_album_tags':
+        elif key == 'copy_src_lib_album_tags':  # Copy Tags To Lib Album...
             kwargs = {
                 'src_album': self.album,
                 'dst_album': self.dir_manager.find_matching_album_dir_in_category(self.album, 'library'),
             }
-        elif key == 'copy_dst_lib_album_tags':
+        elif key == 'copy_dst_lib_album_tags':  # Copy Tags From Lib Album...
             kwargs = {
-                'dst_album': self.album,
                 'src_album': self.dir_manager.find_matching_album_dir_in_category(self.album, 'library'),
+                'dst_album': self.album,
             }
-        else:
+        else:                                   # Copy Tags From Album...
             kwargs = {'dst_album': self.album}
 
         if spec := FullSyncDiffView.prepare_transition(self.dir_manager, parent=self.window, **kwargs):

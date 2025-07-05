@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Collection
+from typing import TYPE_CHECKING, Any, Collection, Sequence
 from xml.etree.ElementTree import Element, indent as _indent, tostring
 
 from plexapi.audio import Track
@@ -16,9 +16,10 @@ from plexapi.exceptions import BadRequest
 from plexapi.playlist import Playlist
 from plexapi.utils import joinArgs
 
+from ds_tools.caching.decorators import ClearableCachedPropertyMixin
 from ds_tools.output.color import colored
 from ds_tools.output.formatting import bullet_list, format_duration
-from ds_tools.output.prefix import LoggingPrefix
+from ds_tools.output.prefix import DryRunMixin
 
 from ..config import config
 from ..exceptions import InvalidPlaylist
@@ -38,10 +39,10 @@ log = logging.getLogger(__name__)
 Tracks = Collection[Track] | QueryResults
 
 
-class PlexPlaylist:
+class PlexPlaylist(DryRunMixin):
     plex: LocalPlexServer
     name: str
-    lp: LoggingPrefix
+    _exists: bool = False
     _externally_synced: bool | None = None
     _playlist: Playlist | None
 
@@ -52,7 +53,7 @@ class PlexPlaylist:
         self.name = name
         self._playlist = playlist
         self.externally_synced = externally_synced
-        self.lp = LoggingPrefix(self.plex.dry_run)
+        self.dry_run = self.plex.dry_run
 
     # region Create Playlist
 
@@ -74,18 +75,32 @@ class PlexPlaylist:
         # TODO: Add way to "restore" an ordered playlist where the original files have been replaced by higher
         #  quality versions
         items = list(_get_tracks(self.plex, content, **criteria))
-        log.info(f'{self.lp.create} {self} with {len(items):,d} tracks', extra={'color': 10})
-        log.debug(f'Creating {self} with tracks: {items}')
+        self._create(items)
+
+    def _create(self, items: Collection[Track]):
+        log.info(f'{self.lp.create} {self} with {len(items):,d} tracks:', extra={'color': 10})
+        print(bullet_list(items, sort=isinstance(items, set)))
         if not self.plex.dry_run:
-            self._playlist = Playlist.create(self.plex.server, self.name, items)
+            self._playlist = Playlist.create(self.plex.server, self.name, items=items)
+            self._exists = True
+
+    def clone(self, name: str) -> PlexPlaylist:
+        items = self.playlist.items()
+        clone = self.__class__(name, self.plex, externally_synced=self.externally_synced)
+        clone._create(items)
+        return clone
 
     # endregion
+
+    # region Dunder methods
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.name!r})'
 
     def __len__(self) -> int:
         return len(self.playlist)
+
+    # endregion
 
     # region Properties
 
@@ -96,17 +111,19 @@ class PlexPlaylist:
 
         playlists = self.plex.server.playlists()
         if (playlist := next((p for p in playlists if p.title == self.name), None)) is not None:
+            self._exists = True
             self._playlist = playlist
         else:
             lc_name = self.name.lower()
             if (playlist := next((p for p in playlists if p.title.lower() == lc_name), None)) is not None:
+                self._exists = True
                 self._playlist = playlist
                 self.name = playlist.title
         return self._playlist
 
     @property
     def exists(self) -> bool:
-        return self.playlist is not None
+        return self.playlist is not None and self._exists
 
     @cached_property
     def type(self) -> PlaylistType:
@@ -223,24 +240,50 @@ class PlexPlaylist:
     def sync(self, query: QueryResults = None, **criteria):
         expected = _get_tracks(self.plex, query, **criteria)
         plist_items = set(self.playlist.items())
+
         size = len(plist_items)
-        if to_rm := plist_items.difference(expected):
-            self.remove_items(to_rm)
-            size -= len(to_rm)
-        else:
-            log.log(19, f'{self} does not contain any tracks that should be removed')
+        rm_count = self._maybe_remove_items(plist_items, expected)
+        size -= rm_count
+        add_count = self._maybe_add_items(plist_items, expected, size)
+        size += add_count
 
-        if to_add := expected.difference(plist_items):
-            self._log_change(to_add, 'add', size)
-            self.add_items(to_add, quiet=True)
-            size += len(to_add)
-        else:
-            log.log(19, f'{self} is not missing any tracks')
-
-        if not to_add and not to_rm:
+        if not add_count and not rm_count:
             log.info(
                 f'{self} contains {size:,d} tracks and is already in sync with the given criteria', extra={'color': 11}
             )
+
+    def sync_tracks(self, tracks: Sequence[Track]):
+        PlaylistSynchronizer(self, tracks).sync_tracks()
+
+    def _move_item_to_top(self, track: Track, size: int, add: bool = False):
+        if add:
+            self._log_change([track], 'add', size)
+            self.add_items([track], quiet=True)
+
+        self.playlist.moveItem(track)  # Omitting `after` results in the item becoming the first item in the playlist
+        self.playlist.reload()
+
+    def _maybe_remove_items(self, plist_items: set[Track], expected: Collection[Track]) -> int:
+        if to_rm := plist_items.difference(expected):
+            self.remove_items(to_rm)
+            return len(to_rm)
+        else:
+            log.log(19, f'{self} does not contain any unexpected tracks that should be removed')
+            return 0
+
+    def _maybe_add_items(self, plist_items: set[Track], expected: Collection[Track], size: int) -> int:
+        if isinstance(expected, set):
+            to_add = expected.difference(plist_items)
+        else:
+            to_add = [item for item in expected if item not in plist_items]  # maintain order
+
+        if to_add:
+            self._log_change(to_add, 'add', size)
+            self.add_items(to_add, quiet=True)
+            return len(to_add)
+        else:
+            log.log(19, f'{self} is not missing any tracks')
+            return 0
 
     def _log_change(self, items: Collection[Track], verb: str, size: int = None):
         if size is None:
@@ -420,21 +463,98 @@ def compare_playlists(plex: LocalPlexServer, path: PathLike, name: str = None, s
 # endregion
 
 
-def _get_tracks(plex: LocalPlexServer, content: Tracks = None, **criteria) -> set[Track]:
-    if content is not None:
-        if isinstance(content, QueryResults):
-            if content._type != 'track':
-                raise ValueError(f'Expected track results, found {content._type!r}')
-            return content.results()
-        elif isinstance(content, Track):
-            return {content}
-        elif isinstance(next(iter(content)), Track):
-            return content if isinstance(content, set) else set(content)
+class PlaylistSynchronizer(ClearableCachedPropertyMixin):
+    def __init__(self, playlist: PlexPlaylist, tracks: Sequence[Track]):
+        self.playlist = playlist
+        self.tracks = tracks
+        self.expected_set = set(tracks)
+
+    @cached_property
+    def plist_items(self) -> list[Track]:
+        return self.playlist.playlist.items()
+
+    @cached_property
+    def plist_item_set(self) -> set[Track]:
+        return set(self.plist_items)
+
+    def sync_tracks(self):
+        if self._nothing_to_do():
+            return
+
+        self._ensure_first_track_matches()
+        self._remove_unexpected_items()
+        size = self._remove_unsorted_items()
+        if to_add := self.tracks[size:]:
+            self.playlist._log_change(to_add, 'add', size)
+            self.playlist.add_items(to_add, quiet=True)
+
+    def _nothing_to_do(self) -> bool:
+        if not self.tracks:
+            log.warning(f'No tracks were provided - skipping sync for {self.playlist}')
+            return True
+        elif self.plist_items == self.tracks:
+            log.info(
+                f'{self} contains {len(self.plist_items):,d} tracks and is already in sync with the given criteria',
+                extra={'color': 11},
+            )
+            return True
+
+        return False
+
+    def _ensure_first_track_matches(self):
+        first_track = self.tracks[0]
+        if first_track != self.plist_items[0]:
+            # Ensure the first track matches first to ensure there's at least one track present before removing
+            # unexpected tracks
+            self.playlist._move_item_to_top(
+                first_track, len(self.plist_items), add=first_track not in self.plist_item_set
+            )
+            self.clear_cached_properties()
+
+    def _remove_unexpected_items(self):
+        if self.playlist._maybe_remove_items(self.plist_item_set, self.expected_set):
+            self.clear_cached_properties()
+
+    def _find_first_unexpected_index(self) -> int | None:
+        for i, (pl_item, expected_item) in enumerate(zip(self.plist_items, self.tracks)):
+            if pl_item != expected_item:
+                return i
+
+        return None
+
+    def _remove_unsorted_items(self) -> int:
+        size = len(self.plist_items)
+        if (index := self._find_first_unexpected_index()) and (to_rm := self.plist_items[index:]):
+            log.info(
+                f'{self.playlist.lp.remove} {len(to_rm)} tracks from {self.playlist} to fix their order:',
+                extra={'color': 13},
+            )
+            print(bullet_list(to_rm, sort=False))
+            self.playlist.remove_items(to_rm, quiet=True)
+            self.clear_cached_properties()
+            size -= len(to_rm)
         else:
-            raise TypeError(f'Unexpected track type={type(content).__name__!r}')
-    elif criteria:
-        return plex.get_tracks(**criteria)
-    raise ValueError('Query results or criteria, or an iterable containing one or more tracks/items are required')
+            log.log(19, f'{self} does not contain any out-of-order tracks that should be removed')
+
+        return size
+
+
+def _get_tracks(plex: LocalPlexServer, content: Tracks = None, **criteria) -> set[Track]:
+    """Normalize query results, a collection of tracks, or query criteria to a set of Tracks"""
+    if content is None:
+        if criteria:
+            return plex.get_tracks(**criteria)
+        raise ValueError('Query results or criteria, or an iterable containing one or more tracks/items are required')
+    elif isinstance(content, QueryResults):
+        if content._type != 'track':
+            raise ValueError(f'Expected track results, found {content._type!r}')
+        return content.results()
+    elif isinstance(content, Track):
+        return {content}
+    elif isinstance(next(iter(content)), Track):
+        return content if isinstance(content, set) else set(content)
+    else:
+        raise TypeError(f'Unexpected track type={type(content).__name__!r}')
 
 
 def _track_diff(a: set[Track], b: set[Track]) -> list[str]:

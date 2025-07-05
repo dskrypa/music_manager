@@ -230,8 +230,11 @@ class LocalPlexServer(ClearableCachedPropertyMixin):
 
     @property
     def playlists(self) -> dict[str, PlexPlaylist]:
-        playlists = sorted(self.server.playlists(), key=lambda p: p.title)
-        return {p.title: PlexPlaylist(p.title, self, p) for p in playlists}
+        raw_playlists = sorted(self.server.playlists(), key=lambda p: p.title)
+        playlists = {p.title: PlexPlaylist(p.title, self, p) for p in raw_playlists}
+        for playlist in playlists.values():
+            playlist._exists = True
+        return playlists
 
     def playlist(self, name: str) -> PlexPlaylist:
         if (playlist := PlexPlaylist(name, self)).exists:

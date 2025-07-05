@@ -5,8 +5,8 @@ from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
 
-from cli_command_parser import Command, Counter, Positional, Option, Flag, PassThru, ParamGroup, main  # noqa
-from cli_command_parser import SubCommand, Action
+from cli_command_parser import Command, ParamUsageError, main
+from cli_command_parser.parameters import Counter, Positional, Option, Flag, PassThru, ParamGroup, SubCommand, Action
 from cli_command_parser.inputs import Path as IPath, Date, TimeDelta
 from ds_tools.output.constants import PRINTER_FORMATS
 
@@ -286,8 +286,10 @@ class Compare(Playlist, help='Compare playlists'):
 
 
 class Show(Playlist, help='Show a playlist and its contents'):
-    name = Positional(help='The name of the playlist to show')
-    path = Option('-p', help='Load the playlist from the specified dump location instead of the live server')
+    with ParamGroup(required=True):
+        name = Option('-n', help='The name of the playlist to show (may omit for files containing only one)')
+        path = Option('-p', help='Load the playlist from the specified dump location instead of the live server')
+
     hide_tracks = Flag('-H', help='Hide tracks and only print metadata')
 
     def main(self):
@@ -297,7 +299,15 @@ class Show(Playlist, help='Show a playlist and its contents'):
         if self.path:
             from music.plex.playlist import PlexPlaylist
 
-            return PlexPlaylist.load_all(self.path, self.plex)[self.name]
+            playlists = PlexPlaylist.load_all(self.path, self.plex)
+            if self.name:
+                return playlists[self.name]
+            elif len(playlists) == 1:
+                return next(iter(playlists.values()))
+            else:
+                raise ParamUsageError(
+                    self.__class__.name, f'is required because {self.path} contains {len(playlists)} playlists'
+                )
         else:
             return self.plex.playlist(self.name)
 
@@ -344,6 +354,30 @@ class List(Playlist, help='List playlists'):
             return {name: pl for name, pl in sorted(playlists.items())}
         else:
             return self.plex.playlists  # pre-sorted
+
+
+class Restore(Playlist, help='Restore a playlist backup', use_log_file=True):
+    path = Option('-p', type=IPath(type='file', exists=True), required=True, help='The playlist backup to restore')
+    name = Option('-n', help='The name of the playlist to restore (may omit for files containing only one)')
+    new_name = Option('-N', help='A new name to use for the playlist (default: match original)')
+
+    def main(self):
+        from music.plex.playlist.repair import PlaylistRepairer
+
+        PlaylistRepairer(self._get_playlist(), self.new_name).repair()
+
+    def _get_playlist(self) -> PlexPlaylist:
+        from music.plex.playlist import PlexPlaylist
+
+        playlists = PlexPlaylist.load_all(self.path, self.plex)
+        if self.name:
+            return playlists[self.name]
+        elif len(playlists) == 1:
+            return next(iter(playlists.values()))
+        else:
+            raise ParamUsageError(
+                self.__class__.name, f'is required because {self.path} contains {len(playlists)} playlists'
+            )
 
 
 # endregion
@@ -451,3 +485,7 @@ class SyncPlayed(PlexManager, choice='sync played', help='Sync played status for
             for media in movie.media:  # noqa
                 for part in media.parts:
                     yield movie, Path(part.file), is_played
+
+
+if __name__ == '__main__':
+    main()

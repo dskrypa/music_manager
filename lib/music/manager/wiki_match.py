@@ -48,13 +48,13 @@ def test_match(paths: Paths, identifier: str):
             disco_entry = DiscographyEntry.from_title(identifier, search=True, research=True)
 
         uprint(f'Match scores for {album_name!r}:')
-        de_score = album_name.name._score(disco_entry.name)
+        de_score = album_name.name.get_match_scores(disco_entry.name)
         uprint(f'  - {disco_entry}: {de_score}')
         for edition in disco_entry:
-            ed_score = album_name.name._score(edition.name)
+            ed_score = album_name.name.get_match_scores(edition.name)
             uprint(f'    - {edition}: {ed_score}')
             for part in edition:
-                p_score = album_name.name._score(part.name)
+                p_score = album_name.name.get_match_scores(part.name)
                 uprint(f'      - {part}: {p_score}')
 
 

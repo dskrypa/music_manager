@@ -9,7 +9,7 @@ import re
 from copy import copy, deepcopy
 from functools import reduce
 from operator import xor
-from typing import TYPE_CHECKING, Type, Any, Callable, Iterable, Iterator, TypeVar, MutableMapping, Mapping, Union
+from typing import TYPE_CHECKING, Type, Any, Collection, Iterable, Iterator, TypeVar, MutableMapping, Mapping, Union
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.unicode.hangul import hangul_romanized_permutations_pattern
@@ -268,13 +268,8 @@ class Name(ClearableCachedPropertyMixin):
             return not any(m is False for m in matches)
         return False
 
-    def matches(self, other: NameLike, threshold=90, agg_func: Callable = max, romanization_match=95) -> bool:
-        scores = self._score(other, romanization_match)
-        if scores:
-            score = agg_func(scores)
-            # log.debug(f'{self!r}.matches({other!r}) {score=}')
-            return score >= threshold
-        return False
+    def matches(self, other: NameLike, threshold: int = 90, rom_match_score: int = 95) -> bool:
+        return any(score >= threshold for score in self._score(_normalize_name(other), rom_match_score))
 
     def matches_any(self, others: Iterable[NameLike], *args, **kwargs) -> bool:
         return any(self.matches(other, *args, **kwargs) for other in others)
@@ -298,22 +293,72 @@ class Name(ClearableCachedPropertyMixin):
             return fuzzed in self._romanizations
         return False
 
-    def _score(
+    def find_best_match(self, others: Collection[NameLike], threshold: int = 90, **kwargs) -> Name | None:
+        try:
+            return max(self.find_best_matches(others, threshold, **kwargs))[1]
+        except ValueError as e:
+            if 'max() iterable argument is empty' in e.args:
+                return None
+            raise
+
+    def find_best_matches(
+        self,
+        others: Collection[NameLike],
+        threshold: int = 90,
+        *,
+        rom_match_score: int = 95,
+        other_versions: bool = True,
+        try_alt: bool = True,
+        try_ost: bool = True,
+    ) -> Iterator[tuple[int, Name]]:
+        for other in map(_normalize_name, others):
+            score = self.get_match_score(
+                other, rom_match_score=rom_match_score, other_versions=other_versions, try_alt=try_alt, try_ost=try_ost
+            )
+            if score >= threshold:
+                yield score, other
+
+    def get_match_score(
         self,
         other: NameLike,
-        romanization_match: int = 95,
+        *,
+        rom_match_score: int = 95,
+        other_versions: bool = True,
+        try_alt: bool = True,
+        try_ost: bool = True,
+    ) -> int:
+        try:
+            return max(self._score(_normalize_name(other), rom_match_score, other_versions, try_alt, try_ost))
+        except ValueError as e:
+            if 'max() iterable argument is empty' in e.args:
+                return 0
+            raise
+
+    def get_match_scores(
+        self,
+        other: NameLike,
+        *,
+        rom_match_score: int = 95,
         other_versions: bool = True,
         try_alt: bool = True,
         try_ost: bool = True,
     ) -> list[int]:
-        if isinstance(other, str):
-            other = Name.from_parts(split_enclosed(other, reverse=True, maxsplit=1))
+        # log.debug(f'{self!r}.matches({other!r}) {scores=}', extra={'color': (11, 12)})
+        return list(self._score(_normalize_name(other), rom_match_score, other_versions, try_alt, try_ost))
+
+    def _score(
+        self,
+        other: Name,
+        rom_match_score: int = 95,
+        other_versions: bool = True,
+        try_alt: bool = True,
+        try_ost: bool = True,
+    ) -> Iterator[int]:
         # log.debug(
         #     f'Scoring match:\n{self.full_repr(attrs=["eng_langs", "non_eng_langs"])}'
         #     f'._score(\n{other.full_repr(attrs=["eng_langs", "non_eng_langs"])})',
         #     extra={'color': 11}
         # )
-        scores = []
         ep_score = None
         if self.non_eng_nospace and other.non_eng_nospace and self.non_eng_langs == other.non_eng_langs:
             score = revised_weighted_ratio(self.non_eng_nospace, other.non_eng_nospace)
@@ -321,66 +366,58 @@ class Name(ClearableCachedPropertyMixin):
                 ep_score = self._score_eng_parts(other)
                 score = (score + ep_score) // 2
             # log.debug(f'score({self.non_eng_nospace=}, {other.non_eng_nospace=}) => {score}', extra={'color': (0, 8)})
-            scores.append(score)
+            yield score
+
         if self.eng_fuzzed_nospace and other.eng_fuzzed_nospace:
-            scores.append(revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace))
-            # log.debug(f'score({self.eng_fuzzed_nospace=}, {other.eng_fuzzed_nospace=}) => {scores[-1]}', extra={'color': (0, 8)})
-        if self.non_eng_nospace and other.eng_fuzzed_nospace and self.has_romanization(other.eng_fuzzed_nospace, False):
-            if ep_score is not None:
-                scores.append((romanization_match + ep_score) // 2)
-            else:
-                scores.append(romanization_match)
-            # log.debug(f'score({self.non_eng_nospace=}, {other.eng_fuzzed_nospace=}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
-        if other.non_eng_nospace and self.eng_fuzzed_nospace and other.has_romanization(self.eng_fuzzed_nospace, False):
-            if ep_score is not None:
-                scores.append((romanization_match + ep_score) // 2)
-            else:
-                scores.append(romanization_match)
-            # log.debug(f'score({self.eng_fuzzed_nospace=}, {other.non_eng_nospace=}) => {scores[-1]} [rom]', extra={'color': (0, 8)})
+            yield revised_weighted_ratio(self.eng_fuzzed_nospace, other.eng_fuzzed_nospace)
+
+        for a, b in ((self, other), (other, self)):
+            if a.non_eng_nospace and b.eng_fuzzed_nospace and a.has_romanization(b.eng_fuzzed_nospace, False):
+                if ep_score is not None:
+                    yield (rom_match_score + ep_score) // 2
+                else:
+                    yield rom_match_score
 
         if try_alt:
-            if not self.non_eng and self.eng_lang == LangCat.MIX and self.eng_langs.intersection(LangCat.asian_cats):
-                alt_self = self.split()
-                o_eng_fuzz, s_eng_fuzz = other.eng_fuzzed_nospace, alt_self.eng_fuzzed_nospace
-                if o_eng_fuzz and s_eng_fuzz:
-                    # log.debug(f'Trying {alt_self=} / {o_eng_fuzz[len(s_eng_fuzz):]!r}', extra={'color': (0, 8)})
-                    if o_eng_fuzz.startswith(s_eng_fuzz) and alt_self.has_romanization(o_eng_fuzz[len(s_eng_fuzz):]):
-                        scores.append(romanization_match)
-            elif not other.non_eng and other.eng_lang == LangCat.MIX and other.eng_langs.intersection(LangCat.asian_cats):
-                alt_other = other.split()
-                o_eng_fuzz, s_eng_fuzz = alt_other.eng_fuzzed_nospace, self.eng_fuzzed_nospace
-                if o_eng_fuzz and s_eng_fuzz:
-                    # log.debug(f'Trying {alt_other=} / {s_eng_fuzz[len(o_eng_fuzz):]!r}', extra={'color': (0, 8)})
-                    if s_eng_fuzz.startswith(o_eng_fuzz) and alt_other.has_romanization(s_eng_fuzz[len(o_eng_fuzz):]):
-                        scores.append(romanization_match)
+            if self._is_asian_misclassified_as_eng():
+                if self.split()._is_alt_romanization_match(other):
+                    yield rom_match_score
+            elif other._is_asian_misclassified_as_eng() and other.split()._is_alt_romanization_match(self):
+                yield rom_match_score
 
-        if s_versions := self.versions:
-            for version in s_versions:
-                scores.extend(version._score(other, romanization_match, try_alt=try_alt, try_ost=try_ost))
-        if other_versions:
-            if o_versions := other.versions:
-                for version in o_versions:
-                    scores.extend(
-                        self._score(version, romanization_match, other_versions=False, try_alt=try_alt, try_ost=try_ost)
-                    )
+        if self.versions:
+            for version in self.versions:
+                yield from version._score(other, rom_match_score, try_alt=try_alt, try_ost=try_ost)
+
+        if other_versions and other.versions:
+            for version in other.versions:
+                yield from self._score(version, rom_match_score, other_versions=False, try_alt=try_alt, try_ost=try_ost)
+
         if try_ost:
             if self._is_ost:
                 # log.debug(f'{self!r}: Trying {self.no_suffix_version!r}._score with {other!r}', extra={'color': (0, 8)})
-                scores.extend(self.no_suffix_version._score(other, romanization_match, other_versions, try_alt, False))
+                yield from self.no_suffix_version._score(other, rom_match_score, other_versions, try_alt, False)
             elif other._is_ost:
                 # log.debug(f'{self!r}: Trying self._score with {other.no_suffix_version!r}', extra={'color': (0, 8)})
-                scores.extend(self._score(other.no_suffix_version, romanization_match, other_versions, try_alt, False))
+                yield from self._score(other.no_suffix_version, rom_match_score, other_versions, try_alt, False)
 
-        # log.debug(f'{self!r}.matches({other!r}) {scores=}', extra={'color': (11, 12)})
-        return scores
+    def _is_asian_misclassified_as_eng(self) -> bool:
+        return not self.non_eng and self.eng_lang == LangCat.MIX and self.eng_langs.intersection(LangCat.asian_cats)
+
+    def _is_alt_romanization_match(self, other: Name) -> bool:
+        if other.eng_fuzzed_nospace and self.eng_fuzzed_nospace:
+            # log.debug(f'Trying alt_{self=} / {other.eng_fuzzed_nospace[len(self.eng_fuzzed_nospace):]!r}', extra={'color': (0, 8)})
+            return (
+                other.eng_fuzzed_nospace.startswith(self.eng_fuzzed_nospace)
+                and self.has_romanization(other.eng_fuzzed_nospace[len(self.eng_fuzzed_nospace):])
+            )
+        return False
 
     def _score_eng_parts(self, other: Name) -> int:
         o_eng_parts = other.eng_parts
-        scores = []
-        for s_part in self.eng_parts:
-            for o_part in o_eng_parts:
-                scores.append(revised_weighted_ratio(s_part, o_part))
-        return max(scores) if scores else 100
+        if scores := [revised_weighted_ratio(s_part, o_part) for s_part in self.eng_parts for o_part in o_eng_parts]:
+            return max(scores)
+        return 100
 
     def _match(self, other: Name, attr: str) -> bool | None:
         return _match(getattr(self, attr), getattr(other, attr))
@@ -517,8 +554,7 @@ class Name(ClearableCachedPropertyMixin):
 
     @cached_property
     def eng_lower(self) -> OptStr:
-        eng = self.english
-        return eng.lower() if eng else None
+        return self.english.lower() if self.english else None
 
     @cached_property
     def eng_fuzzed(self) -> OptStr:
@@ -526,8 +562,7 @@ class Name(ClearableCachedPropertyMixin):
 
     @cached_property
     def eng_fuzzed_nospace(self) -> OptStr:
-        fuzzed = self.eng_fuzzed
-        return ''.join(fuzzed.split()) if fuzzed else None
+        return ''.join(self.eng_fuzzed.split()) if self.eng_fuzzed else None
 
     @cached_property
     def eng_parts(self) -> set[str]:
@@ -645,3 +680,9 @@ def _match(a, b) -> bool | None:
     if a and b:
         return a == b
     return None
+
+
+def _normalize_name(name: NameLike) -> Name:
+    if isinstance(name, str):
+        return Name.from_parts(split_enclosed(name, reverse=True, maxsplit=1))
+    return name

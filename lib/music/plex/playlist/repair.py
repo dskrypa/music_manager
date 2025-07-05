@@ -83,12 +83,12 @@ class TrackReplacementFinder:
             yield exact_match
         else:
             track_artist_name = Name.from_enclosed(track.grandparentTitle)
-            if artist_matches := sorted(track_artist_name.find_best_matches(self._artist_names)):
+            if artist_matches := sorted(track_artist_name.find_best_matches(self._artist_names), reverse=True):
                 track_album_name = Name.from_enclosed(track.parentTitle)
                 for artist_score, artist_name in artist_matches:
                     artist_name_str = self._artist_names[artist_name]
                     artist_albums = self._get_album_names(artist_name_str)
-                    for album_score, album_name in sorted(track_album_name.find_best_matches(artist_albums)):
+                    for _score, album_name in sorted(track_album_name.find_best_matches(artist_albums), reverse=True):
                         yield self._artist_album_tracks_title_map[artist_name_str][artist_albums[album_name]]
             else:
                 log.warning(f'Could not find a match for artist={track.grandparentTitle!r} for {track=}')

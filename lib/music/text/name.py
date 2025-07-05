@@ -311,6 +311,7 @@ class Name(ClearableCachedPropertyMixin):
         try_alt: bool = True,
         try_ost: bool = True,
     ) -> Iterator[tuple[int, Name]]:
+        # Note: Use `sorted(..., reverse=True)` for the best matches to be at the beginning
         for other in map(_normalize_name, others):
             score = self.get_match_score(
                 other, rom_match_score=rom_match_score, other_versions=other_versions, try_alt=try_alt, try_ost=try_ost

@@ -1,6 +1,6 @@
 """
-View for sorting files into the final library destination, possibly moving an existing version into an archive
-directory, if present.
+The "Sort Into Library" view.  Provides a way to sort files into the final library destination, possibly moving an
+existing version into an archive directory, if configured.
 """
 
 from __future__ import annotations
@@ -96,6 +96,7 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
         yield [self._prep_src_frame(), arrow, self._prep_dst_frame()]
 
     def _prep_src_header(self):
+        # TODO: The image/text on these buttons is not displaying well at all
         trash_icon = self._make_button_icon('trash', (130, 20), (7, 3))
         album_icon = self._make_button_icon('disc', (50, 20), (0, 2))
         # Note: Spaces in text are intentional to align with icons

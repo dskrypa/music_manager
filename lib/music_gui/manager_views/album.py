@@ -1,5 +1,13 @@
 """
-View that separates common album fields from common fields that are usually different between tracks.
+The primary album-level view.  Provides both static and mutable states to allow tags to be edited/added.
+Displays metadata that is common to all tracks in an album at the album level, separate from track-specific fields.
+
+While this view is primarily used to display information about an album directory and the tracks in it, it can
+represent an arbitrary :class:`music.manager.update.AlbumInfo` object that is not directly tied to an existing album
+directory.
+
+Only common, normalized tags are displayed/editable in this view.  Use :class:`~.tracks.SelectableSongFileView` (the
+"View All Tags" view) to view all tags at the track level.
 """
 
 from __future__ import annotations
@@ -148,6 +156,10 @@ class AlbumView(BaseView, title='Music Manager - Album Info'):
 
     @button_handler('copy_src_album_tags', 'copy_dst_album_tags', 'copy_src_lib_album_tags', 'copy_dst_lib_album_tags')
     def copy_album_tags(self, event: Event, key=None) -> CallbackAction | None:
+        """
+        Automatically discover, or prompt, for a source/destination album directory from which tags should be copied.
+        Moves to a diff view, similar to the one used when reviewing changes that would be made based on a Wiki match.
+        """
         from .diff import FullSyncDiffView
 
         # TODO: Configurable categories of items to copy (all tags, just ratings, etc)

@@ -31,6 +31,14 @@ log = logging.getLogger(__name__)
 
 
 class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
+    """
+    Presents changes staged in an :class:`music.manager.update.AlbumInfo` object that would be made to an album
+    directory and the tracks within it.
+
+    Used both for manual edits made via the Album view, and when changes are based on a Wiki match.
+    Not used when changes are not made via `AlbumInfo` (i.e., direct tag deletion via the "View All Tags" view).
+    """
+
     default_window_kwargs = BaseView.default_window_kwargs | {'exit_on_esc': True}
     album: AlbumInfo
     old_info: AlbumInfo
@@ -194,6 +202,13 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
 
 
 class FullSyncDiffView(AlbumDiffView):
+    """
+    Used to display changes that would be made via the "Copy Tags (To|From)( Lib)? Album..." buttons on the Album view.
+
+    Only differs from the main :class:`AlbumDiffView` in the way that it is initialized (and the data source for the
+    proposed changes).
+    """
+
     @classmethod
     def prepare_transition(
         cls,

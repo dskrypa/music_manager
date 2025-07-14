@@ -1,5 +1,5 @@
 """
-
+Reusable compound elements/frames that represent individual tracks / files within an album directory.
 """
 
 from __future__ import annotations
@@ -33,6 +33,16 @@ ValueEle = Text | Multiline | Rating | ListBox
 
 
 class SongFileFrame(InteractiveFrame):
+    """
+    Represents a single track/file within an album directory.  Intended to provide an immutable/static view of the
+    current state of the file / its tags.
+
+    Base class for the :class:`SelectableSongFileFrame` defined below.
+
+    Used by the :class:`SongFilesFrame` (in the "Sort Into Library" view) and the unused
+    :class:`~.manager_views.tracks.SongFileView`.
+    """
+
     track: SongFile
     show_cover: Bool = False
 
@@ -176,6 +186,11 @@ class SongFileFrame(InteractiveFrame):
 
 
 class SelectableSongFileFrame(SongFileFrame):
+    """
+    Primarily used in the "View All Tags" view.  Represents a single track/file within an album directory.  Provides
+    a checkbox next to each tag to enable selecting tags for removal/deletion.
+    """
+
     # TODO: Add button/prompt to add a new tag?
 
     def __init__(self, *args, multi_select_cb: BindCallback = None, **kwargs):
@@ -211,7 +226,7 @@ class SelectableSongFileFrame(SongFileFrame):
             for bind_key, cb in binds.items():
                 ele.bind(bind_key, cb)
 
-        return (key_ele, sel_box, val_ele)
+        return key_ele, sel_box, val_ele
 
     def _box_toggled_callback(self, tag_id: str, sel_box: CheckBox, val_ele):
         def box_toggled_callback(*args):
@@ -236,6 +251,8 @@ class SelectableSongFileFrame(SongFileFrame):
 
 
 class SongFilesFrame(ScrollFrame):
+    """Used in the "Sort Into Library" view"""
+
     def __init__(self, album: AlbumDir, **kwargs):
         kwargs.setdefault('scroll_y', True)
         kwargs.setdefault('fill_y', True)

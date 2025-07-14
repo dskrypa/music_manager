@@ -3,8 +3,6 @@ from pathlib import Path
 
 from cli_command_parser import Command, Counter, ParamGroup, Positional, Flag, inputs, main
 
-from music.__version__ import __author_email__, __version__, __author__, __url__  # noqa
-
 log = logging.getLogger(__name__)
 
 
@@ -21,7 +19,7 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
 
     def main(self):
         from music_gui.manager_views.album import AlbumView
-        from music_gui.manager_views.tracks import TrackInfoView, SongFileView, SelectableSongFileView
+        from music_gui.manager_views.tracks import SelectableSongFileView
 
         view_cls = AlbumView if self.album else SelectableSongFileView
 
@@ -45,3 +43,7 @@ class TrackInfoGui(Command, description='Music Manager GUI - Track Info'):
 #
 #     def main(self):
 #         configure(self.dry_run)
+
+
+if __name__ == '__main__':
+    main()

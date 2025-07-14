@@ -80,11 +80,10 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
                 if value := info[key]:
                     values.add(str(value))
 
-        data = {key: ' / '.join(sorted(values)) for key, values in data.items()}
         yield [
-            Text('Bitrate:'), IText(data['bitrate_str'], size=(18, 1)),
-            Text('Sample Rate:'), IText(data['sample_rate_str'], size=(18, 1)),
-            Text('Bit Depth:'), IText(data['bits_per_sample'], size=(18, 1)),
+            Text('Bitrate:'), IText(' / '.join(sorted(data['bitrate_str'])), size=(18, 1)),
+            Text('Sample Rate:'), IText(' / '.join(sorted(data['sample_rate_str'])), size=(18, 1)),
+            Text('Bit Depth:'), IText(' / '.join(sorted(data['bits_per_sample'])), size=(18, 1)),
         ]
         yield [HorizontalSeparator()]
 
@@ -110,6 +109,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
                         value = value.real_name
                     elif value not in types:
                         types.append(value)
+
                 val_ele = Combo(
                     types, value, size=(48, None), disabled=disabled, key=key, change_cb=self._update_numbered_type
                 )
@@ -166,6 +166,7 @@ class AlbumInfoFrame(TagModMixin, InteractiveFrame):
             EButton('Sort Into Library', key='sort_into_library', **kwargs),
             # EButton('Copy Tags Between Albums', key='copy_album_tags', disabled=True, **kwargs),
         ]
+
         yield [
             EButton('Copy Tags To Album...', key='copy_src_album_tags', **kwargs),
             EButton('Copy Tags From Album...', key='copy_dst_album_tags', **kwargs),

@@ -1,5 +1,5 @@
 """
-
+Primarily contains the "View All Tags" view.
 """
 
 from __future__ import annotations
@@ -35,6 +35,8 @@ class BaseTrackView(BaseView, ABC, title='Music Manager - Track Info', scroll_y=
 
 
 class TrackInfoView(BaseTrackView):
+    """Not used."""
+
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(**kwargs)
         self.album: AlbumInfo = get_album_info(album)
@@ -44,6 +46,8 @@ class TrackInfoView(BaseTrackView):
 
 
 class SongFileView(BaseTrackView):
+    """Not used outside of being extended below"""
+
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(**kwargs)
         self.album: AlbumDir = get_album_dir(album)
@@ -53,6 +57,11 @@ class SongFileView(BaseTrackView):
 
 
 class SelectableSongFileView(SongFileView):
+    """
+    The "View All Tags" view.  Provides a list of all tracks in a given album directory.  Allows tag values to be
+    selected for deletion, optionally for all tags matching a given type across all tracks.
+    """
+
     def __init__(self, album: AlbumIdentifier, **kwargs):
         super().__init__(album, **kwargs)
         self._track_frames: list[SelectableSongFileFrame] = []
@@ -89,6 +98,7 @@ class SelectableSongFileView(SongFileView):
             target_value = next(not row[1].value for row in track_frame.get_tag_rows(tag_id) if element in row)
         except (AttributeError, KeyError, TypeError, StopIteration):
             return
+
         # log.debug(f'Setting all {tag_id=} values to {target_value=}')
         for row_box in (row[1] for frame in self._track_frames for row in frame.get_tag_rows(tag_id)):
             if row_box is not element:
@@ -108,9 +118,11 @@ class SelectableSongFileView(SongFileView):
 
         if lph.took_action():
             return self.go_to_next_view(self.as_view_spec(album=self.album), forget_last=True)
-        else:
-            for track_frame in self._track_frames:
-                track_frame.refresh()
+
+        for track_frame in self._track_frames:
+            track_frame.refresh()
+
+        return None
 
     def get_tags_to_delete(self):
         to_delete = {}

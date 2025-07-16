@@ -13,11 +13,11 @@ from ds_tools.caching.decorators import cached_property
 from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer, Text, EventButton
 from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame, InteractiveScrollFrame
 from tk_gui.elements.rating import Rating
+from tk_gui.styles.base import DEFAULT_FONT_NAME
 
 from music.files import AlbumDir, SongFile
 from music.manager.update import TrackInfo, AlbumInfo
-from ..utils import get_album_dir, get_track_file
-from ..utils import zip_maps
+from ..utils import get_album_dir, get_track_file, zip_maps
 from .helpers import IText, section_header
 from .images import AlbumCoverImageBuilder
 
@@ -29,7 +29,8 @@ if TYPE_CHECKING:
 __all__ = ['AlbumDiffFrame']
 log = logging.getLogger(__name__)
 
-LRG_FONT = ('Helvetica', 20)
+LRG_FONT = (DEFAULT_FONT_NAME, 20)
+A2B_FONT = (DEFAULT_FONT_NAME, 15)
 
 
 class AlbumDiffFrame(InteractiveScrollFrame):
@@ -309,12 +310,14 @@ def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike, split: bool = N
     new_ele, split_new = _diff_ele(new_val, split)
     if split_old or split_new:
         yield [label_ele(label), old_ele]
+        # Note: These sizes were calculated on Windows with Helvetica before switching main platform / default font
+        # TODO: Does this spacer size need to be recalculated?
         # \u2794 + space @ Helvetica 15 => (26, 23) px / geometry='26x27+82+3'
         # label_ele @ Helvetica 10 (default) text_size=(15, 1) => geometry='109x20+5+3'
         spacer_size = (83, 1)  # width=109 - 26, height doesn't matter
-        yield [Spacer(size=spacer_size), Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
+        yield [Spacer(size=spacer_size), Text('\u2794', font=A2B_FONT, size=(2, 1)), new_ele]
     else:
-        yield [label_ele(label), old_ele, Text('\u2794', font=('Helvetica', 15), size=(2, 1)), new_ele]
+        yield [label_ele(label), old_ele, Text('\u2794', font=A2B_FONT, size=(2, 1)), new_ele]
 
 
 def _diff_ele(value: PathLike, split: bool = None, offset: int = 0) -> tuple[Text, bool]:
@@ -335,5 +338,6 @@ def _str_set(values: StrOrStrs) -> set[str]:
 
 
 def label_ele(text: str, size: XY = (15, 1), **kwargs) -> Text:
+    # Note: These sizes were calculated on Windows with Helvetica before switching main platform / default font
     # Note: size=(15, 1) @ Helvetica 10 (default) => geometry='109x20+5+3'
     return Text(text.replace('_', ' ').title(), size=size, **kwargs)

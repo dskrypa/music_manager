@@ -9,6 +9,7 @@ from typing import Literal, Any
 
 from ds_tools.fs.paths import path_repr
 from tk_gui.elements import Button, ButtonAction, Text, HorizontalSeparator
+from tk_gui.styles.base import DEFAULT_FONT_NAME
 
 __all__ = ['nav_button', 'IText', 'section_header']
 
@@ -18,7 +19,9 @@ def nav_button(side: Literal['left', 'right'], key: str = None, **kwargs) -> But
     if not key:
         key = 'prev_view' if side == 'left' else 'next_view'
     kwargs.setdefault('action', ButtonAction.BIND_EVENT)
-    return Button(text, key=key, size=(1, 2), pad=(0, 0), font=('Helvetica', 60), anchor=anchor, side=side, **kwargs)
+    return Button(
+        text, key=key, size=(1, 2), pad=(0, 0), font=(DEFAULT_FONT_NAME, 60), anchor=anchor, side=side, **kwargs
+    )
 
 
 def IText(value: Any = '', *args, **kwargs) -> Text:
@@ -29,5 +32,5 @@ def IText(value: Any = '', *args, **kwargs) -> Text:
     return Text(value, *args, use_input_style=True, **kwargs)
 
 
-def section_header(text: str) -> list[HorizontalSeparator, Text, HorizontalSeparator]:
-    return [HorizontalSeparator(), Text(text, justify='c'), HorizontalSeparator()]
+def section_header(text: str) -> tuple[HorizontalSeparator, Text, HorizontalSeparator]:
+    return HorizontalSeparator(), Text(text, justify='c'), HorizontalSeparator()

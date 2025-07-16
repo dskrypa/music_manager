@@ -15,6 +15,7 @@ from ds_tools.caching.decorators import cached_property
 from ds_tools.fs.paths import unique_path
 from tk_gui import CallbackAction, button_handler, EventButton, Text, ScrollFrame, BasicRowFrame
 from tk_gui.images import Icons
+from tk_gui.styles.base import DEFAULT_FONT_NAME
 
 from music.files.album import AlbumDir
 from music.manager.update import AlbumInfo
@@ -89,7 +90,7 @@ class AlbumSortView(BaseView, title='Music Manager - Album Sorting'):
 
     def get_inner_layout(self) -> Layout:
         yield [self._prep_src_header(), self._prep_dst_header()]
-        arrow = Text('\u2794', font=('Helvetica', 20), size=(2, 1))
+        arrow = Text('\u2794', font=(DEFAULT_FONT_NAME, 20), size=(2, 1))
         # TODO: Swap src <-> dst button
         # TODO: Copy ratings button =>> diff view
         # TODO: Copy all button =>> diff view

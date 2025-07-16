@@ -15,6 +15,7 @@ from tk_gui import View
 from tk_gui.elements import Frame, EventButton, YScrollFrame, Button, Spacer, MenuProperty
 from tk_gui.pseudo_elements import Row
 from tk_gui.options import GuiOptions, OptionComponent
+from tk_gui.styles.base import DEFAULT_FONT_NAME
 
 from music_gui.config import DirManager, ConfigUpdater
 from music_gui.elements.helpers import nav_button
@@ -137,13 +138,17 @@ class BaseView(ClearableCachedPropertyMixin, View, ABC, **_CLS_KWARGS):
         if back_button is next_button is None and not scroll_y:
             yield from self.get_inner_layout()
         else:
-            frame_cls = YScrollFrame if scroll_y else Frame
-            kwargs = {'fill_y': True} if scroll_y else {}
-            content = frame_cls(self.get_inner_layout(), side='top', pad=(0, 0), **kwargs)
+            if scroll_y:
+                content = YScrollFrame(self.get_inner_layout(), side='top', pad=(0, 0), fill_y=True)
+            else:
+                content = Frame(self.get_inner_layout(), side='top', pad=(0, 0))
+
             if back_button is None:
                 back_button = Spacer(size=(53, 241), anchor='w', side='left')
             if next_button is None:
                 next_button = Spacer(size=(53, 241), anchor='e', side='right')
+
+            # noinspection PyTypeChecker
             yield Row.custom(self.window, [back_button, next_button, content], anchor='n', expand=True, fill='both')
 
     def get_inner_layout(self) -> Layout:
@@ -228,7 +233,7 @@ class InitialView(BaseView):
     album = None
 
     def get_post_window_layout(self) -> Layout:
-        button = EventButton('Select Album', key='open', bind_enter=True, size=(30, 5), font=('Helvetica', 20))
+        button = EventButton('Select Album', key='open', bind_enter=True, size=(30, 5), font=(DEFAULT_FONT_NAME, 20))
         yield [Frame([[button]], anchor='TOP', expand=True)]
 
     def go_to_next_view(self, spec: ViewSpec, **kwargs) -> CallbackAction:

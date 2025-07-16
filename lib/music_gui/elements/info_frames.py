@@ -15,6 +15,7 @@ from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame
 from tk_gui.elements.menu import Menu, MenuItem
 from tk_gui.elements.rating import Rating
 from tk_gui.popups.paths import PickFile
+from tk_gui.styles.base import DEFAULT_FONT_NAME
 
 from music.common.disco_entry import DiscoEntryType
 from music.files import SongFile
@@ -31,7 +32,7 @@ __all__ = ['AlbumInfoFrame', 'TrackInfoFrame']
 log = logging.getLogger(__name__)
 
 ValueEle = Text | Multiline | Rating | ListBox | Combo | EditableListBox | Input
-LRG_FONT = ('Helvetica', 20)
+LRG_FONT = (DEFAULT_FONT_NAME, 20)
 
 
 class TagModMixin:

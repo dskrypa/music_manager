@@ -9,7 +9,7 @@ This project has 2 major components:
 - Plex Manager: Utility for syncing playlists in Plex based on custom rules, for syncing Plex ratings to/from files,
   and for rating tracks in a way that supports specifying 1/2 stars (due to lack of web UI support)
 
-Both components now include a GUI, mostly built using `PySimpleGUI <http://www.PySimpleGUI.org>`_.
+Both components now include a GUI.
 
 
 Installation

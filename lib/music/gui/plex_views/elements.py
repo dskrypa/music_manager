@@ -12,14 +12,13 @@ from typing import TYPE_CHECKING, Union, Collection, Optional, Iterable
 from urllib.parse import quote
 
 from cachetools import LRUCache
-from FreeSimpleGUI import Column, HorizontalSeparator, Image, Button
+from FreeSimpleGUI import Column, HorizontalSeparator, Image
 from plexapi.audio import Track, Album, Artist
 from plexapi.video import Movie, Show, Season, Episode
 from requests import RequestException
 
 from ds_tools.images.utils import ImageType, as_image, scale_image
 from ...common.ratings import stars
-from ..icons import Icons
 from ..elements import ExtendedImage, Rating, ExtText
 from ..popups.text import popup_ok
 from ..progress import Spinner
@@ -199,7 +198,6 @@ class Result:
 class ResultRow:
     __counter = count()
     _img_cache = ImageCache()
-
 
     def __init__(self, img_size: tuple[int, int] = None):
         self.img_size = img_size or (40, 40)

@@ -215,6 +215,10 @@ class GuiWikiUpdater:
 
     @cached_property
     def dst_album_info(self) -> AlbumInfo | None:
+        # TODO: Instead of having this run in a thread, which is error-prone when a prompt is necessary, it would
+        #  probably be better to refactor this so the updater can store its state, return or raise an exception early,
+        #  stop the spinner, prompt the user, and then resume the spinner / the rest of the processing.  This can be
+        #  done in a loop until processing is complete / there are no more potential user prompts.
         try:
             return SpinnerPopup(size=(200, 200)).run_task_in_thread(self._get_album_info)
         except Exception:  # noqa

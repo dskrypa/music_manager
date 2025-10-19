@@ -6,5 +6,4 @@ ipython
 rich
 
 # Testing
-testtools
 coverage

@@ -6,17 +6,17 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, Iterable, Iterator
 
 from ds_tools.caching.decorators import cached_property
-from wiki_nodes import MediaWikiClient, Link
+from wiki_nodes import Link, MediaWikiClient
 from wiki_nodes.exceptions import SiteDoesNotExist
 
-from .album import DiscographyEntry, DiscographyEntryEdition, DEEntryOrEdition
+from .album import DEEntryOrEdition, DiscographyEntry, DiscographyEntryEdition
 from .base import EntertainmentEntity
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, AmbiguousPageError
+from .exceptions import AmbiguousPageError, EntityTypeError
 
 if TYPE_CHECKING:
     from .artist import Artist
@@ -56,7 +56,14 @@ class DiscographyMixin(ABC):
         for site, entries in self.discography_entries.items():
             for entry in entries:
                 yield entry
-                yield from entry
+                try:
+                    yield from entry
+                except Exception as e:
+                    log.error(
+                        f'Failed to process album editions for entry={entry._basic_repr} from {self}: {e}',
+                        exc_info=True,
+                        extra={'color': 9},
+                    )
 
     @cached_property
     def discography(self) -> list[DiscographyEntry]:
@@ -86,6 +93,7 @@ class DiscographyMixin(ABC):
 
 class DiscographyEntryFinder:
     """Internal-use class that handles common discography entry page discovery; used by Discography and Artist"""
+
     __slots__ = ('artist', 'created_entry', 'remaining', 'entries_by_site', 'no_link_entries')
 
     def __init__(self, artist: Artist = None):
@@ -126,7 +134,7 @@ class DiscographyEntryFinder:
             log.log(9, f'Unexpected entry content from {content.root}: {content!r}')
 
     def process_entries(self) -> dict[str, list[DiscographyEntry]]:
-        discography = defaultdict(list)                                     # type: dict[str, list[DiscographyEntry]]
+        discography = defaultdict(list)  # type: dict[str, list[DiscographyEntry]]
         pages_by_site, errors_by_site = MediaWikiClient.get_multi_site_pages(self.entries_by_site)
         for site_client, title_entry_map in self.entries_by_site.items():
             site = site_client.host
@@ -212,6 +220,7 @@ class DiscographyEntryFinder:
 
 class Discography(EntertainmentEntity, DiscographyMixin):
     """A discography page; not a collection of album objects."""
+
     _categories = ('discography', 'discographies')
 
     def __init__(self, *args, artist=None, **kwargs):

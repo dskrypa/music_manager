@@ -34,6 +34,7 @@ class DiscoEntryType(Enum):
     MixTape = 'MixTape', ('mixtape',), 'Other', False
     CoverAlbum = 'Cover Album', ('cover album', 'remake album'), 'Other', False
     Soundtrack = 'Soundtrack', ('soundtrack', 'ost'), 'Soundtracks', False
+    # fmt: off
     Single = (
         'Single', (
             'single', 'song', 'digital single', 'promotional single', 'special single', 'other release',
@@ -41,6 +42,7 @@ class DiscoEntryType(Enum):
         ),
         'Singles', False
     )
+    # fmt: on
     Album = 'Album', ('studio album', 'repackage album', 'full-length album', 'album'), 'Albums', True
     Collaboration = 'Collaboration', ('collaboration',), 'Collaborations', False
     Christmas = 'Christmas', ('christmas',), 'Christmas', False
@@ -56,7 +58,7 @@ class DiscoEntryType(Enum):
     def __lt__(self, other: DiscoEntryType):
         return self._members.index(self) < self._members.index(other)  # noqa
 
-    def compatible_with(self, other: DiscoEntryType) -> bool:
+    def compatible_with(self, other: DiscoEntryType | None) -> bool:
         if self == other:
             return True
 

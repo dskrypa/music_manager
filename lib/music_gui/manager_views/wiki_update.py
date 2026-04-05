@@ -7,30 +7,31 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Any, Optional
+from typing import TYPE_CHECKING, Any, Mapping
 
-from requests import RequestException
-
-from ds_tools.caching.decorators import cached_property
 from db_cache.utils import get_user_cache_dir
+from ds_tools.caching.decorators import cached_property
 from ds_tools.output.printer import Printer
-
-from tk_gui import button_handler, ChooseImagePopup, SpinnerPopup, popup_ok
-from tk_gui.elements import Text, Button, Spacer, EventButton
+from requests import RequestException
+from tk_gui import ChooseImagePopup, SpinnerPopup, button_handler, popup_ok
+from tk_gui.elements import Button, EventButton, Spacer, Text
 from tk_gui.options import GuiOptions, OptionColumn, OptionGrid
-from tk_gui.options.options import InputOption, BoolOption, DropdownOption, ListboxOption, SubmitOption
+from tk_gui.options.options import BoolOption, DropdownOption, InputOption, ListboxOption, SubmitOption
 from wiki_nodes.http import MediaWikiClient
 
 from music.manager.config import UpdateConfig
 from music.manager.wiki_update import WikiUpdater
 from music.wiki.parsing import WikiParser
 from music_gui.elements.helpers import IText, nav_button, section_header
-from music_gui.utils import AlbumIdentifier, get_album_info, LogAndPopupHelper, log_and_popup_error
+from music_gui.utils import AlbumIdentifier, LogAndPopupHelper, get_album_info, log_and_popup_error
 from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from tk_gui import CallbackAction, Layout
+
+    from tk_gui import CallbackAction
+    from tk_gui.typing import Layout
+
     from music.manager.update import AlbumInfo
 
 __all__ = ['WikiUpdateView']
@@ -63,8 +64,12 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
 
         collab_mode_tip = 'List collaborators in the artist tag, the title tag, or both (default: artist)'
         collab_mode_opt = DropdownOption(
-            'collab_mode', 'Collab Mode', 'artist', choices=('title', 'artist', 'both'),
-            label_size=(11, 1), tooltip=collab_mode_tip
+            name='collab_mode',
+            label='Collab Mode',
+            default='artist',
+            choices=('title', 'artist', 'both'),
+            label_size=(11, 1),
+            tooltip=collab_mode_tip,
         )
         yield [
             OptionColumn([collab_mode_opt, OptionGrid(self._prepare_option_grid())]),
@@ -73,6 +78,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
 
     def _prepare_option_grid(self):  # noqa
         # TODO: Allow album-only update (skip track-level updates)
+        # fmt: off
         yield [
             BoolOption('soloist', 'Soloist', tooltip='For solo artists, use only their name instead of including their group, and do not sort them with their group'),
             BoolOption('artist_only', 'Artist Match Only', tooltip='Only match the artist / only use the artist URL if provided'),
@@ -89,6 +95,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
             BoolOption('part_in_title', 'Use Part in Title', default=True, tooltip='Use the part name in the title when available'),
         ]
         yield [BoolOption('ignore_language', 'Ignore Language', tooltip='Ignore detected language')]
+        # fmt: on
 
     def _prepare_site_options(self):
         config = self.config
@@ -176,7 +183,7 @@ class WikiUpdateView(BaseView, title='Music Manager - Wiki Update'):
         return super().go_to_prev_view(**kwargs)
 
     def _get_update_config(self, parsed: dict[str, Any]) -> UpdateConfig:
-        log.info(f'Parsed options:')
+        log.info('Parsed options:')
         Printer('json-pretty').pprint(parsed)
 
         config = self.config
@@ -232,19 +239,22 @@ class GuiWikiUpdater:
         return processor.to_album_info()
 
     @cached_property
-    def wiki_client(self) -> Optional[MediaWikiClient]:
-        if wiki_album_url := self.dst_album_info.wiki_album:
+    def wiki_client(self) -> MediaWikiClient | None:
+        if self.dst_album_info and (wiki_album_url := self.dst_album_info.wiki_album):
             if wiki_album_url.startswith('https://music.bugs.co.kr'):
                 return None
+
             return MediaWikiClient(wiki_album_url, nopath=True)
+
         return None
 
     # region Cover Images
 
     @cached_property
-    def wiki_image_urls(self) -> Optional[dict[str, str]]:
+    def wiki_image_urls(self) -> dict[str, str] | None:
         if not (client := self.wiki_client):
             return None
+
         try:
             page = client.get_page(client.article_url_to_title(self.dst_album_info.wiki_album))
         except RequestException as e:
@@ -252,7 +262,9 @@ class GuiWikiUpdater:
         else:
             if image_titles := client.get_page_image_titles(page.title)[page.title]:
                 log.debug(f'Found {len(image_titles)} images on page={page.title!r}: {image_titles}')
-                return client.get_image_urls(image_titles)
+                title_url_map = client.get_image_urls(image_titles)
+                # Some animated cover art videos have been added to the wiki as album art - they need to be skipped here
+                return {title: url for title, url in title_url_map.items() if not title.endswith('.mp4')}
 
         return None
 
@@ -285,13 +297,19 @@ class GuiWikiUpdater:
             for future in as_completed(futures):
                 title = futures[future]
                 try:
-                    title_bytes_map[title] = future.result()
+                    data = future.result()
                 except Exception as e:
                     log.error(f'Error retrieving image={title!r}: {e}')
+                else:
+                    if data:
+                        log.info(f'Found image={title!r} - size={len(data)}')
+                        title_bytes_map[title] = data
+                    else:
+                        log.warning(f'No data was found for image={title!r}')
 
         return title_bytes_map
 
-    def _get_wiki_cover_choice(self) -> Optional[tuple[str, bytes]]:
+    def _get_wiki_cover_choice(self) -> tuple[str, bytes] | None:
         if not (images := self.wiki_cover_images):
             return None
 
@@ -305,7 +323,7 @@ class GuiWikiUpdater:
                 return None
         return title, data
 
-    def get_wiki_cover_choice(self) -> Optional[Path]:
+    def get_wiki_cover_choice(self) -> Path | None:
         try:
             title, data = self._get_wiki_cover_choice()
         except TypeError:  # No image was selected

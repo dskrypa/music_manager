@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union, Iterable, Iterator, Collection
+from typing import TYPE_CHECKING, Collection, Iterable, Iterator, Union
 
 from ds_tools.output.terminal import uprint
 from ds_tools.unicode import LangCat
@@ -17,7 +17,7 @@ from ..common.prompts import choose_item
 from ..files.album import AlbumDir, iter_album_dirs
 from ..files.parsing import AlbumName, split_artists
 from ..text.name import Name
-from ..wiki.album import DiscographyEntryPart, DiscographyEntry, Soundtrack, Album, DEEntryOrEdition, DEPart
+from ..wiki.album import Album, DEEntryOrEdition, DEPart, DiscographyEntry, DiscographyEntryPart, Soundtrack
 from ..wiki.artist import Artist, Group
 from ..wiki.exceptions import AmbiguousWikiPageError
 from ..wiki.typing import StrOrStrs
@@ -26,6 +26,7 @@ from .wiki_info import print_de_part
 
 if TYPE_CHECKING:
     from ds_tools.fs.typing import Paths
+
     from ..files.parsing import AlbumName
 
 __all__ = ['show_album_dir_matches', 'AlbumFinder', 'test_match', 'AlbumMetaData', 'AlbumDirMetaData']
@@ -40,7 +41,7 @@ GroupedNames = dict[str, set[Name]]
 def test_match(paths: Paths, identifier: str):
     for album_dir in iter_album_dirs(paths):
         if not (album_name := album_dir.name):
-            raise ValueError(f'Directories with multiple album names are not currently handled.')
+            raise ValueError('Directories with multiple album names are not currently handled.')
 
         if URL_MATCH(identifier):
             disco_entry = DiscographyEntry.from_url(identifier)
@@ -68,7 +69,7 @@ def show_matches(album_meta: AlbumMetaData, sites: StrOrStrs = None):
     try:
         artists = ArtistFinder.for_meta(album_meta, sites).find_meta_artists(album_meta)
     except NoArtistMatchFoundException:
-        log.error(f'    - Artist: No artist could be found', extra={'color': 11})
+        log.error('    - Artist: No artist could be found', extra={'color': 11})
     except Exception as e:
         log.error(f'    - Artist: {e}', extra={'color': 'red'}, exc_info=True)
     else:
@@ -77,7 +78,7 @@ def show_matches(album_meta: AlbumMetaData, sites: StrOrStrs = None):
             try:
                 uprint(f'    - Artist: {artist} / {artist.names}')
             except Exception:  # noqa
-                log.error(f'    - Artist: Error parsing name:', extra={'color': 'red'}, exc_info=True)
+                log.error('    - Artist: Error parsing name:', extra={'color': 'red'}, exc_info=True)
         else:
             uprint(f'    - Artists ({len(artists)}):')
             for artist in artists:
@@ -174,11 +175,11 @@ class AlbumMetaData:
     ## type: DiscoEntryType = DiscoEntryType.UNKNOWN
 
     artist: Name | None = None
-    all_artists: set[Name] = None
+    all_artists: set[Name] | None = None
     groups: GroupedNames = None
 
     album_dir: AlbumDir | None = None
-    track_count: int = None
+    track_count: int | None = None
 
     album_url: str | None = None
     artist_url: str | None = None
@@ -238,19 +239,29 @@ class AlbumDirMetaData(AlbumMetaData):
 
 
 class AlbumFinder:
-    __slots__ = ('album_meta', 'artists', 'sites')
+    __slots__ = ('album_meta', '_artists', 'sites')
     album_meta: AlbumMetaData
-    artists: Iterable[Artist]
+    _artists: Iterable[Artist] | None
     sites: StrOrStrs
 
-    def __init__(self, album: AlbumMetaData | AlbumDir, artists: Iterable[Artist] = None, sites: StrOrStrs = None):
+    def __init__(
+        self, album: AlbumMetaData | AlbumDir, artists: Iterable[Artist] | None = None, sites: StrOrStrs = None
+    ):
         self.album_meta = AlbumDirMetaData(album) if isinstance(album, AlbumDir) else album
-        self.artists = artists
+        self._artists = artists
         self.sites = sites
+
+    @property
+    def artists(self) -> Iterable[Artist]:
+        if self._artists:
+            return self._artists
+        log.debug('Using artists from album metadata')
+        return ArtistFinder.for_meta(self.album_meta, self.sites).find_meta_artists(self.album_meta)
 
     def find_album(self) -> DiscographyEntryPart:
         album_meta = self.album_meta
         if album_url := album_meta.album_url:
+            # The file already included the album URL in a tag
             return self._from_album_dir_url(album_url)
         elif album_name := album_meta.name:
             return self._from_album_name(album_name)
@@ -279,17 +290,22 @@ class AlbumFinder:
         return self._choose_candidate(candidates)
 
     def _from_album_name(self, album_name: AlbumName) -> DEPartOrEntry:
+        """
+        Identify an album match based on the common album name tag present in all tracks in the AlbumDir, parsed for
+        common identifying markers.
+        """
         album_meta = self.album_meta
         name: Name = album_name.name
-        artists = self.artists or ArtistFinder.for_meta(album_meta, self.sites).find_meta_artists(album_meta)
+        artists = self.artists
         log.debug(
             f'Processing album for {album_meta} with {album_name=} (repackage={album_name.repackage}) and {artists=}',
-            extra={'color': (0, 14)}
+            extra={'color': (0, 14)},
         )
 
         if candidates := self._find_candidates(name, artists, album_name):
             return self._choose_candidate(candidates, album_name)
-        elif name.eng_lang == LangCat.MIX and name.eng_langs.intersection(LangCat.non_eng_cats):
+
+        if name.eng_lang == LangCat.MIX and name.eng_langs.intersection(LangCat.non_eng_cats):
             split = name.split()
             log.log(19, f'Re-attempting album match with name={split.full_repr()}', extra={'color': (0, 11)})
             candidates = self._find_candidates(split, artists, album_name)
@@ -299,7 +315,8 @@ class AlbumFinder:
     def _find_candidates(self, name: Name, artists: Iterable[Artist], album_name: AlbumName) -> set[DEPartOrEntry]:
         if candidates := self._get_artist_candidates(name, artists, album_name):
             return _filter_candidates(self.album_meta, candidates) if len(candidates) > 1 else candidates
-        elif not (name_str := name.english or name.non_eng):
+
+        if not (name_str := name.english or name.non_eng):
             return candidates
 
         cls = Soundtrack if album_name.ost else Album
@@ -320,12 +337,19 @@ class AlbumFinder:
         for artist in artists:
             for entry in artist.all_discography_entries_editions:
                 if not alb_type or alb_type.compatible_with(entry.type):
-                    candidates.update(self._artist_candidates(name, repackage, num, entry))
+                    try:
+                        candidates.update(self._artist_candidates(name, repackage, num, entry))
+                    except Exception as e:
+                        log.error(
+                            f'Failed to process album candidate entry={entry._basic_repr} from {artist=}: {e}',
+                            exc_info=True,
+                            extra={'color': 9},
+                        )
 
         return candidates
 
     def _artist_candidates(
-        self, name: Name, repackage: bool, num: int, entry: DEEntryOrEdition
+        self, name: Name, repackage: bool, num: int | None, entry: DEEntryOrEdition
     ) -> Iterator[DEPartOrEntry]:
         if name and name.matches(entry.name):
             yield from self._name_match_artist_candidates(name, repackage, entry)
@@ -342,8 +366,7 @@ class AlbumFinder:
         # mlog.debug(f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=}')
         if pkg_match_parts:
             mlog.debug(
-                f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=}',
-                extra={'color': 11}
+                f'{entry=} has {len(entry_parts)} parts; {len(pkg_match_parts)} match {repackage=}', extra={'color': 11}
             )
             for part in pkg_match_parts:
                 if self._tracks_match(part):
@@ -377,7 +400,7 @@ def _filter_candidates(
     if (track_count := album_meta.track_count) is not None:
         _candidates = candidates
         if not (candidates := {part for part in _candidates if track_count == len(part)}):
-            mlog.debug(f'No candidates had matching track counts')
+            mlog.debug('No candidates had matching track counts')
             candidates = _candidates
 
     if album_dir := album_meta.album_dir:
@@ -389,7 +412,7 @@ def _filter_candidates(
                 candidates.add(part)
 
         if not candidates:
-            mlog.debug(f'No candidates had matching track names')
+            mlog.debug('No candidates had matching track names')
             candidates = _candidates
 
     if album_meta.name.ost:

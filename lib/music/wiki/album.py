@@ -7,35 +7,42 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC, abstractmethod
-from datetime import datetime, date
+from datetime import date, datetime
+from functools import cached_property
 from itertools import chain
-from typing import TYPE_CHECKING, Optional, Iterator, MutableSet, Union, Iterable, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, MutableSet, TypeVar, Union
 
-from ordered_set import OrderedSet
-
-from ds_tools.caching.decorators import cached_property
 from ds_tools.output.formatting import ordinal_suffix
-from wiki_nodes import MediaWikiClient, WikiPage, PageMissingError
+from ordered_set import OrderedSet
+from wiki_nodes import MediaWikiClient, PageMissingError, WikiPage
 from wiki_nodes.exceptions import BadLinkError
-from wiki_nodes.nodes import Node, Link, List as ListNode, CompoundNode, String, Table, Template
+from wiki_nodes.nodes import CompoundNode, Link, List as ListNode, Node, String, Table, Template
 
 from ..common.disco_entry import DiscoEntryType
 from ..text.extraction import strip_enclosed
 from ..text.name import Name
 from ..text.utils import combine_with_parens
 from .base import EntertainmentEntity, Pages, TVSeries
-from .exceptions import EntityTypeError, AmbiguousWikiPageError, NoLinkedPagesFoundError, UnexpectedPageContent
-from .parsing import WikiParser, RawTracks
+from .exceptions import AmbiguousWikiPageError, EntityTypeError, NoLinkedPagesFoundError, UnexpectedPageContent
+from .parsing import RawTracks, WikiParser
 from .utils import short_site
 
 if TYPE_CHECKING:
     from .disco_entry import DiscoEntry
-    from .typing import StrDateMap, OptStr
+    from .typing import OptStr, StrDateMap
 
 __all__ = [
-    'DiscographyEntry', 'DiscographyEntryEdition', 'DiscographyEntryPart', 'DEEdition', 'DEPart', 'DiscoObj',
-    'Soundtrack', 'SoundtrackEdition', 'SoundtrackPart',
-    'Album', 'Single',
+    'DiscographyEntry',
+    'DiscographyEntryEdition',
+    'DiscographyEntryPart',
+    'DEEdition',
+    'DEPart',
+    'DiscoObj',
+    'Soundtrack',
+    'SoundtrackEdition',
+    'SoundtrackPart',
+    'Album',
+    'Single',
 ]
 log = logging.getLogger(__name__)
 
@@ -66,15 +73,16 @@ class DiscographyEntry(EntertainmentEntity):
     :param entry_type: The :class:`DiscoEntryType<.common.disco_entry.DiscoEntryType>` from the discography section
       containing this entry
     """
+
     _categories = ()
     disco_entries: list[DiscoEntry]
-    _date: Optional[date] = None
-    _artist: Optional[Artist]
-    _type: Optional[DiscoEntryType]
+    _date: date | None = None
+    _artist: Artist | None
+    _type: DiscoEntryType | None
 
     def __init__(
         self,
-        name: str = None,
+        name: str,
         pages: Pages = None,
         disco_entry: DiscoEntry = None,
         artist: Artist = None,
@@ -129,7 +137,7 @@ class DiscographyEntry(EntertainmentEntity):
         return bool(self.editions)
 
     @cached_property
-    def _merge_key(self) -> tuple[Optional[int], str, Optional[DiscoEntryType]]:
+    def _merge_key(self) -> tuple[int | None, str, DiscoEntryType | None]:
         """Used by :meth:`.DiscographyMixin.discography`"""
         uc_name = self._name.upper()
         if ost_match := OST_MATCH(uc_name):
@@ -201,7 +209,7 @@ class DiscographyEntry(EntertainmentEntity):
         return artists
 
     @cached_property
-    def artist(self) -> Optional[Artist]:
+    def artist(self) -> Artist | None:
         if isinstance(self._artist, Artist):
             return self._artist
         elif artists := self.artists:
@@ -214,17 +222,23 @@ class DiscographyEntry(EntertainmentEntity):
         return None
 
     @cached_property
-    def type(self) -> Optional[DiscoEntryType]:
+    def type(self) -> DiscoEntryType | None:
         if isinstance(self._type, DiscoEntryType):
             return self._type
         return next((edition.type for edition in self.editions if edition.type), None)
 
     @cached_property
     def cls_type_name(self) -> str:
-        return self.type.name if self.type else self.__class__.__name__
+        """Only used in reprs and basic reprs."""
+        try:
+            de_type = self.type
+        except Exception:  # noqa
+            return self.__class__.__name__
+        else:
+            return de_type.name if de_type else self.__class__.__name__
 
     @cached_property
-    def number(self) -> Optional[int]:
+    def number(self) -> int | None:
         for page, parser in self.page_parsers('parse_album_number'):
             return parser.parse_album_number(page)
         return None
@@ -234,7 +248,7 @@ class DiscographyEntry(EntertainmentEntity):
     # region Release Date
 
     @cached_property
-    def year(self) -> Optional[int]:
+    def year(self) -> int | None:
         for entry in self.disco_entries:
             if entry.date:
                 return entry.date.year
@@ -247,7 +261,7 @@ class DiscographyEntry(EntertainmentEntity):
         return self.date.strftime('%Y-%m-%d') if self.date else str(self.year)
 
     @cached_property
-    def date(self) -> Optional[date]:
+    def date(self) -> date | None:
         if not isinstance(self._date, date):
             if entry_date := next((entry.date for entry in self.disco_entries if entry.date), None):
                 self._date = entry_date
@@ -276,6 +290,7 @@ class DiscographyEntry(EntertainmentEntity):
 
 class Album(DiscographyEntry):
     """An album or mini album or EP, or a repackage thereof"""
+
     _categories = ('album', 'extended play', ' eps', '-language eps', 'mixtape')
 
     @classmethod
@@ -347,7 +362,7 @@ class Soundtrack(DiscographyEntry):
         raise ValueError(f'No pages were found for OSTs matching {name!r}')
 
     @cached_property
-    def tv_series(self) -> Optional[TVSeries]:
+    def tv_series(self) -> TVSeries | None:
         for entry_page, parser in self.page_parsers('parse_source_show'):
             try:
                 if series := parser.parse_source_show(entry_page):
@@ -363,7 +378,7 @@ class Soundtrack(DiscographyEntry):
 class _ArtistMixin(ABC):
     @property
     @abstractmethod
-    def date(self) -> Optional[date]:
+    def date(self) -> date | None:
         raise NotImplementedError
 
     @property
@@ -426,7 +441,7 @@ class _ArtistMixin(ABC):
         return set()
 
     @cached_property
-    def artist(self) -> Optional[Artist]:
+    def artist(self) -> Artist | None:
         if artists := self.artists:
             if len(artists) == 1:
                 return next(iter(artists))
@@ -538,7 +553,7 @@ class DiscographyEntryEdition(_ArtistMixin):
             lang = lang or artist.language
         return 'Korean' if not lang and self.page.site == 'kpop.fandom.com' else lang
 
-    def _get_artist_template_page(self) -> Optional[WikiPage]:
+    def _get_artist_template_page(self) -> WikiPage | None:
         for tmpl in self.page.sections.find_all(Template, True):
             if tmpl.name == self.artist.name.english and tmpl.value is None:
                 mwc = MediaWikiClient(tmpl.root.site)
@@ -583,7 +598,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         return Name.from_parts(tuple(map(combine_with_parens, _name_parts(self.name_base, self.edition))))
 
     def full_name(self, hide_edition: bool = False) -> str:
-        if (edition := self.edition) and edition.lower().endswith(' repackage'):    # Named repackage
+        if (edition := self.edition) and edition.lower().endswith(' repackage'):  # Named repackage
             return edition[:-10].strip()
         return combine_with_parens(map(combine_with_parens, _name_parts(self.name_base, self.edition, hide_edition)))
 
@@ -592,7 +607,7 @@ class DiscographyEntryEdition(_ArtistMixin):
     # region Release Date
 
     @cached_property
-    def date(self) -> Optional[date]:
+    def date(self) -> date | None:
         if not (release_dates := self.release_dates):
             return None
         if isinstance(edition := self.edition, str):
@@ -639,7 +654,7 @@ class DiscographyEntryEdition(_ArtistMixin):
         return self.entry.cls_type_name + 'Edition'
 
     @property
-    def number(self) -> Optional[int]:
+    def number(self) -> int | None:
         return self.entry.number
 
     @cached_property
@@ -674,6 +689,7 @@ class DiscographyEntryEdition(_ArtistMixin):
 
 class SoundtrackEdition(DiscographyEntryEdition):
     """An edition of a soundtrack (full / parts / extras)"""
+
     entry: Soundtrack
     parts: list[SoundtrackPart]
 
@@ -701,8 +717,8 @@ class DiscographyEntryPart(_ArtistMixin):
     _disc_match = re.compile(r'(?:DVD|CD|Dis[ck])\s*(\d+)', re.IGNORECASE).match
     _name: OptStr
     edition: DiscographyEntryEdition
-    _tracks: Optional[RawTracks]
-    _date: Optional[date]
+    _tracks: RawTracks | None
+    _date: date | None
     _artist: NodeOrNodes = None  # = None is required to satisfy the abstract property
     disc: int
 
@@ -768,7 +784,7 @@ class DiscographyEntryPart(_ArtistMixin):
         return self.edition.type == DiscoEntryType.Soundtrack
 
     @cached_property
-    def date(self) -> Optional[date]:
+    def date(self) -> date | None:
         if self._date:
             return self._date
         return self.edition.date
@@ -844,9 +860,10 @@ def _normalize_raw_tracks(tracks, edition: DiscographyEntryEdition):
 
 class SoundtrackPart(DiscographyEntryPart):
     """A part of a multi-part soundtrack"""
+
     ost = True
 
-    def __init__(self, part: Optional[int], *args, **kwargs):
+    def __init__(self, part: int | None, *args, **kwargs):
         DiscographyEntryPart.__init__(self, *args, **kwargs)
         self.part = part
 

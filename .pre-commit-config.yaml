@@ -1,4 +1,21 @@
+fail_fast: true
 repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff-check
+        entry: ruff
+        args: ['check', '--fix', '--no-cache']
+        language: system
+        types: [python]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff
+        args: ['format', '--no-cache']
+        language: system
+        types: [python]
+        stages: [pre-commit]
   - repo: https://github.com/dskrypa/incr_version
     rev: 20c64597e6d9cb9e368e2a710fa389b8ffd5517f
     hooks:

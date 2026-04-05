@@ -5,25 +5,25 @@ Frames that present a diff between old and new values for tag/path/name changes 
 from __future__ import annotations
 
 import logging
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
-from ds_tools.caching.decorators import cached_property
-
-from tk_gui.elements import Element, ListBox, CheckBox, HorizontalSeparator, Spacer, Text, EventButton
-from tk_gui.elements.frame import InteractiveFrame, Frame, BasicRowFrame, InteractiveScrollFrame
+from tk_gui.elements import CheckBox, Element, EventButton, HorizontalSeparator, ListBox, Spacer, Text
+from tk_gui.elements.frame import BasicRowFrame, Frame, InteractiveFrame, InteractiveScrollFrame
 from tk_gui.elements.rating import Rating
 from tk_gui.styles.base import DEFAULT_FONT_NAME
 
 from music.files import AlbumDir, SongFile
-from music.manager.update import TrackInfo, AlbumInfo
+from music.manager.update import AlbumInfo, TrackInfo
 from ..utils import get_album_dir, get_track_file, zip_maps
 from .helpers import IText, section_header
 from .images import AlbumCoverImageBuilder
 
 if TYPE_CHECKING:
     from tk_gui.options import GuiOptions
-    from tk_gui.typing import Layout, XY, PathLike, TraceCallback
+    from tk_gui.typing import XY, Layout, PathLike, TraceCallback
+
     from music.typing import StrOrStrs
 
 __all__ = ['AlbumDiffFrame']
@@ -34,6 +34,12 @@ A2B_FONT = (DEFAULT_FONT_NAME, 15)
 
 
 class AlbumDiffFrame(InteractiveScrollFrame):
+    """
+    A frame that displays changes between the given old/new :class:`~.AlbumInfo` objects.  Includes album-level changes
+    that are common to all tracks at the top, followed by one or more :class:`TrackDiffFrame` frames that display
+    unique track-level changes for each track.
+    """
+
     old_info: AlbumInfo
     new_info: AlbumInfo
     album_dir: AlbumDir
@@ -49,7 +55,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         update_options_cb: TraceCallback,
         options: GuiOptions,
         show_edit: bool = False,
-        album_dir: AlbumDir = None,
+        album_dir: AlbumDir | None = None,
         **kwargs,
     ):
         kwargs.setdefault('scroll_y', True)
@@ -67,7 +73,7 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         self._show_edit = show_edit
 
     @cached_property
-    def _potential_paths(self) -> dict[str, Path]:
+    def _potential_paths(self) -> dict[str, Path | None]:
         old_path = self.album_dir.path
         get_new_path = self.new_info.get_new_path
         return {'old': old_path, 'new': get_new_path(self.output_sorted_dir), 'in_place': get_new_path(None, True)}
@@ -81,6 +87,11 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     # region Layout
 
     def get_custom_layout(self) -> Layout:
+        """
+        The overwhelming majority of the content displayed in the :class:`~.AlbumDiffView` is defined here, including
+        the header with option check boxes (those options are defined in the view, but the frame used to display them
+        is created here) and the optional ``<- Edit`` button.
+        """
         yield from self.build_header()
         yield from self.build_cover_diff()
         yield from self.build_path_diff()
@@ -97,6 +108,8 @@ class AlbumDiffFrame(InteractiveScrollFrame):
         yield [Text()]
         yield section_header('Common Album Changes')
         yield [Text()]
+
+    # region Album-Level Common Changes
 
     def build_cover_diff(self) -> Layout:
         if not (new_cover_path := self.new_info.cover_path):
@@ -140,6 +153,8 @@ class AlbumDiffFrame(InteractiveScrollFrame):
             if (old_val or new_val) and old_val != new_val:
                 yield _diff_row(key, old_val, new_val, is_track=False)
 
+    # endregion
+
     def build_track_diff(self) -> Layout:
         yield section_header('Track Changes')
         title_case = self.options['title_case']
@@ -166,19 +181,19 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     def options_frame(self) -> Frame:
         frame = self.options.as_frame(change_cb=self._update_options_cb, side='t', pad=(0, 0))
         key_ele_map = {key: ele for row in frame.rows for ele in row.elements if (key := getattr(ele, 'key', None))}
-        self.update_option_states(key_ele_map)
+        self.update_option_states(key_ele_map)  # type: ignore
         return frame
 
     def update_option_states(self, key_ele_map: Mapping[str, CheckBox | Element]):
         if self.options['no_album_move']:
-            key_ele_map['opt::rename_in_place'].disable()
-            key_ele_map['opt::no_album_move'].enable()
+            key_ele_map['opt::rename_in_place'].disable()  # type: ignore
+            key_ele_map['opt::no_album_move'].enable()  # type: ignore
         elif self.options['rename_in_place']:
-            key_ele_map['opt::no_album_move'].disable()
-            key_ele_map['opt::rename_in_place'].enable()
+            key_ele_map['opt::no_album_move'].disable()  # type: ignore
+            key_ele_map['opt::rename_in_place'].enable()  # type: ignore
         else:
-            key_ele_map['opt::rename_in_place'].enable()
-            key_ele_map['opt::no_album_move'].enable()
+            key_ele_map['opt::rename_in_place'].enable()  # type: ignore
+            key_ele_map['opt::no_album_move'].enable()  # type: ignore
 
     # endregion
 
@@ -213,6 +228,12 @@ class AlbumDiffFrame(InteractiveScrollFrame):
 
 
 class TrackDiffFrame(InteractiveFrame):
+    """
+    A frame that displays changes between the given old/new :class:`~.TrackInfo` objects that are unique to that track.
+
+    These frames are included in album diffs via :meth:`AlbumDiffFrame.build_track_diff`.
+    """
+
     old_info: TrackInfo
     new_info: TrackInfo
     song_file: SongFile
@@ -225,12 +246,12 @@ class TrackDiffFrame(InteractiveFrame):
         new_info: TrackInfo,
         options: GuiOptions,
         genres: tuple[set[str], set[str]],
-        song_file: SongFile = None,
+        song_file: SongFile | None = None,
         **kwargs,
     ):
         kwargs.setdefault('size', (850, None))
         kwargs.setdefault('side', 't')
-        kwargs.setdefault('pack_propagate', False)
+        kwargs.setdefault('pack_propagate', True)  # This fixes the width to make all content visible
         super().__init__(**kwargs)
         self.old_info = old_info
         self.new_info = new_info
@@ -305,7 +326,7 @@ def _build_diff_value_ele(key: str, value, is_track: bool = True) -> CheckBox | 
             return IText(value, size=(45, 1), link=key.startswith('wiki_') or None)
 
 
-def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike, split: bool = None) -> Layout:
+def get_a_to_b(label: str, old_val: PathLike | None, new_val: PathLike | None, split: bool = None) -> Layout:
     old_ele, split_old = _diff_ele(old_val, split)
     new_ele, split_new = _diff_ele(new_val, split)
     if split_old or split_new:
@@ -320,21 +341,22 @@ def get_a_to_b(label: str, old_val: PathLike, new_val: PathLike, split: bool = N
         yield [label_ele(label), old_ele, Text('\u2794', font=A2B_FONT, size=(2, 1)), new_ele]
 
 
-def _diff_ele(value: PathLike, split: bool = None, offset: int = 0) -> tuple[Text, bool]:
+def _diff_ele(value: PathLike | None, split: bool | None = None, offset: int = 0) -> tuple[Text, bool]:
     if isinstance(value, Path):
         value = value.as_posix()
     elif value is None:
         value = ''
 
     if split is None:
-        split = len(value) > 50
+        split: bool = len(value) > 50  # noqa
+
     return IText(value, size=((150 - offset) if split else 50, 1)), split
 
 
 def _str_set(values: StrOrStrs) -> set[str]:
     if isinstance(values, str):
         return {values}
-    return set(values)
+    return set(values)  # type: ignore
 
 
 def label_ele(text: str, size: XY = (15, 1), **kwargs) -> Text:

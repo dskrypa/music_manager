@@ -15,12 +15,11 @@ classifiers = [
     'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: 3.14',
 ]
-requires-python = '>=3.11'
+requires-python = '>=3.12'
 dependencies = [
     'requests_client @ git+https://github.com/dskrypa/requests_client',
     'wiki_nodes @ git+https://github.com/dskrypa/wiki_nodes',
@@ -55,7 +54,7 @@ gui = ['filelock', 'psutil', 'screeninfo', 'lark', 'watchdog']
 plex_db = ['paramiko', 'scp']
 plex_gui = ['FreeSimpleGUI']
 docs = ['sphinx-rtd-theme', 'sphinx-paramlinks']
-dev = ['music_manager[docs,bpm,gui,plex_db]', 'pre-commit', 'ipython', 'rich', 'coverage']
+dev = ['music_manager[docs,bpm,gui,plex_db]', 'pre-commit', 'ipython', 'rich', 'ruff', 'coverage']
 
 [tool.setuptools]
 include-package-data = true
@@ -79,7 +78,7 @@ reinstall-package = ['music_manager']  # Always reinstall to generate entry poin
 exclude = ['.git', '.mypy_cache', '.pytest_cache', '.ruff_cache', 'build', 'dist', 'site-packages', 'venv']
 line-length = 120
 indent-width = 4
-target-version = 'py311'
+target-version = 'py312'
 show-fixes = true
 
 
@@ -121,3 +120,4 @@ docstring-code-line-length = 'dynamic'
 [tool.ruff.lint.isort]
 combine-as-imports = true
 known-first-party = ['music', 'music_gui']
+no-lines-before = ['local-folder']

@@ -14,21 +14,21 @@ import logging
 import re
 from abc import ABC
 from collections import Counter
-from datetime import datetime, date
+from collections.abc import Collection, Mapping
+from datetime import date, datetime
 from pathlib import Path
 from string import capwords
-from typing import TYPE_CHECKING, Union, Mapping, Any, Iterator, Collection, Generic, TypeVar, Callable, Type, overload
-
-from ordered_set import OrderedSet
-from PIL.Image import Image as PILImage, open as open_image
+from typing import TYPE_CHECKING, Any, Callable, Generic, Iterator, Self, Type, TypeVar, overload
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.images.compare import ComparableImage
 from ds_tools.output import colored
+from ordered_set import OrderedSet
+from PIL.Image import Image as PILImage, open as open_image
 
 from music.common.disco_entry import DiscoEntryType
 from music.common.ratings import stars_to_256
-from music.files.album import iter_album_dirs, AlbumDir
+from music.files.album import AlbumDir, iter_album_dirs
 from music.files.changes import get_common_changes
 from music.files.cover import prepare_cover_image
 from music.files.paths import SafePath
@@ -37,6 +37,7 @@ from music.text.name import Name
 
 if TYPE_CHECKING:
     from ds_tools.fs.typing import Paths
+
     from music.typing import PathLike
 
 __all__ = ['TrackInfo', 'AlbumInfo']
@@ -50,18 +51,20 @@ UPPER_CHAIN_SEARCH = re.compile(r'[A-Z]{2,}').search
 
 T = TypeVar('T')
 D = TypeVar('D')
-StrOrStrs = Union[str, Collection[str]]
+StrOrStrs = str | Collection[str]
 ImageTuple = tuple[PILImage, bytes, str] | tuple[None, None, None]
 
 
 def parse_date(dt_str: str | date | None) -> date | None:
     if dt_str is None or isinstance(dt_str, date):
         return dt_str
+
     for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y.%m.%d', '%Y'):
         try:
             return datetime.strptime(dt_str, fmt).date()
         except ValueError:
             pass
+
     return None
 
 
@@ -144,7 +147,7 @@ class Serializable(ABC):
             if not (field.read_only or key in skip):
                 self[key] = other[key]
 
-    def __ior__(self, other: Serializable):
+    def __ior__(self, other: Serializable) -> Self:
         self.update_from(other)
         return self
 
@@ -152,15 +155,15 @@ class Serializable(ABC):
 class Field(Generic[T, D]):
     __slots__ = ('name', 'type', 'default', 'default_factory', 'read_only')
     name: str
-    type: Callable[[Any], T]
+    type: Callable[[Any], T] | None
     default: D
-    default_factory: Callable[[], D]
+    default_factory: Callable[[], D] | None
 
     def __init__(
         self,
-        type: Callable[[Any], T] = None,  # noqa
+        type: Callable[[Any], T] | None = None,  # noqa
         default: D = None,
-        default_factory: Callable[[], D] = None,
+        default_factory: Callable[[], D] | None = None,
         read_only: bool = False,
     ):
         self.type = type
@@ -208,20 +211,21 @@ class TrackInfo(Serializable, GenreMixin):
     disk: int = Field(int)                      # The disk from which this track originated (if different than album's)
     # fmt: on
 
-    @overload
-    def __init__(
-        self,
-        album: AlbumInfo,
-        *,
-        title: str = None,
-        artist: str = None,
-        num: int = None,
-        genre: StrOrStrs = None,
-        rating: int = None,
-        name: str = None,
-        disk: int = None,
-    ):
-        ...
+    if TYPE_CHECKING:
+
+        @overload
+        def __init__(  # noqa
+            self,
+            album: AlbumInfo,
+            *,
+            title: str = None,
+            artist: str = None,
+            num: int = None,
+            genre: StrOrStrs = None,
+            rating: int = None,
+            name: str = None,
+            disk: int = None,
+        ): ...
 
     def __init__(self, album: AlbumInfo, **kwargs):
         self.album = album
@@ -262,6 +266,8 @@ class TrackInfo(Serializable, GenreMixin):
         for path, track_info in self.album.tracks.items():
             if track_info is self:
                 return Path(path)
+
+        raise AttributeError(f'Unable to find a file matching this track in {self.album}')
 
     @cached_property
     def mp4(self) -> bool:
@@ -329,7 +335,7 @@ class TrackInfo(Serializable, GenreMixin):
 
         if disk := self.disk or self.album.disk:
             try:
-                disk = int(disk)
+                disk = int(disk)  # noqa
             except (TypeError, ValueError):
                 disk = 1
         else:
@@ -352,7 +358,10 @@ TrackMap = dict[str, TrackInfo]
 
 class AlbumInfo(Serializable, GenreMixin):
     _album_dir: AlbumDir
+
     # region Fields
+
+    # fmt: off
     title: str = Field(str)                         # Album title (tag)
     artist: str = Field(str)                        # Album artist name
 
@@ -377,6 +386,8 @@ class AlbumInfo(Serializable, GenreMixin):
     wiki_artist: str = Field(str)                   # URL of the Wiki page that this album's artist matches
     kpop_gen: float = Field(float)                  # K-Pop generation
     tracks: TrackMap = Field(default_factory=dict)  # Mapping of {path: TrackInfo} for this album's tracks
+    # fmt: on
+
     # endregion
 
     def __repr__(self) -> str:
@@ -438,10 +449,12 @@ class AlbumInfo(Serializable, GenreMixin):
     @album_dir.setter
     def album_dir(self, value: AlbumDir | PathLike):
         if not isinstance(value, AlbumDir):
-            value = AlbumDir(value)
+            value: AlbumDir = AlbumDir(value)
+
         track_dirs = {Path(path).parent for path in self.tracks}
         if len(track_dirs) != 1:
             raise ValueError(f'Unable to validate path - found multiple track parent paths: {sorted(track_dirs)}')
+
         track_dir: Path = next(iter(track_dirs))
         if track_dir.samefile(value.path):
             self._album_dir = value
@@ -500,13 +513,13 @@ class AlbumInfo(Serializable, GenreMixin):
         kwargs = {key: val for key, val in data.items() if key in cls._fields and key != 'tracks'}
         self = cls(**kwargs)
         if tracks := data.get('tracks'):
-            self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}
+            self.tracks = {path: TrackInfo(self, **track) for path, track in tracks.items()}  # type: ignore
         self.name = self.name or self.title
         return self
 
     @classmethod
     def load(cls, path: PathLike) -> AlbumInfo:
-        path = Path(path)
+        path: Path = Path(path)
         if not path.is_file():
             raise ValueError(f'Invalid album info path: {path}')
         with path.open('r', encoding='utf-8') as f:
@@ -530,14 +543,12 @@ class AlbumInfo(Serializable, GenreMixin):
         if title_case:
             for key in ('title', 'artist', 'name', 'parent', 'singer'):
                 if value := data[key]:
-                    data[key] = normalize_case(value)
+                    data[key] = normalize_case(value)  # type: ignore
         return data
 
     def dump(self, path: PathLike, title_case: bool = False):
-        path = Path(path)
-        if not path.parent.exists():
-            path.parent.mkdir(parents=True)
-
+        path: Path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
         log.info(f'Dumping album info to {path}')
         with path.open('w', encoding='utf-8', newline='\n') as f:
             json.dump(self.to_dict(title_case), f, sort_keys=True, indent=4, ensure_ascii=False)
@@ -553,11 +564,13 @@ class AlbumInfo(Serializable, GenreMixin):
             raise ValueError(f'Invalid {self.__class__.__name__} for {album_dir} - missing one more more files: {e}')
 
     def get_track(self, track_identifier: PathLike | TrackInfo | SongFile) -> TrackInfo:
-        if isinstance(track_identifier, (SongFile, TrackInfo)):
-            track_identifier = track_identifier.path.as_posix()
-        elif isinstance(track_identifier, Path):
-            track_identifier = track_identifier.as_posix()
-        return self.tracks[track_identifier]
+        match track_identifier:
+            case SongFile() | TrackInfo():
+                track_identifier = track_identifier.path.as_posix()
+            case Path():
+                track_identifier = track_identifier.as_posix()
+
+        return self.tracks[track_identifier]  # type: ignore
 
     def all_common_genres(self, title_case: bool = False) -> set[str]:
         album_genres = self.get_genre_set(title_case)
@@ -576,11 +589,13 @@ class AlbumInfo(Serializable, GenreMixin):
             log.warning(f'Unable to compare the current cover image to {self.cover_path}: {e}')
             return None
 
-    def _get_new_cover(self, album_dir: AlbumDir, file_img: PILImage = None, force: bool = False) -> PILImage:
+    def _get_new_cover(
+        self, album_dir: AlbumDir, file_img: PILImage | None = None, force: bool = False
+    ) -> PILImage | None:
         if self.cover_path and (file_img or force):
             log.debug(f'Loading cover image from {self.cover_path}')
             image = open_image(self.cover_path)
-            if not force and ComparableImage(image).is_same_as(ComparableImage(file_img)):
+            if not force and ComparableImage(image).is_same_as(ComparableImage(file_img)):  # type: ignore
                 log.debug(f'The cover image for {album_dir} already matches {self.cover_path}')
                 image = None
             else:
@@ -618,7 +633,8 @@ class AlbumInfo(Serializable, GenreMixin):
     def get_new_path(self, new_base_dir: PathLike | None = None, in_place: bool = False) -> Path | None:
         if in_place and new_base_dir:
             raise ValueError(f'Bad argument combo: in_place cannot be used with {new_base_dir=}')
-        elif in_place:
+
+        if in_place:
             return self.sorter.get_sort_in_place_path()
         else:
             return self.sorter.get_new_path(new_base_dir)
@@ -629,8 +645,8 @@ class AlbumInfo(Serializable, GenreMixin):
 
     def update_and_move(
         self,
-        album_dir: AlbumDir = None,
-        dest_base_dir: Path = None,
+        album_dir: AlbumDir | None = None,
+        dest_base_dir: Path | None = None,
         dry_run: bool = False,
         no_album_move: bool = False,
         add_genre: bool = True,
@@ -640,9 +656,9 @@ class AlbumInfo(Serializable, GenreMixin):
         if not no_album_move:
             self.move_album(album_dir or self.album_dir, dest_base_dir, dry_run)
 
-    def update_tracks(self, album_dir: AlbumDir = None, dry_run: bool = False, add_genre: bool = True):
+    def update_tracks(self, album_dir: AlbumDir | None = None, dry_run: bool = False, add_genre: bool = True):
         if album_dir is None:
-            album_dir = self.album_dir
+            album_dir: AlbumDir = self.album_dir
         file_info_map = self.get_file_info_map(album_dir)
         file_tag_map = {file: info.tags() for file, info in file_info_map.items()}
         file_img = self.get_current_cover(file_info_map) if self.cover_path else None
@@ -658,9 +674,9 @@ class AlbumInfo(Serializable, GenreMixin):
 
             info.maybe_rename(file, dry_run)
 
-    def move_album(self, album_dir: AlbumDir, dest_base_dir: Path = None, dry_run: bool = False):
+    def move_album(self, album_dir: AlbumDir, dest_base_dir: Path | None = None, dry_run: bool = False):
         expected_rel_dir = self.expected_rel_dir
-        dest_base_dir = self.dest_base_dir(album_dir, dest_base_dir)
+        dest_base_dir: Path = self.dest_base_dir(album_dir, dest_base_dir)
 
         log.debug(f'Using {expected_rel_dir=}')
         expected_dir = dest_base_dir.joinpath(expected_rel_dir)
@@ -742,16 +758,16 @@ class AlbumSorter:
     def get_new_path(self, new_base_dir: PathLike | None = None, en_artist_only: bool = False) -> Path | None:
         old_album_path = self.album_info.album_dir.path
         if new_base_dir is None:
-            new_base_dir = old_album_path.parents[2]
+            new_base_dir: Path = old_album_path.parents[2]
         else:
-            new_base_dir = Path(new_base_dir).expanduser()
+            new_base_dir: Path = Path(new_base_dir).expanduser()
 
         new_album_path = new_base_dir.joinpath(self.get_expected_rel_dir(en_artist_only))
         return new_album_path if new_album_path != old_album_path else None
 
-    def get_default_base_dir(self, en_artist_only: bool = False, album_dir: AlbumDir = None) -> Path:
+    def get_default_base_dir(self, en_artist_only: bool = False, album_dir: AlbumDir | None = None) -> Path:
         if album_dir is None:
-            album_dir = self.album_info.album_dir
+            album_dir: AlbumDir = self.album_info.album_dir
         expected_parent = Path(self.get_expected_rel_dir(en_artist_only)).parent
         log.debug(f'Comparing {expected_parent=} to {album_dir.path.parent.as_posix()}')
         if album_dir.path.parent.as_posix().endswith(expected_parent.as_posix()):

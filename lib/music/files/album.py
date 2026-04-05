@@ -6,17 +6,17 @@ from __future__ import annotations
 
 import logging
 import os
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Union, Optional, Collection
+from typing import TYPE_CHECKING, Collection, Iterator, Literal, Self, overload
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
 from ds_tools.fs.paths import iter_paths
 
 from music.common.disco_entry import DiscoEntryType
 from music.common.utils import format_duration
-from .bulk_actions import remove_bad_tags, fix_song_tags
+from .bulk_actions import fix_song_tags, remove_bad_tags
 from .changes import get_common_changes
 from .cover import prepare_cover_image
 from .exceptions import InvalidAlbumDir
@@ -24,12 +24,14 @@ from .track.track import SongFile, iter_music_files
 
 if TYPE_CHECKING:
     from datetime import date
+
+    from ds_tools.fs.typing import Paths
     from PIL.Image import Image as PILImage
     from watchdog.events import FileSystemEvent
     from watchdog.observers import Observer
+
     from music.text.name import Name
     from music.typing import PathLike, Strings, StrIter
-    from ds_tools.fs.typing import Paths
     from .parsing import AlbumName
     from .track.patterns import StrsOrPatterns
     from .typing import ProgressCB
@@ -128,12 +130,16 @@ class MultiAlbumDir(ClearableCachedPropertyMixin):
 
 
 class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
+    """
+    :param path: The path to a directory that contains one album's music files
+    """
+
     __instances = {}
 
     path: Path
 
-    def __new__(cls, path: PathLike):
-        path = _normalize_init_path(path)
+    def __new__(cls, path: PathLike) -> Self:
+        path: Path = _normalize_init_path(path)
         try:
             return cls.__instances[path]
         except KeyError:
@@ -143,19 +149,13 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             contains_dirs = any(p.is_dir() for p in path.iterdir())
         except FileNotFoundError as e:
             raise InvalidAlbumDir(f"Invalid album dir - doesn't exist: {path.as_posix()}") from e
+
         if contains_dirs:
             raise InvalidAlbumDir(f'Invalid album dir - contains directories: {path.as_posix()}')
 
         cls.__instances[path] = obj = super().__new__(cls)
-        obj.path = path
+        obj.path: Path = path
         return obj
-
-    def __init__(self, path: PathLike):
-        """
-        :param path: The path to a directory that contains one album's music files
-        """
-        if not hasattr(self, 'path'):
-            self.path = path  # This would never really happen
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}({self.relative_path!r})>'
@@ -199,12 +199,12 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         return len(self.songs)
 
     def __getitem__(self, path: PathLike) -> SongFile:
-        if isinstance(path, str):
-            path = Path(path).expanduser()
+        path: Path = _normalize_path(path)
         try:
             return self.path_track_map[path]
         except KeyError:
             pass
+
         path = path.resolve()
         return self.path_track_map[path]
 
@@ -224,10 +224,12 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         for song in songs:
             song._in_album_dir = True
             song._album_dir = self
+
         try:
             songs.sort(key=lambda t: (t.disk_num, t.track_num))
         except Exception as e:
             log.debug(f'Error sorting tracks in {self}: {e}', exc_info=True)
+
         return songs
 
     @cached_property
@@ -249,12 +251,8 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             return self.path.as_posix()
 
     def move(self, dest_path: PathLike):
-        if not isinstance(dest_path, Path):
-            dest_path = Path(dest_path)
-        dest_path = dest_path.expanduser().resolve()
-
-        if not dest_path.parent.exists():
-            dest_path.parent.mkdir(parents=True)
+        dest_path: Path = _normalize_path(dest_path).resolve()
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
         if dest_path.exists():
             raise ValueError(f'Destination for {self} already exists: {dest_path}')
 
@@ -267,7 +265,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     # region Tag-based Properties
 
     @cached_property
-    def title(self) -> Optional[str]:
+    def title(self) -> str | None:
         titles = {f.album_name_cleaned_plus_and_part[0] for f in self.songs}
         title = None
         if len(titles) == 1:
@@ -315,7 +313,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         return groups
 
     @cached_property
-    def album_artist(self) -> Optional[Name]:
+    def album_artist(self) -> Name | None:
         if artists := self.album_artists:
             if len(artists) == 1:
                 return next(iter(artists))
@@ -326,7 +324,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         return None
 
     @cached_property
-    def artist(self) -> Optional[Name]:
+    def artist(self) -> Name | None:
         if (artists := self.artists) and len(artists) == 1:
             return next(iter(artists))
         return None
@@ -340,15 +338,16 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         # album is a single
         if len(self.songs) == 1 and (name := self.songs[0].title_as_album_name):
             return {name}
-        elif len(self.songs) == 2:
+
+        if len(self.songs) == 2:
             ts = sorted([(s.tag_title, s) for s in self.songs], key=lambda x: len(x[0]))
-            if ts[1][0].startswith(ts[0][0]) and '(inst' in ts[1][0] and (name := ts[0][1].title_as_album_name):
+            if ts[1][0].startswith(ts[0][0]) and '(inst' in ts[1][0] and (name := ts[0][1].title_as_album_name):  # noqa
                 return {name}
 
         return names
 
     @cached_property
-    def name(self) -> Optional[AlbumName]:
+    def name(self) -> AlbumName | None:
         if names := self.names:
             if len(names) == 1:
                 return next(iter(names))
@@ -367,13 +366,13 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
     def _album_names_from_tracks(self) -> Iterator[AlbumName]:
         for track in self.songs:
             if track.album_name:
-                yield track.album_name
+                yield track.album_name  # type: ignore
             if track.album_title_name:
-                yield track.album_title_name
+                yield track.album_title_name  # type: ignore
 
     @cached_property
     def type(self) -> DiscoEntryType:
-        return self.name.type if self.name else DiscoEntryType.UNKNOWN
+        return self.name.type if self.name else DiscoEntryType.UNKNOWN  # type: ignore
 
     @property
     def length(self) -> float:
@@ -391,7 +390,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
         return length
 
     @cached_property
-    def disk_num(self) -> Optional[int]:
+    def disk_num(self) -> int | None:
         nums = {f.disk_num for f in self.songs}
         if len(nums) == 1:
             return nums.pop()
@@ -400,7 +399,7 @@ class AlbumDir(Collection[SongFile], ClearableCachedPropertyMixin):
             return None
 
     @cached_property
-    def date(self) -> Optional[date]:
+    def date(self) -> date | None:
         try:
             dates = {f.date for f in self.songs}
         except Exception as e:
@@ -458,11 +457,19 @@ def iter_album_dirs(paths: Paths) -> Iterator[AlbumDir]:
     return _iter_albums_or_files(paths, False)
 
 
-def iter_albums_or_files(paths: Paths) -> Iterator[Union[AlbumDir, SongFile]]:
+def iter_albums_or_files(paths: Paths) -> Iterator[AlbumDir | SongFile]:
     return _iter_albums_or_files(paths, True)
 
 
-def _iter_albums_or_files(paths: Paths, allow_files: bool) -> Iterator[Union[AlbumDir, SongFile]]:
+@overload
+def _iter_albums_or_files(paths: Paths, allow_files: Literal[False]) -> Iterator[AlbumDir]: ...
+
+
+@overload
+def _iter_albums_or_files(paths: Paths, allow_files: Literal[True]) -> Iterator[AlbumDir | SongFile]: ...
+
+
+def _iter_albums_or_files(paths: Paths, allow_files: bool) -> Iterator[AlbumDir | SongFile]:
     for path in iter_paths(paths):
         if path.is_dir():
             for root, dirs, files in os.walk(path):
@@ -473,9 +480,14 @@ def _iter_albums_or_files(paths: Paths, allow_files: bool) -> Iterator[Union[Alb
 
 
 def _normalize_init_path(path: PathLike) -> Path:
-    if not isinstance(path, Path):
-        path = Path(path).expanduser().resolve()
+    path: Path = _normalize_path(path).resolve()
     return path.parent if path.is_file() else path
+
+
+def _normalize_path(path: PathLike) -> Path:
+    if isinstance(path, Path):
+        return path.expanduser()
+    return Path(path).expanduser()
 
 
 if __name__ == '__main__':

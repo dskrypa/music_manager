@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Any
+from typing import TYPE_CHECKING, Any, Mapping
 
 from ds_tools.caching.decorators import cached_property
 from ds_tools.output.prefix import LoggingPrefix
 from tk_gui import CallbackAction, button_handler, popup_error
-from tk_gui.options import GuiOptions, BoolOption
+from tk_gui.options import BoolOption, GuiOptions
 
 from music.files.album import AlbumDir
 from music.manager.update import AlbumInfo
@@ -22,7 +22,9 @@ from .base import BaseView
 
 if TYPE_CHECKING:
     from tkinter import Event
-    from tk_gui import Button, Window, ViewSpec, Layout
+
+    from tk_gui import Button, Layout, ViewSpec, Window
+
     from music.typing import AnyAlbum
     from music_gui.config import DirManager
 
@@ -59,7 +61,7 @@ class AlbumDiffView(BaseView, title='Music Manager - Album Info Diff'):
         if manually_edited and options is None:
             options = {
                 'no_album_move': True,  # Default to True for manual edits, False for wiki edits
-                'repl_genres': True,    # Manual edits expect the submitted values to be used as seen
+                'repl_genres': True,  # Manual edits expect the submitted values to be used as seen
             }
         self._options = options
         self.state_data['modified'] = True
@@ -213,10 +215,11 @@ class FullSyncDiffView(AlbumDiffView):
     def prepare_transition(
         cls,
         dir_manager: DirManager,
-        src_album: AnyAlbum = None,
-        dst_album: AnyAlbum = None,
+        src_album: AnyAlbum | None = None,
+        dst_album: AnyAlbum | None = None,
         *,
-        parent: Window = None, **kwargs
+        parent: Window = None,
+        **kwargs,
     ) -> ViewSpec | None:
         if not src_album and not (src_album := dir_manager.select_sync_src_album(dst_album, parent)):
             return None

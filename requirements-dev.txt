@@ -1,9 +1,0 @@
--e .[bpm,gui,plex_db]
-pre-commit
-
-# QoL
-ipython
-rich
-
-# Testing
-coverage

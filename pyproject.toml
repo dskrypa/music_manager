@@ -54,7 +54,8 @@ ipod = ['pypod @ git+https://github.com/dskrypa/pypod']
 gui = ['filelock', 'psutil', 'screeninfo', 'lark', 'watchdog']
 plex_db = ['paramiko', 'scp']
 plex_gui = ['FreeSimpleGUI']
-tests = ['coverage']
+docs = ['sphinx-rtd-theme', 'sphinx-paramlinks']
+dev = ['music_manager[docs,bpm,gui,plex_db]', 'pre-commit', 'ipython', 'rich', 'coverage']
 
 [tool.setuptools]
 include-package-data = true

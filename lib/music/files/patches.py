@@ -26,20 +26,23 @@ def apply_mutagen_patches():
         for attr in self._framespec:
             # so repr works during __init__
             if hasattr(self, attr.name):
-                kw.append('{}={}'.format(attr.name, tag_repr(repr(getattr(self, attr.name)))))
+                kw.append(f'{attr.name}={tag_repr(repr(getattr(self, attr.name)))}')
+
         for attr in self._optionalspec:
             if hasattr(self, attr.name):
-                kw.append('{}={}'.format(attr.name, tag_repr(repr(getattr(self, attr.name)))))
-        return '{}({})'.format(type(self).__name__, ', '.join(kw))
+                kw.append(f'{attr.name}={tag_repr(repr(getattr(self, attr.name)))}')
+
+        return f'{type(self).__name__}({", ".join(kw)})'
+
     Frame.__repr__ = _frame_repr
 
     _orig_reprs = {}
 
-    def _MP4Cover_repr(self):
-        return '{}({}, {})'.format(type(self).__name__, tag_repr(bytes(self), 10, 5), AtomDataType(self.imageformat))
+    def _MP4Cover_repr(self: MP4Cover) -> str:
+        return f'{type(self).__name__}({tag_repr(bytes(self), 10, 5)}, {AtomDataType(self.imageformat)})'
 
-    def _MP4FreeForm_repr(self):
-        return '{}({}, {})'.format(type(self).__name__, tag_repr(bytes(self), 10, 5), AtomDataType(self.dataformat))
+    def _MP4FreeForm_repr(self: MP4FreeForm) -> str:
+        return f'{type(self).__name__}({tag_repr(bytes(self), 10, 5)}, {AtomDataType(self.dataformat)})'
 
     for cls in (MP4Cover, MP4FreeForm):
         _orig_reprs[cls] = cls.__repr__

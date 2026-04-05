@@ -7,27 +7,45 @@ A WikiEntity represents an entity that is represented by a page in one or more M
 from __future__ import annotations
 
 import logging
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from itertools import chain
-from typing import Iterable, Optional, Union, Iterator, Type, Collection, Mapping, MutableMapping
+from typing import TYPE_CHECKING, Collection, Iterable, Iterator, Mapping, MutableMapping, Optional, Type, Union
 
 from ds_tools.caching.decorators import ClearableCachedPropertyMixin, cached_property
-from wiki_nodes import MediaWikiClient, WikiPage, Link, MappingNode, Template, PageMissingError
+from wiki_nodes import Link, MappingNode, MediaWikiClient, PageMissingError, Template, WikiPage
 
 from ..text.name import Name
 from .disambiguation import disambiguation_links, handle_disambiguation_candidates
 from .disco_entry import DiscoEntry
-from .exceptions import EntityTypeError, NoPagesFoundError, AmbiguousPageError, AmbiguousPagesError
-from .exceptions import NoLinkedPagesFoundError
-from .typing import WE, Pages, PageEntry, StrOrStrs
-from .utils import site_titles_map, page_name, titles_and_title_name_map, multi_site_page_map
+from .exceptions import (
+    AmbiguousPageError,
+    AmbiguousPagesError,
+    EntityTypeError,
+    NoLinkedPagesFoundError,
+    NoPagesFoundError,
+)
+from .typing import WE, PageEntry, Pages, StrOrStrs
+from .utils import multi_site_page_map, page_name, site_titles_map, titles_and_title_name_map
+
+if TYPE_CHECKING:
+    from music.typing import OptStr
 
 __all__ = ['WikiEntity', 'PersonOrGroup', 'Agency', 'SpecialEvent', 'TVSeries', 'TemplateEntity', 'EntertainmentEntity']
 log = logging.getLogger(__name__)
 DEFAULT_WIKIS = ['kpop.fandom.com', 'www.generasia.com', 'wiki.d-addicts.com', 'en.wikipedia.org']
 GROUP_CATEGORIES = ('group', 'subunits', 'duos')
 SINGER_CATEGORIES = (
-    'singer', 'actor', 'actress', 'member', 'rapper', 'lyricist', 'pianist', 'songwriter', 'births', 'male', 'kcomposer'
+    'singer',
+    'actor',
+    'actress',
+    'member',
+    'rapper',
+    'lyricist',
+    'pianist',
+    'songwriter',
+    'births',
+    'male',
+    'kcomposer',
 )
 WikiPage._ignore_category_prefixes = ('album chart usages for', 'discography article stubs')
 
@@ -39,7 +57,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     _category_classes: dict[str, Type[WE]] = {}
     _subclasses = {}
     _name: str
-    _pages: MutableMapping[str, WikiPage]
+    _pages: MutableMapping[OptStr, WikiPage]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -50,19 +68,20 @@ class WikiEntity(ClearableCachedPropertyMixin):
                 sub_classes.add(cls)
         WikiEntity._subclasses[cls] = set()
 
-    def __init__(self, name: Optional[str], pages: Pages = None):
+    def __init__(self, name: str, pages: Pages = None):
         """
         :param name: The name of this entity
         :param pages: One or more WikiPage objects
         """
-        if name is not None and not isinstance(name, str):
+        if not isinstance(name, str):  # # if name is not None and not isinstance(name, str):
             raise TypeError(f'Unexpected {name=} with {pages=}')
+
         self._name = name
         if isinstance(pages, MutableMapping):
             self._pages = pages
         elif pages:
             if isinstance(pages, str):
-                raise TypeError(f'pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
+                raise TypeError('pages must be a WikiPage, or dict of site:WikiPage, or list of WikiPage objs')
             try:
                 self._pages = {page.site: page for page in pages}  # noqa
             except (TypeError, AttributeError):
@@ -100,7 +119,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     def pages(self) -> Iterator[WikiPage]:
         yield from self._pages.values()
 
-    def page_parsers(self, method: str = None) -> Iterator[tuple[WikiPage, WikiParser]]:
+    def page_parsers(self, method: OptStr = None) -> Iterator[tuple[WikiPage, WikiParser]]:
         for site, page in sorted(self._pages.items(), key=_site_page_key):
             if parser := WikiParser.for_site(site, method):
                 yield page, parser
@@ -112,9 +131,9 @@ class WikiEntity(ClearableCachedPropertyMixin):
         cls: Type[WE],
         obj: PageEntry,
         existing: WE = None,
-        name: Name = None,
+        name: Name | None = None,
         prompt: bool = True,
-        visited: set[Link] = None,
+        visited: set[Link] | None = None,
     ) -> tuple[Type[WE], PageEntry]:
         """
         :param WikiPage|DiscoEntry obj: A WikiPage or DiscoEntry to be validated against this class's categories
@@ -126,7 +145,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         :return tuple: Tuple of (WikiEntity subclass, page/entry)
         """
         if visited is None:
-            visited = set()
+            visited: set[Link] = set()
 
         if isinstance(obj, WikiPage):
             if obj.is_disambiguation:
@@ -162,10 +181,10 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _handle_disambiguation_link(
-        cls, link: Link, existing: Optional[WE], name: Optional[Name], prompt, visited: set[Link] = None
+        cls, link: Link, existing: WE | None, name: Name | None, prompt, visited: set[Link] | None = None
     ) -> tuple[Type[WE], PageEntry]:
         if visited is None:
-            visited = set()
+            visited: set[Link] = set()
         visited.add(link)
         mw_client, title = link.client_and_title
         return cls._validate(mw_client.get_page(title), existing, name, prompt, visited)
@@ -175,9 +194,9 @@ class WikiEntity(ClearableCachedPropertyMixin):
         cls: Type[WE],
         page: WikiPage,
         existing: WE = None,
-        name: Name = None,
+        name: Name | None = None,
         prompt: bool = True,
-        visited: set[Link] = None,
+        visited: set[Link] | None = None,
     ) -> tuple[Type[WE], WikiPage]:
         """
         :param page: A disambiguation page
@@ -191,7 +210,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         if not (links := disambiguation_links(page)):
             raise AmbiguousPageError(page_name(page), page, links)
 
-        client, title_link_map = next(iter(site_titles_map(links).items()))     # type: MediaWikiClient, dict[str, Link]
+        client, title_link_map = next(iter(site_titles_map(links).items()))  # type: MediaWikiClient, dict[str, Link]
         candidates = {}
         for title, _page in client.get_pages(title_link_map).items():
             link = title_link_map[title]
@@ -210,7 +229,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
     # region Alternate Constructors
 
     @classmethod
-    def _by_category(cls: Type[WE], obj: PageEntry, name: Name = None, *args, **kwargs) -> WE:
+    def _by_category(cls: Type[WE], obj: PageEntry, name: Name | None = None, *args, **kwargs) -> WE:
         cat_cls, obj = cls._validate(obj, name=name)
         if isinstance(obj, DiscoEntry):
             entity_name, page = obj.title, None
@@ -224,13 +243,18 @@ class WikiEntity(ClearableCachedPropertyMixin):
 
     @classmethod
     def _from_multi_site_pages(
-        cls: Type[WE], pages: Collection[WikiPage], name: Name = None, strict: int = 2, entity: WE = None, **kwargs
+        cls: Type[WE],
+        pages: Collection[WikiPage],
+        name: Name | None = None,
+        strict: int = 2,
+        entity: WE | None = None,
+        **kwargs,
     ) -> WE:
         # log.debug(f'Processing {len(pages)} multi-site pages')
         page_link_map = {}
         type_errors = 0
         _name = name
-        for page in sorted(pages):      # Sort so disambiguation pages are handled after proper matches
+        for page in sorted(pages):  # Sort so disambiguation pages are handled after proper matches
             try:
                 cat_cls, page = cls._validate(page, entity, name)
             except AmbiguousPageError as e:
@@ -271,7 +295,7 @@ class WikiEntity(ClearableCachedPropertyMixin):
         sites: StrOrStrs = None,
         search: bool = True,
         research: bool = False,
-        name: Name = None,
+        name: Name | None = None,
         strict: int = 2,
         **kwargs,
     ) -> WE:
@@ -510,6 +534,7 @@ class EntityClassifier:
 
 class EntertainmentEntity(WikiEntity):
     """An entity that may be related to the entertainment industry in some way.  Used to filter out irrelevant pages."""
+
     __slots__ = ()
     _categories = ()
 
@@ -537,7 +562,7 @@ class PersonOrGroup(EntertainmentEntity):
         :param iterable sites: A list or other iterable that yields site host strings
         :return: The PersonOrGroup (or subclass thereof) matching the given criteria
         """
-        pass    # TODO: implement
+        pass  # TODO: implement
 
 
 class Agency(PersonOrGroup):

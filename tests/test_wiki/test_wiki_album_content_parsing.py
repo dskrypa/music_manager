@@ -2,13 +2,14 @@
 
 from datetime import date
 from pathlib import Path
-from unittest.mock import Mock
 from typing import Collection
+from unittest.mock import Mock, patch
 
 from wiki_nodes import WikiPage, as_node
 
 from music.test_common import NameTestCaseBase, main
-from music.wiki.album import DiscographyEntry, Soundtrack, Album
+from music.wiki.album import Album, DiscographyEntry, Soundtrack
+from music.wiki.artist import Artist
 from music.wiki.parsing.kpop_fandom import KpopFandomParser
 from music.wiki.parsing.wikipedia import EditionFinder as WikipediaEditionFinder
 
@@ -27,11 +28,11 @@ class PageContentTest(NameTestCaseBase):
     _interwiki_map: dict[str, str]
     root: Mock
 
-    def _get_page(self, title: str, categories: Collection[str] = None) -> WikiPage:
+    def _get_page(self, title: str, categories: Collection[str] = ()) -> WikiPage:
         data = get_data(title.replace(' ', '_'))
         return WikiPage(title, self._site, data, categories=categories, interwiki_map=self._interwiki_map)
 
-    def _get_disco_entry(self, title: str, categories: Collection[str] = None) -> DiscographyEntry:
+    def _get_disco_entry(self, title: str, categories: Collection[str] = ()) -> DiscographyEntry:
         return DiscographyEntry.from_page(self._get_page(title, categories))
 
 
@@ -78,11 +79,14 @@ class WikipediaPageContentTest(PageContentTest):
             'Beautiful Garbage (20th Anniversary Edition + Bonus Vinyl)',
         ]
         self.assertListEqual(expected_names, [ed.full_name() for ed in album.editions])
-        self.assertEqual(1, len(album.editions[0].parts))  # Standard
-        self.assertEqual(1, len(album.editions[1].parts))  # International
-        self.assertEqual(1, len(album.editions[2].parts))  # Japanese
-        self.assertEqual(4, len(album.editions[3].parts))  # 20th Anniversary Edition
-        self.assertEqual(5, len(album.editions[4].parts))  # 20th Anniversary Edition + bonus vinyl
+
+        link_artist_map = {as_node('[[Garbage (band)|Garbage]]'): Artist('Garbage')}
+        with patch.object(Artist, 'from_links', return_value=link_artist_map):
+            self.assertEqual(1, len(album.editions[0].parts))  # Standard
+            self.assertEqual(1, len(album.editions[1].parts))  # International
+            self.assertEqual(1, len(album.editions[2].parts))  # Japanese
+            self.assertEqual(4, len(album.editions[3].parts))  # 20th Anniversary Edition
+            self.assertEqual(5, len(album.editions[4].parts))  # 20th Anniversary Edition + bonus vinyl
 
     def test_parse_start_date_template(self):
         page = Mock(infobox={'released': as_node('{{Start date|2021|03|19|df=yes}}')})

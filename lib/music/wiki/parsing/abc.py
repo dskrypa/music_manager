@@ -8,14 +8,15 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Iterator, Optional
 
-from wiki_nodes import MediaWikiClient, WikiPage, Link
+from wiki_nodes import Link, MediaWikiClient, WikiPage
 from wiki_nodes.nodes import N
 
 from music.text.name import Name
 
 if TYPE_CHECKING:
-    from ..base import TVSeries
+    from ...typing import OptStr
     from ..album import DiscographyEntry, DiscographyEntryEdition, DiscographyEntryPart
+    from ..base import TVSeries
     from ..discography import DiscographyEntryFinder
 
 __all__ = ['WikiParser']
@@ -29,7 +30,7 @@ class WikiParser(ABC):
     _domain_parsers = {}
     client = None
 
-    def __init_subclass__(cls, site: str, domain: Optional[str] = None, **kwargs):  # noqa
+    def __init_subclass__(cls, site: str, domain: OptStr = None, **kwargs):  # noqa
         super().__init_subclass__(**kwargs)
         cls._site_parsers[site] = cls
         if domain:
@@ -37,9 +38,12 @@ class WikiParser(ABC):
         cls.client = MediaWikiClient(site)
 
     @classmethod
-    def for_site(cls, site: str, method: Optional[str] = None) -> Optional[WikiParser]:
+    def for_site(cls, site: OptStr, method: OptStr = None) -> WikiParser | None:
+        if site is None:
+            return None
+
         if not (parser := cls._site_parsers.get(site)):
-            parser = next((p for domain, p, in cls._domain_parsers.items() if site.endswith(domain)), None)
+            parser = next((p for domain, p in cls._domain_parsers.items() if site.endswith(domain)), None)
 
         if parser:
             parser = parser()
@@ -52,6 +56,7 @@ class WikiParser(ABC):
             else:
                 if len(co_names) == 1 and 'NotImplementedError' in co_names:
                     return None
+
         return parser
 
     @classmethod

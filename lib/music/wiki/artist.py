@@ -7,16 +7,14 @@ Artist wiki pages.
 from __future__ import annotations
 
 import logging
-
 from itertools import chain
 from typing import MutableSet, Optional, Union
 
+from ds_tools.caching.decorators import cached_property
 from ordered_set import OrderedSet
 
-from ds_tools.caching.decorators import cached_property
-
 from ..text.name import Name
-from .base import PersonOrGroup, GROUP_CATEGORIES, SINGER_CATEGORIES
+from .base import GROUP_CATEGORIES, SINGER_CATEGORIES, PersonOrGroup
 from .discography import DiscographyEntryFinder, DiscographyMixin
 from .parsing.utils import LANGUAGES
 
@@ -43,9 +41,10 @@ class Artist(PersonOrGroup, DiscographyMixin):
     @cached_property
     def name(self) -> Name:
         if not (names := self.names):
-            raise AttributeError(f'This {self.__class__.__name__} has no \'name\' attribute')
+            raise AttributeError(f"This {self.__class__.__name__} has no 'name' attribute")
         elif len(names) == 1:
             return next(iter(names))
+
         _name = self._name.lower()
         candidate = None
         for name in names:
@@ -58,7 +57,7 @@ class Artist(PersonOrGroup, DiscographyMixin):
 
     @cached_property
     def names(self) -> MutableSet[Name]:
-        names = OrderedSet()                                                # type: MutableSet[Name]
+        names = OrderedSet()  # type: MutableSet[Name]
         for artist_page, parser in self.page_parsers('parse_artist_name'):
             # log.debug(f'Processing names from {artist_page}')
             try:
@@ -119,9 +118,9 @@ class Singer(Artist):
 
     @cached_property
     def groups(self) -> list[Group]:
-        links = set(chain.from_iterable(
-            parser.parse_member_of(page) for page, parser in self.page_parsers('parse_member_of')
-        ))
+        links = set(
+            chain.from_iterable(parser.parse_member_of(page) for page, parser in self.page_parsers('parse_member_of'))
+        )
         log.debug(f'Found group links for {self}: {links}')
         return sorted(Group.from_links(links).values())
 

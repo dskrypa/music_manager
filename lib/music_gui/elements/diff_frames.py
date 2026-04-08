@@ -9,6 +9,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
+from ds_tools.fs.paths import path_repr
 from tk_gui.elements import CheckBox, Element, EventButton, HorizontalSeparator, ListBox, Spacer, Text
 from tk_gui.elements.frame import BasicRowFrame, Frame, InteractiveFrame, InteractiveScrollFrame
 from tk_gui.elements.rating import Rating
@@ -125,9 +126,10 @@ class AlbumDiffFrame(InteractiveScrollFrame):
     @cached_property
     def path_diff_eles(self) -> tuple[Frame, BasicRowFrame]:
         # Used by AlbumDiffView to toggle visibility when options change.
-        old_path, new_path = self.album_dir.path, self.new_album_path
-        show_change = new_path and new_path != old_path
-        split = max(len(p.as_posix() if p else '') for p in self._potential_paths.values()) >= 50
+        old_path = path_repr(self.album_dir.path)
+        new_path = path_repr(self.new_album_path) if self.new_album_path else old_path  # noqa
+        show_change = new_path != old_path
+        split = max(len(path_repr(p) if p else '') for p in self._potential_paths.values()) >= 50
 
         dir_change_ele = Frame(get_a_to_b('Album Path:', old_path, new_path, split), visible=show_change, pad=(0, 0))
         no_change_row = [label_ele('Album Path:'), IText(old_path, size=(150, 1)), Text('(no change)')]

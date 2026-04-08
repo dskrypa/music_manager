@@ -12,19 +12,43 @@ This project has 2 major components:
 Both components now include a GUI.
 
 
+Usage / Workflow
+----------------
+
+Open an album:
+
+.. image:: https://raw.githubusercontent.com/dskrypa/music_manager/refs/heads/main/docs/_src/images/open_album.png
+  :alt: Screenshot of opening an album
+
+View an album:
+
+.. image:: https://raw.githubusercontent.com/dskrypa/music_manager/refs/heads/main/docs/_src/images/view_album.png
+  :alt: Screenshot of the album view
+
+View all tags:
+
+.. image:: https://raw.githubusercontent.com/dskrypa/music_manager/refs/heads/main/docs/_src/images/view_all_tags.png
+  :alt: Screenshot of the all tags view
+
+Update via Wiki Options:
+
+.. image:: https://raw.githubusercontent.com/dskrypa/music_manager/refs/heads/main/docs/_src/images/wiki_update_options.png
+  :alt: Screenshot of options available when updating via Wiki
+
+Update diff:
+
+.. image:: https://raw.githubusercontent.com/dskrypa/music_manager/refs/heads/main/docs/_src/images/wiki_update_diff.png
+  :alt: Screenshot of the tag diff when updating via Wiki
+
+View the album after applying changes:
+
+.. image:: https://raw.githubusercontent.com/dskrypa/music_manager/refs/heads/main/docs/_src/images/view_album_after.png
+  :alt: Screenshot of the album view after applying changes
+
+
 Installation
 ------------
 
-If installing on Linux, you should run the following first::
-
-    $ sudo apt-get install python3-dev
-
-
-Regardless of OS, setuptools is required (it should already be present in most cases)::
-
-    $ pip install setuptools
-
-
-All of the other requirements are handled in setup.py, which will be run when you install like this::
+This package can be installed and updated via `pip <https://pip.pypa.io/en/stable/getting-started/>`__::
 
     $ pip install git+https://github.com/dskrypa/music_manager
